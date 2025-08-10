@@ -45,12 +45,13 @@ enum Commands {
 async fn main() {
 
   // Get the config from the file
-  let config: Result<Config, confy::ConfyError> = confy::load(APP_CONFIGURATION_NAME, APP_CONFIGURATION_FILE);
-  if let Err(err) = config {
-    eprintln!("Error while reading configuration file!\n{}", err);
-    std::process::exit(1);
-  }
-  let mut config: Config = config.ok().unwrap();
+  let mut config: Config = match confy::load(APP_CONFIGURATION_NAME, APP_CONFIGURATION_FILE) {
+    Ok(c) => c,
+    Err(e) => {
+      eprintln!("Error while reading configuration file!\n{}", e);
+      std::process::exit(1);
+    }
+  };
   
   // Read the user commands
   let cli: Cli = Cli::parse();
@@ -58,9 +59,8 @@ async fn main() {
   // To authenticate, check if the key is valid and save it to the config
   if let Commands::Auth { api_key } = cli.command {
     // Check if the Itch.io API key is valid. If not, exit.
-    let is_valid: Result<(), String> = scratch_io::verify_api_key(&api_key).await;
-    if is_valid.is_err() {
-      eprintln!("Error while validating key:\n{}", is_valid.err().unwrap());
+    if let Err(e) = scratch_io::verify_api_key(&api_key).await {
+      eprintln!("Error while validating key:\n{}", e);
       std::process::exit(1);
     }
     
@@ -68,9 +68,8 @@ async fn main() {
     config.api_key = Some(api_key);
     
     // Save the valid key to the config file
-    let save_result: Result<(), confy::ConfyError> = confy::store(APP_CONFIGURATION_NAME, APP_CONFIGURATION_FILE, config);
-    if save_result.is_err() {
-      eprintln!("Error while saving config:\n{}", save_result.err().unwrap());
+    if let Err(e) = confy::store(APP_CONFIGURATION_NAME, APP_CONFIGURATION_FILE, config) {
+      eprintln!("Error while saving config:\n{}", e);
       std::process::exit(1);
     }
     
@@ -85,26 +84,17 @@ async fn main() {
   // 1. If --api-key is set, then that key
   // 2. If not, then the saved config
   // 3. If there isn't a saved config, throw an error
-  let api_key: String = if cli.api_key.is_none() {
-    if config.api_key.is_none() {
+  let api_key: String = cli.api_key.unwrap_or(
+    config.api_key.unwrap_or_else(|| {
       eprintln!("Error: an Itch.io API key is required, either via --api-key or the auth command.");
       std::process::exit(1);
-    }
-    else {
-      config.api_key.unwrap()
-    }
-  }
-  else {
-    cli.api_key.unwrap()
-  };
+    })
+  );
 
   // Verify the key
-  {
-    let is_valid: Result<(), String> = scratch_io::verify_api_key(&api_key).await;
-    if is_valid.is_err() {
-      eprintln!("Error while validating key:\n{}", is_valid.err().unwrap());
-      std::process::exit(1);
-    }
+  if let Err(e) = scratch_io::verify_api_key(&api_key).await {
+    eprintln!("Error while validating key:\n{}", e);
+    std::process::exit(1);
   }
 
   /**** COMMANDS ****/
@@ -112,33 +102,36 @@ async fn main() {
   match cli.command {
     Commands::Auth { api_key: _ } => {
       panic!("Already checked if the command is Auth! The other check should have exited. This should NEVER happen!");
-    }
+    },
     Commands::Game { id } => {
-      let game_info: Result<scratch_io::itch_types::Game, String> = scratch_io::get_game_info(api_key, id).await;
-      if game_info.is_err() {
-        eprintln!("Error while getting game info:\n{}", game_info.err().unwrap());
-        std::process::exit(1);
-      }
-      let game_info: scratch_io::itch_types::Game = game_info.ok().unwrap();
+      let game_info: scratch_io::itch_types::Game = match scratch_io::get_game_info(&api_key, id).await {
+        Ok(info) => info,
+        Err(e) => {
+          eprintln!("Error while getting game info:\n{}", e);
+          std::process::exit(1);
+        },
+      };
 
-      println!("Id: {}
+      println!("\
+Id: {}
 Game: {}
   Description:  {}
   URL:  {}
+  Cover URL:  {}
   Classification: {}
   Type: {}
-  Cover URL:  {}
   Published at: {}
-  Created at:   {}",
-      game_info.id,
-      game_info.title,
-      game_info.short_text.unwrap_or(String::from("None")),
-      game_info.url,
-      game_info.classification.unwrap_or(String::from("None")),
-      game_info.r#type.unwrap_or(String::from("None")),
-      game_info.cover_url.unwrap_or(String::from("None")),
-      game_info.published_at.unwrap_or(String::from("None")),
-      game_info.created_at.unwrap_or(String::from("None")));
+  Created at: {}",
+        game_info.id,
+        game_info.title,
+        game_info.short_text.unwrap_or(String::new()),
+        game_info.url,
+        game_info.cover_url.unwrap_or(String::new()),
+        game_info.classification,
+        game_info.r#type,
+        game_info.published_at.unwrap_or(String::new()),
+        game_info.created_at.unwrap_or(String::new())
+      );
     }
   }
 }
