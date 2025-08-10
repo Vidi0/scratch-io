@@ -1,6 +1,7 @@
 use serde::{Deserialize};
 use serde::de::{self, Deserializer, Visitor, SeqAccess};
 use std::marker::PhantomData;
+use std::fmt;
 
 fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error> where
   D: Deserializer<'de>,
@@ -13,7 +14,7 @@ fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error> w
   {
     type Value = Vec<T>;
 
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
       formatter.write_str("an array or an empty object")
     }
 
@@ -52,7 +53,7 @@ fn deserialize_option_vec<'de, D, T>(deserializer: D) -> Result<Option<Vec<T>>, 
   {
     type Value = Option<Vec<T>>;
 
-    fn expecting(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
       fmt.write_str("an optional list—or an empty object—as a fallback")
     }
 
@@ -81,7 +82,6 @@ fn deserialize_option_vec<'de, D, T>(deserializer: D) -> Result<Option<Vec<T>>, 
 
 
 #[derive(Deserialize)]
-#[allow(dead_code)]
 pub struct User {
   pub id: u64,
   pub username: String,
@@ -95,16 +95,6 @@ pub struct User {
 }
 
 #[derive(Deserialize)]
-#[allow(dead_code)]
-pub struct Sale {
-  pub id: u64,
-  pub rate: f64,
-  pub end_date: String,
-  pub start_date: String,
-}
-
-#[derive(Deserialize)]
-#[allow(dead_code)]
 pub struct GameEmbedData {
   pub height: u64,
   pub width: u64,
@@ -112,40 +102,148 @@ pub struct GameEmbedData {
 }
 
 #[derive(Deserialize)]
-#[allow(dead_code)]
+pub enum Trait {
+  #[serde(rename = "p_linux")]
+  PLinux,
+  #[serde(rename = "p_windows")]
+  PWindows,
+  #[serde(rename = "p_osx")]
+  POSX,
+  #[serde(rename = "can_be_bought")]
+  CanBeBought,
+  #[serde(rename = "has_demo")]
+  HasDemo,
+  #[serde(rename = "in_press_system")]
+  InPressSystem,
+}
+
+impl Trait {
+  fn to_string(&self) -> String {
+    match self {
+      Trait::PLinux => "p_linux",
+      Trait::PWindows => "p_windows",
+      Trait::POSX => "p_osx",
+      Trait::CanBeBought => "can_be_bought",
+      Trait::HasDemo => "has_demo",
+      Trait::InPressSystem => "in_press_system",
+    }.to_string()
+  }
+}
+
+impl fmt::Display for Trait {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", self.to_string())
+  }
+}
+
+#[derive(Deserialize)]
+pub enum Classification {
+  #[serde(rename = "game")]
+  Game,
+  #[serde(rename = "assets")]
+  Assets,
+  #[serde(rename = "game_mod")]
+  GameMod,
+  #[serde(rename = "physical_game")]
+  PhysicalGame,
+  #[serde(rename = "soundtrack")]
+  Soundtrack,
+  #[serde(rename = "tool")]
+  Tool,
+  #[serde(rename = "comic")]
+  Comic,
+  #[serde(rename = "book")]
+  Book,
+  #[serde(rename = "other")]
+  Other,
+}
+
+impl Classification {
+  fn to_string(&self) -> String {
+    match self {
+      Classification::Game => "game",
+      Classification::Assets => "assets",
+      Classification::GameMod => "game_mod",
+      Classification::PhysicalGame => "physical_game",
+      Classification::Soundtrack => "soundtrack",
+      Classification::Tool => "tool",
+      Classification::Comic => "comic",
+      Classification::Book => "book",
+      Classification::Other => "other",
+    }.to_string()
+  }
+}
+
+impl fmt::Display for Classification {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", self.to_string())
+  }
+}
+
+#[derive(Deserialize)]
+pub enum Type {
+  #[serde(rename = "default")]
+  Default,
+  #[serde(rename = "html")]
+  HTML,
+  #[serde(rename = "flash")]
+  Flash,
+  #[serde(rename = "java")]
+  Java,
+  #[serde(rename = "unity")]
+  Unity,
+}
+
+impl Type {
+  fn to_string(&self) -> String {
+    match self {
+      Type::Default => "default",
+      Type::HTML => "html",
+      Type::Flash => "flash",
+      Type::Java => "java",
+      Type::Unity => "unity",
+    }.to_string()
+  }
+}
+
+impl fmt::Display for Type {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", self.to_string())
+  }
+}
+
+#[derive(Deserialize)]
 pub struct Game {
   pub id: u64,
   pub url: String,
   pub title: String,
   pub short_text: Option<String>,
-  pub r#type: String,
-  pub classification: String,
+  pub r#type: Type,
+  pub classification: Classification,
   pub embed: Option<GameEmbedData>,
   pub cover_url: Option<String>,
   pub published_at: Option<String>,
   pub created_at: Option<String>,
   pub min_price: Option<u64>,
   pub user: Option<User>,
-  #[serde(deserialize_with = "deserialize_option_vec")]
-  pub traits: Option<Vec<String>>,
-  pub sale: Option<Sale>,
+  #[serde(deserialize_with = "empty_object_as_vec")]
+  pub traits: Vec<Trait>,
 }
 
 #[derive(Deserialize)]
-#[allow(dead_code)]
 pub struct GameUpload {
+  pub position: u64,
   pub id: u64,
   pub game_id: u64,
   pub size: u64,
-  pub r#type: String,
+  pub r#type: Type,
+  #[serde(deserialize_with = "empty_object_as_vec")]
+  pub traits: Vec<Trait>,
+  pub filename: String,
+  pub storage: String,
   pub updated_at: Option<String>,
   pub created_at: Option<String>,
-  pub position: u64,
   pub md5_hash: Option<String>,
-  pub filename: String,
-  #[serde(deserialize_with = "deserialize_option_vec")]
-  pub traits: Option<Vec<String>>,
-  pub storage: String,
 }
 
 #[derive(Deserialize)]

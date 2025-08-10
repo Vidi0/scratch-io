@@ -90,9 +90,10 @@ pub async fn get_game_uploads(api_key: &str, game_id: u64) -> Result<Vec<itch_ty
 /// # Arguments
 /// 
 /// * `uploads` - The list of uploads to search for the web version
+#[allow(dead_code)]
 fn get_uploads_web_game_url(uploads: Vec<itch_types::GameUpload>) -> Option<String> {
   for upload in uploads.iter() {
-    if upload.r#type == "html" {
+    if let itch_types::Type::HTML = upload.r#type {
       return Some(get_web_game_url(upload.id));
     }
   }
