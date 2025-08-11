@@ -118,6 +118,7 @@ Game: {}
   Description:  {}
   URL:  {}
   Cover URL:  {}
+  Price:  {}
   Classification: {}
   Type: {}
   Published at: {}
@@ -127,6 +128,12 @@ Game: {}
         game_info.short_text.unwrap_or(String::new()),
         game_info.url,
         game_info.cover_url.unwrap_or(String::new()),
+        match game_info.min_price {
+          None => String::new(),
+          Some(p) => {
+            if p <= 0 { String::from("Free") } else { String::from("Paid") }
+          }
+        },
         game_info.classification,
         game_info.r#type,
         game_info.published_at.unwrap_or(String::new()),

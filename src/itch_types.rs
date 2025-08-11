@@ -42,6 +42,7 @@ fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error> w
   deserializer.deserialize_any(Helper(PhantomData))
 }
 
+#[allow(dead_code)]
 fn deserialize_option_vec<'de, D, T>(deserializer: D) -> Result<Option<Vec<T>>, D::Error> where
   D: Deserializer<'de>,
   T: Deserialize<'de>,
