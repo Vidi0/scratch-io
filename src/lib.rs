@@ -85,6 +85,11 @@ pub async fn get_game_uploads(api_key: &str, game_id: u64) -> Result<Vec<itch_ty
   }
 }
 
+/// Lists the collections of games of the user
+/// 
+/// # Arguments
+/// 
+/// * `api_key` - A valid Itch.io API key to make the request
 pub async fn get_collections(api_key: &str) -> Result<Vec<itch_types::Collection>, String> {
 
   let client: reqwest::Client = reqwest::Client::new();
@@ -107,6 +112,13 @@ pub async fn get_collections(api_key: &str) -> Result<Vec<itch_types::Collection
   }
 }
 
+/// Lists the games inside a collection
+/// 
+/// # Arguments
+/// 
+/// * `api_key` - A valid Itch.io API key to make the request
+/// 
+/// * `collection_id` - The ID of the collection from which the games will be retrieved 
 pub async fn get_collection_games(api_key: &str, collection_id: u64) -> Result<Vec<itch_types::CollectionGame>, String> {
 
   let client: reqwest::Client = reqwest::Client::new();
