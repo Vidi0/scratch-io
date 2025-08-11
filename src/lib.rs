@@ -132,9 +132,13 @@ pub async fn get_collection_games(api_key: &str, collection_id: u64) -> Result<V
         ))
     };
 
+    let num_games: u64 = collection_games.len() as u64;
     games.append(&mut collection_games);
+    // Warning!!!
+    // collection_games was merged into games, but it WAS NOT dropped!
+    // Its length is still accessible, but this doesn't make sense!
     
-    if (collection_games.len() as u64) < per_page || collection_games.is_empty() {
+    if num_games < per_page || num_games == 0 {
       break;
     }
     page += 1;
