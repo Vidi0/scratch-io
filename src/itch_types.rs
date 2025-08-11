@@ -226,9 +226,47 @@ pub struct Game {
   pub created_at: String,
   pub published_at: Option<String>,
   pub min_price: Option<u64>,
-  pub user: User,
+  pub user: Option<User>,
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub traits: Vec<Trait>,
+}
+
+impl Game {
+  fn to_string(&self) -> String {
+    format!("\
+Id: {}
+Game: {}
+  Description:  {}
+  URL:  {}
+  Cover URL:  {}
+  Price:  {}
+  Classification: {}
+  Type: {}
+  Published at: {}
+  Created at: {}",
+      self.id,
+      self.title,
+      self.short_text.clone().unwrap_or(String::new()),
+      self.url,
+      self.cover_url.clone().unwrap_or(String::new()),
+      match self.min_price {
+        None => String::new(),
+        Some(p) => {
+          if p <= 0 { String::from("Free") } else { String::from("Paid") }
+        }
+      },
+      self.classification,
+      self.r#type,
+      self.created_at,
+      self.published_at.clone().unwrap_or(String::new())
+    )
+  }
+}
+
+impl fmt::Display for Game {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", self.to_string())
+  }
 }
 
 #[derive(Deserialize)]
@@ -248,12 +286,66 @@ pub struct GameUpload {
 }
 
 #[derive(Deserialize)]
+pub struct Collection {
+  pub id: u64,
+  pub title: String,
+  pub games_count: u64,
+  pub created_at: String,
+  pub updated_at: String,
+}
+
+impl Collection {
+  fn to_string(&self) -> String {
+    format!("\
+Id: {}
+Name: {}
+  Games count:  {}
+  Created at: {}
+  Updated at: {}",
+      self.id,
+      self.title,
+      self.games_count,
+      self.created_at,
+      self.updated_at
+    )
+  }
+}
+
+impl fmt::Display for Collection {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", self.to_string())
+  }
+}
+
+#[derive(Deserialize)]
+pub struct CollectionGame {
+  pub game: Game,
+  pub position: u64,
+  pub user_id: u64,
+  pub created_at: String,
+}
+
+impl CollectionGame {
+  fn to_string(&self) -> String {
+    format!("\
+Position: {}
+{}",
+      self.position,
+      self.game,
+    )
+  }
+}
+
+impl fmt::Display for CollectionGame {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", self.to_string())
+  }
+}
+
+#[derive(Deserialize)]
 #[serde(untagged)]
-pub enum GameUploadsResponse {
-  Success {
-    #[serde(deserialize_with = "empty_object_as_vec")]
-    uploads: Vec<GameUpload>
-  },
+pub enum VerifyAPIKeyResponse {
+  Success { r#type: String },
   Error {
     #[serde(deserialize_with = "empty_object_as_vec")]
     errors: Vec<String>
@@ -272,8 +364,39 @@ pub enum GameInfoResponse {
 
 #[derive(Deserialize)]
 #[serde(untagged)]
-pub enum VerifyAPIKeyResponse {
-  Success { r#type: String },
+pub enum GameUploadsResponse {
+  Success {
+    #[serde(deserialize_with = "empty_object_as_vec")]
+    uploads: Vec<GameUpload>
+  },
+  Error {
+    #[serde(deserialize_with = "empty_object_as_vec")]
+    errors: Vec<String>
+  },
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum CollectionsResponse {
+  Success {
+    #[serde(deserialize_with = "empty_object_as_vec")]
+    collections: Vec<Collection>
+  },
+  Error {
+    #[serde(deserialize_with = "empty_object_as_vec")]
+    errors: Vec<String>
+  },
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum CollectionGamesResponse {
+  Success {
+    page: u64,
+    per_page: u64,
+    #[serde(deserialize_with = "empty_object_as_vec")]
+    collection_games: Vec<CollectionGame>,
+  },
   Error {
     #[serde(deserialize_with = "empty_object_as_vec")]
     errors: Vec<String>

@@ -33,12 +33,59 @@ struct Cli {
 enum Commands {
   /// Save an API key to use in the other commands
   Auth {
+    /// The API key to save
     api_key: String,
   },
   /// Retrieve information about a game given its ID
   Game {
+    /// The ID of the game to retrieve information about
     id: u64,
   },
+  /// List the collections of the profile, or the games of the collection
+  Collections {
+    /// If an ID is provided, list the games in its collection.
+    id: Option<u64>,
+  }
+}
+
+async fn print_game_info(api_key: &str, game_id: u64) {
+  let game_info: scratch_io::itch_types::Game = match scratch_io::get_game_info(&api_key, game_id).await {
+    Ok(info) => info,
+    Err(e) => {
+      eprintln!("Error while getting game info:\n{}", e);
+      std::process::exit(1);
+    },
+  };
+
+  println!("{game_info}");
+}
+
+async fn print_collections(api_key: &str) {
+  let collections: Vec<scratch_io::itch_types::Collection> = match scratch_io::get_collections(&api_key).await {
+    Ok(col) => col,
+    Err(e) => {
+      eprintln!("Error while getting collections:\n{}", e);
+      std::process::exit(1);
+    },
+  };
+
+  for col in collections.iter() {
+    println!("{col}");
+  }
+}
+
+async fn print_collection_games(api_key: &str, collection_id: u64) {
+  let games: Vec<scratch_io::itch_types::CollectionGame> = match scratch_io::get_collection_games(&api_key, collection_id).await {
+    Ok(g) => g,
+    Err(e) => {
+      eprintln!("Error while getting the collection's games:\n{}", e);
+      std::process::exit(1);
+    },
+  };
+
+  for cg in games {
+  println!("{cg}");
+  }
 }
 
 #[tokio::main]
@@ -104,41 +151,13 @@ async fn main() {
       panic!("Already checked if the command is Auth! The other check should have exited. This should NEVER happen!");
     },
     Commands::Game { id } => {
-      let game_info: scratch_io::itch_types::Game = match scratch_io::get_game_info(&api_key, id).await {
-        Ok(info) => info,
-        Err(e) => {
-          eprintln!("Error while getting game info:\n{}", e);
-          std::process::exit(1);
-        },
-      };
-
-      println!("\
-Id: {}
-Game: {}
-  Description:  {}
-  URL:  {}
-  Cover URL:  {}
-  Price:  {}
-  Classification: {}
-  Type: {}
-  Published at: {}
-  Created at: {}",
-        game_info.id,
-        game_info.title,
-        game_info.short_text.unwrap_or(String::new()),
-        game_info.url,
-        game_info.cover_url.unwrap_or(String::new()),
-        match game_info.min_price {
-          None => String::new(),
-          Some(p) => {
-            if p <= 0 { String::from("Free") } else { String::from("Paid") }
-          }
-        },
-        game_info.classification,
-        game_info.r#type,
-        game_info.created_at,
-        game_info.published_at.unwrap_or(String::new())
-      );
+      print_game_info(&api_key, id).await;
+    },
+    Commands::Collections { id } => {
+      match id {
+        None => print_collections(&api_key).await,
+        Some(id) => print_collection_games(&api_key, id).await,
+      }
     }
   }
 }

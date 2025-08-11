@@ -85,6 +85,64 @@ pub async fn get_game_uploads(api_key: &str, game_id: u64) -> Result<Vec<itch_ty
   }
 }
 
+pub async fn get_collections(api_key: &str) -> Result<Vec<itch_types::Collection>, String> {
+
+  let client: reqwest::Client = reqwest::Client::new();
+
+  let response: itch_types::CollectionsResponse = client.get(format!("{ITCH_API_V2_BASE_URL}/profile/collections"))
+    .header(reqwest::header::AUTHORIZATION, api_key)
+    .header(reqwest::header::ACCEPT, "application/vnd.itch.v2")
+    .send()
+    .await.map_err(|e| e.to_string())?
+    .json()
+    .await.map_err(|e| e.to_string())?;
+
+  match response {
+    itch_types::CollectionsResponse::Success { collections } => Ok(collections),
+    itch_types::CollectionsResponse::Error { errors } =>
+      Err(format!(
+        "The server replied with an error while trying to list the profile's collections: {}",
+        errors.join("\n")
+      ))
+  }
+}
+
+pub async fn get_collection_games(api_key: &str, collection_id: u64) -> Result<Vec<itch_types::CollectionGame>, String> {
+
+  let client: reqwest::Client = reqwest::Client::new();
+   
+  let mut games: Vec<itch_types::CollectionGame> = Vec::new();
+  let mut page: u64 = 1;
+  loop {
+    let response: itch_types::CollectionGamesResponse = client.get(format!("{ITCH_API_V2_BASE_URL}/collections/{collection_id}/collection-games"))
+      .header(reqwest::header::AUTHORIZATION, api_key)
+      .header(reqwest::header::ACCEPT, "application/vnd.itch.v2")
+      .query(&[("page", page)])
+      .send()
+      .await.map_err(|e| e.to_string())?
+      .json()
+      .await.map_err(|e| e.to_string())?;
+    
+    let (per_page, mut collection_games) = match response {
+      itch_types::CollectionGamesResponse::Success { per_page, collection_games, .. } => (per_page, collection_games),
+      itch_types::CollectionGamesResponse::Error { errors } =>
+        return Err(format!(
+          "The server replied with an error while trying to list the collection's games: {}",
+          errors.join("\n")
+        ))
+    };
+
+    games.append(&mut collection_games);
+    
+    if (collection_games.len() as u64) < per_page || collection_games.is_empty() {
+      break;
+    }
+    page += 1;
+  }
+
+  Ok(games)
+}
+
 /// Given a list of game uploads, return the url to the web game (if it exists)
 /// 
 /// # Arguments
