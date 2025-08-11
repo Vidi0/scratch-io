@@ -136,8 +136,8 @@ Game: {}
         },
         game_info.classification,
         game_info.r#type,
-        game_info.published_at.unwrap_or(String::new()),
-        game_info.created_at.unwrap_or(String::new())
+        game_info.created_at,
+        game_info.published_at.unwrap_or(String::new())
       );
     }
   }

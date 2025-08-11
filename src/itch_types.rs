@@ -223,10 +223,10 @@ pub struct Game {
   pub classification: Classification,
   pub embed: Option<GameEmbedData>,
   pub cover_url: Option<String>,
+  pub created_at: String,
   pub published_at: Option<String>,
-  pub created_at: Option<String>,
   pub min_price: Option<u64>,
-  pub user: Option<User>,
+  pub user: User,
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub traits: Vec<Trait>,
 }
