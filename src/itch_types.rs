@@ -193,6 +193,8 @@ pub enum Type {
   Java,
   #[serde(rename = "unity")]
   Unity,
+  #[serde(rename = "documentation")]
+  Documentation,
 }
 
 impl Type {
@@ -203,6 +205,7 @@ impl Type {
       Type::Flash => "flash",
       Type::Java => "java",
       Type::Unity => "unity",
+      Type::Documentation => "documentation",
     }.to_string()
   }
 }
@@ -236,14 +239,15 @@ impl Game {
     format!("\
 Id: {}
 Game: {}
-  Description:  {}
-  URL:  {}
-  Cover URL:  {}
-  Price:  {}
+  Description: {}
+  URL: {}
+  Cover URL: {}
+  Price: {}
   Classification: {}
   Type: {}
   Published at: {}
-  Created at: {}",
+  Created at: {}
+  Traits: {}",
       self.id,
       self.title,
       self.short_text.clone().unwrap_or(String::new()),
@@ -258,7 +262,8 @@ Game: {}
       self.classification,
       self.r#type,
       self.created_at,
-      self.published_at.clone().unwrap_or(String::new())
+      self.published_at.clone().unwrap_or(String::new()),
+      self.traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", ")
     )
   }
 }
@@ -280,9 +285,42 @@ pub struct GameUpload {
   pub traits: Vec<Trait>,
   pub filename: String,
   pub storage: String,
+  pub created_at: String,
   pub updated_at: Option<String>,
-  pub created_at: Option<String>,
   pub md5_hash: Option<String>,
+}
+
+impl GameUpload {
+  fn to_string(&self) -> String {
+    format!(
+"    Position: {}
+    ID: {}
+      Size: {}
+      Type: {}
+      Filename: {}
+      Storage: {}
+      Created at: {}
+      Updated at: {}
+      MD5 hash: {}
+      Traits: {}",
+      self.position,
+      self.id,
+      self.size,
+      self.r#type,
+      self.filename,
+      self.storage,
+      self.created_at,
+      self.updated_at.clone().unwrap_or(String::new()),
+      self.md5_hash.clone().unwrap_or(String::new()),
+      self.traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", ")
+    )
+  }
+}
+
+impl fmt::Display for GameUpload {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", self.to_string())
+  }
 }
 
 #[derive(Deserialize)]
@@ -299,7 +337,7 @@ impl Collection {
     format!("\
 Id: {}
 Name: {}
-  Games count:  {}
+  Games count: {}
   Created at: {}
   Updated at: {}",
       self.id,
@@ -368,6 +406,18 @@ pub enum GameUploadsResponse {
   Success {
     #[serde(deserialize_with = "empty_object_as_vec")]
     uploads: Vec<GameUpload>
+  },
+  Error {
+    #[serde(deserialize_with = "empty_object_as_vec")]
+    errors: Vec<String>
+  },
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum UploadsResponse {
+  Success {
+    upload: GameUpload
   },
   Error {
     #[serde(deserialize_with = "empty_object_as_vec")]

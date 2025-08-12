@@ -39,12 +39,17 @@ enum Commands {
   /// Retrieve information about a game given its ID
   Game {
     /// The ID of the game to retrieve information about
-    id: u64,
+    game_id: u64,
   },
   /// List the collections of the profile, or the games of the collection
   Collections {
     /// If an ID is provided, list the games in its collection.
-    id: Option<u64>,
+    collection_id: Option<u64>,
+  },
+  /// Download the upload with the given ID
+  Download {
+    /// The ID of the upload to download
+    upload_id: u64
   }
 }
 
@@ -57,7 +62,19 @@ async fn print_game_info(api_key: &str, game_id: u64) {
     },
   };
 
+  let uploads: Vec<scratch_io::itch_types::GameUpload> = match scratch_io::get_game_uploads(&api_key, game_id).await {
+    Ok(info) => info,
+    Err(e) => {
+      eprintln!("Error while getting game uploads:\n{}", e);
+      std::process::exit(1);
+    },
+  };
+
   println!("{game_info}");
+  println!("  Uploads:");
+  for u in uploads.iter() {
+    println!("{u}");
+  }
 }
 
 async fn print_collections(api_key: &str) {
@@ -86,6 +103,33 @@ async fn print_collection_games(api_key: &str, collection_id: u64) {
   for cg in games {
   println!("{cg}");
   }
+}
+
+async fn download(api_key: &str, upload_id: u64) {
+
+  let dest = std::path::Path::new("");
+  let pb = indicatif::ProgressBar::new(0);
+  pb.set_style(indicatif::ProgressStyle::default_bar()
+    .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})").unwrap()
+    .progress_chars("#>-"));
+
+
+  match scratch_io::download_upload(&api_key, upload_id, dest, |file_size| {
+    pb.set_length(file_size);
+  }, |downloaded| {
+    pb.set_position(downloaded);
+  }).await {
+    Err(e) => {
+      pb.finish();
+      eprintln!("Error while downloading file:\n{}", e);
+      std::process::exit(1);
+    }
+    Ok(path) => {
+      pb.finish();
+      println!("File saved to: {}", path.to_string_lossy());
+    }
+  }
+
 }
 
 #[tokio::main]
@@ -150,14 +194,17 @@ async fn main() {
     Commands::Auth { api_key: _ } => {
       panic!("Already checked if the command is Auth! The other check should have exited. This should NEVER happen!");
     },
-    Commands::Game { id } => {
-      print_game_info(&api_key, id).await;
+    Commands::Game { game_id } => {
+      print_game_info(&api_key, game_id).await;
     },
-    Commands::Collections { id } => {
-      match id {
+    Commands::Collections { collection_id } => {
+      match collection_id {
         None => print_collections(&api_key).await,
         Some(id) => print_collection_games(&api_key, id).await,
       }
+    },
+    Commands::Download { upload_id } => {
+      download(&api_key, upload_id).await;
     }
   }
 }
