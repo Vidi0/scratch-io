@@ -1,35 +1,55 @@
 use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncWriteExt, AsyncReadExt};
+use std::collections::HashMap;
 use md5::{Md5, Digest};
+use reqwest::{Client, Method, Response, header};
 
 pub mod itch_types;
+use crate::itch_types::*;
 
-const ITCH_API_V1_BASE_URL: &str = "https://itch.io/api/1";
-const ITCH_API_V2_BASE_URL: &str = "https://api.itch.io";
+async fn itch_request(client: &Client, method: Method, url: &ItchApiUrl, parameters: Option<HashMap<&str, &str>>, api_key: &str) -> Result<Response, String> {
+  let mut request: reqwest::RequestBuilder = client.request(method, url.to_string());
+
+  request = match url {
+    ItchApiUrl::V1(..) => request.header(header::AUTHORIZATION, format!("Bearer {api_key}")),
+    ItchApiUrl::V2(..) => request.header(header::AUTHORIZATION, api_key),
+  };
+  if let Some(params) = parameters {
+    request = request.query(&params);
+  }
+  if let ItchApiUrl::V2(_) = url {
+    request = request.header(header::ACCEPT, "application/vnd.itch.v2");
+  }
+
+  request.send()
+    .await.map_err(|e| e.to_string())
+}
+
+async fn itch_request_json<T>(client: &Client, method: Method, url: &ItchApiUrl, parameters: Option<HashMap<&str, &str>>, api_key: &str) -> Result<T, String> where
+  T: serde::de::DeserializeOwned,
+{
+  itch_request(client, method, url, parameters, api_key)
+    .await?
+    .json::<ApiResponse<T>>()
+    .await.map_err(|e| e.to_string())?
+    .into_result()
+}
 
 /// Verifies that a given Itch.io API key is valid
 /// 
 /// # Arguments
 ///
 /// * `api_key` - The api_key to verify against the Itch.io servers
-pub async fn verify_api_key(api_key: &str) -> Result<(), String> {
-  let client: reqwest::Client = reqwest::Client::new();
-
-  let response: itch_types::VerifyAPIKeyResponse = client.get(format!("{ITCH_API_V1_BASE_URL}/{api_key}/credentials/info"))
-    .send()
-    .await.map_err(|e| e.to_string())?
-    .json()
-    .await.map_err(|e| e.to_string())?;
-
-  match response {
-    itch_types::VerifyAPIKeyResponse::Success { .. } => Ok(()),
-    itch_types::VerifyAPIKeyResponse::Error { errors } =>
-      Err(format!(
-        "Invalid api key: {}",
-        errors.join("\n")
-      )),
-  }
+pub async fn verify_api_key(client: &Client, api_key: &str) -> Result<(), String> {
+  itch_request_json::<VerifyAPIKeyResponse>(
+    client,
+    Method::GET,
+    &ItchApiUrl::V1(format!("key/credentials/info")),
+    None,
+    api_key
+  ).await
+    .map(|_| ())
+    .map_err(|e| format!("Invalid api key: {e}"))
 }
 
 /// Gets the information about a game in Itch.io
@@ -39,26 +59,16 @@ pub async fn verify_api_key(api_key: &str) -> Result<(), String> {
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
 /// * `game_id` - The ID of the game from which information will be obtained
-pub async fn get_game_info(api_key: &str, game_id: u64) -> Result<itch_types::Game, String> {
-  
-  let client: reqwest::Client = reqwest::Client::new();
-
-  let response: itch_types::GameInfoResponse = client.get(format!("{ITCH_API_V2_BASE_URL}/games/{game_id}"))
-    .header(reqwest::header::AUTHORIZATION, api_key)
-    .header(reqwest::header::ACCEPT, "application/vnd.itch.v2")
-    .send()
-    .await.map_err(|e| e.to_string())?
-    .json()
-    .await.map_err(|e| e.to_string())?;
-
-  match response {
-    itch_types::GameInfoResponse::Success { game } => Ok(game),
-    itch_types::GameInfoResponse::Error { errors } =>
-      Err(format!(
-        "The server replied with an error while trying to get the game info: {}",
-        errors.join("\n")
-      ))
-  }
+pub async fn get_game_info(client: &Client, api_key: &str, game_id: u64) -> Result<Game, String> {
+  itch_request_json::<GameInfoResponse>(
+    client,
+    Method::GET,
+    &ItchApiUrl::V2(format!("games/{game_id}")),
+    None,
+    api_key
+  ).await
+    .map(|res| res.game)
+    .map_err(|e| format!("The server replied with an error while trying to get the game info: {e}"))
 }
 
 /// Gets the game's uploads (downloadable files)
@@ -68,26 +78,16 @@ pub async fn get_game_info(api_key: &str, game_id: u64) -> Result<itch_types::Ga
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
 /// * `game_id` - The ID of the game from which information will be obtained
-pub async fn get_game_uploads(api_key: &str, game_id: u64) -> Result<Vec<itch_types::GameUpload>, String> {
-    
-  let client: reqwest::Client = reqwest::Client::new();
-
-  let response: itch_types::GameUploadsResponse = client.get(format!("{ITCH_API_V2_BASE_URL}/games/{game_id}/uploads"))
-    .header(reqwest::header::AUTHORIZATION, api_key)
-    .header(reqwest::header::ACCEPT, "application/vnd.itch.v2")
-    .send()
-    .await.map_err(|e| e.to_string())?
-    .json()
-    .await.map_err(|e| e.to_string())?;
-
-  match response {
-    itch_types::GameUploadsResponse::Success { uploads } => Ok(uploads),
-    itch_types::GameUploadsResponse::Error { errors } =>
-      Err(format!(
-        "The server replied with an error while trying to get the game uploads: {}",
-        errors.join("\n")
-      ))
-  }
+pub async fn get_game_uploads(client: &Client, api_key: &str, game_id: u64) -> Result<Vec<GameUpload>, String> {
+  itch_request_json::<GameUploadsResponse>(
+    client,
+    Method::GET,
+    &ItchApiUrl::V2(format!("games/{game_id}/uploads")),
+    None,
+    api_key
+  ).await
+    .map(|res| res.uploads)
+    .map_err(|e| format!("The server replied with an error while trying to get the game uploads: {e}"))
 }
 
 /// Gets an upload's info
@@ -97,26 +97,16 @@ pub async fn get_game_uploads(api_key: &str, game_id: u64) -> Result<Vec<itch_ty
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
 /// * `upload_id` - The ID of the upload from which information will be obtained
-pub async fn get_upload_info(api_key: &str, upload_id: u64) -> Result<itch_types::GameUpload, String> {
-    
-  let client: reqwest::Client = reqwest::Client::new();
-
-  let response: itch_types::UploadsResponse = client.get(format!("{ITCH_API_V2_BASE_URL}/uploads/{upload_id}"))
-    .header(reqwest::header::AUTHORIZATION, api_key)
-    .header(reqwest::header::ACCEPT, "application/vnd.itch.v2")
-    .send()
-    .await.map_err(|e| e.to_string())?
-    .json()
-    .await.map_err(|e| e.to_string())?;
-
-  match response {
-    itch_types::UploadsResponse::Success { upload } => Ok(upload),
-    itch_types::UploadsResponse::Error { errors } =>
-      Err(format!(
-        "The server replied with an error while trying to get the upload info: {}",
-        errors.join("\n")
-      ))
-  }
+pub async fn get_upload_info(client: &Client, api_key: &str, upload_id: u64) -> Result<GameUpload, String> {
+  itch_request_json::<UploadResponse>(
+    client,
+    Method::GET,
+    &ItchApiUrl::V2(format!("uploads/{upload_id}")),
+    None,
+    api_key
+  ).await
+    .map(|res| res.upload)
+    .map_err(|e| format!("The server replied with an error while trying to get the upload info: {e}"))
 }
 
 /// Lists the collections of games of the user
@@ -124,26 +114,16 @@ pub async fn get_upload_info(api_key: &str, upload_id: u64) -> Result<itch_types
 /// # Arguments
 /// 
 /// * `api_key` - A valid Itch.io API key to make the request
-pub async fn get_collections(api_key: &str) -> Result<Vec<itch_types::Collection>, String> {
-
-  let client: reqwest::Client = reqwest::Client::new();
-
-  let response: itch_types::CollectionsResponse = client.get(format!("{ITCH_API_V2_BASE_URL}/profile/collections"))
-    .header(reqwest::header::AUTHORIZATION, api_key)
-    .header(reqwest::header::ACCEPT, "application/vnd.itch.v2")
-    .send()
-    .await.map_err(|e| e.to_string())?
-    .json()
-    .await.map_err(|e| e.to_string())?;
-
-  match response {
-    itch_types::CollectionsResponse::Success { collections } => Ok(collections),
-    itch_types::CollectionsResponse::Error { errors } =>
-      Err(format!(
-        "The server replied with an error while trying to list the profile's collections: {}",
-        errors.join("\n")
-      ))
-  }
+pub async fn get_collections(client: &Client, api_key: &str) -> Result<Vec<Collection>, String> {
+  itch_request_json::<CollectionsResponse>(
+    client,
+    Method::GET,
+    &ItchApiUrl::V2(format!("profile/collections")),
+    None,
+    api_key
+  ).await
+    .map(|res| res.collections)
+    .map_err(|e| format!("The server replied with an error while trying to list the profile's collections: {e}"))
 }
 
 /// Lists the games inside a collection
@@ -153,38 +133,26 @@ pub async fn get_collections(api_key: &str) -> Result<Vec<itch_types::Collection
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
 /// * `collection_id` - The ID of the collection from which the games will be retrieved 
-pub async fn get_collection_games(api_key: &str, collection_id: u64) -> Result<Vec<itch_types::CollectionGame>, String> {
-
-  let client: reqwest::Client = reqwest::Client::new();
-   
-  let mut games: Vec<itch_types::CollectionGame> = Vec::new();
+pub async fn get_collection_games(client: &Client, api_key: &str, collection_id: u64) -> Result<Vec<CollectionGame>, String> {   
+  let mut games: Vec<CollectionGame> = Vec::new();
   let mut page: u64 = 1;
   loop {
-    let response: itch_types::CollectionGamesResponse = client.get(format!("{ITCH_API_V2_BASE_URL}/collections/{collection_id}/collection-games"))
-      .header(reqwest::header::AUTHORIZATION, api_key)
-      .header(reqwest::header::ACCEPT, "application/vnd.itch.v2")
-      .query(&[("page", page)])
-      .send()
-      .await.map_err(|e| e.to_string())?
-      .json()
-      .await.map_err(|e| e.to_string())?;
-    
-    let (per_page, mut collection_games) = match response {
-      itch_types::CollectionGamesResponse::Success { per_page, collection_games, .. } => (per_page, collection_games),
-      itch_types::CollectionGamesResponse::Error { errors } =>
-        return Err(format!(
-          "The server replied with an error while trying to list the collection's games: {}",
-          errors.join("\n")
-        ))
-    };
+    let mut response = itch_request_json::<CollectionGamesResponse>(
+      client,
+      Method::GET,
+      &ItchApiUrl::V2(format!("collections/{collection_id}/collection-games")),
+      Some(HashMap::from([("page", page.to_string().as_str())])),
+      api_key
+    ).await
+      .map_err(|e| format!("The server replied with an error while trying to list the collection's games: {e}"))?;
 
-    let num_games: u64 = collection_games.len() as u64;
-    games.append(&mut collection_games);
+    let num_games: u64 = response.collection_games.len() as u64;
+    games.append(&mut response.collection_games);
     // Warning!!!
-    // collection_games was merged into games, but it WAS NOT dropped!
+    // response.collection_games was merged into games, but it WAS NOT dropped!
     // Its length is still accessible, but this doesn't make sense!
     
-    if num_games < per_page || num_games == 0 {
+    if num_games < response.per_page || num_games == 0 {
       break;
     }
     page += 1;
@@ -204,18 +172,12 @@ pub async fn get_collection_games(api_key: &str, collection_id: u64) -> Result<V
 /// * `folder` - The folder where the downloaded file will be placed
 /// 
 /// * `progress_callback` - A callback function which reports the download progress
-pub async fn download_upload<F, G>(api_key: &str, upload_id: u64, folder: &std::path::Path, mut file_size: F, mut progress_callback: G) -> Result<std::path::PathBuf, String> where
+pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u64, folder: &std::path::Path, mut file_size: F, mut progress_callback: G) -> Result<std::path::PathBuf, String> where
   F: FnMut(u64),
   G: FnMut(u64),
 {
   // Obtain information about the upload that will be downloaeded
-  let upload: itch_types::GameUpload = match get_upload_info(api_key, upload_id).await {
-    Ok(u) => u,
-    Err(e) => {
-      eprintln!("Error while getting the upload's info:\n{}", e);
-      std::process::exit(1);
-    }
-  };
+  let upload: GameUpload = get_upload_info(client, api_key, upload_id).await?;
   
   // Send to the caller the file size
   file_size(upload.size);
@@ -224,13 +186,13 @@ pub async fn download_upload<F, G>(api_key: &str, upload_id: u64, folder: &std::
   let path: std::path::PathBuf = folder.join(upload.filename);
 
   // Download the file
-  let client: reqwest::Client = reqwest::Client::new();
-
-  let file_response: reqwest::Response = client.get(format!("{ITCH_API_V2_BASE_URL}/uploads/{upload_id}/download"))
-    .header(reqwest::header::AUTHORIZATION, api_key)
-    .header(reqwest::header::ACCEPT, "application/vnd.itch.v2")
-    .send()
-    .await.map_err(|e| e.to_string())?;
+  let file_response = itch_request(
+    client,
+    Method::GET,
+    &ItchApiUrl::V2(format!("uploads/{upload_id}/download")),
+    None,
+    api_key
+  ).await?;
 
   let mut downloaded_bytes: u64 = 0;
   let mut file = tokio::fs::File::create(&path)
@@ -309,9 +271,9 @@ Server hash: {hash}\
 /// 
 /// * `uploads` - The list of uploads to search for the web version
 #[allow(dead_code)]
-fn get_uploads_web_game_url(uploads: Vec<itch_types::GameUpload>) -> Option<String> {
+fn get_uploads_web_game_url(uploads: Vec<GameUpload>) -> Option<String> {
   for upload in uploads.iter() {
-    if let itch_types::Type::HTML = upload.r#type {
+    if let Type::HTML = upload.r#type {
       return Some(get_web_game_url(upload.id));
     }
   }

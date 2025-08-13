@@ -3,6 +3,23 @@ use serde::de::{self, Deserializer, Visitor, SeqAccess};
 use std::marker::PhantomData;
 use std::fmt;
 
+const ITCH_API_V1_BASE_URL: &str = "https://itch.io/api/1";
+const ITCH_API_V2_BASE_URL: &str = "https://api.itch.io";
+
+pub enum ItchApiUrl {
+  V1(String),
+  V2(String),
+}
+
+impl ItchApiUrl {
+  pub fn to_string(&self) -> String {
+    match self {
+      ItchApiUrl::V1(u) => format!("{ITCH_API_V1_BASE_URL}/{u}"),
+      ItchApiUrl::V2(u) => format!("{ITCH_API_V2_BASE_URL}/{u}"),
+    }
+  }
+}
+
 fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error> where
   D: Deserializer<'de>,
   T: Deserialize<'de>,
@@ -382,73 +399,54 @@ impl fmt::Display for CollectionGame {
 
 #[derive(Deserialize)]
 #[serde(untagged)]
-pub enum VerifyAPIKeyResponse {
-  Success { r#type: String },
+pub enum ApiResponse<T> {
+  Success(T),
   Error {
     #[serde(deserialize_with = "empty_object_as_vec")]
-    errors: Vec<String>
+    errors: Vec<String>,
   },
 }
 
-#[derive(Deserialize)]
-#[serde(untagged)]
-pub enum GameInfoResponse {
-  Success { game: Game },
-  Error {
-    #[serde(deserialize_with = "empty_object_as_vec")]
-    errors: Vec<String>
-  },
+impl<T> ApiResponse<T> {
+  pub fn into_result(self) -> Result<T, String> {
+    match self {
+      ApiResponse::Success(data) => Ok(data),
+      ApiResponse::Error { errors } => Err(errors.join("\n")),
+    }
+  }
 }
 
 #[derive(Deserialize)]
-#[serde(untagged)]
-pub enum GameUploadsResponse {
-  Success {
-    #[serde(deserialize_with = "empty_object_as_vec")]
-    uploads: Vec<GameUpload>
-  },
-  Error {
-    #[serde(deserialize_with = "empty_object_as_vec")]
-    errors: Vec<String>
-  },
+pub struct VerifyAPIKeyResponse {
+  pub r#type: String,
 }
 
 #[derive(Deserialize)]
-#[serde(untagged)]
-pub enum UploadsResponse {
-  Success {
-    upload: GameUpload
-  },
-  Error {
-    #[serde(deserialize_with = "empty_object_as_vec")]
-    errors: Vec<String>
-  },
+pub struct GameInfoResponse {
+  pub game: Game,
 }
 
 #[derive(Deserialize)]
-#[serde(untagged)]
-pub enum CollectionsResponse {
-  Success {
-    #[serde(deserialize_with = "empty_object_as_vec")]
-    collections: Vec<Collection>
-  },
-  Error {
-    #[serde(deserialize_with = "empty_object_as_vec")]
-    errors: Vec<String>
-  },
+pub struct GameUploadsResponse {
+  #[serde(deserialize_with = "empty_object_as_vec")]
+  pub uploads: Vec<GameUpload>,
 }
 
 #[derive(Deserialize)]
-#[serde(untagged)]
-pub enum CollectionGamesResponse {
-  Success {
-    page: u64,
-    per_page: u64,
-    #[serde(deserialize_with = "empty_object_as_vec")]
-    collection_games: Vec<CollectionGame>,
-  },
-  Error {
-    #[serde(deserialize_with = "empty_object_as_vec")]
-    errors: Vec<String>
-  },
+pub struct UploadResponse {
+  pub upload: GameUpload,
+}
+
+#[derive(Deserialize)]
+pub struct CollectionsResponse {
+  #[serde(deserialize_with = "empty_object_as_vec")]
+  pub collections: Vec<Collection>,
+}
+
+#[derive(Deserialize)]
+pub struct CollectionGamesResponse {
+  pub page: u64,
+  pub per_page: u64,
+  #[serde(deserialize_with = "empty_object_as_vec")]
+  pub collection_games: Vec<CollectionGame>,
 }

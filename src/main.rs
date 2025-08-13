@@ -1,3 +1,4 @@
+use reqwest::Client;
 use serde::{Serialize, Deserialize};
 use clap::{Parser, Subcommand};
 
@@ -53,8 +54,8 @@ enum Commands {
   }
 }
 
-async fn print_game_info(api_key: &str, game_id: u64) {
-  let game_info: scratch_io::itch_types::Game = match scratch_io::get_game_info(&api_key, game_id).await {
+async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
+  let game_info: scratch_io::itch_types::Game = match scratch_io::get_game_info(&client, &api_key, game_id).await {
     Ok(info) => info,
     Err(e) => {
       eprintln!("Error while getting game info:\n{}", e);
@@ -62,7 +63,7 @@ async fn print_game_info(api_key: &str, game_id: u64) {
     },
   };
 
-  let uploads: Vec<scratch_io::itch_types::GameUpload> = match scratch_io::get_game_uploads(&api_key, game_id).await {
+  let uploads: Vec<scratch_io::itch_types::GameUpload> = match scratch_io::get_game_uploads(&client, &api_key, game_id).await {
     Ok(info) => info,
     Err(e) => {
       eprintln!("Error while getting game uploads:\n{}", e);
@@ -77,8 +78,8 @@ async fn print_game_info(api_key: &str, game_id: u64) {
   }
 }
 
-async fn print_collections(api_key: &str) {
-  let collections: Vec<scratch_io::itch_types::Collection> = match scratch_io::get_collections(&api_key).await {
+async fn print_collections(client: &Client, api_key: &str) {
+  let collections: Vec<scratch_io::itch_types::Collection> = match scratch_io::get_collections(&client, &api_key).await {
     Ok(col) => col,
     Err(e) => {
       eprintln!("Error while getting collections:\n{}", e);
@@ -91,8 +92,8 @@ async fn print_collections(api_key: &str) {
   }
 }
 
-async fn print_collection_games(api_key: &str, collection_id: u64) {
-  let games: Vec<scratch_io::itch_types::CollectionGame> = match scratch_io::get_collection_games(&api_key, collection_id).await {
+async fn print_collection_games(client: &Client, api_key: &str, collection_id: u64) {
+  let games: Vec<scratch_io::itch_types::CollectionGame> = match scratch_io::get_collection_games(&client, &api_key, collection_id).await {
     Ok(g) => g,
     Err(e) => {
       eprintln!("Error while getting the collection's games:\n{}", e);
@@ -105,8 +106,7 @@ async fn print_collection_games(api_key: &str, collection_id: u64) {
   }
 }
 
-async fn download(api_key: &str, upload_id: u64) {
-
+async fn download(client: &Client, api_key: &str, upload_id: u64) {
   let dest = std::path::Path::new("");
   let pb = indicatif::ProgressBar::new(0);
   pb.set_style(indicatif::ProgressStyle::default_bar()
@@ -114,7 +114,7 @@ async fn download(api_key: &str, upload_id: u64) {
     .progress_chars("#>-"));
 
 
-  match scratch_io::download_upload(&api_key, upload_id, dest, |file_size| {
+  match scratch_io::download_upload(&client, &api_key, upload_id, dest, |file_size| {
     pb.set_length(file_size);
   }, |downloaded| {
     pb.set_position(downloaded);
@@ -146,11 +146,14 @@ async fn main() {
   
   // Read the user commands
   let cli: Cli = Cli::parse();
+
+  // Create reqwest client
+  let client: Client = Client::new();
   
   // To authenticate, check if the key is valid and save it to the config
   if let Commands::Auth { api_key } = cli.command {
     // Check if the Itch.io API key is valid. If not, exit.
-    if let Err(e) = scratch_io::verify_api_key(&api_key).await {
+    if let Err(e) = scratch_io::verify_api_key(&client, &api_key).await {
       eprintln!("Error while validating key:\n{}", e);
       std::process::exit(1);
     }
@@ -183,7 +186,7 @@ async fn main() {
   );
 
   // Verify the key
-  if let Err(e) = scratch_io::verify_api_key(&api_key).await {
+  if let Err(e) = scratch_io::verify_api_key(&client, &api_key).await {
     eprintln!("Error while validating key:\n{}", e);
     std::process::exit(1);
   }
@@ -195,16 +198,16 @@ async fn main() {
       panic!("Already checked if the command is Auth! The other check should have exited. This should NEVER happen!");
     },
     Commands::Game { game_id } => {
-      print_game_info(&api_key, game_id).await;
+      print_game_info(&client, &api_key, game_id).await;
     },
     Commands::Collections { collection_id } => {
       match collection_id {
-        None => print_collections(&api_key).await,
-        Some(id) => print_collection_games(&api_key, id).await,
+        None => print_collections(&client, &api_key).await,
+        Some(id) => print_collection_games(&client, &api_key, id).await,
       }
     },
     Commands::Download { upload_id } => {
-      download(&api_key, upload_id).await;
+      download(&client, &api_key, upload_id).await;
     }
   }
 }
