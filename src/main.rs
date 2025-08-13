@@ -189,6 +189,9 @@ async fn main() {
   // Verify the key
   if let Err(e) = scratch_io::verify_api_key(&client, &api_key).await {
     eprintln!("Error while validating key:\n{}", e);
+    if e.contains("invalid key") {
+      eprintln!("Try logging in again.");
+    }
     std::process::exit(1);
   }
 

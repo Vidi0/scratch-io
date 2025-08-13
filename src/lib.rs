@@ -49,7 +49,7 @@ pub async fn verify_api_key(client: &Client, api_key: &str) -> Result<(), String
     api_key
   ).await
     .map(|_| ())
-    .map_err(|e| format!("Invalid api key: {e}"))
+    .map_err(|e| format!("The server replied with an error while verifying the api key: {e}"))
 }
 
 /// Gets the information about a game in Itch.io
