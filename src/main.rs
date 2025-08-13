@@ -1,6 +1,7 @@
 use reqwest::Client;
 use serde::{Serialize, Deserialize};
 use clap::{Parser, Subcommand};
+use scratch_io::itch_types::*;
 
 const APP_CONFIGURATION_NAME: &str = "scratch-io";
 const APP_CONFIGURATION_FILE: &str = "config";
@@ -55,7 +56,7 @@ enum Commands {
 }
 
 async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
-  let game_info: scratch_io::itch_types::Game = match scratch_io::get_game_info(&client, &api_key, game_id).await {
+  let game_info: Game = match scratch_io::get_game_info(&client, &api_key, game_id).await {
     Ok(info) => info,
     Err(e) => {
       eprintln!("Error while getting game info:\n{}", e);
@@ -63,7 +64,7 @@ async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
     },
   };
 
-  let uploads: Vec<scratch_io::itch_types::GameUpload> = match scratch_io::get_game_uploads(&client, &api_key, game_id).await {
+  let uploads: Vec<GameUpload> = match scratch_io::get_game_uploads(&client, &api_key, game_id).await {
     Ok(info) => info,
     Err(e) => {
       eprintln!("Error while getting game uploads:\n{}", e);
@@ -79,7 +80,7 @@ async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
 }
 
 async fn print_collections(client: &Client, api_key: &str) {
-  let collections: Vec<scratch_io::itch_types::Collection> = match scratch_io::get_collections(&client, &api_key).await {
+  let collections: Vec<Collection> = match scratch_io::get_collections(&client, &api_key).await {
     Ok(col) => col,
     Err(e) => {
       eprintln!("Error while getting collections:\n{}", e);
@@ -93,7 +94,7 @@ async fn print_collections(client: &Client, api_key: &str) {
 }
 
 async fn print_collection_games(client: &Client, api_key: &str, collection_id: u64) {
-  let games: Vec<scratch_io::itch_types::CollectionGame> = match scratch_io::get_collection_games(&client, &api_key, collection_id).await {
+  let games: Vec<CollectionGame> = match scratch_io::get_collection_games(&client, &api_key, collection_id).await {
     Ok(g) => g,
     Err(e) => {
       eprintln!("Error while getting the collection's games:\n{}", e);
