@@ -6,6 +6,13 @@ use scratch_io::itch_types::*;
 const APP_CONFIGURATION_NAME: &str = "scratch-io";
 const APP_CONFIGURATION_FILE: &str = "config";
 
+macro_rules! eprintln_exit {
+  ($($arg:tt)*) => {{
+    eprintln!($($arg)*);
+    std::process::exit(1);
+  }};
+}
+
 #[derive(Serialize, Deserialize)]
 #[derive(Debug)]
 struct Config {
@@ -57,18 +64,16 @@ enum Commands {
 
 async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
   let game_info: Game = match scratch_io::get_game_info(&client, &api_key, game_id).await {
-    Ok(info) => info,
+    Ok(game_info) => game_info,
     Err(e) => {
-      eprintln!("Error while getting game info:\n{}", e);
-      std::process::exit(1);
+      eprintln_exit!("Error while getting game info:\n{}", e);
     },
   };
 
   let uploads: Vec<GameUpload> = match scratch_io::get_game_uploads(&client, &api_key, game_id).await {
-    Ok(info) => info,
+    Ok(uploads) => uploads,
     Err(e) => {
-      eprintln!("Error while getting game uploads:\n{}", e);
-      std::process::exit(1);
+      eprintln_exit!("Error while getting game uploads:\n{}", e);
     },
   };
 
@@ -80,31 +85,29 @@ async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
 }
 
 async fn print_collections(client: &Client, api_key: &str) {
-  let collections: Vec<Collection> = match scratch_io::get_collections(&client, &api_key).await {
-    Ok(col) => col,
+  match scratch_io::get_collections(&client, &api_key).await {
+    Ok(collections) => {
+      for col in collections.iter() {
+        println!("{col}");
+      }
+    },
     Err(e) => {
-      eprintln!("Error while getting collections:\n{}", e);
-      std::process::exit(1);
+      eprintln_exit!("Error while getting collections:\n{}", e);
     },
   };
-
-  for col in collections.iter() {
-    println!("{col}");
-  }
 }
 
 async fn print_collection_games(client: &Client, api_key: &str, collection_id: u64) {
-  let games: Vec<CollectionGame> = match scratch_io::get_collection_games(&client, &api_key, collection_id).await {
-    Ok(g) => g,
+  match scratch_io::get_collection_games(&client, &api_key, collection_id).await {
+    Ok(games) => {
+      for cg in games {
+        println!("{cg}");
+      }
+    },
     Err(e) => {
-      eprintln!("Error while getting the collection's games:\n{}", e);
-      std::process::exit(1);
+      eprintln_exit!("Error while getting the collection's games:\n{}", e);
     },
   };
-
-  for cg in games {
-  println!("{cg}");
-  }
 }
 
 async fn download(client: &Client, api_key: &str, upload_id: u64) {
@@ -120,14 +123,13 @@ async fn download(client: &Client, api_key: &str, upload_id: u64) {
   }, |downloaded| {
     pb.set_position(downloaded);
   }).await {
-    Err(e) => {
-      pb.finish();
-      eprintln!("Error while downloading file:\n{}", e);
-      std::process::exit(1);
-    }
     Ok(path) => {
       pb.finish();
       println!("File saved to: {}", path.to_string_lossy());
+    }
+    Err(e) => {
+      pb.finish();
+      eprintln_exit!("Error while downloading file:\n{}", e);
     }
   }
 
@@ -140,8 +142,7 @@ async fn main() {
   let mut config: Config = match confy::load(APP_CONFIGURATION_NAME, APP_CONFIGURATION_FILE) {
     Ok(c) => c,
     Err(e) => {
-      eprintln!("Error while reading configuration file!\n{}", e);
-      std::process::exit(1);
+      eprintln_exit!("Error while reading configuration file!\n{}", e);
     }
   };
   
@@ -155,8 +156,7 @@ async fn main() {
   if let Commands::Auth { api_key } = cli.command {
     // Check if the Itch.io API key is valid. If not, exit.
     if let Err(e) = scratch_io::verify_api_key(&client, &api_key).await {
-      eprintln!("Error while validating key:\n{}", e);
-      std::process::exit(1);
+      eprintln_exit!("Error while validating key:\n{}", e);
     }
     
     println!("Valid key!");
@@ -164,8 +164,7 @@ async fn main() {
     
     // Save the valid key to the config file
     if let Err(e) = confy::store(APP_CONFIGURATION_NAME, APP_CONFIGURATION_FILE, config) {
-      eprintln!("Error while saving config:\n{}", e);
-      std::process::exit(1);
+      eprintln_exit!("Error while saving config:\n{}", e);
     }
     
     // Exit
@@ -181,18 +180,20 @@ async fn main() {
   // 3. If there isn't a saved config, throw an error
   let api_key: String = cli.api_key.unwrap_or(
     config.api_key.unwrap_or_else(|| {
-      eprintln!("Error: an Itch.io API key is required, either via --api-key or the auth command.");
-      std::process::exit(1);
+      eprintln_exit!("Error: an Itch.io API key is required, either via --api-key or the auth command.");
     })
   );
 
   // Verify the key
   if let Err(e) = scratch_io::verify_api_key(&client, &api_key).await {
-    eprintln!("Error while validating key:\n{}", e);
-    if e.contains("invalid key") {
-      eprintln!("Try logging in again.");
-    }
-    std::process::exit(1);
+    eprintln_exit!("Error while validating key:\n{}{}",
+      e,
+      if e.contains("invalid key") {
+        String::from("\nThe key is not longer valid. Try logging in again.")
+      } else {
+        String::from("")
+      }
+    );
   }
 
   /**** COMMANDS ****/

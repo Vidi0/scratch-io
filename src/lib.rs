@@ -22,7 +22,7 @@ async fn itch_request(client: &Client, method: Method, url: &ItchApiUrl, paramet
   }
 
   request.send()
-    .await.map_err(|e| e.to_string())
+    .await.map_err(|e| format!("{e}"))
 }
 
 async fn itch_request_json<T>(client: &Client, method: Method, url: &ItchApiUrl, parameters: Option<HashMap<&str, &str>>, api_key: &str) -> Result<T, String> where
