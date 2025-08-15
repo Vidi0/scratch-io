@@ -1,6 +1,7 @@
 use reqwest::Client;
 use serde::{Serialize, Deserialize};
 use clap::{Parser, Subcommand};
+use std::path::{Path, PathBuf};
 use scratch_io::itch_types::*;
 
 const APP_CONFIGURATION_NAME: &str = "scratch-io";
@@ -58,7 +59,11 @@ enum Commands {
   /// Download the upload with the given ID
   Download {
     /// The ID of the upload to download
-    upload_id: u64
+    upload_id: u64,
+    /// The path where the download folder will be placed
+    /// 
+    /// Defaults to ~/Games/{game_name}/
+    path: Option<PathBuf>,
   }
 }
 
@@ -110,13 +115,11 @@ async fn print_collection_games(client: &Client, api_key: &str, collection_id: u
   };
 }
 
-async fn download(client: &Client, api_key: &str, upload_id: u64) {
-  let dest = std::path::Path::new("");
+async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&Path>) {
   let pb = indicatif::ProgressBar::new(0);
   pb.set_style(indicatif::ProgressStyle::default_bar()
     .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})").unwrap()
     .progress_chars("#>-"));
-
 
   match scratch_io::download_upload(&client, &api_key, upload_id, dest, |file_size| {
     pb.set_length(file_size);
@@ -129,7 +132,7 @@ async fn download(client: &Client, api_key: &str, upload_id: u64) {
       println!("File saved to: {}", path.to_string_lossy());
     }
     Err(e) => {
-      pb.finish();
+      pb.abandon();
       eprintln_exit!("Error while downloading file:\n{}", e);
     }
   }
@@ -212,8 +215,8 @@ async fn main() {
         Some(id) => print_collection_games(&client, &api_key, id).await,
       }
     },
-    Commands::Download { upload_id } => {
-      download(&client, &api_key, upload_id).await;
+    Commands::Download { upload_id, path } => {
+      download(&client, &api_key, upload_id, path.as_deref()).await;
     }
   }
 }

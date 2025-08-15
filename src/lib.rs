@@ -172,19 +172,31 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
 /// * `folder` - The folder where the downloaded file will be placed
 /// 
 /// * `progress_callback` - A callback function which reports the download progress
-pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u64, folder: &std::path::Path, mut file_size: F, mut progress_callback: G) -> Result<(std::path::PathBuf, String), String> where
+pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u64, folder: Option<&std::path::Path>, mut file_size: F, mut progress_callback: G) -> Result<(std::path::PathBuf, String), String> where
   F: FnMut(u64),
   G: FnMut(u64),
 {
   // This is a log which will be returned if the download is successful
   let mut output_log: String = String::new();
 
-  // Obtain information about the upload that will be downloaeded
+  // Obtain information about the game and the upload that will be downloaeded
   let upload: GameUpload = get_upload_info(client, api_key, upload_id).await?;
+  let game: Game = get_game_info(client, api_key, upload.game_id).await?;
   
   // Send to the caller the file size
   file_size(upload.size);
 
+  // If the folder is unset, set it to ~/Games/{game_name}/
+  let folder = match folder {
+    Some(f) => f,
+    None => {
+      &dirs::home_dir()
+        .ok_or(String::from("Couldn't determine the home directory"))?
+        .join("Games")
+        .join(game.title)
+    }
+  };
+  
   // The new path is folder + the filename
   let path: std::path::PathBuf = folder.join(upload.filename);
 
@@ -196,7 +208,13 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
     None,
     api_key
   ).await?;
-
+  
+  // Create the folder if it doesn't exist
+  if !folder.exists() {
+    tokio::fs::create_dir_all(folder).await
+      .map_err(|e| format!("Couldn't create the folder {}: {e}", folder.to_string_lossy()))?;
+  }
+  
   let mut downloaded_bytes: u64 = 0;
   let mut file = tokio::fs::File::create(&path)
     .await.map_err(|e| e.to_string())?;
