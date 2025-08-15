@@ -152,55 +152,55 @@ async fn main() {
   // Create reqwest client
   let client: Client = Client::new();
   
-  // To authenticate, check if the key is valid and save it to the config
-  if let Commands::Auth { api_key } = cli.command {
-    // Check if the Itch.io API key is valid. If not, exit.
-    if let Err(e) = scratch_io::verify_api_key(&client, &api_key).await {
-      eprintln_exit!("Error while validating key:\n{}", e);
-    }
-    
-    println!("Valid key!");
-    config.api_key = Some(api_key);
-    
-    // Save the valid key to the config file
-    if let Err(e) = confy::store(APP_CONFIGURATION_NAME, APP_CONFIGURATION_FILE, config) {
-      eprintln_exit!("Error while saving config:\n{}", e);
-    }
-    
-    // Exit
-    println!("The key was saved successfully.");
-    std::process::exit(0);
-  }
-  
   /**** API KEY ****/
 
   // The api key is:
-  // 1. If --api-key is set, then that key
-  // 2. If not, then the saved config
-  // 3. If there isn't a saved config, throw an error
-  let api_key: String = cli.api_key.unwrap_or(
-    config.api_key.unwrap_or_else(|| {
-      eprintln_exit!("Error: an Itch.io API key is required, either via --api-key or the auth command.");
-    })
-  );
+  // 1. If the command is auth, then the provided key
+  // 2. If --api-key is set, then that key
+  // 3. If not, then the saved config
+  // 4. If there isn't a saved config, throw an error
+  let api_key: String = if let Commands::Auth { ref api_key } = cli.command {
+    api_key.clone()
+  }
+  else {
+    cli.api_key.unwrap_or(
+      config.api_key.unwrap_or_else(|| {
+        eprintln_exit!("Error: an Itch.io API key is required, either via --api-key or the auth command.");
+      })
+    )
+  };
 
   // Verify the key
   if let Err(e) = scratch_io::verify_api_key(&client, &api_key).await {
-    eprintln_exit!("Error while validating key:\n{}{}",
-      e,
-      if e.contains("invalid key") {
-        String::from("\nThe key is not longer valid. Try logging in again.")
-      } else {
-        String::from("")
+    if !e.contains("invalid key") {
+      eprintln_exit!("Error while validating key:\n{}", e);
+    }
+
+    match cli.command {
+      Commands::Auth { .. } => {
+        eprintln_exit!("The key is invalid!");
+      },
+      _ => {
+        eprintln_exit!("The key is not longer valid. Try logging in again.");
       }
-    );
+    }
   }
 
   /**** COMMANDS ****/
 
   match cli.command {
     Commands::Auth { api_key: _ } => {
-      panic!("Already checked if the command is Auth! The other check should have exited. This should NEVER happen!");
+      // We already checked if the key was valid
+      println!("Valid key!");
+      config.api_key = Some(api_key);
+      
+      // Save the valid key to the config file
+      if let Err(e) = confy::store(APP_CONFIGURATION_NAME, APP_CONFIGURATION_FILE, config) {
+        eprintln_exit!("Error while saving config:\n{}", e);
+      }
+      
+      // Exit
+      println!("The key was saved successfully.");
     },
     Commands::Game { game_id } => {
       print_game_info(&client, &api_key, game_id).await;
