@@ -172,10 +172,13 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
 /// * `folder` - The folder where the downloaded file will be placed
 /// 
 /// * `progress_callback` - A callback function which reports the download progress
-pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u64, folder: &std::path::Path, mut file_size: F, mut progress_callback: G) -> Result<std::path::PathBuf, String> where
+pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u64, folder: &std::path::Path, mut file_size: F, mut progress_callback: G) -> Result<(std::path::PathBuf, String), String> where
   F: FnMut(u64),
   G: FnMut(u64),
 {
+  // This is a log which will be returned if the download is successful
+  let mut output_log: String = String::new();
+
   // Obtain information about the upload that will be downloaeded
   let upload: GameUpload = get_upload_info(client, api_key, upload_id).await?;
   
@@ -218,14 +221,14 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
   // Check the md5 hash
   match upload.md5_hash {
     None => {
-      println!("Missing md5 hash. Couldn't verify the file integrity!");
+      output_log.push_str("Missing md5 hash. Couldn't verify the file integrity!\n");
     }
     Some(upload_hash) => {
       verify_md5_hash_file(&path, &upload_hash).await?;
     }
   }
 
-  Ok(path)
+  Ok((path, output_log))
 }
 
 /// Checks that a file md5 hash is the same as `hash`

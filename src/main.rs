@@ -123,8 +123,9 @@ async fn download(client: &Client, api_key: &str, upload_id: u64) {
   }, |downloaded| {
     pb.set_position(downloaded);
   }).await {
-    Ok(path) => {
+    Ok((path, log)) => {
       pb.finish();
+      print!("{log}");
       println!("File saved to: {}", path.to_string_lossy());
     }
     Err(e) => {
