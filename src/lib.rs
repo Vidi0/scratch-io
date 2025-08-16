@@ -1,4 +1,5 @@
 use tokio::io::AsyncWriteExt;
+use tokio::time::{Instant, Duration};
 use futures_util::StreamExt;
 use std::collections::HashMap;
 use md5::{Md5, Digest};
@@ -172,7 +173,7 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
 /// * `folder` - The folder where the downloaded file will be placed
 /// 
 /// * `progress_callback` - A callback function which reports the download progress
-pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u64, folder: Option<&std::path::Path>, upload_info: F, progress_callback: G) -> Result<(std::path::PathBuf, String), String> where
+pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u64, folder: Option<&std::path::Path>, upload_info: F, progress_callback: G, callback_interval: Duration) -> Result<(std::path::PathBuf, String), String> where
   F: Fn(&GameUpload, &Game),
   G: Fn(u64),
 {
@@ -216,12 +217,13 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
   // The new path is folder + the filename
   let path: std::path::PathBuf = folder.join(upload.filename);
   
-  // Prepare the download and the hasher variables
+  // Prepare the download, the hasher, and the callback variables
   let mut downloaded_bytes: u64 = 0;
   let mut file = tokio::fs::File::create(&path).await
     .map_err(|e| e.to_string())?;
   let mut stream = file_response.bytes_stream();
   let mut hasher = Md5::new();
+  let mut last_callback = Instant::now();
 
   // Save chunks to the file async
   // Also, compute the md5 hash while it is being downloaded
@@ -245,7 +247,10 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
   
     // Send a callback with the progress
     downloaded_bytes += chunk.len() as u64;
-    progress_callback(downloaded_bytes);
+    if last_callback.elapsed() > callback_interval {
+      last_callback = Instant::now();
+      progress_callback(downloaded_bytes);
+    }
   }
 
   // Check the md5 hash

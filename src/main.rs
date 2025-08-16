@@ -144,7 +144,8 @@ async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&
   |downloaded| {
       progress_bar.set_position(downloaded);
     }
-  ).await {
+  ,std::time::Duration::from_millis(100)
+).await {
     Ok((path, log)) => {
       progress_bar.finish();
       print!("{log}");
