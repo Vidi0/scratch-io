@@ -172,9 +172,9 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
 /// * `folder` - The folder where the downloaded file will be placed
 /// 
 /// * `progress_callback` - A callback function which reports the download progress
-pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u64, folder: Option<&std::path::Path>, mut upload_info: F, mut progress_callback: G) -> Result<(std::path::PathBuf, String), String> where
-  F: FnMut(GameUpload, Game),
-  G: FnMut(u64),
+pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u64, folder: Option<&std::path::Path>, upload_info: F, progress_callback: G) -> Result<(std::path::PathBuf, String), String> where
+  F: Fn(&GameUpload, &Game),
+  G: Fn(u64),
 {
   // This is a log which will be returned if the download is successful
   let mut output_log: String = String::new();
@@ -184,7 +184,7 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
   let game: Game = get_game_info(client, api_key, upload.game_id).await?;
   
   // Send to the caller the game and the upload info
-  upload_info(upload.clone(), game.clone());
+  upload_info(&upload, &game);
   
   // Start the download, but don't save it to a file yet
   let file_response = itch_request(

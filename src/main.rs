@@ -128,8 +128,7 @@ async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&
     &api_key,
     upload_id,
     dest,
-    |mut upload, game| {
-      upload.id = 0;
+    |upload, game| {
       println!("\
   Upload id: {}
     Game id: {}

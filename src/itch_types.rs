@@ -99,7 +99,6 @@ fn deserialize_option_vec<'de, D, T>(deserializer: D) -> Result<Option<Vec<T>>, 
 }
 
 
-#[derive(Clone)]
 #[derive(Deserialize)]
 pub struct User {
   pub id: u64,
@@ -113,7 +112,6 @@ pub struct User {
   pub gamer: Option<bool>,
 }
 
-#[derive(Clone)]
 #[derive(Deserialize)]
 pub struct GameEmbedData {
   pub height: u64,
@@ -121,7 +119,6 @@ pub struct GameEmbedData {
   pub fullscreen: bool,
 }
 
-#[derive(Clone)]
 #[derive(Deserialize)]
 pub enum Trait {
   #[serde(rename = "p_linux")]
@@ -157,7 +154,6 @@ impl fmt::Display for Trait {
   }
 }
 
-#[derive(Clone)]
 #[derive(Deserialize)]
 pub enum Classification {
   #[serde(rename = "game")]
@@ -202,7 +198,6 @@ impl fmt::Display for Classification {
   }
 }
 
-#[derive(Clone)]
 #[derive(Deserialize)]
 pub enum Type {
   #[serde(rename = "default")]
@@ -238,7 +233,6 @@ impl fmt::Display for Type {
   }
 }
 
-#[derive(Clone)]
 #[derive(Deserialize)]
 pub struct Game {
   pub id: u64,
@@ -297,7 +291,6 @@ impl fmt::Display for Game {
   }
 }
 
-#[derive(Clone)]
 #[derive(Deserialize)]
 pub struct GameUpload {
   pub position: u64,
@@ -347,7 +340,6 @@ impl fmt::Display for GameUpload {
   }
 }
 
-#[derive(Clone)]
 #[derive(Deserialize)]
 pub struct Collection {
   pub id: u64,
@@ -380,7 +372,6 @@ impl fmt::Display for Collection {
   }
 }
 
-#[derive(Clone)]
 #[derive(Deserialize)]
 pub struct CollectionGame {
   pub game: Game,
