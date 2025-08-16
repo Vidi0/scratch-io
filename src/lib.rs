@@ -172,8 +172,8 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
 /// * `folder` - The folder where the downloaded file will be placed
 /// 
 /// * `progress_callback` - A callback function which reports the download progress
-pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u64, folder: Option<&std::path::Path>, mut file_size: F, mut progress_callback: G) -> Result<(std::path::PathBuf, String), String> where
-  F: FnMut(u64),
+pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u64, folder: Option<&std::path::Path>, mut upload_info: F, mut progress_callback: G) -> Result<(std::path::PathBuf, String), String> where
+  F: FnMut(GameUpload, Game),
   G: FnMut(u64),
 {
   // This is a log which will be returned if the download is successful
@@ -184,7 +184,7 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
   let game: Game = get_game_info(client, api_key, upload.game_id).await?;
   
   // Send to the caller the file size
-  file_size(upload.size);
+  upload_info(upload.clone(), game.clone());
 
   // If the folder is unset, set it to ~/Games/{game_name}/
   let folder = match folder {
@@ -196,7 +196,7 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
         .join(game.title)
     }
   };
-  
+
   // The new path is folder + the filename
   let path: std::path::PathBuf = folder.join(upload.filename);
 
@@ -216,8 +216,8 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
   }
   
   let mut downloaded_bytes: u64 = 0;
-  let mut file = tokio::fs::File::create(&path)
-    .await.map_err(|e| e.to_string())?;
+  let mut file = tokio::fs::File::create(&path).await
+    .map_err(|e| e.to_string())?;
   let mut stream = file_response.bytes_stream();
 
   use futures_util::StreamExt;
@@ -235,6 +235,9 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
     downloaded_bytes += chunk.len() as u64;
     progress_callback(downloaded_bytes);
   }
+
+  file.flush().await
+    .map_err(|e| e.to_string())?;
 
   // Check the md5 hash
   match upload.md5_hash {

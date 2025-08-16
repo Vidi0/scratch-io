@@ -116,23 +116,35 @@ async fn print_collection_games(client: &Client, api_key: &str, collection_id: u
 }
 
 async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&Path>) {
-  let pb = indicatif::ProgressBar::new(0);
-  pb.set_style(indicatif::ProgressStyle::default_bar()
-    .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})").unwrap()
-    .progress_chars("#>-"));
+  let progress_bar = indicatif::ProgressBar::new(0);
+  progress_bar.set_style(
+    indicatif::ProgressStyle::default_bar()
+      .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})").unwrap()
+      .progress_chars("#>-")
+  );
 
-  match scratch_io::download_upload(&client, &api_key, upload_id, dest, |file_size| {
-    pb.set_length(file_size);
+  match scratch_io::download_upload(&client, &api_key, upload_id, dest, |upload, game| {
+    println!("\
+Upload id: {}
+  Game id: {}
+  Game: {}
+  Filename: {}",
+      upload.id,
+      game.id,
+      game.title,
+      upload.filename
+    );
+    progress_bar.set_length(upload.size);
   }, |downloaded| {
-    pb.set_position(downloaded);
+    progress_bar.set_position(downloaded);
   }).await {
     Ok((path, log)) => {
-      pb.finish();
+      progress_bar.finish();
       print!("{log}");
       println!("File saved to: {}", path.to_string_lossy());
     }
     Err(e) => {
-      pb.abandon();
+      progress_bar.abandon();
       eprintln_exit!("Error while downloading file:\n{}", e);
     }
   }
