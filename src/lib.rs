@@ -1,5 +1,5 @@
-use tokio::fs::File;
-use tokio::io::{AsyncWriteExt, AsyncReadExt};
+use tokio::io::AsyncWriteExt;
+use futures_util::StreamExt;
 use std::collections::HashMap;
 use md5::{Md5, Digest};
 use reqwest::{Client, Method, Response, header};
@@ -183,9 +183,19 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
   let upload: GameUpload = get_upload_info(client, api_key, upload_id).await?;
   let game: Game = get_game_info(client, api_key, upload.game_id).await?;
   
-  // Send to the caller the file size
+  // Send to the caller the game and the upload info
   upload_info(upload.clone(), game.clone());
+  
+  // Start the download, but don't save it to a file yet
+  let file_response = itch_request(
+    client,
+    Method::GET,
+    &ItchApiUrl::V2(format!("uploads/{upload_id}/download")),
+    None,
+    api_key
+  ).await?;
 
+  // Set the folder and the file variables  
   // If the folder is unset, set it to ~/Games/{game_name}/
   let folder = match folder {
     Some(f) => f,
@@ -197,47 +207,46 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
     }
   };
 
-  // The new path is folder + the filename
-  let path: std::path::PathBuf = folder.join(upload.filename);
-
-  // Download the file
-  let file_response = itch_request(
-    client,
-    Method::GET,
-    &ItchApiUrl::V2(format!("uploads/{upload_id}/download")),
-    None,
-    api_key
-  ).await?;
-  
   // Create the folder if it doesn't exist
   if !folder.exists() {
     tokio::fs::create_dir_all(folder).await
       .map_err(|e| format!("Couldn't create the folder {}: {e}", folder.to_string_lossy()))?;
   }
+
+  // The new path is folder + the filename
+  let path: std::path::PathBuf = folder.join(upload.filename);
   
+  // Prepare the download and the hasher variables
   let mut downloaded_bytes: u64 = 0;
   let mut file = tokio::fs::File::create(&path).await
     .map_err(|e| e.to_string())?;
   let mut stream = file_response.bytes_stream();
-
-  use futures_util::StreamExt;
+  let mut hasher = Md5::new();
 
   // Save chunks to the file async
+  // Also, compute the md5 hash while it is being downloaded
   while let Some(chunk) = stream.next().await {
+    // Return an error if the chunk is invalid
     let chunk = match chunk {
       Ok(c) => c,
       Err(e) => {
         return Err(e.to_string());
       }
     };
-    file.write_all(&chunk)
-      .await.map_err(|e| e.to_string())?;
+
+    // Write the chunk to the file
+    file.write_all(&chunk).await
+      .map_err(|e| e.to_string())?;
+
+    // If the upload has a md5 hash, update the hasher
+    if let Some(_) = upload.md5_hash {
+      hasher.update(&chunk);
+    }
+  
+    // Send a callback with the progress
     downloaded_bytes += chunk.len() as u64;
     progress_callback(downloaded_bytes);
   }
-
-  file.flush().await
-    .map_err(|e| e.to_string())?;
 
   // Check the md5 hash
   match upload.md5_hash {
@@ -245,48 +254,22 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
       output_log.push_str("Missing md5 hash. Couldn't verify the file integrity!\n");
     }
     Some(upload_hash) => {
-      verify_md5_hash_file(&path, &upload_hash).await?;
+      let file_hash = format!("{:x}", hasher.finalize());
+
+      if !file_hash.eq_ignore_ascii_case(&upload_hash) {
+        return Err(format!("File verification failed! The file hash and the hash provided by the server are different.\n\
+File hash:   {file_hash}
+Server hash: {upload_hash}"
+        ));
+      }
     }
   }
+
+  // Flush the file to ensure all the data has been written
+  file.flush().await
+    .map_err(|e| e.to_string())?;
 
   Ok((path, output_log))
-}
-
-/// Checks that a file md5 hash is the same as `hash`
-/// 
-/// # Arguments
-/// 
-/// * `path` - The path to the file
-/// 
-/// * `hash` - The md5 hash string
-async fn verify_md5_hash_file(path: &std::path::Path, hash: &str) -> Result<(), String> {
-
-  let mut file = File::open(path)
-    .await.map_err(|e| e.to_string())?;
-  let mut hasher = Md5::new();
-  let mut buffer: [u8; 8192] = [0u8; 8192];
-  
-  loop {
-    let n: usize = file.read(&mut buffer)
-      .await.map_err(|e| e.to_string())?;
-    if n == 0 {
-      break; // EOF
-    }
-    hasher.update(&buffer[..n]);
-  }
-    
-  let hash_string = format!("{:x}", hasher.finalize());
-
-  if !hash_string.eq_ignore_ascii_case(&hash) {
-    Err(format!("File verification failed! The file hash and the hash provided by the server are different.\n\
-File hash:   {hash_string}
-Server hash: {hash}\
-    "))
-  }
-  else {
-    Ok(())
-  }
-
 }
 
 /// Given a list of game uploads, return the url to the web game (if it exists)

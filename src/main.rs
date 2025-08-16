@@ -123,21 +123,29 @@ async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&
       .progress_chars("#>-")
   );
 
-  match scratch_io::download_upload(&client, &api_key, upload_id, dest, |upload, game| {
-    println!("\
-Upload id: {}
-  Game id: {}
-  Game: {}
-  Filename: {}",
-      upload.id,
-      game.id,
-      game.title,
-      upload.filename
-    );
-    progress_bar.set_length(upload.size);
-  }, |downloaded| {
-    progress_bar.set_position(downloaded);
-  }).await {
+  match scratch_io::download_upload(
+    &client,
+    &api_key,
+    upload_id,
+    dest,
+    |mut upload, game| {
+      upload.id = 0;
+      println!("\
+  Upload id: {}
+    Game id: {}
+    Game: {}
+    Filename: {}",
+        upload.id,
+        game.id,
+        game.title,
+        upload.filename
+      );
+      progress_bar.set_length(upload.size);
+    },
+  |downloaded| {
+      progress_bar.set_position(downloaded);
+    }
+  ).await {
     Ok((path, log)) => {
       progress_bar.finish();
       print!("{log}");
@@ -148,7 +156,6 @@ Upload id: {}
       eprintln_exit!("Error while downloading file:\n{}", e);
     }
   }
-
 }
 
 #[tokio::main]
