@@ -2,7 +2,6 @@ use reqwest::Client;
 use serde::{Serialize, Deserialize};
 use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
-use scratch_io::itch_types::*;
 
 const APP_CONFIGURATION_NAME: &str = "scratch-io";
 const APP_CONFIGURATION_FILE: &str = "config";
