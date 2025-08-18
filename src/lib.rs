@@ -1,35 +1,38 @@
 use tokio::io::AsyncWriteExt;
 use tokio::time::{Instant, Duration};
 use futures_util::StreamExt;
-use std::collections::HashMap;
 use md5::{Md5, Digest};
 use reqwest::{Client, Method, Response, header};
 
 pub mod itch_types;
 use crate::itch_types::*;
 
-async fn itch_request(client: &Client, method: Method, url: &ItchApiUrl, parameters: Option<HashMap<&str, &str>>, api_key: &str) -> Result<Response, String> {
+async fn itch_request<O>(client: &Client, method: Method, url: &ItchApiUrl, api_key: &str, options: O) -> Result<Response, String> where 
+  O: FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
+{
   let mut request: reqwest::RequestBuilder = client.request(method, url.to_string());
 
   request = match url {
     ItchApiUrl::V1(..) => request.header(header::AUTHORIZATION, format!("Bearer {api_key}")),
     ItchApiUrl::V2(..) => request.header(header::AUTHORIZATION, api_key),
   };
-  if let Some(params) = parameters {
-    request = request.query(&params);
-  }
   if let ItchApiUrl::V2(_) = url {
     request = request.header(header::ACCEPT, "application/vnd.itch.v2");
   }
+
+  // The callback is the final option before sending because
+  // it needs to be able to modify anything
+  request = options(request);
 
   request.send()
     .await.map_err(|e| format!("{e}"))
 }
 
-async fn itch_request_json<T>(client: &Client, method: Method, url: &ItchApiUrl, parameters: Option<HashMap<&str, &str>>, api_key: &str) -> Result<T, String> where
+async fn itch_request_json<T, O>(client: &Client, method: Method, url: &ItchApiUrl, api_key: &str, options: O) -> Result<T, String> where
   T: serde::de::DeserializeOwned,
+  O: FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
 {
-  itch_request(client, method, url, parameters, api_key)
+  itch_request(client, method, url, api_key, options)
     .await?
     .json::<ApiResponse<T>>()
     .await.map_err(|e| e.to_string())?
@@ -42,12 +45,12 @@ async fn itch_request_json<T>(client: &Client, method: Method, url: &ItchApiUrl,
 ///
 /// * `api_key` - The api_key to verify against the Itch.io servers
 pub async fn verify_api_key(client: &Client, api_key: &str) -> Result<(), String> {
-  itch_request_json::<VerifyAPIKeyResponse>(
+  itch_request_json::<VerifyAPIKeyResponse, _>(
     client,
     Method::GET,
     &ItchApiUrl::V1(format!("key/credentials/info")),
-    None,
-    api_key
+    api_key,
+    |b| b
   ).await
     .map(|_| ())
     .map_err(|e| format!("The server replied with an error while verifying the api key: {e}"))
@@ -61,12 +64,12 @@ pub async fn verify_api_key(client: &Client, api_key: &str) -> Result<(), String
 /// 
 /// * `game_id` - The ID of the game from which information will be obtained
 pub async fn get_game_info(client: &Client, api_key: &str, game_id: u64) -> Result<Game, String> {
-  itch_request_json::<GameInfoResponse>(
+  itch_request_json::<GameInfoResponse, _>(
     client,
     Method::GET,
     &ItchApiUrl::V2(format!("games/{game_id}")),
-    None,
-    api_key
+    api_key,
+    |b| b
   ).await
     .map(|res| res.game)
     .map_err(|e| format!("The server replied with an error while trying to get the game info: {e}"))
@@ -80,12 +83,12 @@ pub async fn get_game_info(client: &Client, api_key: &str, game_id: u64) -> Resu
 /// 
 /// * `game_id` - The ID of the game from which information will be obtained
 pub async fn get_game_uploads(client: &Client, api_key: &str, game_id: u64) -> Result<Vec<GameUpload>, String> {
-  itch_request_json::<GameUploadsResponse>(
+  itch_request_json::<GameUploadsResponse, _>(
     client,
     Method::GET,
     &ItchApiUrl::V2(format!("games/{game_id}/uploads")),
-    None,
-    api_key
+    api_key,
+    |b| b
   ).await
     .map(|res| res.uploads)
     .map_err(|e| format!("The server replied with an error while trying to get the game uploads: {e}"))
@@ -99,12 +102,12 @@ pub async fn get_game_uploads(client: &Client, api_key: &str, game_id: u64) -> R
 /// 
 /// * `upload_id` - The ID of the upload from which information will be obtained
 pub async fn get_upload_info(client: &Client, api_key: &str, upload_id: u64) -> Result<GameUpload, String> {
-  itch_request_json::<UploadResponse>(
+  itch_request_json::<UploadResponse, _>(
     client,
     Method::GET,
     &ItchApiUrl::V2(format!("uploads/{upload_id}")),
-    None,
-    api_key
+    api_key,
+    |b|b
   ).await
     .map(|res| res.upload)
     .map_err(|e| format!("The server replied with an error while trying to get the upload info: {e}"))
@@ -116,12 +119,12 @@ pub async fn get_upload_info(client: &Client, api_key: &str, upload_id: u64) -> 
 /// 
 /// * `api_key` - A valid Itch.io API key to make the request
 pub async fn get_collections(client: &Client, api_key: &str) -> Result<Vec<Collection>, String> {
-  itch_request_json::<CollectionsResponse>(
+  itch_request_json::<CollectionsResponse, _>(
     client,
     Method::GET,
     &ItchApiUrl::V2(format!("profile/collections")),
-    None,
-    api_key
+    api_key,
+    |b|b
   ).await
     .map(|res| res.collections)
     .map_err(|e| format!("The server replied with an error while trying to list the profile's collections: {e}"))
@@ -138,12 +141,12 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
   let mut games: Vec<CollectionGame> = Vec::new();
   let mut page: u64 = 1;
   loop {
-    let mut response = itch_request_json::<CollectionGamesResponse>(
+    let mut response = itch_request_json::<CollectionGamesResponse, _>(
       client,
       Method::GET,
       &ItchApiUrl::V2(format!("collections/{collection_id}/collection-games")),
-      Some(HashMap::from([("page", page.to_string().as_str())])),
-      api_key
+      api_key,
+      |b| b.query(&[("page", page)])
     ).await
       .map_err(|e| format!("The server replied with an error while trying to list the collection's games: {e}"))?;
 
@@ -192,8 +195,8 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
     client,
     Method::GET,
     &ItchApiUrl::V2(format!("uploads/{upload_id}/download")),
-    None,
-    api_key
+    api_key,
+    |b| b
   ).await?;
 
   // Set the folder and the file variables  
