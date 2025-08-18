@@ -13,7 +13,9 @@ async fn itch_request<O>(client: &Client, method: Method, url: &ItchApiUrl, api_
   let mut request: reqwest::RequestBuilder = client.request(method, url.to_string());
 
   request = match url {
+    // https://itchapi.ryhn.link/API/V1/index.html#authentication
     ItchApiUrl::V1(..) => request.header(header::AUTHORIZATION, format!("Bearer {api_key}")),
+    // https://itchapi.ryhn.link/API/V2/index.html#authentication
     ItchApiUrl::V2(..) => request.header(header::AUTHORIZATION, api_key),
   };
   // This header is set to ensure the use of the v2 version
