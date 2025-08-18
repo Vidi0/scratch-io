@@ -16,6 +16,8 @@ async fn itch_request<O>(client: &Client, method: Method, url: &ItchApiUrl, api_
     ItchApiUrl::V1(..) => request.header(header::AUTHORIZATION, format!("Bearer {api_key}")),
     ItchApiUrl::V2(..) => request.header(header::AUTHORIZATION, api_key),
   };
+  // This header is set to ensure the use of the v2 version
+  // https://itchapi.ryhn.link/API/V2/index.html
   if let ItchApiUrl::V2(_) = url {
     request = request.header(header::ACCEPT, "application/vnd.itch.v2");
   }
