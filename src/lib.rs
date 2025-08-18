@@ -29,7 +29,7 @@ async fn itch_request<O>(client: &Client, method: Method, url: &ItchApiUrl, api_
   request = options(request);
 
   request.send()
-    .await.map_err(|e| format!("{e}"))
+    .await.map_err(|e| format!("Error while sending request: {e}"))
 }
 
 async fn itch_request_json<T, O>(client: &Client, method: Method, url: &ItchApiUrl, api_key: &str, options: O) -> Result<T, String> where
@@ -39,7 +39,7 @@ async fn itch_request_json<T, O>(client: &Client, method: Method, url: &ItchApiU
   itch_request(client, method, url, api_key, options)
     .await?
     .json::<ApiResponse<T>>()
-    .await.map_err(|e| e.to_string())?
+    .await.map_err(|e| format!("Error while parsing JSON body: {e}"))?
     .into_result()
 }
 
@@ -57,7 +57,7 @@ pub async fn verify_api_key(client: &Client, api_key: &str) -> Result<(), String
     |b| b
   ).await
     .map(|_| ())
-    .map_err(|e| format!("The server replied with an error while verifying the api key: {e}"))
+    .map_err(|e| format!("An error occurred while attempting to verify the api key:\n{e}"))
 }
 
 /// Gets the information about a game in Itch.io
@@ -76,7 +76,7 @@ pub async fn get_game_info(client: &Client, api_key: &str, game_id: u64) -> Resu
     |b| b
   ).await
     .map(|res| res.game)
-    .map_err(|e| format!("The server replied with an error while trying to get the game info: {e}"))
+    .map_err(|e| format!("An error occurred while attempting to obtain the game info:\n{e}"))
 }
 
 /// Gets the game's uploads (downloadable files)
@@ -95,7 +95,7 @@ pub async fn get_game_uploads(client: &Client, api_key: &str, game_id: u64) -> R
     |b| b
   ).await
     .map(|res| res.uploads)
-    .map_err(|e| format!("The server replied with an error while trying to get the game uploads: {e}"))
+    .map_err(|e| format!("An error occurred while attempting to obtain the game uploads:\n{e}"))
 }
 
 /// Gets an upload's info
@@ -114,7 +114,7 @@ pub async fn get_upload_info(client: &Client, api_key: &str, upload_id: u64) -> 
     |b|b
   ).await
     .map(|res| res.upload)
-    .map_err(|e| format!("The server replied with an error while trying to get the upload info: {e}"))
+    .map_err(|e| format!("An error occurred while attempting to obtain the upload information:\n{e}"))
 }
 
 /// Lists the collections of games of the user
@@ -131,7 +131,7 @@ pub async fn get_collections(client: &Client, api_key: &str) -> Result<Vec<Colle
     |b|b
   ).await
     .map(|res| res.collections)
-    .map_err(|e| format!("The server replied with an error while trying to list the profile's collections: {e}"))
+    .map_err(|e| format!("An error occurred while attempting to obtain the list of the profile's collections:\n{e}"))
 }
 
 /// Lists the games inside a collection
@@ -152,7 +152,7 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
       api_key,
       |b| b.query(&[("page", page)])
     ).await
-      .map_err(|e| format!("The server replied with an error while trying to list the collection's games: {e}"))?;
+      .map_err(|e| format!("An error occurred while attempting to obtain the list of the collection's games: {e}"))?;
 
     let num_games: u64 = response.collection_games.len() as u64;
     games.append(&mut response.collection_games);

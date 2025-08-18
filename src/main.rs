@@ -69,16 +69,12 @@ enum Commands {
 async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
   let game_info: Game = match scratch_io::get_game_info(&client, &api_key, game_id).await {
     Ok(game_info) => game_info,
-    Err(e) => {
-      eprintln_exit!("Error while getting game info:\n{}", e);
-    },
+    Err(e) => eprintln_exit!("{e}"),
   };
 
   let uploads: Vec<GameUpload> = match scratch_io::get_game_uploads(&client, &api_key, game_id).await {
     Ok(uploads) => uploads,
-    Err(e) => {
-      eprintln_exit!("Error while getting game uploads:\n{}", e);
-    },
+    Err(e) => eprintln_exit!("{e}"),
   };
 
   println!("{game_info}");
@@ -95,9 +91,7 @@ async fn print_collections(client: &Client, api_key: &str) {
         println!("{col}");
       }
     },
-    Err(e) => {
-      eprintln_exit!("Error while getting collections:\n{}", e);
-    },
+    Err(e) => eprintln_exit!("{e}"),
   };
 }
 
@@ -108,9 +102,7 @@ async fn print_collection_games(client: &Client, api_key: &str, collection_id: u
         println!("{cg}");
       }
     },
-    Err(e) => {
-      eprintln_exit!("Error while getting the collection's games:\n{}", e);
-    },
+    Err(e) => eprintln_exit!("{e}"),
   };
 }
 
@@ -195,7 +187,7 @@ async fn main() {
   // Verify the key
   if let Err(e) = scratch_io::verify_api_key(&client, &api_key).await {
     if !e.contains("invalid key") {
-      eprintln_exit!("Error while validating key:\n{}", e);
+      eprintln_exit!("{e}");
     }
 
     match cli.command {

@@ -411,7 +411,7 @@ impl<T> ApiResponse<T> {
   pub fn into_result(self) -> Result<T, String> {
     match self {
       ApiResponse::Success(data) => Ok(data),
-      ApiResponse::Error { errors } => Err(errors.join("\n")),
+      ApiResponse::Error { errors } => Err(format!("The server replied with an error:\n{}", errors.join("\n"))),
     }
   }
 }
