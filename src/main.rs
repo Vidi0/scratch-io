@@ -113,7 +113,7 @@ async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&
       .progress_chars("#>-")
   );
 
-  match scratch_io::download_upload(
+  let download_response: Result<(PathBuf, String), String> = scratch_io::download_upload(
     &client,
     &api_key,
     upload_id,
@@ -135,7 +135,9 @@ async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&
       progress_bar.set_position(downloaded);
     },
     std::time::Duration::from_millis(100)
-  ).await {
+  ).await;
+
+  match download_response {
     Ok((path, log)) => {
       progress_bar.finish();
       print!("{log}");
