@@ -67,21 +67,20 @@ enum Commands {
 }
 
 async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
-  let game_info: Game = match scratch_io::get_game_info(&client, &api_key, game_id).await {
-    Ok(game_info) => game_info,
+  match scratch_io::get_game_info(&client, &api_key, game_id).await {
+    Ok(game_info) => println!("{game_info}"),
     Err(e) => eprintln_exit!("{e}"),
   };
 
-  let uploads: Vec<GameUpload> = match scratch_io::get_game_uploads(&client, &api_key, game_id).await {
-    Ok(uploads) => uploads,
+  match scratch_io::get_game_uploads(&client, &api_key, game_id).await {
+    Ok(uploads) => {
+      println!("  Uploads:");
+      for u in uploads.iter() {
+        println!("{u}");
+      }
+    },
     Err(e) => eprintln_exit!("{e}"),
   };
-
-  println!("{game_info}");
-  println!("  Uploads:");
-  for u in uploads.iter() {
-    println!("{u}");
-  }
 }
 
 async fn print_collections(client: &Client, api_key: &str) {
