@@ -112,11 +112,23 @@ pub struct User {
   pub gamer: Option<bool>,
 }
 
-#[derive(Deserialize)]
-pub struct GameEmbedData {
-  pub height: u64,
-  pub width: u64,
-  pub fullscreen: bool,
+impl User {
+  fn to_string(&self) -> String {
+    format!("\
+Id: {}
+Name: {}
+Display name: {}",
+      self.id,
+      self.username,
+      self.display_name.clone().unwrap_or(String::new())
+    )
+  }
+}
+
+impl fmt::Display for User {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", self.to_string())
+  }
 }
 
 #[derive(Deserialize)]
@@ -241,7 +253,6 @@ pub struct Game {
   pub short_text: Option<String>,
   pub r#type: Type,
   pub classification: Classification,
-  pub embed: Option<GameEmbedData>,
   pub cover_url: Option<String>,
   pub created_at: String,
   pub published_at: Option<String>,
@@ -417,8 +428,8 @@ impl<T> ApiResponse<T> {
 }
 
 #[derive(Deserialize)]
-pub struct VerifyAPIKeyResponse {
-  pub r#type: String,
+pub struct ProfileResponse {
+  pub user: User,
 }
 
 #[derive(Deserialize)]

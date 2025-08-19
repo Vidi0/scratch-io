@@ -43,21 +43,23 @@ async fn itch_request_json<T, O>(client: &Client, method: Method, url: &ItchApiU
     .into_result()
 }
 
-/// Verifies that a given Itch.io API key is valid
+/// Gets the API's profile
+/// 
+/// This can be used to verify that a given Itch.io API key is valid
 /// 
 /// # Arguments
 ///
 /// * `api_key` - The api_key to verify against the Itch.io servers
-pub async fn verify_api_key(client: &Client, api_key: &str) -> Result<(), String> {
-  itch_request_json::<VerifyAPIKeyResponse, _>(
+pub async fn get_profile(client: &Client, api_key: &str) -> Result<User, String> {
+  itch_request_json::<ProfileResponse, _>(
     client,
     Method::GET,
-    &ItchApiUrl::V1(format!("key/credentials/info")),
+    &ItchApiUrl::V2(format!("profile")),
     api_key,
     |b| b
   ).await
-    .map(|_| ())
-    .map_err(|e| format!("An error occurred while attempting to verify the api key:\n{e}"))
+    .map(|res| res.user)
+    .map_err(|e| format!("An error occurred while attempting to get the profile info:\n{e}"))
 }
 
 /// Gets the information about a game in Itch.io

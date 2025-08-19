@@ -2,6 +2,7 @@ use reqwest::Client;
 use serde::{Serialize, Deserialize};
 use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
+use scratch_io::itch_types::*;
 
 const APP_CONFIGURATION_NAME: &str = "scratch-io";
 const APP_CONFIGURATION_FILE: &str = "config";
@@ -62,6 +63,24 @@ enum Commands {
     /// 
     /// Defaults to ~/Games/{game_name}/
     path: Option<PathBuf>,
+  }
+}
+
+// Returns the key's profile
+async fn verify_key(client: &Client, api_key: &str, is_auth_command: bool) -> User {
+  match scratch_io::get_profile(&client, &api_key).await {
+    Err(e) => {
+      if !e.contains("invalid key") {
+        eprintln_exit!("{e}");
+      }
+  
+      if is_auth_command {
+        eprintln_exit!("The key is invalid!");
+      } else {
+        eprintln_exit!("The key is not longer valid. Try logging in again.");
+      }
+    }
+    Ok(p) => p
   }
 }
 
@@ -184,21 +203,12 @@ async fn main() {
     )
   };
 
-  // Verify the key
-  if let Err(e) = scratch_io::verify_api_key(&client, &api_key).await {
-    if !e.contains("invalid key") {
-      eprintln_exit!("{e}");
-    }
-
-    match cli.command {
-      Commands::Auth { .. } => {
-        eprintln_exit!("The key is invalid!");
-      },
-      _ => {
-        eprintln_exit!("The key is not longer valid. Try logging in again.");
-      }
-    }
-  }
+  // Verify the key and get user info
+  let profile: User = verify_key(
+    &client,
+    &api_key,
+    if let Commands::Auth { .. } = cli.command { true } else { false }
+  ).await;
 
   /**** COMMANDS ****/
 
@@ -212,9 +222,11 @@ async fn main() {
       if let Err(e) = confy::store(APP_CONFIGURATION_NAME, APP_CONFIGURATION_FILE, config) {
         eprintln_exit!("Error while saving config:\n{}", e);
       }
-      
-      // Exit
       println!("The key was saved successfully.");
+
+      // Print user info
+      println!("Logged in as: {}\n", profile.username);
+      println!("{}", profile.to_string());
     },
     Commands::Game { game_id } => {
       print_game_info(&client, &api_key, game_id).await;
