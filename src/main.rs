@@ -71,6 +71,7 @@ enum Commands {
 // Returns the key's profile
 async fn verify_key(client: &Client, api_key: &str, is_auth_command: bool) -> User {
   match scratch_io::get_profile(&client, &api_key).await {
+    Ok(p) => p,
     Err(e) => {
       if !e.contains("invalid key") {
         eprintln_exit!("{e}");
@@ -81,8 +82,7 @@ async fn verify_key(client: &Client, api_key: &str, is_auth_command: bool) -> Us
       } else {
         eprintln_exit!("The key is not longer valid. Try logging in again.");
       }
-    }
-    Ok(p) => p
+    },
   }
 }
 
