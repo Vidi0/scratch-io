@@ -235,7 +235,7 @@ async fn main() {
       println!("Logged in as: {}", profile.username);
     },
     Commands::Profile => {
-      println!("{}", profile.to_string());
+      println!("{profile}");
     }
     Commands::Game { game_id } => {
       print_game_info(&client, &api_key, game_id).await;

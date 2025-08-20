@@ -1,5 +1,5 @@
-use serde::{Deserialize};
-use serde::de::{self, Deserializer, Visitor, SeqAccess};
+use serde::{Deserialize, Serialize};
+use serde::de::{Deserializer, Visitor, SeqAccess};
 use std::marker::PhantomData;
 use std::fmt;
 
@@ -11,12 +11,14 @@ pub enum ItchApiUrl {
   V2(String),
 }
 
-impl ItchApiUrl {
-  pub fn to_string(&self) -> String {
-    match self {
-      ItchApiUrl::V1(u) => format!("{ITCH_API_V1_BASE_URL}/{u}"),
-      ItchApiUrl::V2(u) => format!("{ITCH_API_V2_BASE_URL}/{u}"),
-    }
+impl fmt::Display for ItchApiUrl {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", 
+      match self {
+        ItchApiUrl::V1(u) => format!("{ITCH_API_V1_BASE_URL}/{u}"),
+        ItchApiUrl::V2(u) => format!("{ITCH_API_V2_BASE_URL}/{u}"),
+      }
+    )
   }
 }
 
@@ -59,47 +61,7 @@ fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error> w
   deserializer.deserialize_any(Helper(PhantomData))
 }
 
-#[allow(dead_code)]
-fn deserialize_option_vec<'de, D, T>(deserializer: D) -> Result<Option<Vec<T>>, D::Error> where
-  D: Deserializer<'de>,
-  T: Deserialize<'de>,
-{
-  struct OptVecVisitor<T>(PhantomData<T>);
-
-  impl<'de, T> Visitor<'de> for OptVecVisitor<T> where
-    T: Deserialize<'de>,
-  {
-    type Value = Option<Vec<T>>;
-
-    fn expecting(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-      fmt.write_str("an optional list—or an empty object—as a fallback")
-    }
-
-    fn visit_none<E>(self) -> Result<Self::Value, E> where
-      E: de::Error,
-    {
-      Ok(None)
-    }
-
-    fn visit_unit<E>(self) -> Result<Self::Value, E> where
-      E: de::Error,
-    {
-      Ok(None)
-    }
-
-    fn visit_some<D2>(self, deserializer: D2) -> Result<Self::Value, D2::Error> where
-      D2: Deserializer<'de>,
-    {
-      // Reuse base logic (handling both sequences and maps)
-      empty_object_as_vec(deserializer).map(Some)
-    }
-  }
-
-  deserializer.deserialize_option(OptVecVisitor(PhantomData))
-}
-
-
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub enum GameTrait {
   #[serde(rename = "p_linux")]
   PLinux,
@@ -117,27 +79,13 @@ pub enum GameTrait {
   InPressSystem,
 }
 
-impl GameTrait {
-  fn to_string(&self) -> String {
-    match self {
-      GameTrait::PLinux => "p_linux",
-      GameTrait::PWindows => "p_windows",
-      GameTrait::POSX => "p_osx",
-      GameTrait::PAndroid => "p_android",
-      GameTrait::CanBeBought => "can_be_bought",
-      GameTrait::HasDemo => "has_demo",
-      GameTrait::InPressSystem => "in_press_system",
-    }.to_string()
-  }
-}
-
 impl fmt::Display for GameTrait {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.to_string())
+    write!(f, "{}", serde_json::to_string(&self).unwrap())
   }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub enum UploadTrait {
   #[serde(rename = "p_linux")]
   PLinux,
@@ -151,25 +99,13 @@ pub enum UploadTrait {
   Demo,
 }
 
-impl UploadTrait {
-  fn to_string(&self) -> String {
-    match self {
-      UploadTrait::PLinux => "p_linux",
-      UploadTrait::PWindows => "p_windows",
-      UploadTrait::POSX => "p_osx",
-      UploadTrait::PAndroid => "p_android",
-      UploadTrait::Demo => "demo",
-    }.to_string()
-  }
-}
-
 impl fmt::Display for UploadTrait {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.to_string())
+    write!(f, "{}", serde_json::to_string(&self).unwrap())
   }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub enum GameClassification {
   #[serde(rename = "game")]
   Game,
@@ -191,29 +127,13 @@ pub enum GameClassification {
   Other,
 }
 
-impl GameClassification {
-  fn to_string(&self) -> String {
-    match self {
-      GameClassification::Game => "game",
-      GameClassification::Assets => "assets",
-      GameClassification::GameMod => "game_mod",
-      GameClassification::PhysicalGame => "physical_game",
-      GameClassification::Soundtrack => "soundtrack",
-      GameClassification::Tool => "tool",
-      GameClassification::Comic => "comic",
-      GameClassification::Book => "book",
-      GameClassification::Other => "other",
-    }.to_string()
-  }
-}
-
 impl fmt::Display for GameClassification {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.to_string())
+    write!(f, "{}", serde_json::to_string(&self).unwrap())
   }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub enum GameType {
   #[serde(rename = "default")]
   Default,
@@ -227,25 +147,13 @@ pub enum GameType {
   Unity,
 }
 
-impl GameType {
-  fn to_string(&self) -> String {
-    match self {
-      GameType::Default => "default",
-      GameType::HTML => "html",
-      GameType::Flash => "flash",
-      GameType::Java => "java",
-      GameType::Unity => "unity",
-    }.to_string()
-  }
-}
-
 impl fmt::Display for GameType {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.to_string())
+    write!(f, "{}", serde_json::to_string(&self).unwrap())
   }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub enum UploadType {
   #[serde(rename = "default")]
   Default,
@@ -277,30 +185,9 @@ pub enum UploadType {
   Other,
 }
 
-impl UploadType {
-  fn to_string(&self) -> String {
-    match self {
-      UploadType::Default => "default",
-      UploadType::HTML => "html",
-      UploadType::Flash => "flash",
-      UploadType::Java => "java",
-      UploadType::Unity => "unity",
-      UploadType::Soundtrack => "soundtrack",
-      UploadType::Book => "book",
-      UploadType::Video => "video",
-      UploadType::Documentation => "documentation",
-      UploadType::Mod => "mod",
-      UploadType::AudioAssets => "audio_assets",
-      UploadType::GraphicalAssets => "graphical_assets",
-      UploadType::Sourcecode => "sourcecode",
-      UploadType::Other => "other",
-    }.to_string()
-  }
-}
-
 impl fmt::Display for UploadType {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.to_string())
+    write!(f, "{}", serde_json::to_string(&self).unwrap())
   }
 }
 
@@ -317,9 +204,9 @@ pub struct User {
   pub gamer: Option<bool>,
 }
 
-impl User {
-  fn to_string(&self) -> String {
-    format!("\
+impl fmt::Display for User {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "\
 Id: {}
 Name: {}
 Display name: {}
@@ -331,12 +218,6 @@ Cover URL: {}",
       self.url,
       self.cover_url.clone().unwrap_or(String::new())
     )
-  }
-}
-
-impl fmt::Display for User {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.to_string())
   }
 }
 
@@ -357,9 +238,9 @@ pub struct Game {
   pub traits: Vec<GameTrait>,
 }
 
-impl Game {
-  fn to_string(&self) -> String {
-    format!("\
+impl fmt::Display for Game {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "\
 Id: {}
 Game: {}
   Description: {}
@@ -391,12 +272,6 @@ Game: {}
   }
 }
 
-impl fmt::Display for Game {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.to_string())
-  }
-}
-
 #[derive(Deserialize)]
 pub struct Upload {
   pub position: u64,
@@ -415,9 +290,9 @@ pub struct Upload {
   pub md5_hash: Option<String>,
 }
 
-impl Upload {
-  fn to_string(&self) -> String {
-    format!(
+impl fmt::Display for Upload {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, 
 "    Position: {}
     ID: {}
       Size: {}
@@ -444,12 +319,6 @@ impl Upload {
   }
 }
 
-impl fmt::Display for Upload {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.to_string())
-  }
-}
-
 #[derive(Deserialize)]
 pub struct Collection {
   pub id: u64,
@@ -459,9 +328,9 @@ pub struct Collection {
   pub updated_at: String,
 }
 
-impl Collection {
-  fn to_string(&self) -> String {
-    format!("\
+impl fmt::Display for Collection {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "\
 Id: {}
 Name: {}
   Games count: {}
@@ -476,12 +345,6 @@ Name: {}
   }
 }
 
-impl fmt::Display for Collection {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.to_string())
-  }
-}
-
 #[derive(Deserialize)]
 pub struct CollectionGame {
   pub game: Game,
@@ -490,20 +353,14 @@ pub struct CollectionGame {
   pub created_at: String,
 }
 
-impl CollectionGame {
-  fn to_string(&self) -> String {
-    format!("\
+impl fmt::Display for CollectionGame {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "\
 Position: {}
 {}",
       self.position,
       self.game,
     )
-  }
-}
-
-impl fmt::Display for CollectionGame {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.to_string())
   }
 }
 
