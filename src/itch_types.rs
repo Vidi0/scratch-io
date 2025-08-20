@@ -100,42 +100,6 @@ fn deserialize_option_vec<'de, D, T>(deserializer: D) -> Result<Option<Vec<T>>, 
 
 
 #[derive(Deserialize)]
-pub struct User {
-  pub id: u64,
-  pub username: String,
-  pub display_name: Option<String>,
-  pub url: String,
-  pub cover_url: Option<String>,
-  pub still_cover_url: Option<String>,
-  pub press_user: Option<bool>,
-  pub developer: Option<bool>,
-  pub gamer: Option<bool>,
-}
-
-impl User {
-  fn to_string(&self) -> String {
-    format!("\
-Id: {}
-Name: {}
-Display name: {}
-URL: {}
-Cover URL: {}",
-      self.id,
-      self.username,
-      self.display_name.clone().unwrap_or(String::new()),
-      self.url,
-      self.cover_url.clone().unwrap_or(String::new())
-    )
-  }
-}
-
-impl fmt::Display for User {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", self.to_string())
-  }
-}
-
-#[derive(Deserialize)]
 pub enum Trait {
   #[serde(rename = "p_linux")]
   PLinux,
@@ -250,6 +214,42 @@ impl fmt::Display for Type {
 }
 
 #[derive(Deserialize)]
+pub struct User {
+  pub id: u64,
+  pub username: String,
+  pub display_name: Option<String>,
+  pub url: String,
+  pub cover_url: Option<String>,
+  pub still_cover_url: Option<String>,
+  pub press_user: Option<bool>,
+  pub developer: Option<bool>,
+  pub gamer: Option<bool>,
+}
+
+impl User {
+  fn to_string(&self) -> String {
+    format!("\
+Id: {}
+Name: {}
+Display name: {}
+URL: {}
+Cover URL: {}",
+      self.id,
+      self.username,
+      self.display_name.clone().unwrap_or(String::new()),
+      self.url,
+      self.cover_url.clone().unwrap_or(String::new())
+    )
+  }
+}
+
+impl fmt::Display for User {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", self.to_string())
+  }
+}
+
+#[derive(Deserialize)]
 pub struct Game {
   pub id: u64,
   pub url: String,
@@ -307,7 +307,7 @@ impl fmt::Display for Game {
 }
 
 #[derive(Deserialize)]
-pub struct GameUpload {
+pub struct Upload {
   pub position: u64,
   pub id: u64,
   pub game_id: u64,
@@ -322,7 +322,7 @@ pub struct GameUpload {
   pub md5_hash: Option<String>,
 }
 
-impl GameUpload {
+impl Upload {
   fn to_string(&self) -> String {
     format!(
 "    Position: {}
@@ -349,7 +349,7 @@ impl GameUpload {
   }
 }
 
-impl fmt::Display for GameUpload {
+impl fmt::Display for Upload {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "{}", self.to_string())
   }
@@ -444,12 +444,12 @@ pub struct GameInfoResponse {
 #[derive(Deserialize)]
 pub struct GameUploadsResponse {
   #[serde(deserialize_with = "empty_object_as_vec")]
-  pub uploads: Vec<GameUpload>,
+  pub uploads: Vec<Upload>,
 }
 
 #[derive(Deserialize)]
 pub struct UploadResponse {
-  pub upload: GameUpload,
+  pub upload: Upload,
 }
 
 #[derive(Deserialize)]

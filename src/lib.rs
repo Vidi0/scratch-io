@@ -88,7 +88,7 @@ pub async fn get_game_info(client: &Client, api_key: &str, game_id: u64) -> Resu
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
 /// * `game_id` - The ID of the game from which information will be obtained
-pub async fn get_game_uploads(client: &Client, api_key: &str, game_id: u64) -> Result<Vec<GameUpload>, String> {
+pub async fn get_game_uploads(client: &Client, api_key: &str, game_id: u64) -> Result<Vec<Upload>, String> {
   itch_request_json::<GameUploadsResponse, _>(
     client,
     Method::GET,
@@ -107,7 +107,7 @@ pub async fn get_game_uploads(client: &Client, api_key: &str, game_id: u64) -> R
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
 /// * `upload_id` - The ID of the upload from which information will be obtained
-pub async fn get_upload_info(client: &Client, api_key: &str, upload_id: u64) -> Result<GameUpload, String> {
+pub async fn get_upload_info(client: &Client, api_key: &str, upload_id: u64) -> Result<Upload, String> {
   itch_request_json::<UploadResponse, _>(
     client,
     Method::GET,
@@ -183,14 +183,14 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
 /// 
 /// * `progress_callback` - A callback function which reports the download progress
 pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u64, folder: Option<&std::path::Path>, upload_info: F, progress_callback: G, callback_interval: Duration) -> Result<(std::path::PathBuf, String), String> where
-  F: Fn(&GameUpload, &Game),
+  F: Fn(&Upload, &Game),
   G: Fn(u64),
 {
   // This is a log which will be returned if the download is successful
   let mut output_log: String = String::new();
 
   // Obtain information about the game and the upload that will be downloaeded
-  let upload: GameUpload = get_upload_info(client, api_key, upload_id).await?;
+  let upload: Upload = get_upload_info(client, api_key, upload_id).await?;
   let game: Game = get_game_info(client, api_key, upload.game_id).await?;
   
   // Send to the caller the game and the upload info
@@ -292,7 +292,7 @@ Server hash: {upload_hash}"
 /// 
 /// * `uploads` - The list of uploads to search for the web version
 #[allow(dead_code)]
-fn get_uploads_web_game_url(uploads: Vec<GameUpload>) -> Option<String> {
+fn get_uploads_web_game_url(uploads: Vec<Upload>) -> Option<String> {
   for upload in uploads.iter() {
     if let Type::HTML = upload.r#type {
       return Some(get_web_game_url(upload.id));
