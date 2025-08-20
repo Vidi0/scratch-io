@@ -36,10 +36,13 @@ async fn itch_request_json<T, O>(client: &Client, method: Method, url: &ItchApiU
   T: serde::de::DeserializeOwned,
   O: FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
 {
-  itch_request(client, method, url, api_key, options)
+  let text = itch_request(client, method, url, api_key, options)
     .await?
-    .json::<ApiResponse<T>>()
-    .await.map_err(|e| format!("Error while parsing JSON body: {e}"))?
+    .text()
+    .await.map_err(|e| format!("Error while reading response body: {e}"))?;
+
+  serde_json::from_str::<ApiResponse<T>>(&text)
+    .map_err(|e| format!("Error while parsing JSON body: {e}\n\n{}", text))?
     .into_result()
 }
 
