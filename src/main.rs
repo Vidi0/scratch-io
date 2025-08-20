@@ -154,7 +154,7 @@ Upload id: {}
         game.title,
         upload.filename
       );
-      progress_bar.set_length(upload.size);
+      progress_bar.set_length(upload.size.unwrap_or(0));
     },
   |downloaded| {
       progress_bar.set_position(downloaded);

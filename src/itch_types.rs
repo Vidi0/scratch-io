@@ -402,7 +402,7 @@ pub struct Upload {
   pub position: u64,
   pub id: u64,
   pub game_id: u64,
-  pub size: u64,
+  pub size: Option<u64>,
   pub r#type: UploadType,
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub traits: Vec<UploadTrait>,
@@ -431,7 +431,7 @@ impl Upload {
       Traits: {}",
       self.position,
       self.id,
-      self.size,
+      self.size.clone().map(|n| n.to_string()).unwrap_or(String::new()),
       self.r#type,
       self.filename,
       self.display_name.clone().unwrap_or(String::new()),
