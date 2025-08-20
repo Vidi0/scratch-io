@@ -117,10 +117,14 @@ impl User {
     format!("\
 Id: {}
 Name: {}
-Display name: {}",
+Display name: {}
+URL: {}
+Cover URL: {}",
       self.id,
       self.username,
-      self.display_name.clone().unwrap_or(String::new())
+      self.display_name.clone().unwrap_or(String::new()),
+      self.url,
+      self.cover_url.clone().unwrap_or(String::new())
     )
   }
 }

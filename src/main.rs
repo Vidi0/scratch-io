@@ -45,6 +45,8 @@ enum Commands {
     /// The API key to save
     api_key: String,
   },
+  /// Retrieve information about the profile of the current user
+  Profile,
   /// Retrieve information about a game given its ID
   Game {
     /// The ID of the game to retrieve information about
@@ -84,6 +86,8 @@ async fn verify_key(client: &Client, api_key: &str, is_auth_command: bool) -> Us
   }
 }
 
+// Retrieve information about a game_id and print it
+// Also, print the available uploads of the game
 async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
   match scratch_io::get_game_info(&client, &api_key, game_id).await {
     Ok(game_info) => println!("{game_info}"),
@@ -101,6 +105,7 @@ async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
   };
 }
 
+// Retrieve information about the profile's collections and print it
 async fn print_collections(client: &Client, api_key: &str) {
   match scratch_io::get_collections(&client, &api_key).await {
     Ok(collections) => {
@@ -112,6 +117,7 @@ async fn print_collections(client: &Client, api_key: &str) {
   };
 }
 
+// Retrieve information about a collection's games and print it
 async fn print_collection_games(client: &Client, api_key: &str, collection_id: u64) {
   match scratch_io::get_collection_games(&client, &api_key, collection_id).await {
     Ok(games) => {
@@ -123,6 +129,7 @@ async fn print_collection_games(client: &Client, api_key: &str, collection_id: u
   };
 }
 
+// Download a game's upload
 async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&Path>) {
   let progress_bar = indicatif::ProgressBar::new(0);
   progress_bar.set_style(
@@ -138,10 +145,10 @@ async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&
     dest,
     |upload, game| {
       println!("\
-  Upload id: {}
-    Game id: {}
-    Game: {}
-    Filename: {}",
+Upload id: {}
+  Game id: {}
+  Game: {}
+  Filename: {}",
         upload.id,
         game.id,
         game.title,
@@ -225,9 +232,11 @@ async fn main() {
       println!("The key was saved successfully.");
 
       // Print user info
-      println!("Logged in as: {}\n", profile.username);
-      println!("{}", profile.to_string());
+      println!("Logged in as: {}", profile.username);
     },
+    Commands::Profile => {
+      println!("{}", profile.to_string());
+    }
     Commands::Game { game_id } => {
       print_game_info(&client, &api_key, game_id).await;
     },
