@@ -294,7 +294,7 @@ Server hash: {upload_hash}"
 #[allow(dead_code)]
 fn get_uploads_web_game_url(uploads: Vec<Upload>) -> Option<String> {
   for upload in uploads.iter() {
-    if let Type::HTML = upload.r#type {
+    if let UploadType::HTML = upload.r#type {
       return Some(get_web_game_url(upload.id));
     }
   }

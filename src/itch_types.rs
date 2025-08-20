@@ -100,13 +100,15 @@ fn deserialize_option_vec<'de, D, T>(deserializer: D) -> Result<Option<Vec<T>>, 
 
 
 #[derive(Deserialize)]
-pub enum Trait {
+pub enum GameTrait {
   #[serde(rename = "p_linux")]
   PLinux,
   #[serde(rename = "p_windows")]
   PWindows,
   #[serde(rename = "p_osx")]
   POSX,
+  #[serde(rename = "p_android")]
+  PAndroid,
   #[serde(rename = "can_be_bought")]
   CanBeBought,
   #[serde(rename = "has_demo")]
@@ -115,27 +117,60 @@ pub enum Trait {
   InPressSystem,
 }
 
-impl Trait {
+impl GameTrait {
   fn to_string(&self) -> String {
     match self {
-      Trait::PLinux => "p_linux",
-      Trait::PWindows => "p_windows",
-      Trait::POSX => "p_osx",
-      Trait::CanBeBought => "can_be_bought",
-      Trait::HasDemo => "has_demo",
-      Trait::InPressSystem => "in_press_system",
+      GameTrait::PLinux => "p_linux",
+      GameTrait::PWindows => "p_windows",
+      GameTrait::POSX => "p_osx",
+      GameTrait::PAndroid => "p_android",
+      GameTrait::CanBeBought => "can_be_bought",
+      GameTrait::HasDemo => "has_demo",
+      GameTrait::InPressSystem => "in_press_system",
     }.to_string()
   }
 }
 
-impl fmt::Display for Trait {
+impl fmt::Display for GameTrait {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "{}", self.to_string())
   }
 }
 
 #[derive(Deserialize)]
-pub enum Classification {
+pub enum UploadTrait {
+  #[serde(rename = "p_linux")]
+  PLinux,
+  #[serde(rename = "p_windows")]
+  PWindows,
+  #[serde(rename = "p_osx")]
+  POSX,
+  #[serde(rename = "p_android")]
+  PAndroid,
+  #[serde(rename = "demo")]
+  Demo,
+}
+
+impl UploadTrait {
+  fn to_string(&self) -> String {
+    match self {
+      UploadTrait::PLinux => "p_linux",
+      UploadTrait::PWindows => "p_windows",
+      UploadTrait::POSX => "p_osx",
+      UploadTrait::PAndroid => "p_android",
+      UploadTrait::Demo => "demo",
+    }.to_string()
+  }
+}
+
+impl fmt::Display for UploadTrait {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", self.to_string())
+  }
+}
+
+#[derive(Deserialize)]
+pub enum GameClassification {
   #[serde(rename = "game")]
   Game,
   #[serde(rename = "assets")]
@@ -156,30 +191,30 @@ pub enum Classification {
   Other,
 }
 
-impl Classification {
+impl GameClassification {
   fn to_string(&self) -> String {
     match self {
-      Classification::Game => "game",
-      Classification::Assets => "assets",
-      Classification::GameMod => "game_mod",
-      Classification::PhysicalGame => "physical_game",
-      Classification::Soundtrack => "soundtrack",
-      Classification::Tool => "tool",
-      Classification::Comic => "comic",
-      Classification::Book => "book",
-      Classification::Other => "other",
+      GameClassification::Game => "game",
+      GameClassification::Assets => "assets",
+      GameClassification::GameMod => "game_mod",
+      GameClassification::PhysicalGame => "physical_game",
+      GameClassification::Soundtrack => "soundtrack",
+      GameClassification::Tool => "tool",
+      GameClassification::Comic => "comic",
+      GameClassification::Book => "book",
+      GameClassification::Other => "other",
     }.to_string()
   }
 }
 
-impl fmt::Display for Classification {
+impl fmt::Display for GameClassification {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "{}", self.to_string())
   }
 }
 
 #[derive(Deserialize)]
-pub enum Type {
+pub enum GameType {
   #[serde(rename = "default")]
   Default,
   #[serde(rename = "html")]
@@ -190,24 +225,80 @@ pub enum Type {
   Java,
   #[serde(rename = "unity")]
   Unity,
-  #[serde(rename = "documentation")]
-  Documentation,
 }
 
-impl Type {
+impl GameType {
   fn to_string(&self) -> String {
     match self {
-      Type::Default => "default",
-      Type::HTML => "html",
-      Type::Flash => "flash",
-      Type::Java => "java",
-      Type::Unity => "unity",
-      Type::Documentation => "documentation",
+      GameType::Default => "default",
+      GameType::HTML => "html",
+      GameType::Flash => "flash",
+      GameType::Java => "java",
+      GameType::Unity => "unity",
     }.to_string()
   }
 }
 
-impl fmt::Display for Type {
+impl fmt::Display for GameType {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "{}", self.to_string())
+  }
+}
+
+#[derive(Deserialize)]
+pub enum UploadType {
+  #[serde(rename = "default")]
+  Default,
+  #[serde(rename = "html")]
+  HTML,
+  #[serde(rename = "flash")]
+  Flash,
+  #[serde(rename = "java")]
+  Java,
+  #[serde(rename = "unity")]
+  Unity,
+  #[serde(rename = "soundtrack")]
+  Soundtrack,
+  #[serde(rename = "book")]
+  Book,
+  #[serde(rename = "video")]
+  Video,
+  #[serde(rename = "documentation")]
+  Documentation,
+  #[serde(rename = "mod")]
+  Mod,
+  #[serde(rename = "audio_assets")]
+  AudioAssets,
+  #[serde(rename = "graphical_assets")]
+  GraphicalAssets,
+  #[serde(rename = "sourcecode")]
+  Sourcecode,
+  #[serde(rename = "other")]
+  Other,
+}
+
+impl UploadType {
+  fn to_string(&self) -> String {
+    match self {
+      UploadType::Default => "default",
+      UploadType::HTML => "html",
+      UploadType::Flash => "flash",
+      UploadType::Java => "java",
+      UploadType::Unity => "unity",
+      UploadType::Soundtrack => "soundtrack",
+      UploadType::Book => "book",
+      UploadType::Video => "video",
+      UploadType::Documentation => "documentation",
+      UploadType::Mod => "mod",
+      UploadType::AudioAssets => "audio_assets",
+      UploadType::GraphicalAssets => "graphical_assets",
+      UploadType::Sourcecode => "sourcecode",
+      UploadType::Other => "other",
+    }.to_string()
+  }
+}
+
+impl fmt::Display for UploadType {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "{}", self.to_string())
   }
@@ -255,15 +346,15 @@ pub struct Game {
   pub url: String,
   pub title: String,
   pub short_text: Option<String>,
-  pub r#type: Type,
-  pub classification: Classification,
+  pub r#type: GameType,
+  pub classification: GameClassification,
   pub cover_url: Option<String>,
   pub created_at: String,
   pub published_at: Option<String>,
   pub min_price: Option<u64>,
   pub user: Option<User>,
   #[serde(deserialize_with = "empty_object_as_vec")]
-  pub traits: Vec<Trait>,
+  pub traits: Vec<GameTrait>,
 }
 
 impl Game {
@@ -312,11 +403,13 @@ pub struct Upload {
   pub id: u64,
   pub game_id: u64,
   pub size: u64,
-  pub r#type: Type,
+  pub r#type: UploadType,
   #[serde(deserialize_with = "empty_object_as_vec")]
-  pub traits: Vec<Trait>,
+  pub traits: Vec<UploadTrait>,
   pub filename: String,
+  pub display_name: Option<String>,
   pub storage: String,
+  pub host: Option<String>,
   pub created_at: String,
   pub updated_at: Option<String>,
   pub md5_hash: Option<String>,
@@ -330,6 +423,7 @@ impl Upload {
       Size: {}
       Type: {}
       Filename: {}
+      Display name: {}
       Storage: {}
       Created at: {}
       Updated at: {}
@@ -340,6 +434,7 @@ impl Upload {
       self.size,
       self.r#type,
       self.filename,
+      self.display_name.clone().unwrap_or(String::new()),
       self.storage,
       self.created_at,
       self.updated_at.clone().unwrap_or(String::new()),
