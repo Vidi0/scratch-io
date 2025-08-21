@@ -282,8 +282,8 @@ Server hash: {upload_hash}"
     }
   }
 
-  // Flush the file to ensure all the data has been written
-  file.flush().await
+  // Sync the file to ensure all the data has been written
+  file.sync_all().await
     .map_err(|e| e.to_string())?;
 
   Ok((path, output_log))
