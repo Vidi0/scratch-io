@@ -186,17 +186,16 @@ async fn main() {
   let cli: Cli = Cli::parse();
 
   // Get the config from the file
-  let mut config: Config = match cli.config_file {
-    None => match confy::load(APP_CONFIGURATION_NAME, APP_CONFIGURATION_FILE) {
+  let mut config: Config = {
+    let config_result = match cli.config_file {
+      None => confy::load(APP_CONFIGURATION_NAME, APP_CONFIGURATION_FILE),
+      Some(f) => confy::load_path(&f),
+    };
+
+    match config_result {
       Ok(c) => c,
       Err(e) => {
         eprintln_exit!("Error while reading configuration file!\n{}", e);
-      }
-    }
-    Some(f) => match confy::load_path(&f) {
-      Ok(c) => c,
-      Err(e) => {
-        eprintln_exit!("Error while reading configuration file from path: {}!\n{}", f, e);
       }
     }
   };
