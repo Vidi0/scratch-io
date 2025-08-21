@@ -2,6 +2,9 @@ use serde::{Deserialize, Serialize};
 use serde::de::{Deserializer, Visitor, SeqAccess};
 use std::marker::PhantomData;
 use std::fmt;
+use flate2::read::GzDecoder;
+use std::fs::File;
+use std::path::{Path, PathBuf};
 
 const ITCH_API_V1_BASE_URL: &str = "https://itch.io/api/1";
 const ITCH_API_V2_BASE_URL: &str = "https://api.itch.io";
@@ -23,28 +26,49 @@ impl fmt::Display for ItchApiUrl {
 }
 
 pub struct UploadArchive {
-  file: std::path::PathBuf,
+  file: PathBuf,
   format: UploadArchiveFormat,
 }
 
 pub enum UploadArchiveFormat {
-  Zip(),
-  Other(),
+  Zip,
+  TarGz,
+  Other,
 }
 
 impl UploadArchive {
+  fn file_without_extension(&self) -> String {
+    let stem = self.file.file_stem()
+      .expect("Empty filename?")
+      .to_string_lossy();
+
+    match self.format {
+      UploadArchiveFormat::TarGz => {
+        stem.strip_suffix(".tar")
+          .unwrap_or(&stem)
+      },
+      _ => {
+        &stem
+      },
+    }.to_string()
+  }
+
   /// Gets the archive format of the file
   /// 
   /// If the file is not an archive, then the format is `UploadArchiveFormat::Other`
-  pub fn from_file(file: &std::path::Path) -> Self {
-    let Some(ext) = file.extension().map(|e| e.to_string_lossy()) else {
-      return UploadArchive { file: file.to_path_buf(), format: UploadArchiveFormat::Other() }
+  pub fn from_file(file: &Path) -> Self {
+    let Some(extension) = file.extension().map(|e| e.to_string_lossy()) else {
+      return UploadArchive { file: file.to_path_buf(), format: UploadArchiveFormat::Other }
     };
 
-    let format = if ext.eq_ignore_ascii_case("zip") {
-      UploadArchiveFormat::Zip()
+    let is_tar: bool = file.file_stem().expect("Empty filename?").to_string_lossy().to_lowercase().ends_with(".tar");
+
+    let format = if extension.eq_ignore_ascii_case("zip") {
+      UploadArchiveFormat::Zip
+    } else if is_tar && extension.eq_ignore_ascii_case("gz") {
+      UploadArchiveFormat::TarGz
     } else {
-      UploadArchiveFormat::Other()
+      UploadArchiveFormat::Other
     };
 
     UploadArchive { file: file.to_path_buf(), format }
@@ -58,27 +82,34 @@ impl UploadArchive {
   /// Extracts the archive into a folder with the same name (without the extension)
   /// 
   /// This function can return a path to a file (if it's not a valid archive) or to the extracted folder
-  pub async fn extract(self) -> Result<std::path::PathBuf, String> {
-    if let UploadArchiveFormat::Other() = self.format {
+  pub async fn extract(self) -> Result<PathBuf, String> {
+    if let UploadArchiveFormat::Other = self.format {
       return Ok(self.file);
     }
 
-    let file = std::fs::File::open(&self.file)
+    let file = File::open(&self.file)
       .map_err(|e| e.to_string())?;
 
     let folder = self.file
       .parent()
       .unwrap()
-      .join(&self.file.file_stem().expect("Empty filename?"));
+      .join(self.file_without_extension());
 
     match self.format {
-      UploadArchiveFormat::Other() => (),
-      UploadArchiveFormat::Zip() => {
+      UploadArchiveFormat::Other => (),
+      UploadArchiveFormat::Zip => {
         let mut archive = zip::ZipArchive::new(&file)
           .map_err(|e| e.to_string())?;
 
         archive.extract_unwrapped_root_dir(&folder, zip::read::root_dir_common_filter)
-          .map_err(|e| e.to_string())?;
+          .map_err(|e| format!("Error extracting ZIP archive: {e}"))?;
+      }
+      UploadArchiveFormat::TarGz => {
+        let gz_decoder: GzDecoder<&File> = GzDecoder::new(&file);
+        let mut tar_decoder: tar::Archive<GzDecoder<&File>> = tar::Archive::new(gz_decoder);
+
+        tar_decoder.unpack(&folder)
+          .map_err(|e| format!("Error extracting tar.gz archive: {e}"))?;
       }
     }
 
