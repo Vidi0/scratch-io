@@ -170,7 +170,12 @@ Upload id: {}
     Ok((path, log)) => {
       progress_bar.finish();
       print!("{log}");
-      println!("File saved to: {}", path.to_string_lossy());
+
+      if path.is_file() {
+        println!("Game file saved to: {}", path.to_string_lossy());
+      } else {
+        println!("Game folder extracted to: {}", path.to_string_lossy());
+      }
     }
     Err(e) => {
       progress_bar.abandon();

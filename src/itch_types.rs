@@ -22,6 +22,71 @@ impl fmt::Display for ItchApiUrl {
   }
 }
 
+pub struct UploadArchive {
+  file: std::path::PathBuf,
+  format: UploadArchiveFormat,
+}
+
+pub enum UploadArchiveFormat {
+  Zip(),
+  Other(),
+}
+
+impl UploadArchive {
+  /// Gets the archive format of the file
+  /// 
+  /// If the file is not an archive, then the format is `UploadArchiveFormat::Other`
+  pub fn from_file(file: &std::path::Path) -> Self {
+    let Some(ext) = file.extension().map(|e| e.to_string_lossy()) else {
+      return UploadArchive { file: file.to_path_buf(), format: UploadArchiveFormat::Other() }
+    };
+
+    let format = if ext.eq_ignore_ascii_case("zip") {
+      UploadArchiveFormat::Zip()
+    } else {
+      UploadArchiveFormat::Other()
+    };
+
+    UploadArchive { file: file.to_path_buf(), format }
+  }
+
+  async fn remove(&self) -> Result<(), String> {
+    tokio::fs::remove_file(&self.file).await
+      .map_err(|e| e.to_string())
+  }
+
+  /// Extracts the archive into a folder with the same name (without the extension)
+  /// 
+  /// This function can return a path to a file (if it's not a valid archive) or to the extracted folder
+  pub async fn extract(self) -> Result<std::path::PathBuf, String> {
+    if let UploadArchiveFormat::Other() = self.format {
+      return Ok(self.file);
+    }
+
+    let file = std::fs::File::open(&self.file)
+      .map_err(|e| e.to_string())?;
+
+    let folder = self.file
+      .parent()
+      .unwrap()
+      .join(&self.file.file_stem().expect("Empty filename?"));
+
+    match self.format {
+      UploadArchiveFormat::Other() => (),
+      UploadArchiveFormat::Zip() => {
+        let mut archive = zip::ZipArchive::new(&file)
+          .map_err(|e| e.to_string())?;
+
+        archive.extract_unwrapped_root_dir(&folder, zip::read::root_dir_common_filter)
+          .map_err(|e| e.to_string())?;
+      }
+    }
+
+    self.remove().await?;
+    Ok(folder)
+  }
+}
+
 fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error> where
   D: Deserializer<'de>,
   T: Deserialize<'de>,

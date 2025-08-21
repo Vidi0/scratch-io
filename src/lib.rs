@@ -3,6 +3,7 @@ use tokio::time::{Instant, Duration};
 use futures_util::StreamExt;
 use md5::{Md5, Digest};
 use reqwest::{Client, Method, Response, header};
+use std::path::{Path, PathBuf};
 
 pub mod itch_types;
 use crate::itch_types::*;
@@ -185,7 +186,7 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
 /// * `folder` - The folder where the downloaded file will be placed
 /// 
 /// * `progress_callback` - A callback function which reports the download progress
-pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u64, folder: Option<&std::path::Path>, upload_info: F, progress_callback: G, callback_interval: Duration) -> Result<(std::path::PathBuf, String), String> where
+pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u64, folder: Option<&Path>, upload_info: F, progress_callback: G, callback_interval: Duration) -> Result<(PathBuf, String), String> where
   F: Fn(&Upload, &Game),
   G: Fn(u64),
 {
@@ -227,7 +228,7 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
   }
 
   // The new path is folder + the filename
-  let path: std::path::PathBuf = folder.join(upload.filename);
+  let path: PathBuf = folder.join(upload.filename);
   
   // Prepare the download, the hasher, and the callback variables
   let mut downloaded_bytes: u64 = 0;
@@ -286,7 +287,13 @@ Server hash: {upload_hash}"
   file.sync_all().await
     .map_err(|e| e.to_string())?;
 
-  Ok((path, output_log))
+  // Extracts the downloaded archive (if it's an archive)
+  // game_files can be the path of an executable or the path to the extracted folder
+  let game_files = UploadArchive::from_file(&path)
+    .extract().await
+    .map_err(|e| e.to_string())?;
+
+  Ok((game_files, output_log))
 }
 
 /// Given a list of game uploads, return the url to the web game (if it exists)
