@@ -34,6 +34,10 @@ struct Cli {
   /// Authenticate but don't save in the config
   api_key: Option<String>,
 
+  #[arg(short, long, env = "SCRATCH_CONFIG_FILE")]
+  /// The path where the config file is stored
+  config_file: Option<String>,
+
   #[command(subcommand)]
   command: Commands,
 }
@@ -100,7 +104,7 @@ async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
       for u in uploads.iter() {
         println!("{u}");
       }
-    },
+    }
     Err(e) => eprintln_exit!("{e}"),
   };
 }
@@ -112,7 +116,7 @@ async fn print_collections(client: &Client, api_key: &str) {
       for col in collections.iter() {
         println!("{col}");
       }
-    },
+    }
     Err(e) => eprintln_exit!("{e}"),
   };
 }
@@ -124,7 +128,7 @@ async fn print_collection_games(client: &Client, api_key: &str, collection_id: u
       for cg in games {
         println!("{cg}");
       }
-    },
+    }
     Err(e) => eprintln_exit!("{e}"),
   };
 }
@@ -177,17 +181,25 @@ Upload id: {}
 
 #[tokio::main]
 async fn main() {
-
-  // Get the config from the file
-  let mut config: Config = match confy::load(APP_CONFIGURATION_NAME, APP_CONFIGURATION_FILE) {
-    Ok(c) => c,
-    Err(e) => {
-      eprintln_exit!("Error while reading configuration file!\n{}", e);
-    }
-  };
   
   // Read the user commands
   let cli: Cli = Cli::parse();
+
+  // Get the config from the file
+  let mut config: Config = match cli.config_file {
+    None => match confy::load(APP_CONFIGURATION_NAME, APP_CONFIGURATION_FILE) {
+      Ok(c) => c,
+      Err(e) => {
+        eprintln_exit!("Error while reading configuration file!\n{}", e);
+      }
+    }
+    Some(f) => match confy::load_path(&f) {
+      Ok(c) => c,
+      Err(e) => {
+        eprintln_exit!("Error while reading configuration file from path: {}!\n{}", f, e);
+      }
+    }
+  };
 
   // Create reqwest client
   let client: Client = Client::new();
@@ -234,19 +246,19 @@ async fn main() {
 
       // Print user info
       println!("Logged in as: {}", profile.username);
-    },
+    }
     Commands::Profile => {
       println!("{profile}");
     }
     Commands::Game { game_id } => {
       print_game_info(&client, &api_key, game_id).await;
-    },
+    }
     Commands::Collections { collection_id } => {
       match collection_id {
         None => print_collections(&client, &api_key).await,
         Some(id) => print_collection_games(&client, &api_key, id).await,
       }
-    },
+    }
     Commands::Download { upload_id, path } => {
       download(&client, &api_key, upload_id, path.as_deref()).await;
     }
