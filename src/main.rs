@@ -30,7 +30,7 @@ impl ::std::default::Default for Config {
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
-  #[arg(short, long)]
+  #[arg(short, long, env = "SCRATCH_API_KEY")]
   /// Authenticate but don't save in the config
   api_key: Option<String>,
 
@@ -69,7 +69,7 @@ enum Commands {
 }
 
 // Returns the key's profile
-async fn verify_key(client: &Client, api_key: &str, is_auth_command: bool) -> User {
+async fn verify_key(client: &Client, api_key: &str, is_saved_key: bool) -> User {
   match scratch_io::get_profile(&client, &api_key).await {
     Ok(p) => p,
     Err(e) => {
@@ -77,10 +77,10 @@ async fn verify_key(client: &Client, api_key: &str, is_auth_command: bool) -> Us
         eprintln_exit!("{e}");
       }
   
-      if is_auth_command {
-        eprintln_exit!("The key is invalid!");
-      } else {
+      if is_saved_key {
         eprintln_exit!("The key is not longer valid. Try logging in again.");
+      } else {
+        eprintln_exit!("The key is invalid!");
       }
     },
   }
@@ -203,7 +203,7 @@ async fn main() {
     api_key.clone()
   }
   else {
-    cli.api_key.unwrap_or(
+    cli.api_key.clone().unwrap_or(
       config.api_key.unwrap_or_else(|| {
         eprintln_exit!("Error: an Itch.io API key is required, either via --api-key or the auth command.");
       })
@@ -214,7 +214,8 @@ async fn main() {
   let profile: User = verify_key(
     &client,
     &api_key,
-    if let Commands::Auth { .. } = cli.command { true } else { false }
+    // This is only true when the key is read from the config
+    if let Commands::Auth { .. } = cli.command { false } else { cli.api_key.is_none() }
   ).await;
 
   /**** COMMANDS ****/
