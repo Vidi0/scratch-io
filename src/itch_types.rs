@@ -3,7 +3,7 @@ use serde::de::{Deserializer, Visitor, SeqAccess};
 use std::marker::PhantomData;
 use std::fmt;
 use flate2::read::GzDecoder;
-use std::fs::File;
+use std::fs::{File};
 use std::path::{Path, PathBuf};
 
 const ITCH_API_V1_BASE_URL: &str = "https://itch.io/api/1";
@@ -22,6 +22,48 @@ impl fmt::Display for ItchApiUrl {
         ItchApiUrl::V2(u) => format!("{ITCH_API_V2_BASE_URL}/{u}"),
       }
     )
+  }
+}
+
+fn remove_root_folder(folder: &Path) -> Result<(), String> {
+  loop {
+    // list entries
+    let mut entries: std::fs::ReadDir = std::fs::read_dir(folder)
+      .map_err(|e| e.to_string())?;
+
+    // first entry (or empty)
+    let first = match entries.next() {
+      None => return Ok(()),
+      Some(v) => v.map_err(|e| e.to_string())?,
+    };
+
+    // if there’s another entry, stop (not a single root)
+    // if the entry is a file, also stop
+    if entries.next().is_some() || first.path().is_file() {
+      return Ok(());
+    }
+
+    // At this point, we know that root is the wrapper dir
+    let root = first.path();
+
+    let child_entries = std::fs::read_dir(&root)
+      .map_err(|e| e.to_string())?;
+
+    // move its children up one level
+    for child in child_entries {
+      let child = child
+        .map_err(|e| e.to_string())?;
+      let from = child.path();
+      let to = folder.join(child.file_name());
+      std::fs::rename(&from, &to)
+        .map_err(|e| e.to_string())?;
+    }
+
+    // remove now-empty wrapper dir
+    std::fs::remove_dir(&root)
+      .map_err(|e| e.to_string())?;
+
+    // loop again in case we had nested single-root dirs
   }
 }
 
@@ -111,7 +153,7 @@ impl UploadArchive {
         let mut archive = zip::ZipArchive::new(&file)
           .map_err(|e| e.to_string())?;
 
-        archive.extract_unwrapped_root_dir(&folder, zip::read::root_dir_common_filter)
+        archive.extract(&folder)
           .map_err(|e| format!("Error extracting ZIP archive: {e}"))?;
       }
       UploadArchiveFormat::TarGz => {
@@ -123,6 +165,10 @@ impl UploadArchive {
       }
     }
 
+    // If the game folder has a common root folder, remove it
+    remove_root_folder(&folder)?;
+
+    // Remove the archive
     self.remove().await?;
     Ok(folder)
   }
