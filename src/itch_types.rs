@@ -90,6 +90,7 @@ impl UploadArchive {
   /// 
   /// This function can return a path to a file (if it's not a valid archive) or to the extracted folder
   pub async fn extract(self) -> Result<PathBuf, String> {
+    // If the file isn't an archive, return now
     if let UploadArchiveFormat::Other = self.format {
       return Ok(self.file);
     }
@@ -103,7 +104,9 @@ impl UploadArchive {
       .join(self.file_without_extension());
 
     match self.format {
-      UploadArchiveFormat::Other => (),
+      UploadArchiveFormat::Other => {
+        panic!("If the format is Other, we should've exited before!");
+      }
       UploadArchiveFormat::Zip => {
         let mut archive = zip::ZipArchive::new(&file)
           .map_err(|e| e.to_string())?;
