@@ -40,17 +40,20 @@ impl UploadArchive {
   fn file_without_extension(&self) -> String {
     let stem = self.file.file_stem()
       .expect("Empty filename?")
-      .to_string_lossy();
+      .to_string_lossy()
+      .to_string();
 
     match self.format {
       UploadArchiveFormat::TarGz => {
-        stem.strip_suffix(".tar")
-          .unwrap_or(&stem)
+        Path::new(&stem).file_stem()
+          .expect("The .tar.gz file doesn't have two extensions?")
+          .to_string_lossy()
+          .to_string()
       },
       _ => {
-        &stem
+        stem
       },
-    }.to_string()
+    }
   }
 
   /// Gets the archive format of the file
@@ -61,7 +64,11 @@ impl UploadArchive {
       return UploadArchive { file: file.to_path_buf(), format: UploadArchiveFormat::Other }
     };
 
-    let is_tar: bool = file.file_stem().expect("Empty filename?").to_string_lossy().to_lowercase().ends_with(".tar");
+    let is_tar: bool = file.file_stem()
+      .expect("Empty filename?")
+      .to_string_lossy()
+      .to_lowercase()
+      .ends_with(".tar");
 
     let format = if extension.eq_ignore_ascii_case("zip") {
       UploadArchiveFormat::Zip
