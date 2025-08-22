@@ -4,6 +4,8 @@ use futures_util::StreamExt;
 use md5::{Md5, Digest};
 use reqwest::{Client, Method, Response, header};
 use std::path::{Path, PathBuf};
+use flate2::read::GzDecoder;
+use std::fs::{File};
 
 pub mod itch_types;
 use crate::itch_types::*;
@@ -294,6 +296,181 @@ Server hash: {upload_hash}"
     .map_err(|e| e.to_string())?;
 
   Ok((game_files, output_log))
+}
+
+fn move_folder_child(folder: &Path) -> Result<(), String> {
+  let child_entries = std::fs::read_dir(&folder)
+    .map_err(|e| e.to_string())?;
+
+  // move its children up one level
+  // if the children is a folder with the same name,
+  // call this function recursively on that folder
+  for child in child_entries {
+    let child = child
+      .map_err(|e| e.to_string())?;
+    let from = child.path();
+    let to = folder.parent()
+      .ok_or(format!("Error getting parent of: {:?}", &folder))?
+      .join(child.file_name());
+
+    if !to.try_exists().map_err(|e| e.to_string())? {
+      std::fs::rename(&from, &to)
+        .map_err(|e| e.to_string())?;
+    } else {
+      move_folder_child(&from)?;
+    }
+  }
+
+  // remove wrapper dir
+  // it might not be empty if it had a folder with the same name
+  // inside, due to the function calling itself
+  if folder.read_dir().map_err(|e| e.to_string())?.next().is_none() {
+    std::fs::remove_dir(&folder)
+      .map_err(|e| e.to_string())?;
+  }
+
+  Ok(())
+}
+
+// TODO: this function is recursive, but it calls move_folder_child, which also is.
+// I don't think it's ideal to have a recursive function inside another...
+fn remove_root_folder(folder: &Path) -> Result<(), String> {
+  loop {
+    // list entries
+    let mut entries: std::fs::ReadDir = std::fs::read_dir(folder)
+      .map_err(|e| e.to_string())?;
+
+    // first entry (or empty)
+    let first = match entries.next() {
+      None => return Ok(()),
+      Some(v) => v.map_err(|e| e.to_string())?,
+    };
+
+    // if there’s another entry, stop (not a single root)
+    // if the entry is a file, also stop
+    if entries.next().is_some() || first.path().is_file() {
+      return Ok(());
+    }
+
+    // At this point, we know that first.path() is the wrapper dir
+    move_folder_child(&first.path())?;
+
+    // loop again in case we had nested single-root dirs
+  }
+}
+
+pub struct UploadArchive {
+  file: PathBuf,
+  format: UploadArchiveFormat,
+}
+
+pub enum UploadArchiveFormat {
+  Zip,
+  TarGz,
+  Other,
+}
+
+impl UploadArchive {
+  fn file_without_extension(&self) -> String {
+    let stem = self.file.file_stem()
+      .expect("Empty filename?")
+      .to_string_lossy()
+      .to_string();
+
+    match self.format {
+      UploadArchiveFormat::TarGz => {
+        Path::new(&stem).file_stem()
+          .expect("The .tar.gz file doesn't have two extensions?")
+          .to_string_lossy()
+          .to_string()
+      },
+      _ => {
+        stem
+      },
+    }
+  }
+
+  /// Gets the archive format of the file
+  /// 
+  /// If the file is not an archive, then the format is `UploadArchiveFormat::Other`
+  pub fn from_file(file: &Path) -> Self {
+    let Some(extension) = file.extension().map(|e| e.to_string_lossy()) else {
+      return UploadArchive { file: file.to_path_buf(), format: UploadArchiveFormat::Other }
+    };
+
+    let is_tar: bool = file.file_stem()
+      .expect("Empty filename?")
+      .to_string_lossy()
+      .to_lowercase()
+      .ends_with(".tar");
+
+    let format = if extension.eq_ignore_ascii_case("zip") {
+      UploadArchiveFormat::Zip
+    } else if is_tar && extension.eq_ignore_ascii_case("gz") {
+      UploadArchiveFormat::TarGz
+    } else {
+      UploadArchiveFormat::Other
+    };
+
+    UploadArchive { file: file.to_path_buf(), format }
+  }
+
+  async fn remove(&self) -> Result<(), String> {
+    tokio::fs::remove_file(&self.file).await
+      .map_err(|e| e.to_string())
+  }
+
+  /// Extracts the archive into a folder with the same name (without the extension)
+  /// 
+  /// This function can return a path to a file (if it's not a valid archive) or to the extracted folder
+  pub async fn extract(self) -> Result<PathBuf, String> {
+    // If the file isn't an archive, return now
+    if let UploadArchiveFormat::Other = self.format {
+      return Ok(self.file);
+    }
+
+    let file = File::open(&self.file)
+      .map_err(|e| e.to_string())?;
+
+    let folder = self.file
+      .parent()
+      .unwrap()
+      .join(self.file_without_extension());
+
+    // If the directory exists and isn't empty, return an error
+    if folder.is_dir() {
+      if folder.read_dir().map_err(|e| e.to_string())?.next().is_some() {
+        return Err(format!("Game folder directory isn't empty!: {}", folder.to_string_lossy()));
+      }
+    }
+
+    match self.format {
+      UploadArchiveFormat::Other => {
+        panic!("If the format is Other, we should've exited before!");
+      }
+      UploadArchiveFormat::Zip => {
+        let mut archive = zip::ZipArchive::new(&file)
+          .map_err(|e| e.to_string())?;
+
+        archive.extract(&folder)
+          .map_err(|e| format!("Error extracting ZIP archive: {e}"))?;
+      }
+      UploadArchiveFormat::TarGz => {
+        let gz_decoder: GzDecoder<&File> = GzDecoder::new(&file);
+        let mut tar_decoder: tar::Archive<GzDecoder<&File>> = tar::Archive::new(gz_decoder);
+
+        tar_decoder.unpack(&folder)
+          .map_err(|e| format!("Error extracting tar.gz archive: {e}"))?;
+      }
+    }
+
+    // If the game folder has a common root folder, remove it
+    remove_root_folder(&folder)?;
+
+    // Remove the archive
+    self.remove().await?;
+    Ok(folder)
+  }
 }
 
 /// Given a list of game uploads, return the url to the web game (if it exists)
