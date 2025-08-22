@@ -25,6 +25,42 @@ impl fmt::Display for ItchApiUrl {
   }
 }
 
+fn move_folder_child(folder: &Path) -> Result<(), String> {
+  let child_entries = std::fs::read_dir(&folder)
+    .map_err(|e| e.to_string())?;
+
+  // move its children up one level
+  // if the children is a folder with the same name,
+  // call this function recursively on that folder
+  for child in child_entries {
+    let child = child
+      .map_err(|e| e.to_string())?;
+    let from = child.path();
+    let to = folder.parent()
+      .ok_or(format!("Error getting parent of: {:?}", &folder))?
+      .join(child.file_name());
+
+    if !to.try_exists().map_err(|e| e.to_string())? {
+      std::fs::rename(&from, &to)
+        .map_err(|e| e.to_string())?;
+    } else {
+      move_folder_child(&from)?;
+    }
+  }
+
+  // remove wrapper dir
+  // it might not be empty if it had a folder with the same name
+  // inside, due to the function calling itself
+  if folder.read_dir().map_err(|e| e.to_string())?.next().is_none() {
+    std::fs::remove_dir(&folder)
+      .map_err(|e| e.to_string())?;
+  }
+
+  Ok(())
+}
+
+// TODO: this function is recursive, but it calls move_folder_child, which also is.
+// I don't think it's ideal to have a recursive function inside another...
 fn remove_root_folder(folder: &Path) -> Result<(), String> {
   loop {
     // list entries
@@ -43,25 +79,8 @@ fn remove_root_folder(folder: &Path) -> Result<(), String> {
       return Ok(());
     }
 
-    // At this point, we know that root is the wrapper dir
-    let root = first.path();
-
-    let child_entries = std::fs::read_dir(&root)
-      .map_err(|e| e.to_string())?;
-
-    // move its children up one level
-    for child in child_entries {
-      let child = child
-        .map_err(|e| e.to_string())?;
-      let from = child.path();
-      let to = folder.join(child.file_name());
-      std::fs::rename(&from, &to)
-        .map_err(|e| e.to_string())?;
-    }
-
-    // remove now-empty wrapper dir
-    std::fs::remove_dir(&root)
-      .map_err(|e| e.to_string())?;
+    // At this point, we know that first.path() is the wrapper dir
+    move_folder_child(&first.path())?;
 
     // loop again in case we had nested single-root dirs
   }
@@ -144,6 +163,13 @@ impl UploadArchive {
       .parent()
       .unwrap()
       .join(self.file_without_extension());
+
+    // If the directory exists and isn't empty, return an error
+    if folder.is_dir() {
+      if folder.read_dir().map_err(|e| e.to_string())?.next().is_some() {
+        return Err(format!("Game folder directory isn't empty!: {}", folder.to_string_lossy()));
+      }
+    }
 
     match self.format {
       UploadArchiveFormat::Other => {
