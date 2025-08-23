@@ -177,6 +177,18 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
   Ok(games)
 }
 
+/// The game folder is `dirs::home_dir`+`Games`+`game_title`
+/// 
+/// It fais if dirs::home_dir is None
+fn get_game_folder(game_title: String) -> Result<PathBuf, String> {
+  dirs::home_dir()
+    .ok_or(String::from("Couldn't determine the home directory"))
+    .map(|p| 
+      p.join("Games")
+        .join(game_title)
+    )
+}
+
 /// Downloads a upload from Itch.io
 /// 
 /// # Arguments
@@ -192,6 +204,9 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
   F: Fn(&Upload, &Game),
   G: Fn(u64),
 {
+
+  // --- DOWNLOAD PREPARATION --- 
+
   // This is a log which will be returned if the download is successful
   let mut output_log: String = String::new();
 
@@ -201,7 +216,25 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
   
   // Send to the caller the game and the upload info
   upload_info(&upload, &game);
+
+  // Set the folder and the file variables  
+  // If the folder is unset, set it to ~/Games/{game_name}/
+  let folder = match folder {
+    Some(f) => f,
+    None => &get_game_folder(game.title)?,
+  };
+
+  // Create the folder if it doesn't already exist
+  tokio::fs::create_dir_all(folder).await
+    .map_err(|e| format!("Couldn't create the folder {}: {e}", folder.to_string_lossy()))?;
+
+  // The new path is folder + the filename
+  let path: PathBuf = folder.join(upload.filename);
   
+
+
+  // --- DOWNLOAD --- 
+
   // Start the download, but don't save it to a file yet
   let file_response = itch_request(
     client,
@@ -210,27 +243,6 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
     api_key,
     |b| b
   ).await?;
-
-  // Set the folder and the file variables  
-  // If the folder is unset, set it to ~/Games/{game_name}/
-  let folder = match folder {
-    Some(f) => f,
-    None => {
-      &dirs::home_dir()
-        .ok_or(String::from("Couldn't determine the home directory"))?
-        .join("Games")
-        .join(game.title)
-    }
-  };
-
-  // Create the folder if it doesn't exist
-  if !folder.exists() {
-    tokio::fs::create_dir_all(folder).await
-      .map_err(|e| format!("Couldn't create the folder {}: {e}", folder.to_string_lossy()))?;
-  }
-
-  // The new path is folder + the filename
-  let path: PathBuf = folder.join(upload.filename);
   
   // Prepare the download, the hasher, and the callback variables
   let mut downloaded_bytes: u64 = 0;
@@ -244,19 +256,15 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
   // Also, compute the md5 hash while it is being downloaded
   while let Some(chunk) = stream.next().await {
     // Return an error if the chunk is invalid
-    let chunk = match chunk {
-      Ok(c) => c,
-      Err(e) => {
-        return Err(e.to_string());
-      }
-    };
+    let chunk = chunk
+      .map_err(|e| format!("Error reading chunk: {e}"))?;
 
     // Write the chunk to the file
     file.write_all(&chunk).await
-      .map_err(|e| e.to_string())?;
+      .map_err(|e| format!("Error writing chunk to the file: {e}"))?;
 
     // If the upload has a md5 hash, update the hasher
-    if let Some(_) = upload.md5_hash {
+    if upload.md5_hash.is_some() {
       hasher.update(&chunk);
     }
   
@@ -270,9 +278,7 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
 
   // Check the md5 hash
   match upload.md5_hash {
-    None => {
-      output_log.push_str("Missing md5 hash. Couldn't verify the file integrity!\n");
-    }
+    None => output_log.push_str("Missing md5 hash. Couldn't verify the file integrity!\n"),
     Some(upload_hash) => {
       let file_hash = format!("{:x}", hasher.finalize());
 
@@ -288,6 +294,10 @@ Server hash: {upload_hash}"
   // Sync the file to ensure all the data has been written
   file.sync_all().await
     .map_err(|e| e.to_string())?;
+
+
+
+  // --- FILE EXTRACTION ---
 
   // Extracts the downloaded archive (if it's an archive)
   // game_files can be the path of an executable or the path to the extracted folder
