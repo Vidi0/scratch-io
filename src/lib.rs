@@ -424,13 +424,20 @@ impl UploadArchive {
       UploadArchiveFormat::Zip
     } else if extension.eq_ignore_ascii_case("tar") {
       UploadArchiveFormat::Tar
-    } else if is_tar_compressed && extension.eq_ignore_ascii_case("gz") {
+    } else if is_tar_compressed && extension.eq_ignore_ascii_case("gz")
+      || extension.eq_ignore_ascii_case("tgz")
+      || extension.eq_ignore_ascii_case("taz") {
       UploadArchiveFormat::TarGz
-    } else if is_tar_compressed && extension.eq_ignore_ascii_case("bz2") {
+    } else if is_tar_compressed && extension.eq_ignore_ascii_case("bz2")
+      || extension.eq_ignore_ascii_case("tbz")
+      || extension.eq_ignore_ascii_case("tbz2")
+      || extension.eq_ignore_ascii_case("tz2") {
       UploadArchiveFormat::TarBz2
-    } else if is_tar_compressed && extension.eq_ignore_ascii_case("xz") {
+    } else if is_tar_compressed && extension.eq_ignore_ascii_case("xz")
+      || extension.eq_ignore_ascii_case("txz") {
       UploadArchiveFormat::TarXz
-    } else if is_tar_compressed && extension.eq_ignore_ascii_case("zst") {
+    } else if is_tar_compressed && extension.eq_ignore_ascii_case("zst")
+      || extension.eq_ignore_ascii_case("tzst") {
       UploadArchiveFormat::TarZst
     } else {
       UploadArchiveFormat::Other
