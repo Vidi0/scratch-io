@@ -1367,6 +1367,7 @@ dependencies = [
 name = "scratch-io"
 version = "0.1.0"
 dependencies = [
+ "bzip2",
  "clap",
  "confy",
  "dirs",

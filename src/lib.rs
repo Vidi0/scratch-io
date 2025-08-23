@@ -5,6 +5,7 @@ use md5::{Md5, Digest};
 use reqwest::{Client, Method, Response, header};
 use std::path::{Path, PathBuf};
 use flate2::read::GzDecoder;
+use bzip2::read::BzDecoder;
 use std::fs::{File};
 
 pub mod itch_types;
@@ -369,6 +370,12 @@ fn remove_root_folder(folder: &Path) -> Result<(), String> {
   }
 }
 
+fn get_file_stem(path: &Path) -> Result<String, String> {
+  path.file_stem()
+    .ok_or_else(|| format!("Error removing stem from path: {}", path.to_string_lossy()))
+    .map(|stem| stem.to_string_lossy().to_string())
+}
+
 pub struct UploadArchive {
   file: PathBuf,
   format: UploadArchiveFormat,
@@ -377,25 +384,20 @@ pub struct UploadArchive {
 pub enum UploadArchiveFormat {
   Zip,
   TarGz,
+  TarBz2,
   Other,
 }
 
 impl UploadArchive {
-  fn file_without_extension(&self) -> String {
-    let stem = self.file.file_stem()
-      .expect("Empty filename?")
-      .to_string_lossy()
-      .to_string();
+  fn file_without_extension(&self) -> Result<String, String> {
+    let stem = get_file_stem(&self.file)?;
 
     match self.format {
-      UploadArchiveFormat::TarGz => {
-        Path::new(&stem).file_stem()
-          .expect("The .tar.gz file doesn't have two extensions?")
-          .to_string_lossy()
-          .to_string()
+      UploadArchiveFormat::TarGz | UploadArchiveFormat::TarBz2 => {
+        get_file_stem(Path::new(&stem))
       },
       _ => {
-        stem
+        Ok(stem)
       },
     }
   }
@@ -408,16 +410,21 @@ impl UploadArchive {
       return UploadArchive { file: file.to_path_buf(), format: UploadArchiveFormat::Other }
     };
 
-    let is_tar: bool = file.file_stem()
-      .expect("Empty filename?")
-      .to_string_lossy()
+    // At this point, we know the file has an extension
+    let is_tar_compressed: bool = get_file_stem(file).expect("File doesn't have an extension?")
       .to_lowercase()
       .ends_with(".tar");
 
     let format = if extension.eq_ignore_ascii_case("zip") {
       UploadArchiveFormat::Zip
-    } else if is_tar && extension.eq_ignore_ascii_case("gz") {
-      UploadArchiveFormat::TarGz
+    } else if is_tar_compressed {
+      if extension.eq_ignore_ascii_case("gz") {
+        UploadArchiveFormat::TarGz
+      } else if extension.eq_ignore_ascii_case("bz2") {
+        UploadArchiveFormat::TarBz2
+      } else {
+        UploadArchiveFormat::Other
+      }
     } else {
       UploadArchiveFormat::Other
     };
@@ -445,7 +452,7 @@ impl UploadArchive {
     let folder = self.file
       .parent()
       .unwrap()
-      .join(self.file_without_extension());
+      .join(self.file_without_extension().expect("File doesn't have an extension?"));
 
     // If the directory exists and isn't empty, return an error
     if folder.is_dir() {
@@ -468,6 +475,13 @@ impl UploadArchive {
       UploadArchiveFormat::TarGz => {
         let gz_decoder: GzDecoder<&File> = GzDecoder::new(&file);
         let mut tar_decoder: tar::Archive<GzDecoder<&File>> = tar::Archive::new(gz_decoder);
+
+        tar_decoder.unpack(&folder)
+          .map_err(|e| format!("Error extracting tar.gz archive: {e}"))?;
+      }
+      UploadArchiveFormat::TarBz2 => {
+        let bz2_decoder: BzDecoder<&File> = BzDecoder::new(&file);
+        let mut tar_decoder: tar::Archive<BzDecoder<&File>> = tar::Archive::new(bz2_decoder);
 
         tar_decoder.unpack(&folder)
           .map_err(|e| format!("Error extracting tar.gz archive: {e}"))?;
