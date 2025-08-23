@@ -19,3 +19,4 @@ serde_json = "1.0.143"
 tar = "0.4.44"
 tokio = { version = "1.47.1", features = ["fs", "macros", "rt-multi-thread"] }
 zip = "4.4.0"
+zstd = "0.13.3"

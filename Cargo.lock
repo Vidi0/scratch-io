@@ -1382,6 +1382,7 @@ dependencies = [
  "tar",
  "tokio",
  "zip",
+ "zstd",
 ]
 
 [[package]]

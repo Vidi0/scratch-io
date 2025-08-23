@@ -389,6 +389,7 @@ pub enum UploadArchiveFormat {
   TarGz,
   TarBz2,
   TarXz,
+  TarZst,
   Other,
 }
 
@@ -429,6 +430,8 @@ impl UploadArchive {
       UploadArchiveFormat::TarBz2
     } else if is_tar_compressed && extension.eq_ignore_ascii_case("xz") {
       UploadArchiveFormat::TarXz
+    } else if is_tar_compressed && extension.eq_ignore_ascii_case("zst") {
+      UploadArchiveFormat::TarZst
     } else {
       UploadArchiveFormat::Other
     };
@@ -502,6 +505,14 @@ impl UploadArchive {
 
         tar_decoder.unpack(&folder)
           .map_err(|e| format!("Error extracting tar.xz archive: {e}"))?;
+      }
+      UploadArchiveFormat::TarZst => {
+        let zstd_decoder = zstd::Decoder::new(&file)
+          .map_err(|e| format!("Error reading tar.zst archive: {e}"))?;
+        let mut tar_decoder: Archive<_> = Archive::new(zstd_decoder);
+
+        tar_decoder.unpack(&folder)
+          .map_err(|e| format!("Error extracting tar.zst archive: {e}"))?;
       }
     }
 
