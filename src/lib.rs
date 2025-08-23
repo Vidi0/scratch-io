@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use flate2::read::GzDecoder;
 use bzip2::read::BzDecoder;
 use std::fs::{File};
+use tar::Archive;
 
 pub mod itch_types;
 use crate::itch_types::*;
@@ -383,6 +384,7 @@ pub struct UploadArchive {
 
 pub enum UploadArchiveFormat {
   Zip,
+  Tar,
   TarGz,
   TarBz2,
   Other,
@@ -417,14 +419,12 @@ impl UploadArchive {
 
     let format = if extension.eq_ignore_ascii_case("zip") {
       UploadArchiveFormat::Zip
-    } else if is_tar_compressed {
-      if extension.eq_ignore_ascii_case("gz") {
-        UploadArchiveFormat::TarGz
-      } else if extension.eq_ignore_ascii_case("bz2") {
-        UploadArchiveFormat::TarBz2
-      } else {
-        UploadArchiveFormat::Other
-      }
+    } else if extension.eq_ignore_ascii_case("tar") {
+      UploadArchiveFormat::Tar
+    } else if is_tar_compressed && extension.eq_ignore_ascii_case("gz") {
+      UploadArchiveFormat::TarGz
+    } else if is_tar_compressed && extension.eq_ignore_ascii_case("bz2") {
+      UploadArchiveFormat::TarBz2
     } else {
       UploadArchiveFormat::Other
     };
@@ -472,16 +472,22 @@ impl UploadArchive {
         archive.extract(&folder)
           .map_err(|e| format!("Error extracting ZIP archive: {e}"))?;
       }
+      UploadArchiveFormat::Tar => {
+        let mut tar_decoder: Archive<_> = Archive::new(&file);
+
+        tar_decoder.unpack(&folder)
+          .map_err(|e| format!("Error extracting tar archive: {e}"))?;
+      }
       UploadArchiveFormat::TarGz => {
         let gz_decoder: GzDecoder<&File> = GzDecoder::new(&file);
-        let mut tar_decoder: tar::Archive<GzDecoder<&File>> = tar::Archive::new(gz_decoder);
+        let mut tar_decoder: Archive<_> = Archive::new(gz_decoder);
 
         tar_decoder.unpack(&folder)
           .map_err(|e| format!("Error extracting tar.gz archive: {e}"))?;
       }
       UploadArchiveFormat::TarBz2 => {
         let bz2_decoder: BzDecoder<&File> = BzDecoder::new(&file);
-        let mut tar_decoder: tar::Archive<BzDecoder<&File>> = tar::Archive::new(bz2_decoder);
+        let mut tar_decoder: Archive<_> = Archive::new(bz2_decoder);
 
         tar_decoder.unpack(&folder)
           .map_err(|e| format!("Error extracting tar.gz archive: {e}"))?;
