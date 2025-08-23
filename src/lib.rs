@@ -6,6 +6,7 @@ use reqwest::{Client, Method, Response, header};
 use std::path::{Path, PathBuf};
 use flate2::read::GzDecoder;
 use bzip2::read::BzDecoder;
+use liblzma::read::XzDecoder;
 use std::fs::{File};
 use tar::Archive;
 
@@ -387,6 +388,7 @@ pub enum UploadArchiveFormat {
   Tar,
   TarGz,
   TarBz2,
+  TarXz,
   Other,
 }
 
@@ -425,6 +427,8 @@ impl UploadArchive {
       UploadArchiveFormat::TarGz
     } else if is_tar_compressed && extension.eq_ignore_ascii_case("bz2") {
       UploadArchiveFormat::TarBz2
+    } else if is_tar_compressed && extension.eq_ignore_ascii_case("xz") {
+      UploadArchiveFormat::TarXz
     } else {
       UploadArchiveFormat::Other
     };
@@ -491,6 +495,13 @@ impl UploadArchive {
 
         tar_decoder.unpack(&folder)
           .map_err(|e| format!("Error extracting tar.gz archive: {e}"))?;
+      }
+      UploadArchiveFormat::TarXz => {
+        let xz_decoder: XzDecoder<&File> = XzDecoder::new(&file);
+        let mut tar_decoder: Archive<_> = Archive::new(xz_decoder);
+
+        tar_decoder.unpack(&folder)
+          .map_err(|e| format!("Error extracting tar.xz archive: {e}"))?;
       }
     }
 
