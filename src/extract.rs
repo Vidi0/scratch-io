@@ -1,13 +1,38 @@
 use std::path::{Path, PathBuf};
 use std::fs::{File};
 
+// If path already exists, change it a bit until it doesn't. Return the available path
+fn find_available_path(path: &Path) -> Result<PathBuf, String> {
+  let parent = path.parent()
+    .ok_or(format!("Error getting parent of: {:?}", path))?;
+
+  let mut i = 0;
+  loop {
+    // i is printed in hexadecimal because it looks better
+    let current_filename = format!("{}{:x}",
+      path.file_name()
+        .ok_or(format!("Error getting file name of: {:?}", path))?
+        .to_string_lossy(),
+      i
+    );
+    let current_path: PathBuf = parent.join(current_filename);
+
+    if !current_path.exists() {
+      return Ok(current_path);
+    }
+    i += 1;
+  }
+}
+
 fn move_folder_child(folder: &Path) -> Result<(), String> {
   let child_entries = std::fs::read_dir(&folder)
     .map_err(|e| e.to_string())?;
 
+  // If a file or a folder already exists in the destination folder, rename it and save the new name and
+  // the original name to this Vector. At the end, after removing the parent folder, rename all elements of this Vector
+  let mut collisions: Vec<(PathBuf, PathBuf)> = Vec::new();
+
   // move its children up one level
-  // if the children is a folder with the same name,
-  // call this function recursively on that folder
   for child in child_entries {
     let child = child
       .map_err(|e| e.to_string())?;
@@ -20,23 +45,34 @@ fn move_folder_child(folder: &Path) -> Result<(), String> {
       std::fs::rename(&from, &to)
         .map_err(|e| e.to_string())?;
     } else {
-      move_folder_child(&from)?;
+      // if the children filename already exists on the parent, rename it to a
+      // temporal name and, at the end, rename all the temporal names in order to the final names
+      let temporal_name: PathBuf = find_available_path(&to)?;
+      std::fs::rename(&from, &temporal_name)
+        .map_err(|e| e.to_string())?;
+
+      // save the change to the collisions vector
+      collisions.push((temporal_name, to));
     }
   }
 
-  // remove wrapper dir
-  // it might not be empty if it had a folder with the same name
-  // inside, due to the function calling itself
-  if folder.read_dir().map_err(|e| e.to_string())?.next().is_none() {
-    std::fs::remove_dir(&folder)
+  // remove the now-empty wrapper dir
+  std::fs::remove_dir(&folder)
+    .map_err(|e| e.to_string())?;
+
+  // now move all of the filenames that have collided to their original name
+  for (src, dst) in collisions.iter() {
+    std::fs::rename(&src, &dst)
       .map_err(|e| e.to_string())?;
   }
 
   Ok(())
 }
 
-// TODO: this function is recursive, but it calls move_folder_child, which also is.
-// I don't think it's ideal to have a recursive function inside another...
+/// This fuction removes all the common root folders that only contain another folder
+/// and unwraps its children to its parent
+/// 
+/// If applied to the folder `foo` in `/foo/bar/something.txt`, the remainig structure is `/foo/something.txt`
 fn remove_root_folder(folder: &Path) -> Result<(), String> {
   loop {
     // list entries
