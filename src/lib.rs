@@ -304,8 +304,7 @@ Server hash: {upload_hash}"
 
   // Extracts the downloaded archive (if it's an archive)
   // game_files can be the path of an executable or the path to the extracted folder
-  let game_files = UploadArchive::from_file(&path)
-    .extract().await
+  let game_files = extract(&path).await
     .map_err(|e| e.to_string())?;
 
   Ok((game_files, output_log))
@@ -378,12 +377,17 @@ fn get_file_stem(path: &Path) -> Result<String, String> {
     .map(|stem| stem.to_string_lossy().to_string())
 }
 
-pub struct UploadArchive {
-  file: PathBuf,
-  format: UploadArchiveFormat,
+fn file_without_extension(file: &Path) -> Result<String, String> {
+  let mut stem = get_file_stem(file)?;
+
+  if stem.to_lowercase().ends_with(".tar") {
+    stem = get_file_stem(&Path::new(&stem))?;
+  }
+
+  Ok(stem)
 }
 
-pub enum UploadArchiveFormat {
+pub enum ArchiveFormat {
   Zip,
   Tar,
   TarGz,
@@ -393,144 +397,127 @@ pub enum UploadArchiveFormat {
   Other,
 }
 
-impl UploadArchive {
-  fn file_without_extension(&self) -> Result<String, String> {
-    let stem = get_file_stem(&self.file)?;
+/// Gets the archive format of the file
+/// 
+/// If the file is not an archive, then the format is `ArchiveFormat::Other`
+pub fn get_archive_format(file: &Path) -> ArchiveFormat {
+  let Some(extension) = file.extension().map(|e| e.to_string_lossy()) else {
+    return ArchiveFormat::Other
+  };
 
-    match self.format {
-      UploadArchiveFormat::TarGz | UploadArchiveFormat::TarBz2 => {
-        get_file_stem(Path::new(&stem))
-      },
-      _ => {
-        Ok(stem)
-      },
-    }
-  }
+  // At this point, we know the file has an extension
+  let is_tar_compressed: bool = get_file_stem(file).expect("File doesn't have an extension?")
+    .to_lowercase()
+    .ends_with(".tar");
 
-  /// Gets the archive format of the file
-  /// 
-  /// If the file is not an archive, then the format is `UploadArchiveFormat::Other`
-  pub fn from_file(file: &Path) -> Self {
-    let Some(extension) = file.extension().map(|e| e.to_string_lossy()) else {
-      return UploadArchive { file: file.to_path_buf(), format: UploadArchiveFormat::Other }
-    };
-
-    // At this point, we know the file has an extension
-    let is_tar_compressed: bool = get_file_stem(file).expect("File doesn't have an extension?")
-      .to_lowercase()
-      .ends_with(".tar");
-
-    let format = if extension.eq_ignore_ascii_case("zip") {
-      UploadArchiveFormat::Zip
-    } else if extension.eq_ignore_ascii_case("tar") {
-      UploadArchiveFormat::Tar
-    } else if is_tar_compressed && extension.eq_ignore_ascii_case("gz")
-      || extension.eq_ignore_ascii_case("tgz")
-      || extension.eq_ignore_ascii_case("taz") {
-      UploadArchiveFormat::TarGz
-    } else if is_tar_compressed && extension.eq_ignore_ascii_case("bz2")
-      || extension.eq_ignore_ascii_case("tbz")
-      || extension.eq_ignore_ascii_case("tbz2")
-      || extension.eq_ignore_ascii_case("tz2") {
-      UploadArchiveFormat::TarBz2
-    } else if is_tar_compressed && extension.eq_ignore_ascii_case("xz")
-      || extension.eq_ignore_ascii_case("txz") {
-      UploadArchiveFormat::TarXz
-    } else if is_tar_compressed && extension.eq_ignore_ascii_case("zst")
-      || extension.eq_ignore_ascii_case("tzst") {
-      UploadArchiveFormat::TarZst
-    } else {
-      UploadArchiveFormat::Other
-    };
-
-    UploadArchive { file: file.to_path_buf(), format }
-  }
-
-  async fn remove(&self) -> Result<(), String> {
-    tokio::fs::remove_file(&self.file).await
-      .map_err(|e| e.to_string())
-  }
-
-  /// Extracts the archive into a folder with the same name (without the extension)
-  /// 
-  /// This function can return a path to a file (if it's not a valid archive) or to the extracted folder
-  pub async fn extract(self) -> Result<PathBuf, String> {
-    // If the file isn't an archive, return now
-    if let UploadArchiveFormat::Other = self.format {
-      return Ok(self.file);
-    }
-
-    let file = File::open(&self.file)
-      .map_err(|e| e.to_string())?;
-
-    let folder = self.file
-      .parent()
-      .unwrap()
-      .join(self.file_without_extension().expect("File doesn't have an extension?"));
-
-    // If the directory exists and isn't empty, return an error
-    if folder.is_dir() {
-      if folder.read_dir().map_err(|e| e.to_string())?.next().is_some() {
-        return Err(format!("Game folder directory isn't empty!: {}", folder.to_string_lossy()));
-      }
-    }
-
-    match self.format {
-      UploadArchiveFormat::Other => {
-        panic!("If the format is Other, we should've exited before!");
-      }
-      UploadArchiveFormat::Zip => {
-        let mut archive = zip::ZipArchive::new(&file)
-          .map_err(|e| e.to_string())?;
-
-        archive.extract(&folder)
-          .map_err(|e| format!("Error extracting ZIP archive: {e}"))?;
-      }
-      UploadArchiveFormat::Tar => {
-        let mut tar_decoder: Archive<_> = Archive::new(&file);
-
-        tar_decoder.unpack(&folder)
-          .map_err(|e| format!("Error extracting tar archive: {e}"))?;
-      }
-      UploadArchiveFormat::TarGz => {
-        let gz_decoder: GzDecoder<&File> = GzDecoder::new(&file);
-        let mut tar_decoder: Archive<_> = Archive::new(gz_decoder);
-
-        tar_decoder.unpack(&folder)
-          .map_err(|e| format!("Error extracting tar.gz archive: {e}"))?;
-      }
-      UploadArchiveFormat::TarBz2 => {
-        let bz2_decoder: BzDecoder<&File> = BzDecoder::new(&file);
-        let mut tar_decoder: Archive<_> = Archive::new(bz2_decoder);
-
-        tar_decoder.unpack(&folder)
-          .map_err(|e| format!("Error extracting tar.gz archive: {e}"))?;
-      }
-      UploadArchiveFormat::TarXz => {
-        let xz_decoder: XzDecoder<&File> = XzDecoder::new(&file);
-        let mut tar_decoder: Archive<_> = Archive::new(xz_decoder);
-
-        tar_decoder.unpack(&folder)
-          .map_err(|e| format!("Error extracting tar.xz archive: {e}"))?;
-      }
-      UploadArchiveFormat::TarZst => {
-        let zstd_decoder = zstd::Decoder::new(&file)
-          .map_err(|e| format!("Error reading tar.zst archive: {e}"))?;
-        let mut tar_decoder: Archive<_> = Archive::new(zstd_decoder);
-
-        tar_decoder.unpack(&folder)
-          .map_err(|e| format!("Error extracting tar.zst archive: {e}"))?;
-      }
-    }
-
-    // If the game folder has a common root folder, remove it
-    remove_root_folder(&folder)?;
-
-    // Remove the archive
-    self.remove().await?;
-    Ok(folder)
+  if extension.eq_ignore_ascii_case("zip") {
+    ArchiveFormat::Zip
+  } else if extension.eq_ignore_ascii_case("tar") {
+    ArchiveFormat::Tar
+  } else if is_tar_compressed && extension.eq_ignore_ascii_case("gz")
+    || extension.eq_ignore_ascii_case("tgz")
+    || extension.eq_ignore_ascii_case("taz") {
+    ArchiveFormat::TarGz
+  } else if is_tar_compressed && extension.eq_ignore_ascii_case("bz2")
+    || extension.eq_ignore_ascii_case("tbz")
+    || extension.eq_ignore_ascii_case("tbz2")
+    || extension.eq_ignore_ascii_case("tz2") {
+    ArchiveFormat::TarBz2
+  } else if is_tar_compressed && extension.eq_ignore_ascii_case("xz")
+    || extension.eq_ignore_ascii_case("txz") {
+    ArchiveFormat::TarXz
+  } else if is_tar_compressed && extension.eq_ignore_ascii_case("zst")
+    || extension.eq_ignore_ascii_case("tzst") {
+    ArchiveFormat::TarZst
+  } else {
+    ArchiveFormat::Other
   }
 }
+
+/// Extracts the archive into a folder with the same name (without the extension)
+/// 
+/// This function can return a path to a file (if it's not a valid archive) or to the extracted folder
+pub async fn extract(file_path: &Path) -> Result<PathBuf, String> {
+  let format: ArchiveFormat = get_archive_format(file_path);
+
+  // If the file isn't an archive, return now
+  if let ArchiveFormat::Other = format {
+    return Ok(file_path.to_path_buf());
+  }
+  
+  let folder = file_path
+  .parent()
+  .unwrap()
+  .join(file_without_extension(file_path).expect("File doesn't have an extension?"));
+
+  // If the directory exists and isn't empty, return an error
+  if folder.is_dir() {
+    if folder.read_dir().map_err(|e| e.to_string())?.next().is_some() {
+      return Err(format!("Game folder directory isn't empty!: {}", folder.to_string_lossy()));
+    }
+  }
+
+  let file = File::open(file_path)
+    .map_err(|e| e.to_string())?;
+
+  match format {
+    ArchiveFormat::Other => {
+      panic!("If the format is Other, we should've exited before!");
+    }
+    ArchiveFormat::Zip => {
+      let mut archive = zip::ZipArchive::new(&file)
+        .map_err(|e| e.to_string())?;
+
+      archive.extract(&folder)
+        .map_err(|e| format!("Error extracting ZIP archive: {e}"))?;
+    }
+    ArchiveFormat::Tar => {
+      let mut tar_decoder: Archive<_> = Archive::new(&file);
+
+      tar_decoder.unpack(&folder)
+        .map_err(|e| format!("Error extracting tar archive: {e}"))?;
+    }
+    ArchiveFormat::TarGz => {
+      let gz_decoder: GzDecoder<&File> = GzDecoder::new(&file);
+      let mut tar_decoder: Archive<_> = Archive::new(gz_decoder);
+
+      tar_decoder.unpack(&folder)
+        .map_err(|e| format!("Error extracting tar.gz archive: {e}"))?;
+    }
+    ArchiveFormat::TarBz2 => {
+      let bz2_decoder: BzDecoder<&File> = BzDecoder::new(&file);
+      let mut tar_decoder: Archive<_> = Archive::new(bz2_decoder);
+
+      tar_decoder.unpack(&folder)
+        .map_err(|e| format!("Error extracting tar.gz archive: {e}"))?;
+    }
+    ArchiveFormat::TarXz => {
+      let xz_decoder: XzDecoder<&File> = XzDecoder::new(&file);
+      let mut tar_decoder: Archive<_> = Archive::new(xz_decoder);
+
+      tar_decoder.unpack(&folder)
+        .map_err(|e| format!("Error extracting tar.xz archive: {e}"))?;
+    }
+    ArchiveFormat::TarZst => {
+      let zstd_decoder = zstd::Decoder::new(&file)
+        .map_err(|e| format!("Error reading tar.zst archive: {e}"))?;
+      let mut tar_decoder: Archive<_> = Archive::new(zstd_decoder);
+
+      tar_decoder.unpack(&folder)
+        .map_err(|e| format!("Error extracting tar.zst archive: {e}"))?;
+    }
+  }
+
+  // If the game folder has a common root folder, remove it
+  remove_root_folder(&folder)?;
+
+  // Remove the archive
+  tokio::fs::remove_file(file_path).await
+    .map_err(|e| e.to_string())?;
+
+  Ok(folder)
+}
+
 
 /// Given a list of game uploads, return the url to the web game (if it exists)
 /// 
