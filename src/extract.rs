@@ -98,6 +98,7 @@ fn remove_root_folder(folder: &Path) -> Result<(), String> {
   }
 }
 
+
 fn get_file_stem(path: &Path) -> Result<String, String> {
   path.file_stem()
     .ok_or_else(|| format!("Error removing stem from path: {}", path.to_string_lossy()))
@@ -114,7 +115,26 @@ fn file_without_extension(file: &Path) -> Result<String, String> {
   Ok(stem)
 }
 
-pub enum ArchiveFormat {
+/// Checks if the folder where the archive will be extracted is empty
+/// 
+/// Returns the folder where the files will be extracted and if it is empty or not
+pub fn is_upload_folder_empty(file_path: &Path) -> Result<(bool, PathBuf), String> {
+  let folder = file_path
+    .parent()
+    .unwrap()
+    .join(file_without_extension(file_path).expect("File doesn't have an extension?"));
+
+  // If the directory exists and isn't empty, return an error
+  if folder.is_dir() {
+    if folder.read_dir().map_err(|e| e.to_string())?.next().is_some() {
+      return Ok((false, folder));
+    }
+  }
+
+  Ok((true, folder))
+}
+
+enum ArchiveFormat {
   Zip,
   Tar,
   TarGz,
@@ -127,7 +147,7 @@ pub enum ArchiveFormat {
 /// Gets the archive format of the file
 /// 
 /// If the file is not an archive, then the format is `ArchiveFormat::Other`
-pub fn get_archive_format(file: &Path) -> ArchiveFormat {
+fn get_archive_format(file: &Path) -> ArchiveFormat {
   let Some(extension) = file.extension().map(|e| e.to_string_lossy()) else {
     return ArchiveFormat::Other
   };
@@ -171,18 +191,14 @@ pub async fn extract(file_path: &Path) -> Result<PathBuf, String> {
   if let ArchiveFormat::Other = format {
     return Ok(file_path.to_path_buf());
   }
-  
-  let folder = file_path
-  .parent()
-  .unwrap()
-  .join(file_without_extension(file_path).expect("File doesn't have an extension?"));
 
-  // If the directory exists and isn't empty, return an error
-  if folder.is_dir() {
-    if folder.read_dir().map_err(|e| e.to_string())?.next().is_some() {
-      return Err(format!("Game folder directory isn't empty!: {}", folder.to_string_lossy()));
+  let folder = is_upload_folder_empty(file_path).and_then(|(is_empty, folder)| {
+    if is_empty {
+      Ok(folder)
+    } else {
+      Err(format!("Game folder directory isn't empty!: {}", folder.to_string_lossy()))
     }
-  }
+  })?;
 
   let file = File::open(file_path)
     .map_err(|e| e.to_string())?;

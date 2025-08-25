@@ -188,6 +188,13 @@ fn get_game_folder(game_title: String) -> Result<PathBuf, String> {
     )
 }
 
+pub enum DownloadStatus {
+  Warning(String),
+  Download(u64),
+  Verify,
+  Extract,
+}
+
 /// Downloads a upload from Itch.io
 /// 
 /// # Arguments
@@ -199,15 +206,12 @@ fn get_game_folder(game_title: String) -> Result<PathBuf, String> {
 /// * `folder` - The folder where the downloaded file will be placed
 /// 
 /// * `progress_callback` - A callback function which reports the download progress
-pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u64, folder: Option<&Path>, upload_info: F, progress_callback: G, callback_interval: Duration) -> Result<(PathBuf, String), String> where
-  F: Fn(&Upload, &Game),
-  G: Fn(u64),
+pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u64, game_folder: Option<&Path>, upload_info: F, progress_callback: G, callback_interval: Duration) -> Result<PathBuf, String> where
+  F: FnOnce(&Upload, &Game),
+  G: Fn(DownloadStatus),
 {
 
   // --- DOWNLOAD PREPARATION --- 
-
-  // This is a log which will be returned if the download is successful
-  let mut output_log: String = String::new();
 
   // Obtain information about the game and the upload that will be downloaeded
   let upload: Upload = get_upload_info(client, api_key, upload_id).await?;
@@ -216,19 +220,25 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
   // Send to the caller the game and the upload info
   upload_info(&upload, &game);
 
-  // Set the folder and the file variables  
-  // If the folder is unset, set it to ~/Games/{game_name}/
-  let folder = match folder {
+  // Set the game_folder and the file variables  
+  // If the game_folder is unset, set it to ~/Games/{game_name}/
+  let game_folder = match game_folder {
     Some(f) => f,
     None => &get_game_folder(game.title)?,
   };
 
   // Create the folder if it doesn't already exist
-  tokio::fs::create_dir_all(folder).await
-    .map_err(|e| format!("Couldn't create the folder {}: {e}", folder.to_string_lossy()))?;
+  tokio::fs::create_dir_all(game_folder).await
+    .map_err(|e| format!("Couldn't create the folder {}: {e}", game_folder.to_string_lossy()))?;
 
-  // The new path is folder + the filename
-  let path: PathBuf = folder.join(upload.filename);
+  // The new path is game_folder + the filename
+  let path: PathBuf = game_folder.join(upload.filename);
+
+  // Check if the folder where the upload will be extracted is empty
+  // This pattern matches when the function returns false, so the folder isn't empty
+  if let (false, upload_folder) = extract::is_upload_folder_empty(&path)? {
+    return Err(format!("Game folder directory isn't empty!: {}", upload_folder.to_string_lossy()));
+  }
   
 
 
@@ -271,13 +281,17 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
     downloaded_bytes += chunk.len() as u64;
     if last_callback.elapsed() > callback_interval {
       last_callback = Instant::now();
-      progress_callback(downloaded_bytes);
+      progress_callback(DownloadStatus::Download(downloaded_bytes));
     }
   }
 
+  progress_callback(DownloadStatus::Download(downloaded_bytes));
+
   // Check the md5 hash
+  progress_callback(DownloadStatus::Verify);
+  
   match upload.md5_hash {
-    None => output_log.push_str("Missing md5 hash. Couldn't verify the file integrity!\n"),
+    None => progress_callback(DownloadStatus::Warning("Missing md5 hash. Couldn't verify the file integrity!".to_string())),
     Some(upload_hash) => {
       let file_hash = format!("{:x}", hasher.finalize());
 
@@ -298,12 +312,14 @@ Server hash: {upload_hash}"
 
   // --- FILE EXTRACTION ---
 
+  progress_callback(DownloadStatus::Extract);
+
   // Extracts the downloaded archive (if it's an archive)
   // game_files can be the path of an executable or the path to the extracted folder
   let game_files = extract::extract(&path).await
     .map_err(|e| e.to_string())?;
 
-  Ok((game_files, output_log))
+  Ok(game_files)
 }
 
 /// Given a list of game uploads, return the url to the web game (if it exists)

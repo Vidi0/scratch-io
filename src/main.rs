@@ -2,7 +2,7 @@ use reqwest::Client;
 use serde::{Serialize, Deserialize};
 use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
-use scratch_io::itch_types::*;
+use scratch_io::{itch_types::*, DownloadStatus};
 
 const APP_CONFIGURATION_NAME: &str = "scratch-io";
 const APP_CONFIGURATION_FILE: &str = "config";
@@ -142,35 +142,37 @@ async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&
       .progress_chars("#>-")
   );
 
-  let download_response: Result<(PathBuf, String), String> = scratch_io::download_upload(
+  let download_response: Result<PathBuf, String> = scratch_io::download_upload(
     &client,
     &api_key,
     upload_id,
     dest,
-    |upload, game| {
+    |u, g| {
       println!("\
 Upload id: {}
   Game id: {}
   Game: {}
   Filename: {}",
-        upload.id,
-        game.id,
-        game.title,
-        upload.filename
+        u.id,
+        g.id,
+        g.title,
+        u.filename
       );
-      progress_bar.set_length(upload.size.unwrap_or(0));
+      progress_bar.set_length(u.size.unwrap_or(0));
     },
-  |downloaded| {
-      progress_bar.set_position(downloaded);
+  |download_status| {
+      match download_status {
+        DownloadStatus::Warning(w) => println!("{w}"),
+        DownloadStatus::Download(d) => progress_bar.set_position(d),
+        DownloadStatus::Verify => println!("Verifying download..."),
+        DownloadStatus::Extract => println!("Extracting archive..."),
+      };
     },
     std::time::Duration::from_millis(100)
   ).await;
 
   match download_response {
-    Ok((path, log)) => {
-      progress_bar.finish();
-      print!("{log}");
-
+    Ok(path) => {
       if path.is_file() {
         println!("Game file saved to: {}", path.to_string_lossy());
       } else {
@@ -178,7 +180,6 @@ Upload id: {}
       }
     }
     Err(e) => {
-      progress_bar.abandon();
       eprintln_exit!("Error while downloading file:\n{}", e);
     }
   }
