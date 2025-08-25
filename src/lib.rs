@@ -9,6 +9,26 @@ pub mod extract;
 pub mod itch_types;
 use crate::itch_types::*;
 
+// This isn't inside itch_types because it is not something that the itch API returns
+// These platforms are interpreted from the data provided by the API
+#[derive(serde::Serialize)]
+pub enum GamePlatforms {
+  Linux,
+  Windows,
+  OSX,
+  Android,
+  Web,
+  Flash,
+  Java,
+  UnityWebPlayer,
+}
+
+impl std::fmt::Display for GamePlatforms {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{}", serde_json::to_string(&self).unwrap())
+  }
+}
+
 async fn itch_request<O>(client: &Client, method: Method, url: &ItchApiUrl, api_key: &str, options: O) -> Result<Response, String> where 
   O: FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
 {
@@ -103,6 +123,38 @@ pub async fn get_game_uploads(client: &Client, api_key: &str, game_id: u64) -> R
   ).await
     .map(|res| res.uploads)
     .map_err(|e| format!("An error occurred while attempting to obtain the game uploads:\n{e}"))
+}
+
+/// Gets the information about a game in Itch.io
+/// 
+/// # Arguments
+///
+/// * `api_key` - A valid Itch.io API key to make the request
+/// 
+/// * `game_id` - The ID of the game from which information will be obtained
+pub fn get_game_platforms(uploads: Vec<&Upload>) -> Vec<(u64, GamePlatforms)> {
+  let mut platforms: Vec<(u64, GamePlatforms)> = Vec::new();
+
+  for u in uploads {
+    match u.r#type {
+      UploadType::Flash => platforms.push((u.id, GamePlatforms::Flash)),
+      UploadType::Java => platforms.push((u.id, GamePlatforms::Java)),
+      UploadType::Unity => platforms.push((u.id, GamePlatforms::UnityWebPlayer)),
+      _ => (),
+    }
+
+    for t in u.traits.iter() {
+      match t {
+        UploadTrait::PLinux => platforms.push((u.id, GamePlatforms::Linux)),
+        UploadTrait::PWindows => platforms.push((u.id, GamePlatforms::Windows)),
+        UploadTrait::POSX => platforms.push((u.id, GamePlatforms::OSX)),
+        UploadTrait::PAndroid => platforms.push((u.id, GamePlatforms::Android)),
+        _ => ()
+      }
+    }
+  }
+
+  platforms
 }
 
 /// Gets an upload's info
@@ -239,7 +291,7 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
   if let (false, upload_folder) = extract::is_upload_folder_empty(&path)? {
     return Err(format!("Game folder directory isn't empty!: {}", upload_folder.to_string_lossy()));
   }
-  
+
 
 
   // --- DOWNLOAD --- 

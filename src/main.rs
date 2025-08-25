@@ -100,10 +100,12 @@ async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
 
   match scratch_io::get_game_uploads(&client, &api_key, game_id).await {
     Ok(uploads) => {
+      let platforms = scratch_io::get_game_platforms(uploads.iter().collect());
+      println!("  Platforms:");
+      println!("{}", platforms.iter().map(|(uid, p)| format!("    {uid}, {}", p.to_string())).collect::<Vec<String>>().join("\n"));
+
       println!("  Uploads:");
-      for u in uploads.iter() {
-        println!("{u}");
-      }
+      println!("{}", uploads.iter().map(|u| u.to_string()).collect::<Vec<String>>().join("\n"));
     }
     Err(e) => eprintln_exit!("{e}"),
   };
