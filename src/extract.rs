@@ -119,6 +119,11 @@ fn file_without_extension(file: &Path) -> Result<String, String> {
 /// 
 /// Returns the folder where the files will be extracted and if it is empty or not
 pub fn is_upload_folder_empty(file_path: &Path) -> Result<(bool, PathBuf), String> {
+  let format: ArchiveFormat = get_archive_format(file_path);
+  if let ArchiveFormat::Other = format {
+    return Ok((true, file_path.to_path_buf()));
+  }
+
   let folder = file_path
     .parent()
     .unwrap()
