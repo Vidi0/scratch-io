@@ -138,7 +138,7 @@ async fn print_collection_games(client: &Client, api_key: &str, collection_id: u
 
 // Download a game's upload
 async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&Path>) {
-  let progress_bar = indicatif::ProgressBar::new(0);
+  let progress_bar = indicatif::ProgressBar::hidden();
   progress_bar.set_style(
     indicatif::ProgressStyle::default_bar()
       .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})").unwrap()
@@ -166,6 +166,11 @@ Upload id: {}
   |download_status| {
       match download_status {
         DownloadStatus::Warning(w) => println!("{w}"),
+        DownloadStatus::DownloadedCover(c) => println!("Downloaded game cover to: {}", c.to_string_lossy()),
+        DownloadStatus::StartingDownload() => {
+          println!("Starting download...");
+          progress_bar.set_draw_target(indicatif::ProgressDrawTarget::stderr());
+        }
         DownloadStatus::Download(d) => progress_bar.set_position(d),
         DownloadStatus::Verify => println!("Verifying download..."),
         DownloadStatus::Extract => println!("Extracting archive..."),

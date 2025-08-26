@@ -32,6 +32,7 @@ impl std::fmt::Display for GamePlatforms {
 #[derive(serde::Serialize)]
 pub struct InstalledGameInfo {
   pub installed_path: PathBuf,
+  pub cover_path: Option<PathBuf>,
 }
 
 async fn itch_request<O>(client: &Client, method: Method, url: &ItchApiUrl, api_key: &str, options: O) -> Result<Response, String> where 
@@ -233,6 +234,36 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
   Ok(games)
 }
 
+async fn download_game_cover(client: &Client, cover_url: &str, folder: &Path) -> Result<Option<PathBuf>, String> {
+  let cover_extension = cover_url.rsplit(".").next().unwrap_or_default();
+  let cover_path = folder.join(format!("cover.{cover_extension}"));
+        
+  if cover_path.try_exists().map_err(|e| e.to_string())? {
+    return Ok(Some(cover_path));
+  }
+
+  let cover_response = client.request(Method::GET, cover_url)
+    .send().await
+    .map_err(|e| format!("Error while sending request: {e}"))?;
+      
+      
+  let mut cover_file = tokio::fs::File::create(&cover_path).await
+    .map_err(|e| e.to_string())?;
+  let mut stream = cover_response.bytes_stream();
+        
+  while let Some(chunk) = stream.next().await {
+    // Return an error if the chunk is invalid
+    let chunk = chunk
+      .map_err(|e| format!("Error reading chunk: {e}"))?;
+        
+    // Write the chunk to the file
+    cover_file.write_all(&chunk).await
+      .map_err(|e| format!("Error writing chunk to the file: {e}"))?;
+  } 
+ 
+  Ok(Some(cover_path))
+}
+
 /// The game folder is `dirs::home_dir`+`Games`+`game_title`
 /// 
 /// It fais if dirs::home_dir is None
@@ -258,6 +289,8 @@ fn is_folder_empty(folder: &Path) -> Result<bool, String> {
 
 pub enum DownloadStatus {
   Warning(String),
+  DownloadedCover(PathBuf),
+  StartingDownload(),
   Download(u64),
   Verify,
   Extract,
@@ -303,15 +336,15 @@ where
     Some(f) => f,
     None => &get_game_folder(game.title)?,
   };
-  
-  // Check if the folder where the game files will be placed is empty
-  if !is_folder_empty(&game_folder)? {
-    return Err(format!("The game folder isn't empty!: {}", game_folder.to_string_lossy()));
-  }
 
   // The new upload_folder is game_folder + the upload id
   let upload_folder: PathBuf = game_folder.join(upload.id.to_string());
 
+  // Check if the folder where the upload files will be placed is empty
+  if !is_folder_empty(&upload_folder)? {
+    return Err(format!("The upload folder isn't empty!: {}", upload_folder.to_string_lossy()));
+  }
+  
   // Create the folder if it doesn't already exist
   tokio::fs::create_dir_all(&upload_folder).await
     .map_err(|e| format!("Couldn't create the folder {}: {e}", upload_folder.to_string_lossy()))?;
@@ -321,6 +354,20 @@ where
 
 
   // --- DOWNLOAD --- 
+
+  // Download the cover image
+  let game_cover: Option<PathBuf> = match game.cover_url {
+    None => None,
+    Some(cover_url) => {
+      let cover_path: Option<PathBuf> = download_game_cover(client, &cover_url, game_folder).await?;
+      if let Some(c) = cover_path.as_deref() {
+        progress_callback(DownloadStatus::DownloadedCover(c.to_path_buf()));
+      }
+      cover_path
+    }
+  };
+
+  progress_callback(DownloadStatus::StartingDownload());
 
   // Start the download, but don't save it to a file yet
   let file_response = itch_request(
@@ -398,7 +445,8 @@ Server hash: {upload_hash}"
     .map_err(|e| e.to_string())?;
 
   Ok(InstalledGameInfo {
-    installed_path: upload_folder
+    installed_path: upload_folder,
+    cover_path: game_cover,
   })
 }
 
