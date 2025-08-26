@@ -73,6 +73,72 @@ async fn itch_request_json<T, O>(client: &Client, method: Method, url: &ItchApiU
     .into_result()
 }
 
+/// Downloads to a file given a reqwest Response
+/// 
+/// It returns a hasher, but if update_md5_hash is false, the hasher is empty
+async fn download_file<T>(
+  file_response: Response,
+  file_path: &Path,
+  md5_hash: Option<&str>,
+  progress_callback: T,
+  callback_interval: Duration,
+) -> Result<(), String>
+where
+  T: Fn(u64)
+{
+  // Prepare the download, the hasher, and the callback variables
+  let mut downloaded_bytes: u64 = 0;
+  let mut file = tokio::fs::File::create(&file_path).await
+    .map_err(|e| e.to_string())?;
+  let mut stream = file_response.bytes_stream();
+  let mut hasher = Md5::new();
+  let mut last_callback = Instant::now();
+
+  // Save chunks to the file async
+  // Also, compute the md5 hash while it is being downloaded
+  while let Some(chunk) = stream.next().await {
+    // Return an error if the chunk is invalid
+    let chunk = chunk
+      .map_err(|e| format!("Error reading chunk: {e}"))?;
+
+    // Write the chunk to the file
+    file.write_all(&chunk).await
+      .map_err(|e| format!("Error writing chunk to the file: {e}"))?;
+
+    // If the file has a md5 hash, update the hasher
+    if md5_hash.is_some() {
+      hasher.update(&chunk);
+    }
+  
+    // Send a callback with the progress
+    downloaded_bytes += chunk.len() as u64;
+    if last_callback.elapsed() > callback_interval {
+      last_callback = Instant::now();
+      progress_callback(downloaded_bytes);
+    }
+  }
+
+  progress_callback(downloaded_bytes);
+
+  // If the hashes aren't equal, exit with an error
+  if let Some(hash) = md5_hash {
+    let file_hash = format!("{:x}", hasher.finalize());
+
+    if !file_hash.eq_ignore_ascii_case(&hash) {
+      return Err(format!("File verification failed! The file hash and the hash provided by the server are different.\n\
+File hash:   {file_hash}
+Server hash: {hash}"
+      ));
+    }
+  }
+
+  // Sync the file to ensure all the data has been written
+  file.sync_all().await
+    .map_err(|e| e.to_string())?;
+
+  Ok(())
+}
+
 /// Gets the API's profile
 /// 
 /// This can be used to verify that a given Itch.io API key is valid
@@ -86,7 +152,7 @@ pub async fn get_profile(client: &Client, api_key: &str) -> Result<User, String>
     Method::GET,
     &ItchApiUrl::V2(format!("profile")),
     api_key,
-    |b| b
+    |b| b,
   ).await
     .map(|res| res.user)
     .map_err(|e| format!("An error occurred while attempting to get the profile info:\n{e}"))
@@ -105,7 +171,7 @@ pub async fn get_game_info(client: &Client, api_key: &str, game_id: u64) -> Resu
     Method::GET,
     &ItchApiUrl::V2(format!("games/{game_id}")),
     api_key,
-    |b| b
+    |b| b,
   ).await
     .map(|res| res.game)
     .map_err(|e| format!("An error occurred while attempting to obtain the game info:\n{e}"))
@@ -124,7 +190,7 @@ pub async fn get_game_uploads(client: &Client, api_key: &str, game_id: u64) -> R
     Method::GET,
     &ItchApiUrl::V2(format!("games/{game_id}/uploads")),
     api_key,
-    |b| b
+    |b| b,
   ).await
     .map(|res| res.uploads)
     .map_err(|e| format!("An error occurred while attempting to obtain the game uploads:\n{e}"))
@@ -176,7 +242,7 @@ pub async fn get_upload_info(client: &Client, api_key: &str, upload_id: u64) -> 
     Method::GET,
     &ItchApiUrl::V2(format!("uploads/{upload_id}")),
     api_key,
-    |b|b
+    |b| b,
   ).await
     .map(|res| res.upload)
     .map_err(|e| format!("An error occurred while attempting to obtain the upload information:\n{e}"))
@@ -193,7 +259,7 @@ pub async fn get_collections(client: &Client, api_key: &str) -> Result<Vec<Colle
     Method::GET,
     &ItchApiUrl::V2(format!("profile/collections")),
     api_key,
-    |b|b
+    |b| b,
   ).await
     .map(|res| res.collections)
     .map_err(|e| format!("An error occurred while attempting to obtain the list of the profile's collections:\n{e}"))
@@ -215,7 +281,7 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
       Method::GET,
       &ItchApiUrl::V2(format!("collections/{collection_id}/collection-games")),
       api_key,
-      |b| b.query(&[("page", page)])
+      |b| b.query(&[("page", page)]),
     ).await
       .map_err(|e| format!("An error occurred while attempting to obtain the list of the collection's games: {e}"))?;
 
@@ -234,6 +300,7 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
   Ok(games)
 }
 
+/// Downloads a game cover image from the cover_url to the provided folder
 async fn download_game_cover(client: &Client, cover_url: &str, folder: &Path) -> Result<Option<PathBuf>, String> {
   let cover_extension = cover_url.rsplit(".").next().unwrap_or_default();
   let cover_path = folder.join(format!("cover.{cover_extension}"));
@@ -245,21 +312,14 @@ async fn download_game_cover(client: &Client, cover_url: &str, folder: &Path) ->
   let cover_response = client.request(Method::GET, cover_url)
     .send().await
     .map_err(|e| format!("Error while sending request: {e}"))?;
-      
-      
-  let mut cover_file = tokio::fs::File::create(&cover_path).await
-    .map_err(|e| e.to_string())?;
-  let mut stream = cover_response.bytes_stream();
-        
-  while let Some(chunk) = stream.next().await {
-    // Return an error if the chunk is invalid
-    let chunk = chunk
-      .map_err(|e| format!("Error reading chunk: {e}"))?;
-        
-    // Write the chunk to the file
-    cover_file.write_all(&chunk).await
-      .map_err(|e| format!("Error writing chunk to the file: {e}"))?;
-  } 
+
+  download_file(
+    cover_response,
+    &cover_path,
+    None,
+    |_| (),
+    Duration::MAX,
+  ).await?;
  
   Ok(Some(cover_path))
 }
@@ -292,7 +352,6 @@ pub enum DownloadStatus {
   DownloadedCover(PathBuf),
   StartingDownload(),
   Download(u64),
-  Verify,
   Extract,
 }
 
@@ -314,7 +373,7 @@ pub async fn download_upload<F, G>(
   game_folder: Option<&Path>,
   upload_info: F,
   progress_callback: G,
-  callback_interval: Duration
+  callback_interval: Duration,
 ) -> Result<InstalledGameInfo, String>
 where
   F: FnOnce(&Upload, &Game),
@@ -377,62 +436,20 @@ where
     api_key,
     |b| b
   ).await?;
+
+  // Download the file
+  download_file(
+    file_response,
+    &upload_archive,
+    upload.md5_hash.as_deref(),
+    |bytes| progress_callback(DownloadStatus::Download(bytes)),
+    callback_interval,
+  ).await?;
   
-  // Prepare the download, the hasher, and the callback variables
-  let mut downloaded_bytes: u64 = 0;
-  let mut file = tokio::fs::File::create(&upload_archive).await
-    .map_err(|e| e.to_string())?;
-  let mut stream = file_response.bytes_stream();
-  let mut hasher = Md5::new();
-  let mut last_callback = Instant::now();
-
-  // Save chunks to the file async
-  // Also, compute the md5 hash while it is being downloaded
-  while let Some(chunk) = stream.next().await {
-    // Return an error if the chunk is invalid
-    let chunk = chunk
-      .map_err(|e| format!("Error reading chunk: {e}"))?;
-
-    // Write the chunk to the file
-    file.write_all(&chunk).await
-      .map_err(|e| format!("Error writing chunk to the file: {e}"))?;
-
-    // If the upload has a md5 hash, update the hasher
-    if upload.md5_hash.is_some() {
-      hasher.update(&chunk);
-    }
-  
-    // Send a callback with the progress
-    downloaded_bytes += chunk.len() as u64;
-    if last_callback.elapsed() > callback_interval {
-      last_callback = Instant::now();
-      progress_callback(DownloadStatus::Download(downloaded_bytes));
-    }
+  // Print a warning if the upload doesn't have a hash in the server
+  if upload.md5_hash.is_none() {
+    progress_callback(DownloadStatus::Warning("Missing md5 hash. Couldn't verify the file integrity!".to_string()));
   }
-
-  progress_callback(DownloadStatus::Download(downloaded_bytes));
-
-  // Check the md5 hash
-  progress_callback(DownloadStatus::Verify);
-  
-  match upload.md5_hash {
-    None => progress_callback(DownloadStatus::Warning("Missing md5 hash. Couldn't verify the file integrity!".to_string())),
-    Some(upload_hash) => {
-      let file_hash = format!("{:x}", hasher.finalize());
-
-      if !file_hash.eq_ignore_ascii_case(&upload_hash) {
-        return Err(format!("File verification failed! The file hash and the hash provided by the server are different.\n\
-File hash:   {file_hash}
-Server hash: {upload_hash}"
-        ));
-      }
-    }
-  }
-
-  // Sync the file to ensure all the data has been written
-  file.sync_all().await
-    .map_err(|e| e.to_string())?;
-
 
 
   // --- FILE EXTRACTION ---

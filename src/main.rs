@@ -172,7 +172,6 @@ Upload id: {}
           progress_bar.set_draw_target(indicatif::ProgressDrawTarget::stderr());
         }
         DownloadStatus::Download(d) => progress_bar.set_position(d),
-        DownloadStatus::Verify => println!("Verifying download..."),
         DownloadStatus::Extract => println!("Extracting archive..."),
       };
     },
