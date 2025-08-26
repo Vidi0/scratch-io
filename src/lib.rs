@@ -141,6 +141,7 @@ pub fn get_game_platforms(uploads: Vec<&Upload>) -> Vec<(u64, GamePlatforms)> {
 
   for u in uploads {
     match u.r#type {
+      UploadType::HTML => platforms.push((u.id, GamePlatforms::Web)),
       UploadType::Flash => platforms.push((u.id, GamePlatforms::Flash)),
       UploadType::Java => platforms.push((u.id, GamePlatforms::Java)),
       UploadType::Unity => platforms.push((u.id, GamePlatforms::UnityWebPlayer)),
