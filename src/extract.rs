@@ -118,15 +118,14 @@ fn file_without_extension(file: &Path) -> Result<String, String> {
 /// Checks if the folder where the archive will be extracted is empty
 /// 
 /// Returns the folder where the files will be extracted and if it is empty or not
-pub fn is_upload_folder_empty(file_path: &Path) -> Result<(bool, PathBuf), String> {
-  let format: ArchiveFormat = get_archive_format(file_path);
+fn is_extraction_folder_empty(file_path: &Path, format: &ArchiveFormat) -> Result<(bool, PathBuf), String> {
   if let ArchiveFormat::Other = format {
     return Ok((true, file_path.to_path_buf()));
   }
 
   let folder = file_path
     .parent()
-    .unwrap()
+    .expect(format!("Couldn't get the parent of the archive: {}", file_path.to_string_lossy()).as_str())
     .join(file_without_extension(file_path).expect("File doesn't have an extension?"));
 
   // If the directory exists and isn't empty, return an error
@@ -208,20 +207,23 @@ fn get_archive_format(file: &Path) -> ArchiveFormat {
 /// Extracts the archive into a folder with the same name (without the extension)
 /// 
 /// This function can return a path to a file (if it's not a valid archive) or to the extracted folder
-pub async fn extract(file_path: &Path) -> Result<PathBuf, String> {
+pub async fn extract(file_path: &Path) -> Result<(), String> {
   let format: ArchiveFormat = get_archive_format(file_path);
 
   // If the file isn't an archive, return now
   if let ArchiveFormat::Other = format {
     make_executable(file_path)?;
-    return Ok(file_path.to_path_buf());
+    return Ok(());
   }
 
-  let folder = is_upload_folder_empty(file_path).and_then(|(is_empty, folder)| {
+  let parent_folder = file_path.parent()
+    .expect(format!("Couldn't get the parent of the archive: {}", file_path.to_string_lossy()).as_str());
+
+  let extract_folder = is_extraction_folder_empty(file_path, &format).and_then(|(is_empty, folder)| {
     if is_empty {
       Ok(folder)
     } else {
-      Err(format!("Game folder directory isn't empty!: {}", folder.to_string_lossy()))
+      Err(format!("The folder where the archive will be extracted isn't empty!: {}", folder.to_string_lossy()))
     }
   })?;
 
@@ -233,33 +235,33 @@ pub async fn extract(file_path: &Path) -> Result<PathBuf, String> {
       panic!("If the format is Other, we should've exited before!");
     }
     ArchiveFormat::Zip => {
-      extract_zip(&file, &folder)?;
+      extract_zip(&file, &extract_folder)?;
     }
     ArchiveFormat::Tar => {
-      extract_tar(&file, &folder)?;
+      extract_tar(&file, &extract_folder)?;
     }
     ArchiveFormat::TarGz => {
-      extract_tar_gz(&file, &folder)?;
+      extract_tar_gz(&file, &extract_folder)?;
     }
     ArchiveFormat::TarBz2 => {
-      extract_tar_bz2(&file, &folder)?;
+      extract_tar_bz2(&file, &extract_folder)?;
     }
     ArchiveFormat::TarXz => {
-      extract_tar_xz(&file, &folder)?;
+      extract_tar_xz(&file, &extract_folder)?;
     }
     ArchiveFormat::TarZst => {
-      extract_tar_zst(&file, &folder)?;
+      extract_tar_zst(&file, &extract_folder)?;
     }
   }
-
-  // If the game folder has a common root folder, remove it
-  remove_root_folder(&folder)?;
 
   // Remove the archive
   tokio::fs::remove_file(file_path).await
     .map_err(|e| e.to_string())?;
 
-  Ok(folder)
+  // Move all the contents of the extrated file to the upload folder
+  remove_root_folder(&parent_folder)?;
+
+  Ok(())
 }
 
 #[cfg_attr(not(feature = "zip"), allow(unused_variables))]

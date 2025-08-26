@@ -29,6 +29,11 @@ impl std::fmt::Display for GamePlatforms {
   }
 }
 
+#[derive(serde::Serialize)]
+pub struct InstalledGameInfo {
+  pub installed_path: PathBuf,
+}
+
 async fn itch_request<O>(client: &Client, method: Method, url: &ItchApiUrl, api_key: &str, options: O) -> Result<Response, String> where 
   O: FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
 {
@@ -50,18 +55,17 @@ async fn itch_request<O>(client: &Client, method: Method, url: &ItchApiUrl, api_
   // it needs to be able to modify anything
   request = options(request);
 
-  request.send()
-    .await.map_err(|e| format!("Error while sending request: {e}"))
+  request.send().await
+    .map_err(|e| format!("Error while sending request: {e}"))
 }
 
 async fn itch_request_json<T, O>(client: &Client, method: Method, url: &ItchApiUrl, api_key: &str, options: O) -> Result<T, String> where
   T: serde::de::DeserializeOwned,
   O: FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
 {
-  let text = itch_request(client, method, url, api_key, options)
-    .await?
-    .text()
-    .await.map_err(|e| format!("Error while reading response body: {e}"))?;
+  let text = itch_request(client, method, url, api_key, options).await?
+    .text().await
+    .map_err(|e| format!("Error while reading response body: {e}"))?;
 
   serde_json::from_str::<ApiResponse<T>>(&text)
     .map_err(|e| format!("Error while parsing JSON body: {e}\n\n{}", text))?
@@ -240,6 +244,17 @@ fn get_game_folder(game_title: String) -> Result<PathBuf, String> {
     )
 }
 
+/// Checks if a folder is empty
+fn is_folder_empty(folder: &Path) -> Result<bool, String> {
+  if folder.is_dir() {
+    if folder.read_dir().map_err(|e| e.to_string())?.next().is_some() {
+      return Ok(false);
+    }
+  }
+
+  Ok(true)
+}
+
 pub enum DownloadStatus {
   Warning(String),
   Download(u64),
@@ -258,7 +273,16 @@ pub enum DownloadStatus {
 /// * `folder` - The folder where the downloaded file will be placed
 /// 
 /// * `progress_callback` - A callback function which reports the download progress
-pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u64, game_folder: Option<&Path>, upload_info: F, progress_callback: G, callback_interval: Duration) -> Result<PathBuf, String> where
+pub async fn download_upload<F, G>(
+  client: &Client,
+  api_key: &str,
+  upload_id: u64,
+  game_folder: Option<&Path>,
+  upload_info: F,
+  progress_callback: G,
+  callback_interval: Duration
+) -> Result<InstalledGameInfo, String>
+where
   F: FnOnce(&Upload, &Game),
   G: Fn(DownloadStatus),
 {
@@ -278,20 +302,21 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
     Some(f) => f,
     None => &get_game_folder(game.title)?,
   };
-
-  // Create the folder if it doesn't already exist
-  tokio::fs::create_dir_all(game_folder).await
-    .map_err(|e| format!("Couldn't create the folder {}: {e}", game_folder.to_string_lossy()))?;
-
-  // The new path is game_folder + the filename
-  let path: PathBuf = game_folder.join(upload.filename);
-
-  // Check if the folder where the upload will be extracted is empty
-  // This pattern matches when the function returns false, so the folder isn't empty
-  if let (false, upload_folder) = extract::is_upload_folder_empty(&path)? {
-    return Err(format!("Game folder directory isn't empty!: {}", upload_folder.to_string_lossy()));
+  
+  // Check if the folder where the game files will be placed is empty
+  if !is_folder_empty(&game_folder)? {
+    return Err(format!("The game folder isn't empty!: {}", game_folder.to_string_lossy()));
   }
 
+  // The new upload_folder is game_folder + the upload id
+  let upload_folder: PathBuf = game_folder.join(upload.id.to_string());
+
+  // Create the folder if it doesn't already exist
+  tokio::fs::create_dir_all(&upload_folder).await
+    .map_err(|e| format!("Couldn't create the folder {}: {e}", upload_folder.to_string_lossy()))?;
+
+  // upload_archive is the location where the upload will be downloaded
+  let upload_archive: PathBuf = upload_folder.join(upload.filename);
 
 
   // --- DOWNLOAD --- 
@@ -307,7 +332,7 @@ pub async fn download_upload<F, G>(client: &Client, api_key: &str, upload_id: u6
   
   // Prepare the download, the hasher, and the callback variables
   let mut downloaded_bytes: u64 = 0;
-  let mut file = tokio::fs::File::create(&path).await
+  let mut file = tokio::fs::File::create(&upload_archive).await
     .map_err(|e| e.to_string())?;
   let mut stream = file_response.bytes_stream();
   let mut hasher = Md5::new();
@@ -368,10 +393,12 @@ Server hash: {upload_hash}"
 
   // Extracts the downloaded archive (if it's an archive)
   // game_files can be the path of an executable or the path to the extracted folder
-  let game_files = extract::extract(&path).await
+  extract::extract(&upload_archive).await
     .map_err(|e| e.to_string())?;
 
-  Ok(game_files)
+  Ok(InstalledGameInfo {
+    installed_path: upload_folder
+  })
 }
 
 /// Given a list of game uploads, return the url to the web game (if it exists)

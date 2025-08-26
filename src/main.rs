@@ -68,8 +68,9 @@ enum Commands {
     /// The path where the download folder will be placed
     /// 
     /// Defaults to ~/Games/{game_name}/
-    path: Option<PathBuf>,
-  }
+    #[arg(long)]
+    install_path: Option<PathBuf>,
+  },
 }
 
 // Returns the key's profile
@@ -144,7 +145,7 @@ async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&
       .progress_chars("#>-")
   );
 
-  let download_response: Result<PathBuf, String> = scratch_io::download_upload(
+  let download_response: Result<scratch_io::InstalledGameInfo, String> = scratch_io::download_upload(
     &client,
     &api_key,
     upload_id,
@@ -173,18 +174,13 @@ Upload id: {}
     std::time::Duration::from_millis(100)
   ).await;
 
-  match download_response {
-    Ok(path) => {
-      if path.is_file() {
-        println!("Game file saved to: {}", path.to_string_lossy());
-      } else {
-        println!("Game folder extracted to: {}", path.to_string_lossy());
-      }
-    }
-    Err(e) => {
-      eprintln_exit!("Error while downloading file:\n{}", e);
-    }
-  }
+  let game_info =   match download_response {
+    Ok(game_info) => game_info,
+    Err(e) => eprintln_exit!("Error while downloading file:\n{}", e),
+  }; 
+
+  let upload_path = game_info.installed_path.as_path();
+  println!("Upload folder downloaded to: {}", upload_path.to_string_lossy());
 }
 
 #[tokio::main]
@@ -266,8 +262,8 @@ async fn main() {
         Some(id) => print_collection_games(&client, &api_key, id).await,
       }
     }
-    Commands::Download { upload_id, path } => {
-      download(&client, &api_key, upload_id, path.as_deref()).await;
+    Commands::Download { upload_id, install_path } => {
+      download(&client, &api_key, upload_id, install_path.as_deref()).await;
     }
   }
 }

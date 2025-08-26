@@ -214,9 +214,9 @@ URL: {}
 Cover URL: {}",
       self.id,
       self.username,
-      self.display_name.clone().unwrap_or(String::new()),
+      self.display_name.as_ref().unwrap_or(&String::new()),
       self.url,
-      self.cover_url.clone().unwrap_or(String::new())
+      self.cover_url.as_ref().unwrap_or(&String::new())
     )
   }
 }
@@ -246,6 +246,7 @@ Game: {}
   Description: {}
   URL: {}
   Cover URL: {}
+  Author: {}
   Price: {}
   Classification: {}
   Type: {}
@@ -254,9 +255,15 @@ Game: {}
   Traits: {}",
       self.id,
       self.title,
-      self.short_text.clone().unwrap_or(String::new()),
+      self.short_text.as_ref().unwrap_or(&String::new()),
       self.url,
-      self.cover_url.clone().unwrap_or(String::new()),
+      self.cover_url.as_ref().unwrap_or(&String::new()),
+      match self.user {
+        None => String::new(),
+        Some(ref u) => {
+          u.display_name.as_ref().unwrap_or_else(|| &u.username).to_string()
+        }
+      },
       match self.min_price {
         None => String::new(),
         Some(p) => {
@@ -266,7 +273,7 @@ Game: {}
       self.classification,
       self.r#type,
       self.created_at,
-      self.published_at.clone().unwrap_or(String::new()),
+      self.published_at.as_ref().unwrap_or(&String::new()),
       self.traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", ")
     )
   }
@@ -306,14 +313,14 @@ impl fmt::Display for Upload {
       Traits: {}",
       self.position,
       self.id,
-      self.size.clone().map(|n| n.to_string()).unwrap_or(String::new()),
+      self.size.as_ref().map(|n| n.to_string()).unwrap_or(String::new()),
       self.r#type,
       self.filename,
-      self.display_name.clone().unwrap_or(String::new()),
+      self.display_name.as_ref().unwrap_or(&String::new()),
       self.storage,
       self.created_at,
-      self.updated_at.clone().unwrap_or(String::new()),
-      self.md5_hash.clone().unwrap_or(String::new()),
+      self.updated_at.as_ref().unwrap_or(&String::new()),
+      self.md5_hash.as_ref().unwrap_or(&String::new()),
       self.traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", ")
     )
   }
