@@ -145,7 +145,7 @@ async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&
       .progress_chars("#>-")
   );
 
-  let download_response: Result<scratch_io::InstalledGameInfo, String> = scratch_io::download_upload(
+  let download_response: Result<PathBuf, String> = scratch_io::download_upload(
     &client,
     &api_key,
     upload_id,
@@ -178,13 +178,12 @@ Upload id: {}
     std::time::Duration::from_millis(100)
   ).await;
 
-  let game_info =   match download_response {
-    Ok(game_info) => game_info,
+  let upload_path =   match download_response {
+    Ok(upload_path) => upload_path,
     Err(e) => eprintln_exit!("Error while downloading file:\n{}", e),
   }; 
 
-  let upload_path = game_info.installed_path.as_path();
-  println!("Upload folder downloaded to: {}", upload_path.to_string_lossy());
+  println!("Game upload downloaded to: {}", upload_path.to_string_lossy());
 }
 
 #[tokio::main]

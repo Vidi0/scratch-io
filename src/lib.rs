@@ -4,6 +4,7 @@ use futures_util::StreamExt;
 use md5::{Md5, Digest};
 use reqwest::{Client, Method, Response, header};
 use std::path::{Path, PathBuf};
+use serde::Serialize;
 
 pub mod extract;
 pub mod itch_types;
@@ -11,7 +12,7 @@ use crate::itch_types::*;
 
 // This isn't inside itch_types because it is not something that the itch API returns
 // These platforms are interpreted from the data provided by the API
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 pub enum GamePlatforms {
   Linux,
   Windows,
@@ -29,10 +30,12 @@ impl std::fmt::Display for GamePlatforms {
   }
 }
 
-#[derive(serde::Serialize)]
-pub struct InstalledGameInfo {
-  pub installed_path: PathBuf,
-  pub cover_path: Option<PathBuf>,
+pub enum DownloadStatus {
+  Warning(String),
+  DownloadedCover(PathBuf),
+  StartingDownload(),
+  Download(u64),
+  Extract,
 }
 
 async fn itch_request<O>(client: &Client, method: Method, url: &ItchApiUrl, api_key: &str, options: O) -> Result<Response, String> where 
@@ -347,14 +350,6 @@ fn is_folder_empty(folder: &Path) -> Result<bool, String> {
   Ok(true)
 }
 
-pub enum DownloadStatus {
-  Warning(String),
-  DownloadedCover(PathBuf),
-  StartingDownload(),
-  Download(u64),
-  Extract,
-}
-
 /// Downloads a upload from Itch.io
 /// 
 /// # Arguments
@@ -374,7 +369,7 @@ pub async fn download_upload<F, G>(
   upload_info: F,
   progress_callback: G,
   callback_interval: Duration,
-) -> Result<InstalledGameInfo, String>
+) -> Result<PathBuf, String>
 where
   F: FnOnce(&Upload, &Game),
   G: Fn(DownloadStatus),
@@ -415,7 +410,7 @@ where
   // --- DOWNLOAD --- 
 
   // Download the cover image
-  let game_cover: Option<PathBuf> = match game.cover_url {
+  match game.cover_url {
     None => None,
     Some(cover_url) => {
       let cover_path: Option<PathBuf> = download_game_cover(client, &cover_url, game_folder).await?;
@@ -461,10 +456,7 @@ where
   extract::extract(&upload_archive).await
     .map_err(|e| e.to_string())?;
 
-  Ok(InstalledGameInfo {
-    installed_path: upload_folder,
-    cover_path: game_cover,
-  })
+  Ok(upload_folder)
 }
 
 /// Given a list of game uploads, return the url to the web game (if it exists)
