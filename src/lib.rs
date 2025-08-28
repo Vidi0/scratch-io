@@ -6,8 +6,9 @@ use reqwest::{Client, Method, Response, header};
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
-pub mod extract;
 pub mod itch_api_types;
+pub mod extract;
+pub mod serde_rules;
 use crate::itch_api_types::*;
 
 // This isn't inside itch_types because it is not something that the itch API returns

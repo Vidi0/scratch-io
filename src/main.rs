@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
-use scratch_io::{itch_api_types::*, DownloadStatus};
+use scratch_io::{itch_api_types::*, serde_rules::*, DownloadStatus};
 
 const APP_CONFIGURATION_NAME: &str = "scratch-io";
 const APP_CONFIGURATION_FILE: &str = "config";
@@ -13,40 +13,6 @@ macro_rules! eprintln_exit {
     eprintln!($($arg)*);
     std::process::exit(1);
   }};
-}
-
-/// Serialize HashMap<u64, V> as a map with string keys.
-pub fn serialize_u64_map<S, V>(
-  map: &HashMap<u64, V>,
-  serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-  S: serde::Serializer,
-  V: Serialize,
-{
-  // Use an ordered map for deterministic output; use HashMap if you prefer.
-  let mut tmp: std::collections::BTreeMap<String, &V> = std::collections::BTreeMap::new();
-  for (k, v) in map {
-    tmp.insert(k.to_string(), v);
-  }
-  tmp.serialize(serializer)
-}
-
-/// Deserialize a map with string keys into HashMap<u64, V>.
-pub fn deserialize_u64_map<'de, D, V>(
-  deserializer: D,
-) -> Result<HashMap<u64, V>, D::Error>
-where
-  D: serde::Deserializer<'de>,
-  V: Deserialize<'de>,
-{
-  let tmp: std::collections::BTreeMap<String, V> = std::collections::BTreeMap::deserialize(deserializer)?;
-  let mut map = HashMap::with_capacity(tmp.len());
-  for (k, v) in tmp {
-    let num = k.parse::<u64>().map_err(|e| serde::de::Error::custom(format!("invalid u64 key `{}`: {}", k, e)))?;
-    map.insert(num, v);
-  }
-  Ok(map)
 }
 
 #[derive(Serialize, Deserialize)]
