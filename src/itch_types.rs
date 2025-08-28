@@ -191,7 +191,7 @@ impl fmt::Display for UploadType {
   }
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct User {
   pub id: u64,
   pub username: String,
@@ -221,7 +221,7 @@ Cover URL: {}",
   }
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Game {
   pub id: u64,
   pub url: String,
@@ -279,7 +279,7 @@ Game: {}
   }
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Upload {
   pub position: u64,
   pub id: u64,

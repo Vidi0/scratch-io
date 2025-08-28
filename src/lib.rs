@@ -4,7 +4,7 @@ use futures_util::StreamExt;
 use md5::{Md5, Digest};
 use reqwest::{Client, Method, Response, header};
 use std::path::{Path, PathBuf};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 pub mod extract;
 pub mod itch_types;
@@ -36,6 +36,14 @@ pub enum DownloadStatus {
   StartingDownload(),
   Download(u64),
   Extract,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UploadInstallInfo {
+  pub upload_folder: PathBuf,
+  pub upload: Upload,
+  pub game: Game,
+  pub cover_image: Option<PathBuf>,
 }
 
 async fn itch_request<O>(client: &Client, method: Method, url: &ItchApiUrl, api_key: &str, options: O) -> Result<Response, String> where 
@@ -330,7 +338,7 @@ async fn download_game_cover(client: &Client, cover_url: &str, folder: &Path) ->
 /// The game folder is `dirs::home_dir`+`Games`+`game_title`
 /// 
 /// It fais if dirs::home_dir is None
-fn get_game_folder(game_title: String) -> Result<PathBuf, String> {
+fn get_game_folder(game_title: &str) -> Result<PathBuf, String> {
   dirs::home_dir()
     .ok_or(String::from("Couldn't determine the home directory"))
     .map(|p| 
@@ -369,7 +377,7 @@ pub async fn download_upload<F, G>(
   upload_info: F,
   progress_callback: G,
   callback_interval: Duration,
-) -> Result<PathBuf, String>
+) -> Result<UploadInstallInfo, String>
 where
   F: FnOnce(&Upload, &Game),
   G: Fn(DownloadStatus),
@@ -388,7 +396,7 @@ where
   // If the game_folder is unset, set it to ~/Games/{game_name}/
   let game_folder = match game_folder {
     Some(f) => f,
-    None => &get_game_folder(game.title)?,
+    None => &get_game_folder(&game.title)?,
   };
 
   // The new upload_folder is game_folder + the upload id
@@ -404,16 +412,16 @@ where
     .map_err(|e| format!("Couldn't create the folder {}: {e}", upload_folder.to_string_lossy()))?;
 
   // upload_archive is the location where the upload will be downloaded
-  let upload_archive: PathBuf = upload_folder.join(upload.filename);
+  let upload_archive: PathBuf = upload_folder.join(&upload.filename);
 
 
   // --- DOWNLOAD --- 
 
   // Download the cover image
-  match game.cover_url {
+  let cover_image: Option<PathBuf> = match game.cover_url {
     None => None,
-    Some(cover_url) => {
-      let cover_path: Option<PathBuf> = download_game_cover(client, &cover_url, game_folder).await?;
+    Some(ref cover_url) => {
+      let cover_path: Option<PathBuf> = download_game_cover(client, cover_url, game_folder).await?;
       if let Some(c) = cover_path.as_deref() {
         progress_callback(DownloadStatus::DownloadedCover(c.to_path_buf()));
       }
@@ -456,7 +464,12 @@ where
   extract::extract(&upload_archive).await
     .map_err(|e| e.to_string())?;
 
-  Ok(upload_folder)
+  Ok(UploadInstallInfo {
+    upload_folder,
+    upload,
+    game,
+    cover_image,
+  })
 }
 
 /// Given a list of game uploads, return the url to the web game (if it exists)

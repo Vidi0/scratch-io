@@ -2,6 +2,7 @@ use reqwest::Client;
 use serde::{Serialize, Deserialize};
 use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
+use std::collections::HashMap;
 use scratch_io::{itch_types::*, DownloadStatus};
 
 const APP_CONFIGURATION_NAME: &str = "scratch-io";
@@ -14,15 +15,55 @@ macro_rules! eprintln_exit {
   }};
 }
 
+/// Serialize HashMap<u64, V> as a map with string keys.
+pub fn serialize_u64_map<S, V>(
+  map: &HashMap<u64, V>,
+  serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+  S: serde::Serializer,
+  V: Serialize,
+{
+  // Use an ordered map for deterministic output; use HashMap if you prefer.
+  let mut tmp: std::collections::BTreeMap<String, &V> = std::collections::BTreeMap::new();
+  for (k, v) in map {
+    tmp.insert(k.to_string(), v);
+  }
+  tmp.serialize(serializer)
+}
+
+/// Deserialize a map with string keys into HashMap<u64, V>.
+pub fn deserialize_u64_map<'de, D, V>(
+  deserializer: D,
+) -> Result<HashMap<u64, V>, D::Error>
+where
+  D: serde::Deserializer<'de>,
+  V: Deserialize<'de>,
+{
+  let tmp: std::collections::BTreeMap<String, V> = std::collections::BTreeMap::deserialize(deserializer)?;
+  let mut map = HashMap::with_capacity(tmp.len());
+  for (k, v) in tmp {
+    let num = k.parse::<u64>().map_err(|e| serde::de::Error::custom(format!("invalid u64 key `{}`: {}", k, e)))?;
+    map.insert(num, v);
+  }
+  Ok(map)
+}
+
 #[derive(Serialize, Deserialize)]
 struct Config {
   api_key: Option<String>,
+  #[serde(
+    serialize_with = "serialize_u64_map",
+    deserialize_with = "deserialize_u64_map"
+  )]
+  installed_uploads: HashMap<u64, scratch_io::UploadInstallInfo>,
 }
 
 impl ::std::default::Default for Config {
   fn default() -> Self {
     Self {
       api_key: None,
+      installed_uploads: HashMap::new(),
     }
   }
 }
@@ -36,7 +77,7 @@ struct Cli {
 
   #[arg(short, long, env = "SCRATCH_CONFIG_FILE")]
   /// The path where the config file is stored
-  config_file: Option<String>,
+  config_file: Option<PathBuf>,
 
   #[command(subcommand)]
   command: Commands,
@@ -71,6 +112,31 @@ enum Commands {
     #[arg(long)]
     install_path: Option<PathBuf>,
   },
+}
+
+fn load_config(custom_path: Option<&Path>) -> Config {
+  let config_result = match custom_path {
+    None => confy::load(APP_CONFIGURATION_NAME, APP_CONFIGURATION_FILE),
+    Some(p) => confy::load_path(&p),
+  };
+
+  match config_result {
+    Ok(c) => c,
+    Err(e) => {
+      eprintln_exit!("Error while reading configuration file!\n{}", e);
+    }
+  }
+}
+
+fn save_config(config: &Config, custom_path: Option<&Path>) {
+  let config_result = match custom_path {
+    None => confy::store(APP_CONFIGURATION_NAME, APP_CONFIGURATION_FILE, config),
+    Some(p) => confy::store_path(&p, config),
+  };
+
+  if let Err(e) = config_result {
+    eprintln_exit!("Error while saving to the configuration file!\n{}", e);
+  }
 }
 
 // Returns the key's profile
@@ -137,7 +203,7 @@ async fn print_collection_games(client: &Client, api_key: &str, collection_id: u
 }
 
 // Download a game's upload
-async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&Path>) {
+async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&Path>) -> scratch_io::UploadInstallInfo {
   let progress_bar = indicatif::ProgressBar::hidden();
   progress_bar.set_style(
     indicatif::ProgressStyle::default_bar()
@@ -145,7 +211,7 @@ async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&
       .progress_chars("#>-")
   );
 
-  let download_response: Result<PathBuf, String> = scratch_io::download_upload(
+  let download_response: Result<scratch_io::UploadInstallInfo, String> = scratch_io::download_upload(
     &client,
     &api_key,
     upload_id,
@@ -178,12 +244,14 @@ Upload id: {}
     std::time::Duration::from_millis(100)
   ).await;
 
-  let upload_path =   match download_response {
-    Ok(upload_path) => upload_path,
+  let upload_info =  match download_response {
+    Ok(info) => info,
     Err(e) => eprintln_exit!("Error while downloading file:\n{}", e),
   }; 
 
-  println!("Game upload downloaded to: {}", upload_path.to_string_lossy());
+  println!("Game upload downloaded to: {}", upload_info.upload_folder.to_string_lossy());
+
+  upload_info
 }
 
 #[tokio::main]
@@ -193,19 +261,8 @@ async fn main() {
   let cli: Cli = Cli::parse();
 
   // Get the config from the file
-  let mut config: Config = {
-    let config_result = match cli.config_file {
-      None => confy::load(APP_CONFIGURATION_NAME, APP_CONFIGURATION_FILE),
-      Some(f) => confy::load_path(&f),
-    };
-
-    match config_result {
-      Ok(c) => c,
-      Err(e) => {
-        eprintln_exit!("Error while reading configuration file!\n{}", e);
-      }
-    }
-  };
+  let custom_config_file = cli.config_file.as_deref();
+  let mut config: Config = load_config(custom_config_file);
 
   // Create reqwest client
   let client: Client = Client::new();
@@ -222,7 +279,7 @@ async fn main() {
   }
   else {
     cli.api_key.clone().unwrap_or(
-      config.api_key.unwrap_or_else(|| {
+      config.api_key.clone().unwrap_or_else(|| {
         eprintln_exit!("Error: an Itch.io API key is required, either via --api-key or the auth command.");
       })
     )
@@ -245,9 +302,7 @@ async fn main() {
       config.api_key = Some(api_key);
       
       // Save the valid key to the config file
-      if let Err(e) = confy::store(APP_CONFIGURATION_NAME, APP_CONFIGURATION_FILE, config) {
-        eprintln_exit!("Error while saving config:\n{}", e);
-      }
+      save_config(&config, custom_config_file);
       println!("The key was saved successfully.");
 
       // Print user info
@@ -266,7 +321,14 @@ async fn main() {
       }
     }
     Commands::Download { upload_id, install_path } => {
-      download(&client, &api_key, upload_id, install_path.as_deref()).await;
+      if let Some(info) = config.installed_uploads.get(&upload_id) {
+        eprintln_exit!("The game is already installed in: {}", info.upload_folder.to_string_lossy());
+      }
+
+      let upload_info = download(&client, &api_key, upload_id, install_path.as_deref()).await;
+      config.installed_uploads.insert(upload_id, upload_info);
+
+      save_config(&config, custom_config_file);
     }
   }
 }
