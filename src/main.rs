@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
-use scratch_io::{itch_types::*, DownloadStatus};
+use scratch_io::{itch_api_types::*, DownloadStatus};
 
 const APP_CONFIGURATION_NAME: &str = "scratch-io";
 const APP_CONFIGURATION_FILE: &str = "config";
