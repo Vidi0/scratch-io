@@ -22,7 +22,7 @@ struct Config {
     serialize_with = "serialize_u64_map",
     deserialize_with = "deserialize_u64_map"
   )]
-  installed_uploads: HashMap<u64, scratch_io::UploadInstallInfo>,
+  installed_uploads: HashMap<u64, scratch_io::InstalledUpload>,
 }
 
 impl ::std::default::Default for Config {
@@ -169,7 +169,7 @@ async fn print_collection_games(client: &Client, api_key: &str, collection_id: u
 }
 
 // Download a game's upload
-async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&Path>) -> scratch_io::UploadInstallInfo {
+async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&Path>) -> scratch_io::InstalledUpload {
   let progress_bar = indicatif::ProgressBar::hidden();
   progress_bar.set_style(
     indicatif::ProgressStyle::default_bar()
@@ -177,7 +177,7 @@ async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&
       .progress_chars("#>-")
   );
 
-  let download_response: Result<scratch_io::UploadInstallInfo, String> = scratch_io::download_upload(
+  let download_response: Result<scratch_io::InstalledUpload, String> = scratch_io::download_upload(
     &client,
     &api_key,
     upload_id,

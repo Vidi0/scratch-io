@@ -40,11 +40,89 @@ pub enum DownloadStatus {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct UploadInstallInfo {
+pub struct InstalledUpload {
   pub upload_folder: PathBuf,
-  pub upload: Upload,
-  pub game: Game,
   pub cover_image: Option<PathBuf>,
+  pub upload_info: UploadInfo,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct UploadInfo {
+  pub upload_id: u64,
+  pub upload_filename: String,
+  pub upload_display_name: Option<String>,
+  pub upload_created_at: String,
+  pub upload_updated_at: Option<String>,
+  pub upload_traits: Vec<UploadTrait>,
+  pub game_id: u64,
+  pub game_short_text: Option<String>,
+  pub game_url: String,
+  pub game_created_at: String,
+  pub game_published_at: Option<String>,
+  pub author_id: u64,
+  pub author_username: String,
+  pub author_display_name: Option<String>,
+  pub author_url: String,
+}
+
+impl UploadInfo {
+  fn from_info(upload: Upload, game: Game) -> Self {
+    assert_eq!(upload.game_id, game.id, "Couldn't create new UploadInfo! The game provided does not match with the upload!");
+
+    UploadInfo {
+      upload_id: upload.id,
+      upload_filename: upload.filename,
+      upload_display_name: upload.display_name,
+      upload_created_at: upload.created_at,
+      upload_updated_at: upload.updated_at,
+      upload_traits: upload.traits,
+      game_id: game.id,
+      game_short_text: game.short_text,
+      game_url: game.url,
+      game_created_at: game.created_at,
+      game_published_at: game.published_at,
+      author_id: game.user.id,
+      author_username: game.user.username,
+      author_display_name: game.user.display_name,
+      author_url: game.user.url,
+    }
+  }
+}
+
+impl std::fmt::Display for UploadInfo {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "\
+Upload id: {}
+  Upload:
+    Name: {}
+    Created at: {}
+    Updated at: {}
+    Traits: {}
+  Game:
+    Id: {}
+    Description: {}
+    URL: {}
+    Created at: {}
+    Published at: {}
+  Author
+    Id: {}
+    Name: {}
+    URL: {}",
+      self.upload_id,
+      self.upload_display_name.as_deref().unwrap_or(&self.upload_filename),
+      self.upload_created_at,
+      self.upload_updated_at.as_deref().unwrap_or_default(),
+      self.upload_traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", "),
+      self.game_id,
+      self.game_short_text.as_deref().unwrap_or_default(),
+      self.game_url,
+      self.game_created_at,
+      self.game_published_at.as_deref().unwrap_or_default(),
+      self.author_id,
+      self.author_display_name.as_deref().unwrap_or(&self.author_username),
+      self.author_url,
+    )
+  }
 }
 
 async fn itch_request<O>(client: &Client, method: Method, url: &ItchApiUrl, api_key: &str, options: O) -> Result<Response, String> where 
@@ -284,8 +362,8 @@ pub async fn get_collections(client: &Client, api_key: &str) -> Result<Vec<Colle
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
 /// * `collection_id` - The ID of the collection from which the games will be retrieved 
-pub async fn get_collection_games(client: &Client, api_key: &str, collection_id: u64) -> Result<Vec<CollectionGame>, String> {   
-  let mut games: Vec<CollectionGame> = Vec::new();
+pub async fn get_collection_games(client: &Client, api_key: &str, collection_id: u64) -> Result<Vec<CollectionGameItem>, String> {   
+  let mut games: Vec<CollectionGameItem> = Vec::new();
   let mut page: u64 = 1;
   loop {
     let mut response = itch_request_json::<CollectionGamesResponse, _>(
@@ -378,7 +456,7 @@ pub async fn download_upload<F, G>(
   upload_info: F,
   progress_callback: G,
   callback_interval: Duration,
-) -> Result<UploadInstallInfo, String>
+) -> Result<InstalledUpload, String>
 where
   F: FnOnce(&Upload, &Game),
   G: Fn(DownloadStatus),
@@ -465,11 +543,10 @@ where
   extract::extract(&upload_archive).await
     .map_err(|e| e.to_string())?;
 
-  Ok(UploadInstallInfo {
+  Ok(InstalledUpload {
     upload_folder,
-    upload,
-    game,
     cover_image,
+    upload_info: UploadInfo::from_info(upload, game),
   })
 }
 

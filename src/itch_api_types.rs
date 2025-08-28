@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Serialize, Deserialize};
 use std::fmt;
 
 use crate::serde_rules::*;
@@ -22,7 +22,7 @@ impl fmt::Display for ItchApiUrl {
   }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Serialize, Deserialize)]
 pub enum GameTrait {
   #[serde(rename = "p_linux")]
   PLinux,
@@ -46,7 +46,7 @@ impl fmt::Display for GameTrait {
   }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Serialize, Deserialize)]
 pub enum UploadTrait {
   #[serde(rename = "p_linux")]
   PLinux,
@@ -66,7 +66,7 @@ impl fmt::Display for UploadTrait {
   }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Serialize, Deserialize)]
 pub enum GameClassification {
   #[serde(rename = "game")]
   Game,
@@ -94,7 +94,7 @@ impl fmt::Display for GameClassification {
   }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Serialize, Deserialize)]
 pub enum GameType {
   #[serde(rename = "default")]
   Default,
@@ -114,7 +114,7 @@ impl fmt::Display for GameType {
   }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Serialize, Deserialize)]
 pub enum UploadType {
   #[serde(rename = "default")]
   Default,
@@ -152,7 +152,7 @@ impl fmt::Display for UploadType {
   }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 pub struct User {
   pub id: u64,
   pub username: String,
@@ -182,7 +182,7 @@ Cover URL: {}",
   }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 pub struct Game {
   pub id: u64,
   pub url: String,
@@ -193,8 +193,8 @@ pub struct Game {
   pub cover_url: Option<String>,
   pub created_at: String,
   pub published_at: Option<String>,
-  pub min_price: Option<u64>,
-  pub user: Option<User>,
+  pub min_price: u64,
+  pub user: User,
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub traits: Vec<GameTrait>,
 }
@@ -219,18 +219,8 @@ Game: {}
       self.short_text.as_ref().unwrap_or(&String::new()),
       self.url,
       self.cover_url.as_ref().unwrap_or(&String::new()),
-      match self.user {
-        None => String::new(),
-        Some(ref u) => {
-          u.display_name.as_ref().unwrap_or_else(|| &u.username).to_string()
-        }
-      },
-      match self.min_price {
-        None => String::new(),
-        Some(p) => {
-          if p <= 0 { String::from("Free") } else { String::from("Paid") }
-        }
-      },
+      self.user.display_name.as_ref().unwrap_or_else(|| &self.user.username).to_string(),
+      if self.min_price <= 0 { String::from("Free") } else { String::from("Paid") },
       self.classification,
       self.r#type,
       self.created_at,
@@ -240,7 +230,7 @@ Game: {}
   }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 pub struct Upload {
   pub position: u64,
   pub id: u64,
@@ -314,20 +304,65 @@ Name: {}
 }
 
 #[derive(Deserialize)]
-pub struct CollectionGame {
-  pub game: Game,
+pub struct CollectionGameItem {
+  pub game: CollectionGame,
   pub position: u64,
   pub user_id: u64,
   pub created_at: String,
 }
 
-impl fmt::Display for CollectionGame {
+impl fmt::Display for CollectionGameItem {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "\
 Position: {}
 {}",
       self.position,
       self.game,
+    )
+  }
+}
+
+#[derive(Deserialize)]
+pub struct CollectionGame {
+  pub id: u64,
+  pub url: String,
+  pub title: String,
+  pub short_text: Option<String>,
+  pub r#type: GameType,
+  pub classification: GameClassification,
+  pub cover_url: Option<String>,
+  pub created_at: String,
+  pub published_at: Option<String>,
+  pub min_price: u64,
+  #[serde(deserialize_with = "empty_object_as_vec")]
+  pub traits: Vec<GameTrait>,
+}
+
+impl fmt::Display for CollectionGame {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "\
+Id: {}
+Game: {}
+  Description: {}
+  URL: {}
+  Cover URL: {}
+  Price: {}
+  Classification: {}
+  Type: {}
+  Published at: {}
+  Created at: {}
+  Traits: {}",
+      self.id,
+      self.title,
+      self.short_text.as_ref().unwrap_or(&String::new()),
+      self.url,
+      self.cover_url.as_ref().unwrap_or(&String::new()),
+      if self.min_price <= 0 { String::from("Free") } else { String::from("Paid") },
+      self.classification,
+      self.r#type,
+      self.created_at,
+      self.published_at.as_ref().unwrap_or(&String::new()),
+      self.traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", ")
     )
   }
 }
@@ -383,5 +418,5 @@ pub struct CollectionGamesResponse {
   pub page: u64,
   pub per_page: u64,
   #[serde(deserialize_with = "empty_object_as_vec")]
-  pub collection_games: Vec<CollectionGame>,
+  pub collection_games: Vec<CollectionGameItem>,
 }
