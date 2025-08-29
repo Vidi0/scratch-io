@@ -78,6 +78,8 @@ enum Commands {
     #[arg(long)]
     install_path: Option<PathBuf>,
   },
+  /// List the installed games
+  Installed,
 }
 
 fn load_config(custom_path: Option<&Path>) -> Config {
@@ -219,6 +221,32 @@ Upload id: {}
   }
 }
 
+// Retrieve information about a collection's games and print it
+async fn print_installed_games(client: &Client, api_key: &str, installed_uploads: &mut HashMap<u64, scratch_io::InstalledUpload>) -> bool {
+  let mut updated = false;
+  let mut print_warning = false;
+  let mut last_error: String = String::new();
+
+  for (_, iu) in installed_uploads {
+    let res = iu.add_missing_info(&client, &api_key, false).await;
+    match res {
+      Ok(u) => updated |= u,
+      Err(e) => {
+        print_warning = true;
+        last_error = e;
+      }
+    }
+
+    println!("{iu}");
+  }
+
+  if print_warning {
+    println!("Warning: Couldn't update the game info!: {last_error}");
+  }
+
+  updated
+}
+
 #[tokio::main]
 async fn main() {
   
@@ -294,6 +322,13 @@ async fn main() {
       config.installed_uploads.insert(upload_id, upload_info);
 
       save_config(&config, custom_config_file);
+    }
+    Commands::Installed => {
+      let updated = print_installed_games(&client, &api_key, &mut config.installed_uploads).await;
+
+      if updated {
+        save_config(&config, custom_config_file);
+      }
     }
   }
 }

@@ -48,6 +48,24 @@ pub struct InstalledUpload {
   pub game: Option<Game>,
 }
 
+impl InstalledUpload {
+  /// Returns true if the info has been updated
+  pub async fn add_missing_info(&mut self, client: &Client, api_key: &str, force_update: bool) -> Result<bool, String> {
+    let mut updated = false;
+
+    if self.upload.is_none() || force_update {
+      self.upload = Some(get_upload_info(client, api_key, self.upload_id).await?);
+      updated = true;
+    }
+    if self.game.is_none() || force_update {
+      self.game = Some(get_game_info(client, api_key, self.upload.as_ref().expect("The upload info has just been received. Why isn't it there?").game_id).await?);
+      updated = true;
+    }
+
+    Ok(updated)
+  }
+}
+
 impl std::fmt::Display for InstalledUpload {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     let (u_name, u_created_at, u_updated_at, u_traits) = match self.upload.as_ref() {
