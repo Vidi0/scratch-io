@@ -210,14 +210,13 @@ Upload id: {}
     std::time::Duration::from_millis(100)
   ).await;
 
-  let upload_info =  match download_response {
-    Ok(info) => info,
+  match download_response {
+    Ok(upload_info) => {
+      println!("Game upload downloaded to: {}", upload_info.upload_folder.to_string_lossy());
+      upload_info
+    }
     Err(e) => eprintln_exit!("Error while downloading file:\n{}", e),
-  }; 
-
-  println!("Game upload downloaded to: {}", upload_info.upload_folder.to_string_lossy());
-
-  upload_info
+  }
 }
 
 #[tokio::main]

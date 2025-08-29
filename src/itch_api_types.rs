@@ -152,7 +152,7 @@ impl fmt::Display for UploadType {
   }
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct User {
   pub id: u64,
   pub username: String,
@@ -175,14 +175,14 @@ URL: {}
 Cover URL: {}",
       self.id,
       self.username,
-      self.display_name.as_ref().unwrap_or(&String::new()),
+      self.display_name.as_deref().unwrap_or_default(),
       self.url,
-      self.cover_url.as_ref().unwrap_or(&String::new())
+      self.cover_url.as_deref().unwrap_or_default(),
     )
   }
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Game {
   pub id: u64,
   pub url: String,
@@ -216,21 +216,21 @@ Game: {}
   Traits: {}",
       self.id,
       self.title,
-      self.short_text.as_ref().unwrap_or(&String::new()),
+      self.short_text.as_deref().unwrap_or_default(),
       self.url,
-      self.cover_url.as_ref().unwrap_or(&String::new()),
-      self.user.display_name.as_ref().unwrap_or_else(|| &self.user.username).to_string(),
-      if self.min_price <= 0 { String::from("Free") } else { String::from("Paid") },
+      self.cover_url.as_deref().unwrap_or_default(),
+      self.user.display_name.as_deref().unwrap_or(&self.user.username),
+      if self.min_price <= 0 { "Free" } else { "Paid" },
       self.classification,
       self.r#type,
       self.created_at,
-      self.published_at.as_ref().unwrap_or(&String::new()),
+      self.published_at.as_deref().unwrap_or_default(),
       self.traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", ")
     )
   }
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Upload {
   pub position: u64,
   pub id: u64,
@@ -264,14 +264,14 @@ impl fmt::Display for Upload {
       Traits: {}",
       self.position,
       self.id,
-      self.size.as_ref().map(|n| n.to_string()).unwrap_or(String::new()),
+      self.size.as_ref().map(|n| n.to_string()).unwrap_or_default(),
       self.r#type,
       self.filename,
-      self.display_name.as_ref().unwrap_or(&String::new()),
+      self.display_name.as_deref().unwrap_or_default(),
       self.storage,
       self.created_at,
-      self.updated_at.as_ref().unwrap_or(&String::new()),
-      self.md5_hash.as_ref().unwrap_or(&String::new()),
+      self.updated_at.as_deref().unwrap_or_default(),
+      self.md5_hash.as_deref().unwrap_or_default(),
       self.traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", ")
     )
   }
@@ -354,14 +354,14 @@ Game: {}
   Traits: {}",
       self.id,
       self.title,
-      self.short_text.as_ref().unwrap_or(&String::new()),
+      self.short_text.as_deref().unwrap_or_default(),
       self.url,
-      self.cover_url.as_ref().unwrap_or(&String::new()),
-      if self.min_price <= 0 { String::from("Free") } else { String::from("Paid") },
+      self.cover_url.as_deref().unwrap_or_default(),
+      if self.min_price <= 0 { "Free" } else { "Paid" },
       self.classification,
       self.r#type,
       self.created_at,
-      self.published_at.as_ref().unwrap_or(&String::new()),
+      self.published_at.as_deref().unwrap_or_default(),
       self.traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", ")
     )
   }
