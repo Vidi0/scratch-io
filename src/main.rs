@@ -51,6 +51,15 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+  #[clap[flatten]]
+  RequireApi(RequireApiCommands),
+  #[clap[flatten]]
+  OptionalApi(OptionalApiCommands),
+}
+
+// These commands will receive a valid API key and its profile
+#[derive(Subcommand)]
+enum RequireApiCommands {
   /// Save an API key to use in the other commands
   Auth {
     /// The API key to save
@@ -78,6 +87,11 @@ enum Commands {
     #[arg(long)]
     install_path: Option<PathBuf>,
   },
+}
+
+// These commands may receive a valid API key, or may not
+#[derive(Subcommand)]
+enum OptionalApiCommands {
   /// List the installed games
   Installed,
 }
@@ -108,21 +122,40 @@ fn save_config(config: &Config, custom_path: Option<&Path>) {
 }
 
 // Returns the key's profile
-async fn verify_key(client: &Client, api_key: &str, is_saved_key: bool) -> User {
+async fn verify_key(client: &Client, api_key: &str, is_saved_key: bool) -> Result<User, String> {
   match scratch_io::get_profile(&client, &api_key).await {
-    Ok(p) => p,
+    Ok(p) => Ok(p),
     Err(e) => {
       if !e.contains("invalid key") {
-        eprintln_exit!("{e}");
+        return Err(e.to_string());
       }
   
       if is_saved_key {
-        eprintln_exit!("The key is not longer valid. Try logging in again.");
+        return Err(String::from("The key is not longer valid. Try logging in again."));
       } else {
-        eprintln_exit!("The key is invalid!");
+        return Err(String::from("The key is invalid!"));
       }
     },
   }
+}
+
+async fn get_api_key(client: &Client, keys: &[Option<&str>], saved_key_index: usize) -> Result<(String, User), String> {
+  let key_index = keys
+    .iter()
+    .position(|&k| k.is_some())
+    .ok_or_else(|| String::from("Error: an Itch.io API key is required, either via --api-key or the auth command."))?;
+  let api_key: String = keys[key_index].expect("If the index isn't valid, we should have exited before!").to_string();
+
+  let is_saved_key = key_index == saved_key_index;
+  
+  // Verify the key and get user info
+  let profile: User = verify_key(
+    &client,
+    api_key.as_str(),
+    is_saved_key,
+  ).await?;
+
+  Ok((api_key, profile))
 }
 
 // Retrieve information about a game_id and print it
@@ -222,13 +255,21 @@ Upload id: {}
 }
 
 // Retrieve information about a collection's games and print it
-async fn print_installed_games(client: &Client, api_key: &str, installed_uploads: &mut HashMap<u64, scratch_io::InstalledUpload>) -> bool {
+async fn print_installed_games(client: &Client, api_key: Option<&str>, installed_uploads: &mut HashMap<u64, scratch_io::InstalledUpload>) -> bool {
+  let Some(key) = api_key else {
+    for (_, iu) in installed_uploads {
+      println!("{iu}");
+    }
+    println!("Warning: Couldn't update the game info!");
+    return false
+  };
+
   let mut updated = false;
   let mut print_warning = false;
   let mut last_error: String = String::new();
 
   for (_, iu) in installed_uploads {
-    let res = iu.add_missing_info(&client, &api_key, false).await;
+    let res = iu.add_missing_info(&client, key, false).await;
     match res {
       Ok(u) => updated |= u,
       Err(e) => {
@@ -259,75 +300,77 @@ async fn main() {
 
   // Create reqwest client
   let client: Client = Client::new();
-  
-  /**** API KEY ****/
 
-  // The api key is:
-  // 1. If the command is auth, then the provided key
-  // 2. If --api-key is set, then that key
-  // 3. If not, then the saved config
-  // 4. If there isn't a saved config, throw an error
-  let api_key: String = if let Commands::Auth { ref api_key } = cli.command {
-    api_key.clone()
-  }
-  else {
-    cli.api_key.clone().unwrap_or(
-      config.api_key.clone().unwrap_or_else(|| {
-        eprintln_exit!("Error: an Itch.io API key is required, either via --api-key or the auth command.");
-      })
-    )
-  };
-
-  // Verify the key and get user info
-  let profile: User = verify_key(
+  let api_key = get_api_key(
     &client,
-    &api_key,
-    // This is only true when the key is read from the config
-    if let Commands::Auth { .. } = cli.command { false } else { cli.api_key.is_none() }
+    // The api key is:
+    &[
+      // 1. If the command is auth, then the provided key
+      if let Commands::RequireApi(RequireApiCommands::Auth { api_key }) = &cli.command { Some(api_key.as_str()) } else { None },
+      // 2. If --api-key is set, then that key
+      cli.api_key.as_deref(),
+      // 3. If not, then the saved config
+      config.api_key.as_deref(),
+      // 4. If there isn't a saved config, throw an error
+    ],
+    // The index of the previously saved config, to print a different error message
+    2,
   ).await;
 
   /**** COMMANDS ****/
 
   match cli.command {
-    Commands::Auth { api_key: _ } => {
-      // We already checked if the key was valid
-      println!("Valid key!");
-      config.api_key = Some(api_key);
-      
-      // Save the valid key to the config file
-      save_config(&config, custom_config_file);
-      println!("The key was saved successfully.");
+    Commands::RequireApi(command) => {
+      let (api_key, profile) = api_key.unwrap_or_else(|e| eprintln_exit!("{e}"));
 
-      // Print user info
-      println!("Logged in as: {}", profile.username);
-    }
-    Commands::Profile => {
-      println!("{profile}");
-    }
-    Commands::Game { game_id } => {
-      print_game_info(&client, &api_key, game_id).await;
-    }
-    Commands::Collections { collection_id } => {
-      match collection_id {
-        None => print_collections(&client, &api_key).await,
-        Some(id) => print_collection_games(&client, &api_key, id).await,
+      match command {
+        RequireApiCommands::Auth { api_key: _ } => {
+          // We already checked if the key was valid
+          println!("Valid key!");
+          config.api_key = Some(api_key.clone());
+          
+          // Save the valid key to the config file
+          save_config(&config, custom_config_file);
+          println!("The key was saved successfully.");
+
+          // Print user info
+          println!("Logged in as: {}", api_key.as_str());
+        }
+        RequireApiCommands::Profile => {
+          println!("{}", profile.to_string());
+        }
+        RequireApiCommands::Game { game_id } => {
+          print_game_info(&client, api_key.as_str(), game_id).await;
+        }
+        RequireApiCommands::Collections { collection_id } => {
+          match collection_id {
+            None => print_collections(&client, api_key.as_str()).await,
+            Some(id) => print_collection_games(&client, api_key.as_str(), id).await,
+          }
+        }
+        RequireApiCommands::Download { upload_id, install_path } => {
+          if let Some(info) = config.installed_uploads.get(&upload_id) {
+            eprintln_exit!("The game is already installed in: {}", info.upload_folder.to_string_lossy());
+          }
+
+          let upload_info = download(&client, api_key.as_str(), upload_id, install_path.as_deref()).await;
+          config.installed_uploads.insert(upload_id, upload_info);
+
+          save_config(&config, custom_config_file);
+        }
       }
     }
-    Commands::Download { upload_id, install_path } => {
-      if let Some(info) = config.installed_uploads.get(&upload_id) {
-        eprintln_exit!("The game is already installed in: {}", info.upload_folder.to_string_lossy());
-      }
+    Commands::OptionalApi(command) => {
+      let (api_key, _profile) = api_key.ok().unzip();
 
-      let upload_info = download(&client, &api_key, upload_id, install_path.as_deref()).await;
-      config.installed_uploads.insert(upload_id, upload_info);
+      match command {
+        OptionalApiCommands::Installed => {
+          let updated = print_installed_games(&client, api_key.as_deref(), &mut config.installed_uploads).await;
 
-      save_config(&config, custom_config_file);
-    }
-    Commands::Installed => {
-      let updated = print_installed_games(&client, &api_key, &mut config.installed_uploads).await;
-
-      if updated {
-        save_config(&config, custom_config_file);
+          if updated {
+            save_config(&config, custom_config_file);
+          }
+        }
       }
     }
   }
