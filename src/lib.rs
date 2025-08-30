@@ -42,8 +42,8 @@ pub enum DownloadStatus {
 #[derive(Serialize, Deserialize)]
 pub struct InstalledUpload {
   pub upload_id: u64,
-  pub upload_folder: PathBuf,
-  pub cover_image: Option<PathBuf>,
+  pub game_folder: PathBuf,
+  pub cover_image: Option<String>,
   pub upload: Option<Upload>,
   pub game: Option<Game>,
 }
@@ -94,7 +94,7 @@ impl std::fmt::Display for InstalledUpload {
 
     write!(f, "\
 Upload id: {}
-  Game files: {}
+  Game folder: {}
     Cover image: {}
   Upload:
     Name: {u_name}
@@ -112,11 +112,8 @@ Upload id: {}
     Name: {a_name}
     URL: {a_url}",
       self.upload_id,
-      self.upload_folder.to_string_lossy(),
-      match self.cover_image.as_deref() {
-        None => "",
-        Some(c) => &c.to_string_lossy(),
-      },
+      self.game_folder.to_string_lossy(),
+      self.cover_image.as_deref().unwrap_or_default(),
     )
   }
 }
@@ -541,8 +538,8 @@ where
 
   Ok(InstalledUpload {
     upload_id,
-    upload_folder,
-    cover_image,
+    game_folder: game_folder.to_path_buf(),
+    cover_image: cover_image.map(|p| p.file_name().expect("Cover image doesn't have a filename?").to_string_lossy().to_string()),
     upload: Some(upload),
     game: Some(game),
   })

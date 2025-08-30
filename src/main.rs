@@ -247,7 +247,7 @@ Upload id: {}
 
   match download_response {
     Ok(upload_info) => {
-      println!("Game upload downloaded to: {}", upload_info.upload_folder.to_string_lossy());
+      println!("Game upload downloaded to: {}", upload_info.game_folder.join(upload_info.upload_id.to_string()).to_string_lossy());
       upload_info
     }
     Err(e) => eprintln_exit!("Error while downloading file:\n{}", e),
@@ -350,7 +350,7 @@ async fn main() {
         }
         RequireApiCommands::Download { upload_id, install_path } => {
           if let Some(info) = config.installed_uploads.get(&upload_id) {
-            eprintln_exit!("The game is already installed in: {}", info.upload_folder.to_string_lossy());
+            eprintln_exit!("The game is already installed in: {}", info.game_folder.join(info.upload_id.to_string()).to_string_lossy());
           }
 
           let upload_info = download(&client, api_key.as_str(), upload_id, install_path.as_deref()).await;
