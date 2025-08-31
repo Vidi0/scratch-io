@@ -471,7 +471,87 @@ fn is_folder_empty<P: AsRef<Path>>(folder: P) -> Result<bool, String> {
   Ok(true)
 }
 
-/// Downloads a upload from Itch.io
+/// Copy all the folder contents to another location
+async fn copy_dir_all<P: AsRef<Path>>(src: P, dst: P) -> Result<(), String> {
+  if !src.as_ref().is_dir() {
+    return Err(format!("Not a folder: {}", src.as_ref().to_string_lossy()));
+  }
+
+  let mut queue: std::collections::VecDeque<(PathBuf, PathBuf)> = std::collections::VecDeque::new();
+  queue.push_back((src.as_ref().to_path_buf(), dst.as_ref().to_path_buf()));
+
+  while let Some((src, dst)) = queue.pop_front() {
+    tokio::fs::create_dir_all(&dst).await
+      .map_err(|e| format!("Couldn't create folder {}: {e}", dst.as_path().to_string_lossy()))?;
+
+    let mut entries = tokio::fs::read_dir(&src).await
+      .map_err(|e| format!("Couldn't read dir {}: {e}", src.as_path().to_string_lossy()))?;
+
+    while let Some(entry) = entries.next_entry().await.map_err(|e| e.to_string())? {
+      let src_path = entry.path();
+      let dst_path = dst.join(entry.file_name());
+
+      if entry.file_type().await.map_err(|e| e.to_string())?.is_dir() {
+        queue.push_back((src_path, dst_path));
+      } else {
+        tokio::fs::copy(&src_path, &dst_path)
+          .await
+          .map_err(|e| format!("Couldn't copy file:\n  from: {}\n  to: {}\n{e}", src_path.to_string_lossy(), dst_path.to_string_lossy()))?;
+      } 
+    }
+  }
+
+  Ok(())
+}
+
+/// This function will remove a folder AND ITS CONTENTS if it doesn't have another folder inside
+async fn remove_folder_without_child_folders<P: AsRef<Path>>(folder: P) -> Result<(), String> {
+  // If there isn't another folder inside, remove the folder
+  let child_entries = std::fs::read_dir(folder.as_ref())
+    .map_err(|e| e.to_string())?;
+
+  for child in child_entries {
+    let child = child
+      .map_err(|e| e.to_string())?;
+
+    if child.file_type().map_err(|e| e.to_string())?.is_dir() {
+      return Ok(())
+    }
+  }
+
+  // If we're here, that means the folder doesn't have any other
+  // folder inside, so we can remove it
+  remove_folder_safely(folder).await?;
+
+  Ok(())
+}
+
+/// Move a folder and its contents to another location
+/// 
+/// It also works if the destination is on another filesystem
+async fn move_folder<P: AsRef<Path>>(src: P, dst: P) -> Result<(), String> {
+  if !src.as_ref().is_dir() {
+    Err(format!("The source folder doesn't exist!: {}", src.as_ref().to_string_lossy()))?;
+  }
+
+  // Create the destination parent dir
+  tokio::fs::create_dir_all(dst.as_ref()).await
+    .map_err(|e| format!("Couldn't create folder: {}\n{e}", dst.as_ref().to_string_lossy()))?;
+
+  match tokio::fs::rename(src.as_ref(), dst.as_ref()).await {
+    Ok(_) => Ok(()),
+    Err(e) if e.kind() == tokio::io::ErrorKind::CrossesDevices => {
+      // fallback: copy + delete
+      copy_dir_all(src.as_ref(), dst.as_ref()).await?;
+      remove_folder_safely(src.as_ref()).await?;
+      Ok(())
+    }
+    Err(e) => Err(format!("Couldn't move the folder:\n  from: {}\n  to: {}\n{e}", src.as_ref().to_string_lossy(), dst.as_ref().to_string_lossy())),
+  }
+}
+
+
+/// Downloads an upload from Itch.io
 /// 
 /// # Arguments
 /// 
@@ -619,7 +699,7 @@ pub async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder:
   })
 }
 
-/// Downloads a upload from Itch.io
+/// Downloads an upload from Itch.io
 /// 
 /// # Arguments
 /// 
@@ -630,34 +710,64 @@ pub async fn remove(upload_id: u64, game_folder: &Path) -> Result<(), String> {
 
   let upload_folder = game_folder.join(upload_id.to_string());
 
-  // If there isn't a upload_folder, that means the game has already
-  // been removed, so return Ok(())
-  let exists_upload_folder = upload_folder.try_exists()
-    .map_err(|e| format!("Couldn't check if the upload folder exists: {e}"))?;
-  if !exists_upload_folder {
-    return Ok(());
+  // If there isn't a upload_folder, or it is empty, that means the game
+  // has already been removed, so return Ok(())
+  if is_folder_empty(&upload_folder)? {
+    return Ok(())
   }
 
   remove_folder_safely(upload_folder).await?;
   // The upload folder has been removed
 
-  // If there isn't another upload folder, remove the game folder
-  let child_entries = std::fs::read_dir(&game_folder)
-    .map_err(|e| e.to_string())?;
+  // If there isn't another upload folder, remove the whole game folder
+  remove_folder_without_child_folders(&game_folder).await?;
 
-  for child in child_entries {
-    let child = child
-      .map_err(|e| e.to_string())?;
+  Ok(())
+}
 
-    if child.path().is_dir() {
-      return Ok(())
-    }
+/// Moves an upload to a new game folder
+/// 
+/// # Arguments
+/// 
+/// * `upload_id` - The ID of upload which will be downloaded
+/// 
+/// * `src_game_folder` - The folder where the game files are currently placed
+/// 
+/// * `dst_game_folder` - The folder where the game files will be moved to
+/// 
+/// * `upload_info` - If provided, modifies its contents to reflect the folder change
+pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Path, upload_info: Option<&mut InstalledUpload>) -> Result<(), String> {
+  let src_upload_folder = src_game_folder.join(upload_id.to_string());
+
+  // If there isn't a src_upload_folder, exit with error
+  if !src_upload_folder.try_exists().map_err(|e| format!("Couldn't check if the upload folder exists: {e}"))? {
+    return Err(format!("The source game folder doesn't exsit!"));
+  }
+  
+  let dst_upload_folder = dst_game_folder.join(upload_id.to_string());
+  // If there is a dst_upload_folder with contents, exit with error
+  if !is_folder_empty(&dst_upload_folder)? {
+    return Err(format!("The upload folder destination isn't empty!: {}", dst_upload_folder.to_string_lossy()));
+  }
+  
+  // Move the upload folder
+  move_folder(src_upload_folder.as_path(), dst_upload_folder.as_path()).await?;
+
+  // Copy the cover image (if it exists)
+  let cover_image = find_cover_filename(src_game_folder)?;
+  if let Some(cover) = cover_image {
+    tokio::fs::copy(src_game_folder.join(cover.as_str()), dst_game_folder.join(cover.as_str())).await
+      .map_err(|e| format!("Couldn't copy game cover image: {e}"))?;
   }
 
-  // If we're here, that means the game folder doesn't have any other
-  // folders inside, so we can remove the game folder
-  remove_folder_safely(game_folder).await?;
+  // If src_game_folder doesn't contain any other upload, remove it
+  remove_folder_without_child_folders(src_game_folder).await?;
 
+  if let Some(ui) = upload_info {
+    ui.game_folder = dst_game_folder.canonicalize()
+      .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))?;
+  }
+  
   Ok(())
 }
 

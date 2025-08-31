@@ -105,6 +105,13 @@ enum OptionalApiCommands {
   Remove {
     /// The ID of the upload to remove
     upload_id: u64,
+  },
+  /// Move a installed upload to another game folder
+  Move {
+    /// The ID of the upload to import
+    upload_id: u64,
+    /// The path where the game folder will be placed
+    game_path_dst: PathBuf,
   }
 }
 
@@ -325,6 +332,21 @@ async fn remove_upload(upload_id: u64, installed_uploads: &mut HashMap<u64, scra
   println!("Removed upload {upload_id} from: {}", &upload_info.game_folder.to_string_lossy())
 }
 
+async fn move_upload(upload_id: u64, dst_game_folder: &Path, installed_uploads: &mut HashMap<u64, scratch_io::InstalledUpload>) {
+  let upload_info = match installed_uploads.get_mut(&upload_id) {
+    None => eprintln_exit!("The given upload id is not installed!: {}", upload_id.to_string()),
+    Some(f) => f,
+  };
+
+  let src_game_folder = upload_info.game_folder.to_path_buf();
+
+  if let Err(e) = scratch_io::r#move(upload_id, src_game_folder.as_path(), dst_game_folder, Some(upload_info)).await {
+    eprintln_exit!("Couldn't move upload: {e}");
+  }
+
+  println!("Moved upload {upload_id}\n  from: {}\n  to: {}", src_game_folder.to_string_lossy(), dst_game_folder.to_string_lossy());
+}
+
 #[tokio::main]
 async fn main() {
   
@@ -420,6 +442,10 @@ async fn main() {
         }
         OptionalApiCommands::Remove { upload_id } => {
           remove_upload(upload_id, &mut config.installed_uploads).await;
+          save_config(&config, custom_config_file);
+        }
+        OptionalApiCommands::Move { upload_id, game_path_dst } => {
+          move_upload(upload_id, game_path_dst.as_path(), &mut config.installed_uploads).await;
           save_config(&config, custom_config_file);
         }
       }
