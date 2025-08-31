@@ -442,7 +442,7 @@ fn get_game_folder(game_title: &str) -> Result<PathBuf, String> {
 
 /// Removes a folder recursively, but checks if it is a dangerous path before doing so
 async fn remove_folder_safely<P: AsRef<Path>>(path: P) -> Result<(), String> {
-  let canonical = tokio::fs::canonicalize(path.as_ref()).await
+  let canonical = tokio::fs::canonicalize(&path).await
     .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))?;
 
   let home = dirs::home_dir()
@@ -454,7 +454,7 @@ async fn remove_folder_safely<P: AsRef<Path>>(path: P) -> Result<(), String> {
     Err(String::from("Refusing to remove home directory!"))?
   }
 
-  tokio::fs::remove_dir_all(path.as_ref()).await
+  tokio::fs::remove_dir_all(&path).await
     .map_err(|e| format!("Couldn't remove directory: {}\n{e}", path.as_ref().to_string_lossy()))?;
 
   Ok(())
@@ -507,7 +507,7 @@ async fn copy_dir_all<P: AsRef<Path>>(src: P, dst: P) -> Result<(), String> {
 /// This function will remove a folder AND ITS CONTENTS if it doesn't have another folder inside
 async fn remove_folder_without_child_folders<P: AsRef<Path>>(folder: P) -> Result<(), String> {
   // If there isn't another folder inside, remove the folder
-  let child_entries = std::fs::read_dir(folder.as_ref())
+  let child_entries = std::fs::read_dir(&folder)
     .map_err(|e| e.to_string())?;
 
   for child in child_entries {
@@ -521,7 +521,7 @@ async fn remove_folder_without_child_folders<P: AsRef<Path>>(folder: P) -> Resul
 
   // If we're here, that means the folder doesn't have any other
   // folder inside, so we can remove it
-  remove_folder_safely(folder).await?;
+  remove_folder_safely(&folder).await?;
 
   Ok(())
 }
@@ -535,15 +535,15 @@ async fn move_folder<P: AsRef<Path>>(src: P, dst: P) -> Result<(), String> {
   }
 
   // Create the destination parent dir
-  tokio::fs::create_dir_all(dst.as_ref()).await
+  tokio::fs::create_dir_all(&dst).await
     .map_err(|e| format!("Couldn't create folder: {}\n{e}", dst.as_ref().to_string_lossy()))?;
 
-  match tokio::fs::rename(src.as_ref(), dst.as_ref()).await {
+  match tokio::fs::rename(&src, &dst).await {
     Ok(_) => Ok(()),
     Err(e) if e.kind() == tokio::io::ErrorKind::CrossesDevices => {
       // fallback: copy + delete
-      copy_dir_all(src.as_ref(), dst.as_ref()).await?;
-      remove_folder_safely(src.as_ref()).await?;
+      copy_dir_all(&src, &dst).await?;
+      remove_folder_safely(&src).await?;
       Ok(())
     }
     Err(e) => Err(format!("Couldn't move the folder:\n  from: {}\n  to: {}\n{e}", src.as_ref().to_string_lossy(), dst.as_ref().to_string_lossy())),
