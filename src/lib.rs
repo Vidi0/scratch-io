@@ -629,6 +629,15 @@ pub async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder:
 pub async fn remove(upload_id: u64, game_folder: &Path) -> Result<(), String> {
 
   let upload_folder = game_folder.join(upload_id.to_string());
+
+  // If there isn't a upload_folder, that means the game has already
+  // been removed, so return Ok(())
+  let exists_upload_folder = upload_folder.try_exists()
+    .map_err(|e| format!("Couldn't check if the upload folder exists: {e}"))?;
+  if !exists_upload_folder {
+    return Ok(());
+  }
+
   remove_folder_safely(upload_folder).await?;
   // The upload folder has been removed
 
