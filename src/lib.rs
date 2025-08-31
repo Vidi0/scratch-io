@@ -419,10 +419,30 @@ fn get_game_folder(game_title: &str) -> Result<PathBuf, String> {
     )
 }
 
+/// Removes a folder recursively, but checks if it is a dangerous path before doing so
+async fn remove_folder_safely<P: AsRef<Path>>(path: P) -> Result<(), String> {
+  let canonical = tokio::fs::canonicalize(path.as_ref()).await
+    .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))?;
+
+  let home = dirs::home_dir()
+    .ok_or(String::from("Couldn't determine the home directory"))?
+    .canonicalize()
+    .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))?;
+
+  if canonical == home {
+    Err(String::from("Refusing to remove home directory!"))?
+  }
+
+  tokio::fs::remove_dir_all(path.as_ref()).await
+    .map_err(|e| format!("Couldn't remove directory: {}\n{e}", path.as_ref().to_string_lossy()))?;
+
+  Ok(())
+}
+
 /// Checks if a folder is empty
-fn is_folder_empty(folder: &Path) -> Result<bool, String> {
-  if folder.is_dir() {
-    if folder.read_dir().map_err(|e| e.to_string())?.next().is_some() {
+fn is_folder_empty<P: AsRef<Path>>(folder: P) -> Result<bool, String> {
+  if folder.as_ref().is_dir() {
+    if folder.as_ref().read_dir().map_err(|e| e.to_string())?.next().is_some() {
       return Ok(false);
     }
   }
@@ -438,9 +458,13 @@ fn is_folder_empty(folder: &Path) -> Result<bool, String> {
 /// 
 /// * `upload_id` - The ID of upload which will be downloaded
 /// 
-/// * `folder` - The folder where the downloaded file will be placed
+/// * `game_folder` - The folder where the downloadeded game files will be placed
+/// 
+/// * `upload_info` - A callback function which reports the upload and the game info before the download starts
 /// 
 /// * `progress_callback` - A callback function which reports the download progress
+/// 
+/// * `callback_interval` - The Duration between the callbacks
 pub async fn download_upload<F, G>(
   client: &Client,
   api_key: &str,
@@ -482,7 +506,7 @@ where
   // Create the folder if it doesn't already exist
   tokio::fs::create_dir_all(&upload_folder).await
     .map_err(|e| format!("Couldn't create the folder {}: {e}", upload_folder.to_string_lossy()))?;
-
+  
   // upload_archive is the location where the upload will be downloaded
   let upload_archive: PathBuf = upload_folder.join(&upload.filename);
 
@@ -493,7 +517,7 @@ where
   let cover_image: Option<PathBuf> = match game.cover_url {
     None => None,
     Some(ref cover_url) => {
-      let cover_path: Option<PathBuf> = download_game_cover(client, cover_url, game_folder).await?;
+      let cover_path: Option<PathBuf> = download_game_cover(client, cover_url, &game_folder).await?;
       if let Some(c) = cover_path.as_deref() {
         progress_callback(DownloadStatus::DownloadedCover(c.to_path_buf()));
       }
@@ -538,11 +562,46 @@ where
 
   Ok(InstalledUpload {
     upload_id,
-    game_folder: game_folder.to_path_buf(),
+    // Get the absolute (canonical) form of the path
+    game_folder: game_folder.canonicalize()
+      .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))?,
     cover_image: cover_image.map(|p| p.file_name().expect("Cover image doesn't have a filename?").to_string_lossy().to_string()),
     upload: Some(upload),
     game: Some(game),
   })
+}
+
+/// Downloads a upload from Itch.io
+/// 
+/// # Arguments
+/// 
+/// * `upload_id` - The ID of upload which will be downloaded
+/// 
+/// * `game_folder` - The folder with the game files where the upload will be removed from
+pub async fn remove(upload_id: u64, game_folder: &Path) -> Result<(), String> {
+
+  let upload_folder = game_folder.join(upload_id.to_string());
+  remove_folder_safely(upload_folder).await?;
+  // The upload folder has been removed
+
+  // If there isn't another upload folder, remove the game folder
+  let child_entries = std::fs::read_dir(&game_folder)
+    .map_err(|e| e.to_string())?;
+
+  for child in child_entries {
+    let child = child
+      .map_err(|e| e.to_string())?;
+
+    if child.path().is_dir() {
+      return Ok(())
+    }
+  }
+
+  // If we're here, that means the game folder doesn't have any other
+  // folders inside, so we can remove the game folder
+  remove_folder_safely(game_folder).await?;
+
+  Ok(())
 }
 
 /// Given a list of game uploads, return the url to the web game (if it exists)

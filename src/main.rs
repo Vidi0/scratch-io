@@ -94,6 +94,11 @@ enum RequireApiCommands {
 enum OptionalApiCommands {
   /// List the installed games
   Installed,
+  /// Remove a installed upload given its id
+  Remove {
+    /// The ID of the upload to remove
+    upload_id: u64,
+  }
 }
 
 fn load_config(custom_path: Option<&Path>) -> Config {
@@ -288,6 +293,21 @@ async fn print_installed_games(client: &Client, api_key: Option<&str>, installed
   updated
 }
 
+async fn remove_upload(upload_id: u64, installed_uploads: &mut HashMap<u64, scratch_io::InstalledUpload>) {
+  let upload_info = match installed_uploads.get(&upload_id) {
+    None => eprintln_exit!("The given upload id is not installed!: {}", upload_id.to_string()),
+    Some(f) => f,
+  };
+  
+  if let Err(e) = scratch_io::remove(upload_id, &upload_info.game_folder).await {
+    eprintln_exit!("Couldn't remove upload: {e}");
+  }
+
+  let upload_info = installed_uploads.remove(&upload_id)
+    .expect("We have just checked if the key existed, and it did...");
+  println!("Removed upload {upload_id} from: {}", &upload_info.game_folder.to_string_lossy())
+}
+
 #[tokio::main]
 async fn main() {
   
@@ -370,6 +390,10 @@ async fn main() {
           if updated {
             save_config(&config, custom_config_file);
           }
+        }
+        OptionalApiCommands::Remove { upload_id } => {
+          remove_upload(upload_id, &mut config.installed_uploads).await;
+          save_config(&config, custom_config_file);
         }
       }
     }
