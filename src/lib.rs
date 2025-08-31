@@ -407,6 +407,27 @@ async fn download_game_cover(client: &Client, cover_url: &str, folder: &Path) ->
   Ok(Some(cover_path))
 }
 
+fn find_cover_filename<P: AsRef<Path>>(game_folder: P) -> Result<Option<String>, String> { 
+  let child_entries = std::fs::read_dir(&game_folder)
+    .map_err(|e| format!("Couldn't read direcotory: {}\n{e}", game_folder.as_ref().to_string_lossy()))?;
+
+  for child in child_entries {
+    let child: std::fs::DirEntry = child
+      .map_err(|e| e.to_string())?;
+    let path: PathBuf = child.path();
+
+    let Some(stem) = path.file_stem() else {
+      continue;
+    };
+
+    if path.is_file() && stem.eq_ignore_ascii_case("cover")  {
+      return Ok(Some(child.file_name().to_string_lossy().to_string()));
+    }
+  }
+
+  Ok(None)
+}
+
 /// The game folder is `dirs::home_dir`+`Games`+`game_title`
 /// 
 /// It fais if dirs::home_dir is None
@@ -566,6 +587,33 @@ where
     game_folder: game_folder.canonicalize()
       .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))?,
     cover_image: cover_image.map(|p| p.file_name().expect("Cover image doesn't have a filename?").to_string_lossy().to_string()),
+    upload: Some(upload),
+    game: Some(game),
+  })
+}
+
+/// Import an already installed upload
+/// 
+/// # Arguments
+/// 
+/// * `api_key` - A valid Itch.io API key to make the request
+/// 
+/// * `upload_id` - The ID of upload which will be imported
+/// 
+/// * `game_folder` - The folder where the game files are currectly placed
+pub async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder: &Path) -> Result<InstalledUpload, String> {
+  // Obtain information about the game and the upload that will be downloaeded
+  let upload: Upload = get_upload_info(client, api_key, upload_id).await?;
+  let game: Game = get_game_info(client, api_key, upload.game_id).await?;
+  
+  let cover_image: Option<String> = find_cover_filename(game_folder)?;
+
+  Ok(InstalledUpload {
+    upload_id,
+    // Get the absolute (canonical) form of the path
+    game_folder: game_folder.canonicalize()
+      .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))?,
+    cover_image,
     upload: Some(upload),
     game: Some(game),
   })

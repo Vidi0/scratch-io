@@ -87,6 +87,13 @@ enum RequireApiCommands {
     #[arg(long)]
     install_path: Option<PathBuf>,
   },
+  /// Imports an already installed game given its upload ID and the game folder
+  Import {
+    /// The ID of the upload to import
+    upload_id: u64,
+    /// The path where the game folder is located
+    install_path: PathBuf,
+  }
 }
 
 // These commands may receive a valid API key, or may not
@@ -259,6 +266,16 @@ Upload id: {}
   }
 }
 
+async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder: &Path) -> scratch_io::InstalledUpload {
+  match scratch_io::import(client, api_key, upload_id, game_folder).await {
+    Ok(upload_info) => {
+      println!("Game imported from: {}", upload_info.game_folder.join(upload_info.upload_id.to_string()).to_string_lossy());
+      upload_info
+    }
+    Err(e) => eprintln_exit!("Error while importing game:\n{}", e),
+  }
+}
+
 // Retrieve information about a collection's games and print it
 async fn print_installed_games(client: &Client, api_key: Option<&str>, installed_uploads: &mut HashMap<u64, scratch_io::InstalledUpload>) -> bool {
   let Some(key) = api_key else {
@@ -374,6 +391,16 @@ async fn main() {
           }
 
           let upload_info = download(&client, api_key.as_str(), upload_id, install_path.as_deref()).await;
+          config.installed_uploads.insert(upload_id, upload_info);
+
+          save_config(&config, custom_config_file);
+        }
+        RequireApiCommands::Import { upload_id, install_path } => {
+          if let Some(info) = config.installed_uploads.get(&upload_id) {
+            eprintln_exit!("The game is already importead and placed in: {}", info.game_folder.join(info.upload_id.to_string()).to_string_lossy());
+          }
+
+          let upload_info = import(&client, api_key.as_str(), upload_id, install_path.as_path()).await;
           config.installed_uploads.insert(upload_id, upload_info);
 
           save_config(&config, custom_config_file);
