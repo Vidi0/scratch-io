@@ -165,6 +165,12 @@ pub struct User {
   pub gamer: Option<bool>,
 }
 
+impl User {
+  pub fn get_name(&self) -> &str {
+    self.display_name.as_deref().unwrap_or(self.username.as_str())
+  }
+}
+
 impl fmt::Display for User {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "\
@@ -219,7 +225,7 @@ Game: {}
       self.short_text.as_deref().unwrap_or_default(),
       self.url,
       self.cover_url.as_deref().unwrap_or_default(),
-      self.user.display_name.as_deref().unwrap_or(&self.user.username),
+      self.user.get_name(),
       if self.min_price <= 0 { "Free" } else { "Paid" },
       self.classification,
       self.r#type,

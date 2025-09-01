@@ -393,7 +393,7 @@ async fn main() {
           println!("The key was saved successfully.");
 
           // Print user info
-          println!("Logged in as: {}", api_key.as_str());
+          println!("Logged in as: {}", profile.get_name());
         }
         RequireApiCommands::Profile => {
           println!("{}", profile.to_string());
