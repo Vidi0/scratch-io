@@ -419,7 +419,7 @@ async fn main() {
         }
         RequireApiCommands::Import { upload_id, install_path } => {
           if let Some(info) = config.installed_uploads.get(&upload_id) {
-            eprintln_exit!("The game is already importead and placed in: {}", info.game_folder.join(info.upload_id.to_string()).to_string_lossy());
+            eprintln_exit!("The game is already imported and placed in: {}", info.game_folder.join(info.upload_id.to_string()).to_string_lossy());
           }
 
           let upload_info = import(&client, api_key.as_str(), upload_id, install_path.as_path()).await;
