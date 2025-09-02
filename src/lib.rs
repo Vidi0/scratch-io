@@ -793,7 +793,7 @@ pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Pa
 pub async fn launch(
   upload_id: u64,
   game_folder: &Path,
-  heuristics_info: Option<(&GamePlatform, &Game, &Upload)>,
+  heuristics_info: Option<(&GamePlatform, &Game)>,
   upload_executable: Option<&Path>,
   wrapper: &[String],
   game_arguments: &[String],
@@ -810,7 +810,7 @@ pub async fn launch(
     Some(p) => p.to_path_buf(),
     None => {
       let hi = heuristics_info.expect("We already checked if both were None!");
-      heuristics::get_game_executable(upload_folder.as_path(), hi.0, &hi.1, &hi.2)?
+      heuristics::get_game_executable(upload_folder.as_path(), hi.0, &hi.1)?
         .ok_or_else(|| format!("Couldn't get the game executable file! Try setting one manually with the upload_executable option!"))?
     }
   }.canonicalize()

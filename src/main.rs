@@ -329,14 +329,9 @@ async fn launch_upload(
   let upload_info = get_installed_upload_info(upload_id, installed_uploads);
   let game_folder = upload_info.game_folder.to_path_buf();
 
-  let heuristics_info: Option<(&scratch_io::GamePlatform, &Game, &Upload)> = match platform {
+  let heuristics_info: Option<(&scratch_io::GamePlatform, &Game)> = match platform {
     None => None,
-    Some(ref p) => {
-      match upload_info.game.as_ref().zip(upload_info.upload.as_ref()) {
-        None => eprintln_exit!("Missing game or upload info. Use the \"installed\" command to fill missing info"),
-        Some((g, u)) => Some((p, g, u)),
-      }
-    }
+    Some(ref p) => Some((p, upload_info.game.as_ref().unwrap_or_else(|| eprintln_exit!("Missing game or upload info. Use the \"installed\" command to fill missing info")))),
   };
 
   let game_arguments: Vec<String>= game_arguments.map_or(Vec::new(), |a|
