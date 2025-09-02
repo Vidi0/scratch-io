@@ -845,7 +845,15 @@ pub async fn launch(
   launch_start_callback(upload_executable.as_path(), format!("{:?}", game_process).as_str());
 
   let mut child = game_process.spawn()
-    .map_err(|e| format!("Couldn't spawn child process: {e}"))?;
+    .map_err(|e| {
+      let code = e.raw_os_error();
+      if code.is_some_and(|n| n == 8) {
+        format!("Couldn't spawn the child process because it is not an executable format for this OS\n\
+          Maybe a wrapper is missing or the selected game executable isn't the correct one!")
+      } else {
+        format!("Couldn't spawn the child process: {e}")
+      }
+    })?;
 
   child.wait().await
     .map_err(|e| format!("Error while awaiting for child exit!: {e}"))?;
