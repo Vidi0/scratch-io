@@ -31,7 +31,8 @@ impl GamePlatform {
   }
 }
 
-const GOOD_LAUNCH_FILENAMES: &[&'static str] = &["start", "launch", "play", "run", "game", "launcher"];
+const GOOD_LAUNCH_FILENAMES: &[&'static str] = &["start", "launch", "play", "run", "game", "launcher", "rungame"];
+const BEST_PROXIMITY_MULTIPLIER: f64 = 0.34;
 
 pub fn get_game_executable(upload_folder: &Path, platform: &GamePlatform, game_info: &Game) -> Result<Option<PathBuf>, String> {
   let mut best_executable: (Option<PathBuf>, i64) = (None, i64::MIN);
@@ -93,17 +94,11 @@ fn rate_executable(file_path: &Path, upload_folder: &Path, platform: &GamePlatfo
   
   let game_title = make_alphanumeric_lowercase(game_info.title.clone());
   // Check if the filename is similar to the game name
-  if strsim::levenshtein(game_title.as_str(), filename.as_str()) <= 1 {
-    rating += 1200;
-  }
+  rating += proximity_rating(game_title.as_str(), filename.as_str(), 2, 700, 550, BEST_PROXIMITY_MULTIPLIER);
 
   // If the filename has a good name (e.g: start, launch, etc.), raise the rating
   for n in GOOD_LAUNCH_FILENAMES {
-    if strsim::levenshtein(n, filename.as_str()) <= 1 {
-      rating += 1600;
-    } else if filename.contains(n) {
-      rating += 770;
-    }
+    rating += proximity_rating(n, filename.as_str(), 1, 1200, 500, BEST_PROXIMITY_MULTIPLIER);
   }
 
   Ok(rating)
@@ -113,6 +108,17 @@ fn make_alphanumeric_lowercase(mut string: String) -> String {
   string.retain(|c| c.is_ascii_alphanumeric());
   string.make_ascii_lowercase();
   string
+}
+
+fn proximity_rating(a: &str, b: &str, max_distance: usize, base_points: i64, extra_points: i64, proximity_multiplier: f64) -> i64 {
+  if strsim::levenshtein(a, b) >= max_distance {
+    return 0;
+  }
+
+  // The matematical equation for the extra points is:
+  // y = normalized ^ ( 1 / (multiplier ^ 2) )
+  // This works when multiplier is between 0 and 1
+  base_points + (strsim::normalized_levenshtein(a, b).powf(1.0 / proximity_multiplier.powf(2.0)) * extra_points as f64) as i64
 }
 
 fn get_directory_level<P: AsRef<Path>>(path: P) -> Result<usize, String> {
