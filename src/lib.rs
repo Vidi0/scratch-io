@@ -7,9 +7,9 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 pub mod itch_api_types;
-pub mod extract;
 pub mod serde_rules;
-pub mod heuristics;
+mod extract;
+mod heuristics;
 mod game_files_operations;
 use crate::itch_api_types::*;
 use crate::game_files_operations::*;
