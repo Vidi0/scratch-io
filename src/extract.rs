@@ -138,25 +138,6 @@ fn is_extraction_folder_empty(file_path: &Path, format: &ArchiveFormat) -> Resul
   Ok((true, folder))
 }
 
-fn make_executable(path: &Path) -> Result<(), String> {
-  #[cfg(unix)]
-  {
-    use std::os::unix::fs::PermissionsExt;
-
-    let metadata = std::fs::metadata(path)
-      .map_err(|e| format!("Couldn't read file metadata of {}: {e}", path.to_string_lossy()))?;
-    let mut permissions = metadata.permissions();
-    
-    let mode = permissions.mode();
-    permissions.set_mode(mode | 0o111);
-
-    std::fs::set_permissions(path, permissions)
-      .map_err(|e| format!("Couldn't set permissions of {}: {e}", path.to_string_lossy()))?;
-  }
-
-  Ok(())
-}
-
 enum ArchiveFormat {
   Zip,
   Tar,
@@ -212,7 +193,7 @@ pub async fn extract(file_path: &Path) -> Result<(), String> {
 
   // If the file isn't an archive, return now
   if let ArchiveFormat::Other = format {
-    make_executable(file_path)?;
+    crate::make_executable(file_path)?;
     return Ok(());
   }
 

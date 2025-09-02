@@ -9,12 +9,13 @@ use serde::{Deserialize, Serialize};
 pub mod itch_api_types;
 pub mod extract;
 pub mod serde_rules;
+pub mod heuristics;
 use crate::itch_api_types::*;
 
 // This isn't inside itch_types because it is not something that the itch API returns
 // These platforms are interpreted from the data provided by the API
-#[derive(Serialize)]
-pub enum GamePlatforms {
+#[derive(Serialize, Clone, clap::ValueEnum)]
+pub enum GamePlatform {
   Linux,
   Windows,
   OSX,
@@ -25,7 +26,7 @@ pub enum GamePlatforms {
   UnityWebPlayer,
 }
 
-impl std::fmt::Display for GamePlatforms {
+impl std::fmt::Display for GamePlatform {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "{}", serde_json::to_string(&self).unwrap())
   }
@@ -286,24 +287,24 @@ pub async fn get_game_uploads(client: &Client, api_key: &str, game_id: u64) -> R
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
 /// * `game_id` - The ID of the game from which information will be obtained
-pub fn get_game_platforms(uploads: Vec<&Upload>) -> Vec<(u64, GamePlatforms)> {
-  let mut platforms: Vec<(u64, GamePlatforms)> = Vec::new();
+pub fn get_game_platforms(uploads: Vec<&Upload>) -> Vec<(u64, GamePlatform)> {
+  let mut platforms: Vec<(u64, GamePlatform)> = Vec::new();
 
   for u in uploads {
     match u.r#type {
-      UploadType::HTML => platforms.push((u.id, GamePlatforms::Web)),
-      UploadType::Flash => platforms.push((u.id, GamePlatforms::Flash)),
-      UploadType::Java => platforms.push((u.id, GamePlatforms::Java)),
-      UploadType::Unity => platforms.push((u.id, GamePlatforms::UnityWebPlayer)),
+      UploadType::HTML => platforms.push((u.id, GamePlatform::Web)),
+      UploadType::Flash => platforms.push((u.id, GamePlatform::Flash)),
+      UploadType::Java => platforms.push((u.id, GamePlatform::Java)),
+      UploadType::Unity => platforms.push((u.id, GamePlatform::UnityWebPlayer)),
       _ => (),
     }
 
     for t in u.traits.iter() {
       match t {
-        UploadTrait::PLinux => platforms.push((u.id, GamePlatforms::Linux)),
-        UploadTrait::PWindows => platforms.push((u.id, GamePlatforms::Windows)),
-        UploadTrait::POSX => platforms.push((u.id, GamePlatforms::OSX)),
-        UploadTrait::PAndroid => platforms.push((u.id, GamePlatforms::Android)),
+        UploadTrait::PLinux => platforms.push((u.id, GamePlatform::Linux)),
+        UploadTrait::PWindows => platforms.push((u.id, GamePlatform::Windows)),
+        UploadTrait::POSX => platforms.push((u.id, GamePlatform::OSX)),
+        UploadTrait::PAndroid => platforms.push((u.id, GamePlatform::Android)),
         _ => ()
       }
     }
@@ -426,6 +427,30 @@ fn find_cover_filename<P: AsRef<Path>>(game_folder: P) -> Result<Option<String>,
   }
 
   Ok(None)
+}
+
+fn make_executable(path: &Path) -> Result<(), String> {
+  #[cfg(unix)]
+  {
+    use std::os::unix::fs::PermissionsExt;
+
+    let metadata = std::fs::metadata(path)
+      .map_err(|e| format!("Couldn't read file metadata of {}: {e}", path.to_string_lossy()))?;
+    let mut permissions = metadata.permissions();
+    
+    let mode = permissions.mode();
+    permissions.set_mode(mode | 0o111);
+
+    std::fs::set_permissions(path, permissions)
+      .map_err(|e| format!("Couldn't set permissions of {}: {e}", path.to_string_lossy()))?;
+  }
+
+  Ok(())
+}
+
+/// Joins the upload folder and the upload id
+fn get_upload_folder<P: AsRef<Path>>(game_folder: P, upload_id: u64) -> PathBuf {
+  game_folder.as_ref().join(upload_id.to_string())
 }
 
 /// The game folder is `dirs::home_dir`+`Games`+`game_title`
@@ -597,7 +622,7 @@ where
   };
 
   // The new upload_folder is game_folder + the upload id
-  let upload_folder: PathBuf = game_folder.join(upload.id.to_string());
+  let upload_folder: PathBuf = get_upload_folder(game_folder, upload_id);
 
   // Check if the folder where the upload files will be placed is empty
   if !is_folder_empty(&upload_folder)? {
@@ -708,7 +733,7 @@ pub async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder:
 /// * `game_folder` - The folder with the game files where the upload will be removed from
 pub async fn remove(upload_id: u64, game_folder: &Path) -> Result<(), String> {
 
-  let upload_folder = game_folder.join(upload_id.to_string());
+  let upload_folder = get_upload_folder(game_folder, upload_id);
 
   // If there isn't a upload_folder, or it is empty, that means the game
   // has already been removed, so return Ok(())
@@ -737,14 +762,14 @@ pub async fn remove(upload_id: u64, game_folder: &Path) -> Result<(), String> {
 /// 
 /// * `upload_info` - If provided, modifies its contents to reflect the folder change
 pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Path, upload_info: Option<&mut InstalledUpload>) -> Result<(), String> {
-  let src_upload_folder = src_game_folder.join(upload_id.to_string());
+  let src_upload_folder = get_upload_folder(src_game_folder, upload_id);
 
   // If there isn't a src_upload_folder, exit with error
   if !src_upload_folder.try_exists().map_err(|e| format!("Couldn't check if the upload folder exists: {e}"))? {
     return Err(format!("The source game folder doesn't exsit!"));
   }
   
-  let dst_upload_folder = dst_game_folder.join(upload_id.to_string());
+  let dst_upload_folder = get_upload_folder(dst_game_folder, upload_id);
   // If there is a dst_upload_folder with contents, exit with error
   if !is_folder_empty(&dst_upload_folder)? {
     return Err(format!("The upload folder destination isn't empty!: {}", dst_upload_folder.to_string_lossy()));
@@ -768,6 +793,59 @@ pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Pa
       .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))?;
   }
   
+  Ok(())
+}
+
+pub async fn launch(upload_id: u64, game_folder: &Path, heuristics_info: Option<(&GamePlatform, &Game, &Upload)>, upload_executable: Option<&Path>, wrapper: &[String], game_arguments: &[String], launch_start_callback: impl FnOnce(&Path, &str)) -> Result<(), String> {
+  if heuristics_info.is_none() && upload_executable.is_none() {
+    Err("At least one of heruristics_info or upload_executable must be set to be able to determina the game executable!")?
+  }
+
+  let upload_folder: PathBuf = get_upload_folder(game_folder, upload_id);
+
+  // Get the upload executable file, from the arguments or from heuristics
+  let upload_executable = match upload_executable {
+    Some(p) => p.to_path_buf(),
+    None => {
+      let hi = heuristics_info.expect("We already checked if both were None!");
+      heuristics::get_game_executable(upload_folder.as_path(), hi.0, &hi.1, &hi.2)?
+        .ok_or_else(|| format!("Couldn't get the game executable file! Try setting one manually with the upload_executable option!"))?
+    }
+  }.canonicalize()
+    .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))?;
+
+  // Make the file executable
+  make_executable(&upload_executable)?;
+
+  // Create the tokio process
+  let mut game_process = {
+    let mut wrapper_iter = wrapper.iter();
+    match wrapper_iter.next() {
+      // If it doesn't have a wrapper, just run the executable
+      None => tokio::process::Command::new(&upload_executable),
+      Some(w) => {
+        // If the game has a wrapper, then run the wrapper with its
+        // arguments and add the game executable as the last argument
+        let mut gp = tokio::process::Command::new(w);
+        gp.args(wrapper_iter.as_slice())
+          .arg(&upload_executable);
+        gp
+      }
+    }
+  };
+
+  // Add the working directory and the game arguments
+  game_process.current_dir(&upload_folder)
+    .args(game_arguments);
+
+  launch_start_callback(upload_executable.as_path(), format!("{:?}", game_process).as_str());
+
+  let mut child = game_process.spawn()
+    .map_err(|e| format!("Couldn't spawn child process: {e}"))?;
+
+  child.wait().await
+    .map_err(|e| format!("Error while awaiting for child exit!: {e}"))?;
+
   Ok(())
 }
 

@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
-use scratch_io::{itch_api_types::*, serde_rules::*, DownloadStatus};
+use scratch_io::{itch_api_types::*, serde_rules::*, DownloadStatus, InstalledUpload};
 
 const APP_CONFIGURATION_NAME: &str = "scratch-io";
 const APP_CONFIGURATION_FILE: &str = "config";
@@ -22,7 +22,7 @@ struct Config {
     serialize_with = "serialize_u64_map",
     deserialize_with = "deserialize_u64_map"
   )]
-  installed_uploads: HashMap<u64, scratch_io::InstalledUpload>,
+  installed_uploads: HashMap<u64, InstalledUpload>,
 }
 
 impl ::std::default::Default for Config {
@@ -37,12 +37,12 @@ impl ::std::default::Default for Config {
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 struct Cli {
-  #[arg(short, long, env = "SCRATCH_API_KEY")]
   /// Authenticate but don't save in the config
+  #[arg(short, long, env = "SCRATCH_API_KEY")]
   api_key: Option<String>,
 
-  #[arg(short, long, env = "SCRATCH_CONFIG_FILE")]
   /// The path where the config file is stored
+  #[arg(short, long, env = "SCRATCH_CONFIG_FILE")]
   config_file: Option<PathBuf>,
 
   #[command(subcommand)]
@@ -84,7 +84,7 @@ enum RequireApiCommands {
     /// The path where the download folder will be placed
     /// 
     /// Defaults to ~/Games/{game_name}/
-    #[arg(long)]
+    #[arg(long, env = "SCRATCH_INSTALL_PATH")]
     install_path: Option<PathBuf>,
   },
   /// Imports an already installed game given its upload ID and the game folder
@@ -93,7 +93,7 @@ enum RequireApiCommands {
     upload_id: u64,
     /// The path where the game folder is located
     install_path: PathBuf,
-  }
+  },
 }
 
 // These commands may receive a valid API key, or may not
@@ -112,7 +112,31 @@ enum OptionalApiCommands {
     upload_id: u64,
     /// The path where the game folder will be placed
     game_path_dst: PathBuf,
-  }
+  },
+  /// Launchs an installed game given its upload ID and the platform or executable path
+  #[command(group(clap::ArgGroup::new("upload_target").required(true).multiple(true)))]
+  Launch {
+    /// The ID of the upload to launch
+    upload_id: u64,
+    /// The platform for which the game binary will be searched
+    /// 
+    /// The Itch.io uploads don't specify a game binary, so which file to run will be decided by heuristics.
+    /// 
+    /// The heuristics need to know which platform is the executable they are searching.
+    #[arg(value_enum, group = "upload_target")]
+    platform: Option<scratch_io::GamePlatform>,
+    /// Instead of the platform (or in addition to), a executable path can be provided
+    #[arg(long, env = "SCRATCH_UPLOAD_EXECUTABLE_PATH", group = "upload_target")]
+    upload_executable_path: Option<PathBuf>,
+    /// A wrapper command to launch the game with
+    #[arg(long, env = "SCRATCH_WRAPPER")]
+    wrapper: Option<String>,
+    /// The arguments the game will be called with
+    /// 
+    /// There arguments will be split into a vector according to parsing rules of UNIX shell
+    #[arg(long, env = "SCRATCH_GAME_ARGUMENTS")]
+    game_arguments: Option<String>,
+  },
 }
 
 fn load_config(custom_path: Option<&Path>) -> Config {
@@ -223,7 +247,7 @@ async fn print_collection_games(client: &Client, api_key: &str, collection_id: u
 }
 
 // Download a game's upload
-async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&Path>) -> scratch_io::InstalledUpload {
+async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&Path>) -> InstalledUpload {
   let progress_bar = indicatif::ProgressBar::hidden();
   progress_bar.set_style(
     indicatif::ProgressStyle::default_bar()
@@ -231,7 +255,7 @@ async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&
       .progress_chars("#>-")
   );
 
-  let download_response: Result<scratch_io::InstalledUpload, String> = scratch_io::download_upload(
+  let download_response: Result<InstalledUpload, String> = scratch_io::download_upload(
     &client,
     &api_key,
     upload_id,
@@ -273,7 +297,7 @@ Upload id: {}
   }
 }
 
-async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder: &Path) -> scratch_io::InstalledUpload {
+async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder: &Path) -> InstalledUpload {
   match scratch_io::import(client, api_key, upload_id, game_folder).await {
     Ok(upload_info) => {
       println!("Game imported from: {}", upload_info.game_folder.join(upload_info.upload_id.to_string()).to_string_lossy());
@@ -284,7 +308,7 @@ async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder: &Pa
 }
 
 // Retrieve information about a collection's games and print it
-async fn print_installed_games(client: &Client, api_key: Option<&str>, installed_uploads: &mut HashMap<u64, scratch_io::InstalledUpload>) -> bool {
+async fn print_installed_games(client: &Client, api_key: Option<&str>, installed_uploads: &mut HashMap<u64, InstalledUpload>) -> bool {
   let Some(key) = api_key else {
     for (_, iu) in installed_uploads {
       println!("{iu}");
@@ -317,7 +341,7 @@ async fn print_installed_games(client: &Client, api_key: Option<&str>, installed
   updated
 }
 
-async fn remove_upload(upload_id: u64, installed_uploads: &mut HashMap<u64, scratch_io::InstalledUpload>) {
+async fn remove_upload(upload_id: u64, installed_uploads: &mut HashMap<u64, InstalledUpload>) {
   let upload_info = match installed_uploads.get(&upload_id) {
     None => eprintln_exit!("The given upload id is not installed!: {}", upload_id.to_string()),
     Some(f) => f,
@@ -332,7 +356,7 @@ async fn remove_upload(upload_id: u64, installed_uploads: &mut HashMap<u64, scra
   println!("Removed upload {upload_id} from: {}", &upload_info.game_folder.to_string_lossy())
 }
 
-async fn move_upload(upload_id: u64, dst_game_folder: &Path, installed_uploads: &mut HashMap<u64, scratch_io::InstalledUpload>) {
+async fn move_upload(upload_id: u64, dst_game_folder: &Path, installed_uploads: &mut HashMap<u64, InstalledUpload>) {
   let upload_info = match installed_uploads.get_mut(&upload_id) {
     None => eprintln_exit!("The given upload id is not installed!: {}", upload_id.to_string()),
     Some(f) => f,
@@ -346,6 +370,51 @@ async fn move_upload(upload_id: u64, dst_game_folder: &Path, installed_uploads: 
 
   println!("Moved upload {upload_id}\n  from: {}\n  to: {}", src_game_folder.to_string_lossy(), dst_game_folder.to_string_lossy());
 }
+
+async fn launch_upload(
+  upload_id: u64,
+  platform: Option<scratch_io::GamePlatform>,
+  upload_executable_path: Option<&Path>,
+  wrapper: Option<String>,
+  game_arguments: Option<String>,
+  installed_uploads: &mut HashMap<u64, InstalledUpload>
+) {
+  let upload_info = installed_uploads.get_mut(&upload_id)
+    .unwrap_or_else(|| eprintln_exit!("The given upload id is not installed!: {}", upload_id.to_string()));
+
+  let game_folder = upload_info.game_folder.to_path_buf();
+
+  let heuristics_info: Option<(&scratch_io::GamePlatform, &Game, &Upload)> = match platform {
+    None => None,
+    Some(ref p) => {
+      match upload_info.game.as_ref().zip(upload_info.upload.as_ref()) {
+        None => eprintln_exit!("Missing game or upload info. Use the \"installed\" command to fill missing info"),
+        Some((g, u)) => Some((p, g, u)),
+      }
+    }
+  };
+
+  let game_arguments: Vec<String>= game_arguments.map_or(Vec::new(), |a|
+    shell_words::split(a.as_str()).unwrap_or_else(|e| eprintln_exit!("Couldn't split the game arguments: {a}\n{e}"))
+  );
+
+  let wrapper: Vec<String>= wrapper.map_or(Vec::new(), |w: String|
+    shell_words::split(w.as_str()).unwrap_or_else(|e| eprintln_exit!("Couldn't split the wrapper arguments: {w}\n{e}"))
+  );
+
+  if let Err(e) = scratch_io::launch(
+    upload_id,
+    game_folder.as_path(),
+    heuristics_info,
+    upload_executable_path,
+    wrapper.as_slice(),
+    game_arguments.as_slice(),
+    |up, command| println!("Launching game:\n  Executable path: {}\n  Command: {command}", up.to_string_lossy())
+  ).await {
+    eprintln_exit!("Couldn't launch: {upload_id}\n{e}");
+  }
+}
+
 
 #[tokio::main]
 async fn main() {
@@ -447,6 +516,9 @@ async fn main() {
         OptionalApiCommands::Move { upload_id, game_path_dst } => {
           move_upload(upload_id, game_path_dst.as_path(), &mut config.installed_uploads).await;
           save_config(&config, custom_config_file);
+        }
+        OptionalApiCommands::Launch { upload_id, platform, upload_executable_path, wrapper, game_arguments } => {
+          launch_upload(upload_id, platform, upload_executable_path.as_deref(), wrapper, game_arguments, &mut config.installed_uploads).await;
         }
       }
     }
