@@ -4,14 +4,14 @@ use std::fs::{File};
 // If path already exists, change it a bit until it doesn't. Return the available path
 fn find_available_path(path: &Path) -> Result<PathBuf, String> {
   let parent = path.parent()
-    .ok_or(format!("Error getting parent of: {:?}", path))?;
+    .ok_or(format!("Error getting parent of: \"{}\"", path.to_string_lossy()))?;
 
   let mut i = 0;
   loop {
     // i is printed in hexadecimal because it looks better
     let current_filename = format!("{}{:x}",
       path.file_name()
-        .ok_or(format!("Error getting file name of: {:?}", path))?
+        .ok_or(format!("Error getting file name of: \"{}\"", path.to_string_lossy()))?
         .to_string_lossy(),
       i
     );
@@ -38,7 +38,7 @@ fn move_folder_child(folder: &Path) -> Result<(), String> {
       .map_err(|e| e.to_string())?;
     let from = child.path();
     let to = folder.parent()
-      .ok_or(format!("Error getting parent of: {:?}", &folder))?
+      .ok_or(format!("Error getting parent of: \"{}\"", folder.to_string_lossy()))?
       .join(child.file_name());
 
     if !to.try_exists().map_err(|e| e.to_string())? {
@@ -101,7 +101,7 @@ fn remove_root_folder(folder: &Path) -> Result<(), String> {
 
 fn get_file_stem(path: &Path) -> Result<String, String> {
   path.file_stem()
-    .ok_or_else(|| format!("Error removing stem from path: {}", path.to_string_lossy()))
+    .ok_or_else(|| format!("Error removing stem from path: \"{}\"", path.to_string_lossy()))
     .map(|stem| stem.to_string_lossy().to_string())
 }
 
@@ -125,7 +125,7 @@ fn is_extraction_folder_empty(file_path: &Path, format: &ArchiveFormat) -> Resul
 
   let folder = file_path
     .parent()
-    .expect(format!("Couldn't get the parent of the archive: {}", file_path.to_string_lossy()).as_str())
+    .expect(format!("Couldn't get the parent of the archive: \"{}\"", file_path.to_string_lossy()).as_str())
     .join(file_without_extension(file_path).expect("File doesn't have an extension?"));
 
   // If the directory exists and isn't empty, return an error
@@ -198,13 +198,13 @@ pub async fn extract(file_path: &Path) -> Result<(), String> {
   }
 
   let parent_folder = file_path.parent()
-    .expect(format!("Couldn't get the parent of the archive: {}", file_path.to_string_lossy()).as_str());
+    .expect(format!("Couldn't get the parent of the archive: \"{}\"", file_path.to_string_lossy()).as_str());
 
   let extract_folder = is_extraction_folder_empty(file_path, &format).and_then(|(is_empty, folder)| {
     if is_empty {
       Ok(folder)
     } else {
-      Err(format!("The folder where the archive will be extracted isn't empty!: {}", folder.to_string_lossy()))
+      Err(format!("The folder where the archive will be extracted isn't empty!: \"{}\"", folder.to_string_lossy()))
     }
   })?;
 

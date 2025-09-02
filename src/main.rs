@@ -250,7 +250,7 @@ Upload id: {}
   |download_status| {
       match download_status {
         DownloadStatus::Warning(w) => println!("{w}"),
-        DownloadStatus::DownloadedCover(c) => println!("Downloaded game cover to: {}", c.to_string_lossy()),
+        DownloadStatus::DownloadedCover(c) => println!("Downloaded game cover to: \"{}\"", c.to_string_lossy()),
         DownloadStatus::StartingDownload() => {
           println!("Starting download...");
           progress_bar.set_draw_target(indicatif::ProgressDrawTarget::stderr());
@@ -260,14 +260,14 @@ Upload id: {}
       };
     },
     std::time::Duration::from_millis(100)
-  ).await.inspect(|ui| println!("Game upload downloaded to: {}", ui.game_folder.join(ui.upload_id.to_string()).to_string_lossy()))
-    .unwrap_or_else(|e| eprintln_exit!("Error while downloading file:\n{}", e))
+  ).await.inspect(|ui| println!("Game upload downloaded to: \"{}\"", ui.game_folder.join(ui.upload_id.to_string()).to_string_lossy()))
+    .unwrap_or_else(|e| eprintln_exit!("Error while downloading file!\n{}", e))
 }
 
 async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder: &Path) -> InstalledUpload {
   scratch_io::import(client, api_key, upload_id, game_folder).await
-    .inspect(|ui| println!("Game imported from: {}", ui.game_folder.join(ui.upload_id.to_string()).to_string_lossy()))
-    .unwrap_or_else(|e| eprintln_exit!("Error while importing game:\n{}", e))
+    .inspect(|ui| println!("Game imported from: \"{}\"", ui.game_folder.join(ui.upload_id.to_string()).to_string_lossy()))
+    .unwrap_or_else(|e| eprintln_exit!("Error while importing game!\n{}", e))
 }
 
 // Retrieve information about a collection's games and print it
@@ -299,9 +299,9 @@ async fn remove_upload(upload_id: u64, installed_uploads: &mut HashMap<u64, Inst
   let upload_info = get_installed_upload_info(upload_id, installed_uploads);
   
   scratch_io::remove(upload_id, &upload_info.game_folder).await
-    .unwrap_or_else(|e| eprintln_exit!("Couldn't remove upload: {e}"));
+    .unwrap_or_else(|e| eprintln_exit!("Couldn't remove upload!\n{e}"));
 
-  println!("Removed upload {upload_id} from: {}", &upload_info.game_folder.to_string_lossy());
+  println!("Removed upload {upload_id} from: \"{}\"", &upload_info.game_folder.to_string_lossy());
   
   installed_uploads.remove(&upload_id)
     .expect("We have just checked if the key existed, and it did...");
@@ -313,9 +313,9 @@ async fn move_upload(upload_id: u64, dst_game_folder: &Path, installed_uploads: 
   let src_game_folder = upload_info.game_folder.to_path_buf();
 
   upload_info.game_folder = scratch_io::r#move(upload_id, src_game_folder.as_path(), dst_game_folder).await
-    .unwrap_or_else(|e| eprintln_exit!("Couldn't move upload: {e}"));
+    .unwrap_or_else(|e| eprintln_exit!("Couldn't move upload!\n{e}"));
 
-  println!("Moved upload {upload_id}\n  from: {}\n  to: {}", src_game_folder.to_string_lossy(), upload_info.game_folder.to_string_lossy());
+  println!("Moved upload {upload_id}\n  from: \"{}\"\n  to: \"{}\"", src_game_folder.to_string_lossy(), upload_info.game_folder.to_string_lossy());
 }
 
 async fn launch_upload(
@@ -349,7 +349,7 @@ async fn launch_upload(
     upload_executable_path,
     wrapper.as_slice(),
     game_arguments.as_slice(),
-    |up, command| println!("Launching game:\n  Executable path: {}\n  Command: {command}", up.to_string_lossy())
+    |up, command| println!("Launching game:\n  Executable path: \"{}\"\n  Command: {command}", up.to_string_lossy())
   ).await
     .unwrap_or_else(|e| eprintln_exit!("Couldn't launch: {upload_id}\n{e}"));
 }
@@ -417,7 +417,7 @@ async fn main() {
         }
         RequireApiCommands::Download { upload_id, install_path } => {
           if let Some(info) = config.installed_uploads.get(&upload_id) {
-            eprintln_exit!("The game is already installed in: {}", info.game_folder.join(info.upload_id.to_string()).to_string_lossy());
+            eprintln_exit!("The game is already installed in: \"{}\"", info.game_folder.join(info.upload_id.to_string()).to_string_lossy());
           }
 
           let upload_info = download(&client, api_key.as_str(), upload_id, install_path.as_deref()).await;
@@ -427,7 +427,7 @@ async fn main() {
         }
         RequireApiCommands::Import { upload_id, install_path } => {
           if let Some(info) = config.installed_uploads.get(&upload_id) {
-            eprintln_exit!("The game is already imported and placed in: {}", info.game_folder.join(info.upload_id.to_string()).to_string_lossy());
+            eprintln_exit!("The game is already imported and placed in: \"{}\"", info.game_folder.join(info.upload_id.to_string()).to_string_lossy());
           }
 
           let upload_info = import(&client, api_key.as_str(), upload_id, install_path.as_path()).await;

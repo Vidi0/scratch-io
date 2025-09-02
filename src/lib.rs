@@ -100,8 +100,8 @@ impl std::fmt::Display for InstalledUpload {
 
     write!(f, "\
 Upload id: {}
-Game folder: {}
-Cover image: {}
+Game folder: \"{}\"
+Cover image: \"{}\"
   Upload:
     Name: {u_name}
     Created at: {u_created_at}
@@ -592,12 +592,12 @@ pub async fn download_upload(
 
   // Check if the folder where the upload files will be placed is empty
   if !is_folder_empty(&upload_folder)? {
-    return Err(format!("The upload folder isn't empty!: {}", upload_folder.to_string_lossy()));
+    return Err(format!("The upload folder isn't empty!: \"{}\"", upload_folder.to_string_lossy()));
   }
   
   // Create the folder if it doesn't already exist
   tokio::fs::create_dir_all(&upload_folder).await
-    .map_err(|e| format!("Couldn't create the folder {}: {e}", upload_folder.to_string_lossy()))?;
+    .map_err(|e| format!("Couldn't create the folder \"{}\": {e}", upload_folder.to_string_lossy()))?;
   
   // upload_archive is the location where the upload will be downloaded
   let upload_archive: PathBuf = upload_folder.join(&upload.filename);
@@ -751,7 +751,7 @@ pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Pa
   let dst_upload_folder = get_upload_folder(dst_game_folder, upload_id);
   // If there is a dst_upload_folder with contents, exit with error
   if !is_folder_empty(&dst_upload_folder)? {
-    return Err(format!("The upload folder destination isn't empty!: {}", dst_upload_folder.to_string_lossy()));
+    return Err(format!("The upload folder destination isn't empty!: \"{}\"", dst_upload_folder.to_string_lossy()));
   }
   
   // Move the upload folder
