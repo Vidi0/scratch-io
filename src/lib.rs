@@ -83,10 +83,11 @@ impl std::fmt::Display for InstalledUpload {
       )
     };
 
-    let (g_id, g_description, g_url, g_created_at, g_published_at, a_id, a_name, a_url) = match self.game.as_ref() {
-      None => (String::new(), "", "", "", "", String::new(), "", ""),
+    let (g_id, g_name, g_description, g_url, g_created_at, g_published_at, a_id, a_name, a_url) = match self.game.as_ref() {
+      None => (String::new(), "", "", "", "", "", String::new(), "", ""),
       Some(g) => (
         g.id.to_string(),
+        g.title.as_str(),
         g.short_text.as_deref().unwrap_or_default(),
         g.url.as_str(),
         g.created_at.as_str(),
@@ -99,8 +100,8 @@ impl std::fmt::Display for InstalledUpload {
 
     write!(f, "\
 Upload id: {}
-  Game folder: {}
-    Cover image: {}
+Game folder: {}
+Cover image: {}
   Upload:
     Name: {u_name}
     Created at: {u_created_at}
@@ -108,6 +109,7 @@ Upload id: {}
     Traits: {u_traits}
   Game:
     Id: {g_id}
+    Name: {g_name}
     Description: {g_description}
     URL: {g_url}
     Created at: {g_created_at}
