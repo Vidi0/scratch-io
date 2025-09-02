@@ -5,8 +5,9 @@ use crate::GamePlatform;
 
 impl GamePlatform {
   fn get_allowed_extensions(&self) -> &'static [&'static str] {
+    // These must only be ascii alphanumeric lowercase
     match self {
-      GamePlatform::Linux => &["x86_64", "x86", "bin", "sh", "run", ""],
+      GamePlatform::Linux => &["x8664", "x86", "bin", "sh", "run", ""],
       GamePlatform::Windows => &["exe", "msi", "bat"],
       GamePlatform::OSX => &["dmg", "app", "pkg"],
       GamePlatform::Android => &["apk"],
@@ -19,6 +20,7 @@ impl GamePlatform {
 
   fn get_best_filenames(&self) -> &'static [&'static str] {
     match self {
+      // These must only be ascii alphanumeric lowercase
       GamePlatform::Linux => &[],
       GamePlatform::Windows => &[],
       GamePlatform::OSX => &[],
