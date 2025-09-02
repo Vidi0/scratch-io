@@ -6,6 +6,7 @@ use crate::serde_rules::*;
 const ITCH_API_V1_BASE_URL: &str = "https://itch.io/api/1";
 const ITCH_API_V2_BASE_URL: &str = "https://api.itch.io";
 
+/// A itch.io API address
 pub enum ItchApiUrl {
   V1(String),
   V2(String),

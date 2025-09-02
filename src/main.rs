@@ -198,7 +198,7 @@ async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
   println!("{}", scratch_io::get_game_info(&client, &api_key, game_id).await.unwrap_or_else(|e| eprintln_exit!("{e}")));
 
   let uploads = scratch_io::get_game_uploads(&client, &api_key, game_id).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
-  let platforms = scratch_io::get_game_platforms(uploads.iter().collect());
+  let platforms = scratch_io::get_game_platforms(uploads.as_slice());
 
   println!("  Platforms:");
   println!("{}", platforms.iter().map(|(uid, p)| format!("    {uid}, {}", p.to_string())).collect::<Vec<String>>().join("\n"));
@@ -312,10 +312,10 @@ async fn move_upload(upload_id: u64, dst_game_folder: &Path, installed_uploads: 
 
   let src_game_folder = upload_info.game_folder.to_path_buf();
 
-  scratch_io::r#move(upload_id, src_game_folder.as_path(), dst_game_folder, Some(upload_info)).await
+  upload_info.game_folder = scratch_io::r#move(upload_id, src_game_folder.as_path(), dst_game_folder).await
     .unwrap_or_else(|e| eprintln_exit!("Couldn't move upload: {e}"));
 
-  println!("Moved upload {upload_id}\n  from: {}\n  to: {}", src_game_folder.to_string_lossy(), dst_game_folder.to_string_lossy());
+  println!("Moved upload {upload_id}\n  from: {}\n  to: {}", src_game_folder.to_string_lossy(), upload_info.game_folder.to_string_lossy());
 }
 
 async fn launch_upload(

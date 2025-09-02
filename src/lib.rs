@@ -15,7 +15,8 @@ use crate::itch_api_types::*;
 use crate::game_files_operations::*;
 
 // This isn't inside itch_types because it is not something that the itch API returns
-// These platforms are interpreted from the data provided by the API
+// These platforms are *interpreted* from the data provided by the API
+/// The different platforms a upload can be made for
 #[derive(Serialize, Clone, clap::ValueEnum)]
 pub enum GamePlatform {
   Linux,
@@ -42,6 +43,7 @@ pub enum DownloadStatus {
   Extract,
 }
 
+/// Some information about a installed upload
 #[derive(Serialize, Deserialize)]
 pub struct InstalledUpload {
   pub upload_id: u64,
@@ -121,9 +123,32 @@ Upload id: {}
   }
 }
 
-async fn itch_request<O>(client: &Client, method: Method, url: &ItchApiUrl, api_key: &str, options: O) -> Result<Response, String> where 
-  O: FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
-{
+/// Make a request to the itch.io API
+/// 
+/// # Arguments
+/// 
+/// * `client` - A asynchronous reqwest Client
+/// 
+/// * `method` - The request method (GET, POST, etc.)
+/// 
+/// * `url` - A itch.io API address to make the request against
+/// 
+/// * `api_key` - A valid Itch.io API key to make the request
+/// 
+/// * `options` - A closure that modifies the request builder just before sending it
+/// 
+/// # Returns
+/// 
+/// The reqwest response
+/// 
+/// An error if sending the request fails
+async fn itch_request(
+  client: &Client,
+  method: Method,
+  url: &ItchApiUrl,
+  api_key: &str,
+  options: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder
+) -> Result<Response, String> {
   let mut request: reqwest::RequestBuilder = client.request(method, url.to_string());
 
   request = match url {
@@ -146,9 +171,33 @@ async fn itch_request<O>(client: &Client, method: Method, url: &ItchApiUrl, api_
     .map_err(|e| format!("Error while sending request: {e}"))
 }
 
-async fn itch_request_json<T, O>(client: &Client, method: Method, url: &ItchApiUrl, api_key: &str, options: O) -> Result<T, String> where
+/// Make a request to the itch.io API and parse the response as json
+/// 
+/// # Arguments
+/// 
+/// * `client` - A asynchronous reqwest Client
+/// 
+/// * `method` - The request method (GET, POST, etc.)
+/// 
+/// * `url` - A itch.io API address to make the request against
+/// 
+/// * `api_key` - A valid Itch.io API key to make the request
+/// 
+/// * `options` - A closure that modifies the request builder just before sending it
+/// 
+/// # Returns
+/// 
+/// The reqwest response parsed as JSON into the provided type
+/// 
+/// An error if sending the request or parsing it fails
+async fn itch_request_json<T>(
+  client: &Client,
+  method: Method,
+  url: &ItchApiUrl,
+  api_key: &str,
+  options: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
+) -> Result<T, String> where
   T: serde::de::DeserializeOwned,
-  O: FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
 {
   let text = itch_request(client, method, url, api_key, options).await?
     .text().await
@@ -159,19 +208,32 @@ async fn itch_request_json<T, O>(client: &Client, method: Method, url: &ItchApiU
     .into_result()
 }
 
-/// Downloads to a file given a reqwest Response
+/// Download a file given a reqwest Response
 /// 
-/// It returns a hasher, but if update_md5_hash is false, the hasher is empty
-async fn download_file<T>(
+/// # Arguments
+/// 
+/// * `file_response` - A reqwest Response for the file
+/// 
+/// * `file_path` - The path where the file will be placed
+/// 
+/// * `md5_hash` - A md5 hash to check the file against. If none, don't verify the download
+/// 
+/// * `progress_callback` - A closure called with the number of downloaded bytes at the moment
+/// 
+/// * `callback_interval` - The minimum time span between each progress_callback call
+/// 
+/// # Returns
+/// 
+/// A hasher, empty if update_md5_hash is false
+/// 
+/// An error if the download, of any filesystem operation fails; or if the hash provided doesn't match the file
+async fn download_file(
   file_response: Response,
   file_path: &Path,
   md5_hash: Option<&str>,
-  progress_callback: T,
+  progress_callback: impl Fn(u64),
   callback_interval: Duration,
-) -> Result<(), String>
-where
-  T: Fn(u64)
-{
+) -> Result<(), String> {
   // Prepare the download, the hasher, and the callback variables
   let mut downloaded_bytes: u64 = 0;
   let mut file = tokio::fs::File::create(&file_path).await
@@ -225,15 +287,23 @@ Server hash: {hash}"
   Ok(())
 }
 
-/// Gets the API's profile
+/// Get the API key's profile
 /// 
 /// This can be used to verify that a given Itch.io API key is valid
 /// 
 /// # Arguments
-///
-/// * `api_key` - The api_key to verify against the Itch.io servers
+/// 
+/// * `client` - A asynchronous reqwest Client
+/// 
+/// * `api_key` - A valid Itch.io API key to make the request
+/// 
+/// # Returns
+/// 
+/// A User struct with the info provided by the API
+/// 
+/// An error if something goes wrong
 pub async fn get_profile(client: &Client, api_key: &str) -> Result<User, String> {
-  itch_request_json::<ProfileResponse, _>(
+  itch_request_json::<ProfileResponse>(
     client,
     Method::GET,
     &ItchApiUrl::V2(format!("profile")),
@@ -244,15 +314,23 @@ pub async fn get_profile(client: &Client, api_key: &str) -> Result<User, String>
     .map_err(|e| format!("An error occurred while attempting to get the profile info:\n{e}"))
 }
 
-/// Gets the information about a game in Itch.io
+/// Get the information about a game in Itch.io
 /// 
 /// # Arguments
-///
+/// 
+/// * `client` - A asynchronous reqwest Client
+/// 
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
 /// * `game_id` - The ID of the game from which information will be obtained
+/// 
+/// # Returns
+/// 
+/// A Game struct with the info provided by the API
+/// 
+/// An error if something goes wrong
 pub async fn get_game_info(client: &Client, api_key: &str, game_id: u64) -> Result<Game, String> {
-  itch_request_json::<GameInfoResponse, _>(
+  itch_request_json::<GameInfoResponse>(
     client,
     Method::GET,
     &ItchApiUrl::V2(format!("games/{game_id}")),
@@ -263,15 +341,23 @@ pub async fn get_game_info(client: &Client, api_key: &str, game_id: u64) -> Resu
     .map_err(|e| format!("An error occurred while attempting to obtain the game info:\n{e}"))
 }
 
-/// Gets the game's uploads (downloadable files)
+/// Get the game's uploads (downloadable files)
 /// 
 /// # Arguments
+/// 
+/// * `client` - A asynchronous reqwest Client
 /// 
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
 /// * `game_id` - The ID of the game from which information will be obtained
+/// 
+/// # Returns
+/// 
+/// A vector of Upload structs with the info provided by the API
+/// 
+/// An error if something goes wrong
 pub async fn get_game_uploads(client: &Client, api_key: &str, game_id: u64) -> Result<Vec<Upload>, String> {
-  itch_request_json::<GameUploadsResponse, _>(
+  itch_request_json::<GameUploadsResponse>(
     client,
     Method::GET,
     &ItchApiUrl::V2(format!("games/{game_id}/uploads")),
@@ -282,31 +368,33 @@ pub async fn get_game_uploads(client: &Client, api_key: &str, game_id: u64) -> R
     .map_err(|e| format!("An error occurred while attempting to obtain the game uploads:\n{e}"))
 }
 
-/// Gets the information about a game in Itch.io
+/// List the available game platforms for a given list of uploads
 /// 
 /// # Arguments
-///
-/// * `api_key` - A valid Itch.io API key to make the request
 /// 
-/// * `game_id` - The ID of the game from which information will be obtained
-pub fn get_game_platforms(uploads: Vec<&Upload>) -> Vec<(u64, GamePlatform)> {
-  let mut platforms: Vec<(u64, GamePlatform)> = Vec::new();
+/// * `uploads` - A game's list of uploads
+/// 
+/// # Returns
+/// 
+/// A vector of tuples containg the game platform and the id of the upload where they are present
+pub fn get_game_platforms(uploads: &[Upload]) -> Vec<(GamePlatform, u64)> {
+  let mut platforms: Vec<(GamePlatform, u64)> = Vec::new();
 
   for u in uploads {
     match u.r#type {
-      UploadType::HTML => platforms.push((u.id, GamePlatform::Web)),
-      UploadType::Flash => platforms.push((u.id, GamePlatform::Flash)),
-      UploadType::Java => platforms.push((u.id, GamePlatform::Java)),
-      UploadType::Unity => platforms.push((u.id, GamePlatform::UnityWebPlayer)),
+      UploadType::HTML => platforms.push((GamePlatform::Web, u.id)),
+      UploadType::Flash => platforms.push((GamePlatform::Flash, u.id)),
+      UploadType::Java => platforms.push((GamePlatform::Java, u.id)),
+      UploadType::Unity => platforms.push((GamePlatform::UnityWebPlayer, u.id)),
       _ => (),
     }
 
     for t in u.traits.iter() {
       match t {
-        UploadTrait::PLinux => platforms.push((u.id, GamePlatform::Linux)),
-        UploadTrait::PWindows => platforms.push((u.id, GamePlatform::Windows)),
-        UploadTrait::POSX => platforms.push((u.id, GamePlatform::OSX)),
-        UploadTrait::PAndroid => platforms.push((u.id, GamePlatform::Android)),
+        UploadTrait::PLinux => platforms.push((GamePlatform::Linux, u.id)),
+        UploadTrait::PWindows => platforms.push((GamePlatform::Windows, u.id)),
+        UploadTrait::POSX => platforms.push((GamePlatform::OSX, u.id)),
+        UploadTrait::PAndroid => platforms.push((GamePlatform::Android, u.id)),
         _ => ()
       }
     }
@@ -315,15 +403,23 @@ pub fn get_game_platforms(uploads: Vec<&Upload>) -> Vec<(u64, GamePlatform)> {
   platforms
 }
 
-/// Gets an upload's info
+/// Get an upload's info
 /// 
 /// # Arguments
+/// 
+/// * `client` - A asynchronous reqwest Client
 /// 
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
 /// * `upload_id` - The ID of the upload from which information will be obtained
+/// 
+/// # Returns
+/// 
+/// A Upload struct with the info provided by the API
+/// 
+/// An error if something goes wrong
 pub async fn get_upload_info(client: &Client, api_key: &str, upload_id: u64) -> Result<Upload, String> {
-  itch_request_json::<UploadResponse, _>(
+  itch_request_json::<UploadResponse>(
     client,
     Method::GET,
     &ItchApiUrl::V2(format!("uploads/{upload_id}")),
@@ -334,13 +430,21 @@ pub async fn get_upload_info(client: &Client, api_key: &str, upload_id: u64) -> 
     .map_err(|e| format!("An error occurred while attempting to obtain the upload information:\n{e}"))
 }
 
-/// Lists the collections of games of the user
+/// List the user's game collections
 /// 
 /// # Arguments
 /// 
+/// * `client` - A asynchronous reqwest Client
+/// 
 /// * `api_key` - A valid Itch.io API key to make the request
+/// 
+/// # Returns
+/// 
+/// A vector of Collection structs with the info provided by the API
+/// 
+/// An error if something goes wrong
 pub async fn get_collections(client: &Client, api_key: &str) -> Result<Vec<Collection>, String> {
-  itch_request_json::<CollectionsResponse, _>(
+  itch_request_json::<CollectionsResponse>(
     client,
     Method::GET,
     &ItchApiUrl::V2(format!("profile/collections")),
@@ -351,18 +455,26 @@ pub async fn get_collections(client: &Client, api_key: &str) -> Result<Vec<Colle
     .map_err(|e| format!("An error occurred while attempting to obtain the list of the profile's collections:\n{e}"))
 }
 
-/// Lists the games inside a collection
+/// List a collection's games
 /// 
 /// # Arguments
 /// 
+/// * `client` - A asynchronous reqwest Client
+/// 
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
-/// * `collection_id` - The ID of the collection from which the games will be retrieved 
+/// * `collection_id` - The ID of the collection from which information will be obtained
+/// 
+/// # Returns
+/// 
+/// A vector of CollectionGameItem structs with the info provided by the API
+/// 
+/// An error if something goes wrong
 pub async fn get_collection_games(client: &Client, api_key: &str, collection_id: u64) -> Result<Vec<CollectionGameItem>, String> {   
   let mut games: Vec<CollectionGameItem> = Vec::new();
   let mut page: u64 = 1;
   loop {
-    let mut response = itch_request_json::<CollectionGamesResponse, _>(
+    let mut response = itch_request_json::<CollectionGamesResponse>(
       client,
       Method::GET,
       &ItchApiUrl::V2(format!("collections/{collection_id}/collection-games")),
@@ -386,13 +498,27 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
   Ok(games)
 }
 
-/// Downloads a game cover image from the cover_url to the provided folder
-async fn download_game_cover(client: &Client, cover_url: &str, folder: &Path) -> Result<Option<PathBuf>, String> {
+/// Download a game cover image from the provided url
+/// 
+/// # Arguments
+/// 
+/// * `client` - A asynchronous reqwest Client
+/// 
+/// * `cover_url` - The url to the cover image file
+/// 
+/// * `folder` - The game folder where the cover will be placed
+/// 
+/// # Returns
+/// 
+/// The path of the downloaded image
+/// 
+/// An error if something goes wrong
+async fn download_game_cover(client: &Client, cover_url: &str, folder: &Path) -> Result<PathBuf, String> {
   let cover_extension = cover_url.rsplit(".").next().unwrap_or_default();
   let cover_path = folder.join(format!("cover.{cover_extension}"));
         
   if cover_path.try_exists().map_err(|e| e.to_string())? {
-    return Ok(Some(cover_path));
+    return Ok(cover_path);
   }
 
   let cover_response = client.request(Method::GET, cover_url)
@@ -407,12 +533,14 @@ async fn download_game_cover(client: &Client, cover_url: &str, folder: &Path) ->
     Duration::MAX,
   ).await?;
  
-  Ok(Some(cover_path))
+  Ok(cover_path)
 }
 
-/// Downloads an upload from Itch.io
+/// Download a game upload
 /// 
 /// # Arguments
+/// 
+/// * `client` - A asynchronous reqwest Client
 /// 
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
@@ -420,24 +548,26 @@ async fn download_game_cover(client: &Client, cover_url: &str, folder: &Path) ->
 /// 
 /// * `game_folder` - The folder where the downloadeded game files will be placed
 /// 
-/// * `upload_info` - A callback function which reports the upload and the game info before the download starts
+/// * `upload_info` - A closure which reports the upload and the game info before the download starts
 /// 
-/// * `progress_callback` - A callback function which reports the download progress
+/// * `progress_callback` - A closure which reports the download progress
 /// 
-/// * `callback_interval` - The Duration between the callbacks
-pub async fn download_upload<F, G>(
+/// * `callback_interval` - The minimum time span between each progress_callback call
+/// 
+/// # Returns
+/// 
+/// The installation info about the upload
+/// 
+/// An error if something goes wrong
+pub async fn download_upload(
   client: &Client,
   api_key: &str,
   upload_id: u64,
   game_folder: Option<&Path>,
-  upload_info: F,
-  progress_callback: G,
+  upload_info: impl FnOnce(&Upload, &Game),
+  progress_callback: impl Fn(DownloadStatus),
   callback_interval: Duration,
-) -> Result<InstalledUpload, String>
-where
-  F: FnOnce(&Upload, &Game),
-  G: Fn(DownloadStatus),
-{
+) -> Result<InstalledUpload, String> {
 
   // --- DOWNLOAD PREPARATION --- 
 
@@ -476,13 +606,10 @@ where
   // Download the cover image
   let cover_image: Option<PathBuf> = match game.cover_url {
     None => None,
-    Some(ref cover_url) => {
-      let cover_path: Option<PathBuf> = download_game_cover(client, cover_url, &game_folder).await?;
-      if let Some(c) = cover_path.as_deref() {
-        progress_callback(DownloadStatus::DownloadedCover(c.to_path_buf()));
-      }
-      cover_path
-    }
+    Some(ref cover_url) => Some(
+      download_game_cover(client, cover_url, &game_folder).await
+        .inspect(|cp| progress_callback(DownloadStatus::DownloadedCover(cp.to_path_buf())))?
+    )
   };
 
   progress_callback(DownloadStatus::StartingDownload());
@@ -535,11 +662,19 @@ where
 /// 
 /// # Arguments
 /// 
+/// * `client` - A asynchronous reqwest Client
+/// 
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
 /// * `upload_id` - The ID of upload which will be imported
 /// 
 /// * `game_folder` - The folder where the game files are currectly placed
+/// 
+/// # Returns
+/// 
+/// The installation info about the upload
+/// 
+/// An error if something goes wrong
 pub async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder: &Path) -> Result<InstalledUpload, String> {
   // Obtain information about the game and the upload that will be downloaeded
   let upload: Upload = get_upload_info(client, api_key, upload_id).await?;
@@ -558,13 +693,17 @@ pub async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder:
   })
 }
 
-/// Downloads an upload from Itch.io
+/// Remove an installed upload
 /// 
 /// # Arguments
 /// 
-/// * `upload_id` - The ID of upload which will be downloaded
+/// * `upload_id` - The ID of upload which will be removed
 /// 
 /// * `game_folder` - The folder with the game files where the upload will be removed from
+/// 
+/// # Returns
+/// 
+/// An error if something goes wrong
 pub async fn remove(upload_id: u64, game_folder: &Path) -> Result<(), String> {
 
   let upload_folder = get_upload_folder(game_folder, upload_id);
@@ -584,18 +723,22 @@ pub async fn remove(upload_id: u64, game_folder: &Path) -> Result<(), String> {
   Ok(())
 }
 
-/// Moves an upload to a new game folder
+/// Move an installed upload to a new game folder
 /// 
 /// # Arguments
 /// 
-/// * `upload_id` - The ID of upload which will be downloaded
+/// * `upload_id` - The ID of upload which will be moved
 /// 
 /// * `src_game_folder` - The folder where the game files are currently placed
 /// 
 /// * `dst_game_folder` - The folder where the game files will be moved to
 /// 
-/// * `upload_info` - If provided, modifies its contents to reflect the folder change
-pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Path, upload_info: Option<&mut InstalledUpload>) -> Result<(), String> {
+/// # Returns
+/// 
+/// The new game folder in its absolute (canonical) form
+/// 
+/// An error if something goes wrong
+pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Path) -> Result<PathBuf, String> {
   let src_upload_folder = get_upload_folder(src_game_folder, upload_id);
 
   // If there isn't a src_upload_folder, exit with error
@@ -622,12 +765,8 @@ pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Pa
   // If src_game_folder doesn't contain any other upload, remove it
   remove_folder_without_child_folders(src_game_folder).await?;
 
-  if let Some(ui) = upload_info {
-    ui.game_folder = dst_game_folder.canonicalize()
-      .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))?;
-  }
-  
-  Ok(())
+  dst_game_folder.canonicalize()
+    .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))
 }
 
 /// Launchs an installed upload
@@ -638,7 +777,7 @@ pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Pa
 /// 
 /// * `game_folder` - The folder where the game uploads are placed
 /// 
-/// * `heuristics_info` - Some info required to guess which one is the upload executable
+/// * `heuristics_info` - Some info required to guess which file is the upload executable
 /// 
 /// * `upload_executable` - Instead of heuristics_info, provide the path to the upload executable file
 /// 
@@ -647,7 +786,19 @@ pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Pa
 /// * `game_arguments` - A list of arguments to launch the upload executable with
 /// 
 /// * `launch_start_callback` - A callback triggered just before the upload executable runs, providing information about what is about to be executed.
-pub async fn launch(upload_id: u64, game_folder: &Path, heuristics_info: Option<(&GamePlatform, &Game, &Upload)>, upload_executable: Option<&Path>, wrapper: &[String], game_arguments: &[String], launch_start_callback: impl FnOnce(&Path, &str)) -> Result<(), String> {
+/// 
+/// # Returns
+/// 
+/// An error if something goes wrong
+pub async fn launch(
+  upload_id: u64,
+  game_folder: &Path,
+  heuristics_info: Option<(&GamePlatform, &Game, &Upload)>,
+  upload_executable: Option<&Path>,
+  wrapper: &[String],
+  game_arguments: &[String],
+  launch_start_callback: impl FnOnce(&Path, &str)
+) -> Result<(), String> {
   if heuristics_info.is_none() && upload_executable.is_none() {
     Err("At least one of heruristics_info or upload_executable must be set to be able to determina the game executable!")?
   }
@@ -700,14 +851,18 @@ pub async fn launch(upload_id: u64, game_folder: &Path, heuristics_info: Option<
   Ok(())
 }
 
-/// Given a list of game uploads, return the url to the web game (if it exists)
+/// Get the web url of web a game (if it exists)
 /// 
 /// # Arguments
 /// 
-/// * `uploads` - The list of uploads to search for the web version
+/// * `uploads` - The list of a game's uploads
+///
+/// # Returns
+/// 
+/// The web game URL if any
 #[allow(dead_code)]
-fn get_uploads_web_game_url(uploads: Vec<Upload>) -> Option<String> {
-  for upload in uploads.iter() {
+fn get_uploads_web_game_url(uploads: &[Upload]) -> Option<String> {
+  for upload in uploads {
     if let UploadType::HTML = upload.r#type {
       return Some(get_web_game_url(upload.id));
     }
@@ -716,11 +871,15 @@ fn get_uploads_web_game_url(uploads: Vec<Upload>) -> Option<String> {
   None
 }
 
-/// Given an upload_id, return the url to the web game
+/// Get the url to a itch.io web game
 /// 
 /// # Arguments
 /// 
 /// * `upload_id` - The ID of the html upload
+/// 
+/// # Returns
+/// 
+/// The web game URL
 fn get_web_game_url(upload_id: u64) -> String {
   format!("https://html-classic.itch.zone/html/{upload_id}/index.html")
 }
