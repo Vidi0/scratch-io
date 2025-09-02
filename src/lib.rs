@@ -458,7 +458,7 @@ fn get_upload_folder<P: AsRef<Path>>(game_folder: P, upload_id: u64) -> PathBuf 
 /// It fais if dirs::home_dir is None
 fn get_game_folder(game_title: &str) -> Result<PathBuf, String> {
   dirs::home_dir()
-    .ok_or(String::from("Couldn't determine the home directory"))
+    .ok_or(format!("Couldn't determine the home directory"))
     .map(|p| 
       p.join("Games")
         .join(game_title)
@@ -471,12 +471,12 @@ async fn remove_folder_safely<P: AsRef<Path>>(path: P) -> Result<(), String> {
     .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))?;
 
   let home = dirs::home_dir()
-    .ok_or(String::from("Couldn't determine the home directory"))?
+    .ok_or(format!("Couldn't determine the home directory"))?
     .canonicalize()
     .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))?;
 
   if canonical == home {
-    Err(String::from("Refusing to remove home directory!"))?
+    Err(format!("Refusing to remove home directory!"))?
   }
 
   tokio::fs::remove_dir_all(&path).await
@@ -796,6 +796,23 @@ pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Pa
   Ok(())
 }
 
+/// Launchs an installed upload
+/// 
+/// # Arguments
+/// 
+/// * `upload_id` - The ID of upload which will be launched
+/// 
+/// * `game_folder` - The folder where the game uploads are placed
+/// 
+/// * `heuristics_info` - Some info required to guess which one is the upload executable
+/// 
+/// * `upload_executable` - Instead of heuristics_info, provide the path to the upload executable file
+/// 
+/// * `wrapper` - A list of a wrapper and its options to run the game with
+/// 
+/// * `game_arguments` - A list of arguments to launch the upload executable with
+/// 
+/// * `launch_start_callback` - A callback triggered just before the upload executable runs, providing information about what is about to be executed.
 pub async fn launch(upload_id: u64, game_folder: &Path, heuristics_info: Option<(&GamePlatform, &Game, &Upload)>, upload_executable: Option<&Path>, wrapper: &[String], game_arguments: &[String], launch_start_callback: impl FnOnce(&Path, &str)) -> Result<(), String> {
   if heuristics_info.is_none() && upload_executable.is_none() {
     Err("At least one of heruristics_info or upload_executable must be set to be able to determina the game executable!")?
