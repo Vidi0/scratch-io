@@ -1,7 +1,6 @@
 use reqwest::Client;
 use serde::{Serialize, Deserialize};
 use clap::{Parser, Subcommand};
-use time::format_description::well_known::Rfc3339;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use scratch_io::{itch_api_types::*, serde_rules::*, DownloadStatus, InstalledUpload};
@@ -89,16 +88,6 @@ enum RequireApiCommands {
     /// Defaults to ~/Games/{game_name}/
     #[arg(long, env = "SCRATCH_INSTALL_PATH")]
     install_path: Option<PathBuf>,
-  },
-  /// Check if a installed upload is updated
-  SearchUpdate {
-    /// The ID of the upload to check
-    upload_id: u64,
-  },
-  /// Update an installed upload
-  Update {
-    /// The ID of the upload to update
-    upload_id: u64,
   },
   /// Imports an already installed game given its upload ID and the game folder
   Import {
@@ -284,85 +273,6 @@ Upload id: {}
     .unwrap_or_else(|e| eprintln_exit!("Error while downloading file!\n{}", e))
 }
 
-async fn check_updated_upload(client: &Client, api_key: &str, upload_id: u64, installed_uploads: &HashMap<u64, InstalledUpload>) {
-  let installed_upload_info = get_installed_upload_info(upload_id, installed_uploads).upload.as_ref().unwrap_or_else(|| eprintln_exit!("Missing game or upload info. Use the \"installed\" command to fill missing info"));
-  let new_upload_info = scratch_io::get_upload_info(client, api_key, upload_id).await.unwrap_or_else(|e| eprintln_exit!("Error while getting upload info!\n{}", e));
-
-  if new_upload_info.updated_at > installed_upload_info.updated_at {
-    println!("Upload {upload_id} has an update available:\n  Installed version: {}\n  Updated version: {}",
-      installed_upload_info.updated_at.format(&Rfc3339).unwrap_or_default(),
-      new_upload_info.updated_at.format(&Rfc3339).unwrap_or_default(),
-    );
-  } else {
-    println!("Upload {upload_id} is already up to date\n  Installed version: {}",
-      installed_upload_info.updated_at.format(&Rfc3339).unwrap_or_default(),
-    );
-  }
-}
-
-async fn update(client: &Client, api_key: &str, upload_id: u64, installed_uploads: &mut HashMap<u64, InstalledUpload>) {
-  let current_installed_upload = get_installed_upload_info(upload_id, installed_uploads);
-  let current_upload = current_installed_upload.upload.as_ref().unwrap_or_else(|| eprintln_exit!("Missing game or upload info. Use the \"installed\" command to fill missing info"));
-
-  let progress_bar = indicatif::ProgressBar::hidden();
-  progress_bar.set_style(
-    indicatif::ProgressStyle::default_bar()
-      .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})").unwrap()
-      .progress_chars("#>-")
-  );
-
-  let iuo: Option<InstalledUpload> = scratch_io::update(
-    &client,
-    &api_key,
-    upload_id,
-    &current_installed_upload.game_folder,
-    current_upload.updated_at,
-    |u, g| {
-      println!("\
-Upload id: {}
-  Game id: {}
-  Game: {}
-  Filename: {}",
-        u.id,
-        g.id,
-        g.title,
-        u.filename
-      );
-      progress_bar.set_length(u.size.unwrap_or(0));
-    },
-  |download_status| {
-      match download_status {
-        DownloadStatus::Warning(w) => println!("{w}"),
-        DownloadStatus::DownloadedCover(c) => println!("Downloaded game cover to: \"{}\"", c.to_string_lossy()),
-        DownloadStatus::StartingDownload() => {
-          println!("Starting download...");
-          progress_bar.set_draw_target(indicatif::ProgressDrawTarget::stderr());
-        }
-        DownloadStatus::Download(d) => progress_bar.set_position(d),
-        DownloadStatus::Extract => println!("Extracting archive..."),
-      };
-    },
-    std::time::Duration::from_millis(100)
-  ).await
-    .unwrap_or_else(|e| eprintln_exit!("Error while downloading file!\n{}", e));
-
-  match iuo {
-    None => {
-      println!("Upload {upload_id} is already up to date\n  Installed version: {}",
-        current_upload.updated_at.format(&Rfc3339).unwrap_or_default(),
-      );
-    },
-    Some(iu) => {
-      println!("Game upload downloaded to: \"{}\"", iu.game_folder.join(iu.upload_id.to_string()).to_string_lossy());
-      println!("Upload {upload_id} was updated:\n  Old version: {}\n  Installed version: {}",
-        current_upload.updated_at.format(&Rfc3339).unwrap_or_default(),
-        iu.upload.as_ref().expect("We have just downloaded the info.").updated_at.format(&Rfc3339).unwrap_or_default(),
-      );
-      installed_uploads.insert(upload_id, iu);
-    },
-  }
-}
-
 // Print a list of the currently installed games
 async fn print_installed_games(client: &Client, api_key: Option<&str>, installed_uploads: &mut HashMap<u64, InstalledUpload>) -> bool {
   let mut updated = false;
@@ -530,12 +440,6 @@ async fn main() {
           config.installed_uploads.insert(upload_id, upload_info);
 
           save_config(&config, custom_config_file);
-        }
-        RequireApiCommands::SearchUpdate { upload_id } => {
-          check_updated_upload(&client, api_key.as_str(), upload_id, &config.installed_uploads).await;
-        }
-        RequireApiCommands::Update { upload_id } => {
-          update(&client, api_key.as_str(), upload_id, &mut config.installed_uploads).await;
         }
         RequireApiCommands::Import { upload_id, install_path } => {
           if let Some(info) = config.installed_uploads.get(&upload_id) {

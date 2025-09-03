@@ -57,6 +57,7 @@ pub fn get_game_folder(game_title: &str) -> Result<PathBuf, String> {
     )
 }
 
+#[allow(dead_code)]
 pub async fn move_upload_folder_to_backup<P: AsRef<Path>>(game_folder: P, upload_id: u64) -> Result<PathBuf, String> {
   let upload_folder = get_upload_folder(&game_folder, upload_id);
   let new_folder = find_available_path(game_folder.as_ref().join(format!("{upload_id}.old")))?;
