@@ -181,6 +181,12 @@ fn get_installed_upload_info_mut(upload_id: u64, installed_uploads: &mut HashMap
   installed_uploads.get_mut(&upload_id).unwrap_or_else(|| eprintln_exit!("The given upload id is not installed!: {}", upload_id.to_string()))
 }
 
+fn exit_if_already_installed(upload_id: u64, installed_uploads: &HashMap<u64, InstalledUpload>) {
+  if let Some(info) = installed_uploads.get(&upload_id) {
+    eprintln_exit!("The game is already installed in: \"{}\"", info.game_folder.join(info.upload_id.to_string()).to_string_lossy());
+  }
+}
+
 // Return the user profile
 async fn verify_key(client: &Client, api_key: &str, is_saved_key: bool) -> Result<User, String> {
   scratch_io::get_profile(&client, &api_key).await.map_err(|e| {
@@ -230,7 +236,9 @@ async fn print_collection_games(client: &Client, api_key: &str, collection_id: u
 }
 
 // Download a game's upload
-async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&Path>) -> InstalledUpload {
+async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&Path>, installed_uploads: &mut HashMap<u64, InstalledUpload>) {
+  exit_if_already_installed(upload_id, installed_uploads);
+
   let progress_bar = indicatif::ProgressBar::hidden();
   progress_bar.set_style(
     indicatif::ProgressStyle::default_bar()
@@ -238,7 +246,7 @@ async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&
       .progress_chars("#>-")
   );
 
-  scratch_io::download_upload(
+  let iu = scratch_io::download_upload(
     &client,
     &api_key,
     upload_id,
@@ -270,7 +278,9 @@ Upload id: {}
     },
     std::time::Duration::from_millis(100)
   ).await.inspect(|iu| println!("Game upload downloaded to: \"{}\"", iu.game_folder.join(iu.upload_id.to_string()).to_string_lossy()))
-    .unwrap_or_else(|e| eprintln_exit!("Error while downloading file!\n{}", e))
+    .unwrap_or_else(|e| eprintln_exit!("Error while downloading file!\n{}", e));
+
+  installed_uploads.insert(upload_id, iu);
 }
 
 // Print a list of the currently installed games
@@ -299,10 +309,14 @@ async fn print_installed_games(client: &Client, api_key: Option<&str>, installed
 }
 
 // Import an already installed upload from a folder
-async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder: &Path) -> InstalledUpload {
-  scratch_io::import(client, api_key, upload_id, game_folder).await
+async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder: &Path, installed_uploads: &mut HashMap<u64, InstalledUpload>) {
+  exit_if_already_installed(upload_id, installed_uploads);
+
+  let iu = scratch_io::import(client, api_key, upload_id, game_folder).await
     .inspect(|ui| println!("Game imported from: \"{}\"", ui.game_folder.join(ui.upload_id.to_string()).to_string_lossy()))
-    .unwrap_or_else(|e| eprintln_exit!("Error while importing game!\n{}", e))
+    .unwrap_or_else(|e| eprintln_exit!("Error while importing game!\n{}", e));
+
+  installed_uploads.insert(upload_id, iu);
 }
 
 // Remove an installed upload from the system
@@ -432,23 +446,11 @@ async fn main() {
           }
         }
         RequireApiCommands::Download { upload_id, install_path } => {
-          if let Some(info) = config.installed_uploads.get(&upload_id) {
-            eprintln_exit!("The game is already installed in: \"{}\"", info.game_folder.join(info.upload_id.to_string()).to_string_lossy());
-          }
-
-          let upload_info = download(&client, api_key.as_str(), upload_id, install_path.as_deref()).await;
-          config.installed_uploads.insert(upload_id, upload_info);
-
+          download(&client, api_key.as_str(), upload_id, install_path.as_deref(), &mut config.installed_uploads).await;
           save_config(&config, custom_config_file);
         }
         RequireApiCommands::Import { upload_id, install_path } => {
-          if let Some(info) = config.installed_uploads.get(&upload_id) {
-            eprintln_exit!("The game is already imported and placed in: \"{}\"", info.game_folder.join(info.upload_id.to_string()).to_string_lossy());
-          }
-
-          let upload_info = import(&client, api_key.as_str(), upload_id, install_path.as_path()).await;
-          config.installed_uploads.insert(upload_id, upload_info);
-
+          import(&client, api_key.as_str(), upload_id, install_path.as_path(), &mut config.installed_uploads).await;
           save_config(&config, custom_config_file);
         }
       }
