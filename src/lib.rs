@@ -854,7 +854,7 @@ pub async fn launch(
     Some(p) => p.to_path_buf(),
     None => {
       let hi = heuristics_info.expect("We already checked if both were None!");
-      heuristics::get_game_executable(upload_folder.as_path(), hi.0, &hi.1)?
+      heuristics::get_game_executable(upload_folder.as_path(), hi.0, &hi.1).await?
         .ok_or_else(|| format!("Couldn't get the game executable file! Try setting one manually with the upload_executable option!"))?
     }
   }.canonicalize()

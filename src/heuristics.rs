@@ -1,7 +1,11 @@
 use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
 use crate::itch_api_types::Game;
 use crate::GamePlatform;
+
+const GOOD_LAUNCH_FILENAMES: &[&'static str] = &["start", "launch", "play", "run", "game", "launcher", "rungame"];
+const BEST_PROXIMITY_MULTIPLIER: f64 = 0.34;
+// If the level is 3 or more, stop searching the executable
+const MAX_DIRECTORY_LEVEL_DEPTH: usize = 2;
 
 impl GamePlatform {
   fn get_allowed_extensions(&self) -> &'static [&'static str] {
@@ -33,44 +37,52 @@ impl GamePlatform {
   }
 }
 
-const GOOD_LAUNCH_FILENAMES: &[&'static str] = &["start", "launch", "play", "run", "game", "launcher", "rungame"];
-const BEST_PROXIMITY_MULTIPLIER: f64 = 0.34;
-
-pub fn get_game_executable(upload_folder: &Path, platform: &GamePlatform, game_info: &Game) -> Result<Option<PathBuf>, String> {
+pub async fn get_game_executable(upload_folder: &Path, platform: &GamePlatform, game_info: &Game) -> Result<Option<PathBuf>, String> {
+  // If the folder is not a directory, return
+  if !upload_folder.is_dir() {
+    return Err(format!("Not a folder: \"{}\"", upload_folder.to_string_lossy()));
+  }
+  
+  // This variable will store the best executable found at the moment and its rating
   let mut best_executable: (Option<PathBuf>, i64) = (None, i64::MIN);
 
-  for entry in WalkDir::new(upload_folder) {
-    let entry = entry.map_err(|e| format!("Couldn't walk directory: {e}"))?;
+  // We will add the folders and their depth to this VecDeque
+  let mut queue: std::collections::VecDeque<(PathBuf, usize)> = std::collections::VecDeque::new();
+  queue.push_back((upload_folder.to_path_buf(), 0));
 
-    if entry.file_type().is_dir() {
-      continue;
-    }
+  while let Some((folder, depth)) = queue.pop_front() {
+    let mut entries = tokio::fs::read_dir(&folder).await
+      .map_err(|e| format!("Couldn't read dir \"{}\": {e}", folder.as_path().to_string_lossy()))?;
 
-    let rating = rate_executable(entry.path(), upload_folder, platform, game_info)?;
-    if rating > best_executable.1 {
-      best_executable = (Some(entry.into_path()), rating);
+    while let Some(entry) = entries.next_entry().await.map_err(|e| e.to_string())? {
+      let entry_path = entry.path();
+
+      if entry.file_type().await.map_err(|e| e.to_string())?.is_dir() {
+        // If we are on the last depth, don't go to the next one, stop now
+        // For this reason it is < and not <=
+        if depth < MAX_DIRECTORY_LEVEL_DEPTH {
+          queue.push_back((entry_path, depth + 1));
+        }
+      } else {
+        let rating = rate_executable(entry_path.as_path(), depth, platform, game_info)?;
+        if rating > best_executable.1 {
+          best_executable = (Some(entry_path), rating);
+        }
+      } 
     }
   }
 
   Ok(best_executable.0)
 }
 
-fn rate_executable(file_path: &Path, upload_folder: &Path, platform: &GamePlatform, game_info: &Game) -> Result<i64, String> {
+fn rate_executable(file_path: &Path, directory_levels: usize, platform: &GamePlatform, game_info: &Game) -> Result<i64, String> {
   let mut rating: i64 = 0;
 
-  // If this is higher, that means the file is further away from the original folder, so it is worse
-  let directory_levels: i64 = get_directory_difference(upload_folder,file_path)? - 1;
-  assert!(directory_levels >= 0);
   // base level: keep the rating
   // 1st level: lower it by 1000
   // 2nd level: lower it by 4000
   // saturating_pow so it doesn't overflow
-  rating -= directory_levels.saturating_pow(2) * 1000;
-
-  // If the directory level is 3th or higher, exit now: we're not finding the executable that deep
-  if directory_levels >= 3 {
-    return Ok(rating);
-  }
+  rating -= (directory_levels as i64).saturating_pow(2) * 1000;
 
   // Most of the checks will be based on the filename
   let filename: String = make_alphanumeric_lowercase(
@@ -121,15 +133,4 @@ fn proximity_rating(a: &str, b: &str, max_distance: usize, base_points: i64, ext
   // y = normalized ^ ( 1 / (multiplier ^ 2) )
   // This works when multiplier is between 0 and 1
   base_points + (strsim::normalized_levenshtein(a, b).powf(1.0 / proximity_multiplier.powf(2.0)) * extra_points as f64) as i64
-}
-
-fn get_directory_level<P: AsRef<Path>>(path: P) -> Result<usize, String> {
-  path.as_ref()
-    .canonicalize()
-    .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))
-    .map(|p| p.components().count())
-}
-
-fn get_directory_difference<P: AsRef<Path>>(src: P, dst: P) -> Result<i64, String> {
-  Ok(get_directory_level(&dst)? as i64 - get_directory_level(&src)? as i64)
 }
