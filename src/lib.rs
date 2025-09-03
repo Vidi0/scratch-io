@@ -461,7 +461,7 @@ pub fn get_game_platforms(uploads: &[Upload]) -> Vec<(GamePlatform, u64)> {
 /// A Upload struct with the info provided by the API
 /// 
 /// An error if something goes wrong
-pub async fn get_upload_info(client: &Client, api_key: &str, upload_id: u64) -> Result<Upload, String> {
+async fn get_upload_info(client: &Client, api_key: &str, upload_id: u64) -> Result<Upload, String> {
   itch_request_json::<UploadResponse>(
     client,
     Method::GET,
@@ -911,15 +911,10 @@ pub async fn launch(
 /// # Returns
 /// 
 /// The web game URL if any
-#[allow(dead_code)]
-fn get_uploads_web_game_url(uploads: &[Upload]) -> Option<String> {
-  for upload in uploads {
-    if let UploadType::HTML = upload.r#type {
-      return Some(get_web_game_url(upload.id));
-    }
-  }
-
-  None
+pub fn get_uploads_web_game_url(uploads: &[Upload]) -> Option<String> {
+  uploads.iter()
+    .find(|u| matches!(u.r#type, UploadType::HTML))
+    .map(|u| get_web_game_url(u.id))
 }
 
 /// Get the url to a itch.io web game
@@ -931,6 +926,6 @@ fn get_uploads_web_game_url(uploads: &[Upload]) -> Option<String> {
 /// # Returns
 /// 
 /// The web game URL
-fn get_web_game_url(upload_id: u64) -> String {
+pub fn get_web_game_url(upload_id: u64) -> String {
   format!("https://html-classic.itch.zone/html/{upload_id}/index.html")
 }

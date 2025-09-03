@@ -155,19 +155,6 @@ fn save_config(config: &Config, custom_path: Option<&Path>) {
   }.unwrap_or_else(|e| eprintln_exit!("Error while saving to the configuration file!\n{}", e))
 }
 
-// Returns the key's profile
-async fn verify_key(client: &Client, api_key: &str, is_saved_key: bool) -> Result<User, String> {
-  scratch_io::get_profile(&client, &api_key).await.map_err(|e| {
-    if !e.contains("invalid key") {
-      e
-    } else if is_saved_key {
-      format!("The key is not longer valid. Try logging in again.")
-    } else {
-      format!("The key is invalid!")
-    }
-  })
-}
-
 async fn get_api_key(client: &Client, keys: &[Option<&str>], saved_key_index: usize) -> Result<(String, User), String> {
   let key_index = keys
     .iter()
@@ -194,6 +181,20 @@ fn get_installed_upload_info_mut(upload_id: u64, installed_uploads: &mut HashMap
   installed_uploads.get_mut(&upload_id).unwrap_or_else(|| eprintln_exit!("The given upload id is not installed!: {}", upload_id.to_string()))
 }
 
+// Return the user profile
+async fn verify_key(client: &Client, api_key: &str, is_saved_key: bool) -> Result<User, String> {
+  scratch_io::get_profile(&client, &api_key).await.map_err(|e| {
+    if !e.contains("invalid key") {
+      e
+    } else if is_saved_key {
+      format!("The key is not longer valid. Try logging in again.")
+    } else {
+      format!("The key is invalid!")
+    }
+  })
+}
+
+// List the owned game keys
 async fn print_owned_keys(client: &Client, api_key: &str) {
   let keys = scratch_io::get_owned_keys(&client, &api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
 
@@ -201,8 +202,7 @@ async fn print_owned_keys(client: &Client, api_key: &str) {
 }
 
 
-// Retrieve information about a game_id and print it
-// Also, print the available uploads of the game
+// Print information about a game, including its uploads and platforms
 async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
   println!("{}", scratch_io::get_game_info(&client, &api_key, game_id).await.unwrap_or_else(|e| eprintln_exit!("{e}")));
 
@@ -215,14 +215,14 @@ async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
   println!("{}", uploads.iter().map(|u| u.to_string()).collect::<Vec<String>>().join("\n"));
 }
 
-// Retrieve information about the profile's collections and print it
+// Print information about the user's collections
 async fn print_collections(client: &Client, api_key: &str) {
   for col in scratch_io::get_collections(&client, &api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}")) {
     println!("{col}");
   }
 }
 
-// Retrieve information about a collection's games and print it
+// Print the games listed in a collection
 async fn print_collection_games(client: &Client, api_key: &str, collection_id: u64) {
   for cg in scratch_io::get_collection_games(&client, &api_key, collection_id).await.unwrap_or_else(|e| eprintln_exit!("{e}")) {
     println!("{cg}");
@@ -273,13 +273,7 @@ Upload id: {}
     .unwrap_or_else(|e| eprintln_exit!("Error while downloading file!\n{}", e))
 }
 
-async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder: &Path) -> InstalledUpload {
-  scratch_io::import(client, api_key, upload_id, game_folder).await
-    .inspect(|ui| println!("Game imported from: \"{}\"", ui.game_folder.join(ui.upload_id.to_string()).to_string_lossy()))
-    .unwrap_or_else(|e| eprintln_exit!("Error while importing game!\n{}", e))
-}
-
-// Retrieve information about a collection's games and print it
+// Print a list of the currently installed games
 async fn print_installed_games(client: &Client, api_key: Option<&str>, installed_uploads: &mut HashMap<u64, InstalledUpload>) -> bool {
   let mut updated = false;
   let mut warning: (bool, String) = (false, String::new());
@@ -304,6 +298,14 @@ async fn print_installed_games(client: &Client, api_key: Option<&str>, installed
   updated
 }
 
+// Import an already installed upload from a folder
+async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder: &Path) -> InstalledUpload {
+  scratch_io::import(client, api_key, upload_id, game_folder).await
+    .inspect(|ui| println!("Game imported from: \"{}\"", ui.game_folder.join(ui.upload_id.to_string()).to_string_lossy()))
+    .unwrap_or_else(|e| eprintln_exit!("Error while importing game!\n{}", e))
+}
+
+// Remove an installed upload from the system
 async fn remove_upload(upload_id: u64, installed_uploads: &mut HashMap<u64, InstalledUpload>) {
   let upload_info = get_installed_upload_info(upload_id, installed_uploads);
   
@@ -316,6 +318,7 @@ async fn remove_upload(upload_id: u64, installed_uploads: &mut HashMap<u64, Inst
     .expect("We have just checked if the key existed, and it did...");
 }
 
+// Move an installed upload from a place to another
 async fn move_upload(upload_id: u64, dst_game_folder: &Path, installed_uploads: &mut HashMap<u64, InstalledUpload>) {
   let upload_info = get_installed_upload_info_mut(upload_id, installed_uploads);
 
@@ -327,6 +330,7 @@ async fn move_upload(upload_id: u64, dst_game_folder: &Path, installed_uploads: 
   println!("Moved upload {upload_id}\n  from: \"{}\"\n  to: \"{}\"", src_game_folder.to_string_lossy(), upload_info.game_folder.to_string_lossy());
 }
 
+// Launch an installed upload
 async fn launch_upload(
   upload_id: u64,
   platform: Option<scratch_io::GamePlatform>,
