@@ -1,8 +1,14 @@
 use std::path::{Path, PathBuf};
-use crate::itch_api_types::Game;
+use crate::itch_api_types::*;
 use crate::GamePlatform;
 
 const GOOD_LAUNCH_FILENAMES: &[&'static str] = &["start", "launch", "play", "run", "game", "launcher", "rungame"];
+const ARCHITECTURE_SUFFIXES: &[&'static str] = {
+  #[cfg(target_pointer_width = "64")]
+  { &["64"] }
+  #[cfg(not(target_pointer_width = "64"))]
+  { &["32"] }
+};
 // This multiplier has to be between 0 and 1
 const BEST_PROXIMITY_MULTIPLIER: f64 = 0.34;
 // If the level is 3 or more, stop searching the executable
@@ -102,14 +108,15 @@ fn rate_executable(file_path: &Path, directory_levels: usize, platform: &GamePla
   if !platform.get_allowed_extensions().iter().any(|ext| extension.eq_ignore_ascii_case(ext)) {
     rating -= 10000000;
   }
+
   // If the file has an ideal filename (e.g: index.html for a web game), raise the rating
   if platform.get_best_filenames().iter().any(|filen| filename.eq_ignore_ascii_case(filen)) {
     rating += 2300;
   }
   
   let game_title = make_alphanumeric_lowercase(game_info.title.clone());
-  // Check if the filename is similar to the game name
-  rating += proximity_rating(game_title.as_str(), filename.as_str(), 2, 700, 550, BEST_PROXIMITY_MULTIPLIER);
+  // Check if the filename is similar to the game name or the game name with cerating suffixes
+  rating += proximity_rating_with_suffixes(game_title.as_str(), filename.as_str(), ARCHITECTURE_SUFFIXES, 2, 700, 550, BEST_PROXIMITY_MULTIPLIER);
 
   // If the filename has a good name (e.g: start, launch, etc.), raise the rating
   for n in GOOD_LAUNCH_FILENAMES {
@@ -134,4 +141,18 @@ fn proximity_rating(a: &str, b: &str, max_distance: usize, base_points: i64, ext
   // y = normalized ^ ( 1 / (multiplier ^ 2) )
   // This works when multiplier is between 0 and 1
   base_points + (strsim::normalized_levenshtein(a, b).powf(1.0 / proximity_multiplier.powf(2.0)) * extra_points as f64) as i64
+}
+
+fn proximity_rating_with_suffixes(a: &str, b: &str, suffixes: &[&str], max_distance: usize, base_points: i64, extra_points: i64, proximity_multiplier: f64) -> i64 {
+  let mut rating: i64 = 0;
+
+  // Iterate over the original string and the string appending the suffixes
+  // For that reason a empty string is chained, to iterate over the original string as well
+  for e in suffixes.iter().chain(std::iter::once(&"")) {
+    println!("e: {e}");
+    // Only the best rating will be kept, not all of them, for that reason max() is used
+    rating = rating.max(proximity_rating(a, format!("{b}{e}").as_str(), max_distance, base_points, extra_points, proximity_multiplier));
+  }
+
+  rating
 }
