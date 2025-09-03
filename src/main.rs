@@ -67,6 +67,8 @@ enum RequireApiCommands {
   },
   /// Retrieve information about the profile of the current user
   Profile,
+  /// List the game keys owned by the user
+  Owned,
   /// Retrieve information about a game given its ID
   Game {
     /// The ID of the game to retrieve information about
@@ -191,6 +193,13 @@ fn get_installed_upload_info(upload_id: u64, installed_uploads: &HashMap<u64, In
 fn get_installed_upload_info_mut(upload_id: u64, installed_uploads: &mut HashMap<u64, InstalledUpload>) -> &mut InstalledUpload {
   installed_uploads.get_mut(&upload_id).unwrap_or_else(|| eprintln_exit!("The given upload id is not installed!: {}", upload_id.to_string()))
 }
+
+async fn print_owned_keys(client: &Client, api_key: &str) {
+  let keys = scratch_io::get_owned_keys(&client, &api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
+
+  println!("{}", keys.iter().map(|k| k.to_string()).collect::<Vec<String>>().join("\n"));
+}
+
 
 // Retrieve information about a game_id and print it
 // Also, print the available uploads of the game
@@ -405,6 +414,9 @@ async fn main() {
         }
         RequireApiCommands::Profile => {
           println!("{}", profile.to_string());
+        }
+        RequireApiCommands::Owned => {
+          print_owned_keys(&client, api_key.as_str()).await;
         }
         RequireApiCommands::Game { game_id } => {
           print_game_info(&client, api_key.as_str(), game_id).await;

@@ -316,6 +316,47 @@ pub async fn get_profile(client: &Client, api_key: &str) -> Result<User, String>
     .map_err(|e| format!("An error occurred while attempting to get the profile info:\n{e}"))
 }
 
+/// Get the user's owned game keys
+/// 
+/// # Arguments
+/// 
+/// * `client` - A asynchronous reqwest Client
+/// 
+/// * `api_key` - A valid Itch.io API key to make the request
+/// 
+/// # Returns
+/// 
+/// A vector of OwnedKey structs with the info provided by the API
+/// 
+/// An error if something goes wrong
+pub async fn get_owned_keys(client: &Client, api_key: &str) -> Result<Vec<OwnedKey>, String> {
+  let mut keys: Vec<OwnedKey> = Vec::new();
+  let mut page: u64 = 1;
+  loop {
+    let mut response = itch_request_json::<OwnedKeysResponse>(
+      client,
+      Method::GET,
+      &ItchApiUrl::V2(format!("profile/owned-keys")),
+      api_key,
+      |b| b.query(&[("page", page)]),
+    ).await
+      .map_err(|e| format!("An error occurred while attempting to obtain the list of the user's game keys: {e}"))?;
+
+    let num_keys: u64 = response.owned_keys.len() as u64;
+    keys.append(&mut response.owned_keys);
+    // Warning!!!
+    // response.collection_games was merged into games, but it WAS NOT dropped!
+    // Its length is still accessible, but this doesn't make sense!
+    
+    if num_keys < response.per_page || num_keys == 0 {
+      break;
+    }
+    page += 1;
+  }
+
+  Ok(keys)
+}
+
 /// Get the information about a game in Itch.io
 /// 
 /// # Arguments

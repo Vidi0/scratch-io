@@ -218,8 +218,8 @@ Game: {}
   Price: {}
   Classification: {}
   Type: {}
-  Published at: {}
   Created at: {}
+  Published at: {}
   Traits: {}",
       self.id,
       self.title,
@@ -356,8 +356,8 @@ Game: {}
   Price: {}
   Classification: {}
   Type: {}
-  Published at: {}
   Created at: {}
+  Published at: {}
   Traits: {}",
       self.id,
       self.title,
@@ -370,6 +370,33 @@ Game: {}
       self.created_at,
       self.published_at.as_deref().unwrap_or_default(),
       self.traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", ")
+    )
+  }
+}
+
+#[derive(Deserialize)]
+pub struct OwnedKey {
+  pub id: u64,
+  pub game_id: u64,
+  pub downloads: u64,
+  pub game: Game,
+  pub created_at: String,
+  pub updated_at: Option<String>,
+}
+
+impl fmt::Display for OwnedKey {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(f, "\
+Id: {}
+  Game Id: {}
+  Downloads: {}
+  Created at: {}
+  Updated at: {}",
+      self.id,
+      self.game_id,
+      self.downloads,
+      self.created_at,
+      self.updated_at.as_deref().unwrap_or_default(),
     )
   }
 }
@@ -426,4 +453,12 @@ pub struct CollectionGamesResponse {
   pub per_page: u64,
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub collection_games: Vec<CollectionGameItem>,
+}
+
+#[derive(Deserialize)]
+pub struct OwnedKeysResponse {
+  pub page: u64,
+  pub per_page: u64,
+  #[serde(deserialize_with = "empty_object_as_vec")]
+  pub owned_keys: Vec<OwnedKey>,
 }
