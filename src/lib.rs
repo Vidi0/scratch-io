@@ -3,14 +3,15 @@ use tokio::time::{Instant, Duration};
 use futures_util::StreamExt;
 use md5::{Md5, Digest};
 use reqwest::{Client, Method, Response, header};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use time::format_description::well_known::Rfc3339;
 
 pub mod itch_api_types;
 pub mod serde_rules;
+pub mod heuristics;
 mod extract;
-mod heuristics;
 mod game_files_operations;
 use crate::itch_api_types::*;
 use crate::game_files_operations::*;
@@ -18,7 +19,7 @@ use crate::game_files_operations::*;
 // This isn't inside itch_types because it is not something that the itch API returns
 // These platforms are *interpreted* from the data provided by the API
 /// The different platforms a upload can be made for
-#[derive(Serialize, Clone, clap::ValueEnum)]
+#[derive(Serialize, Clone, clap::ValueEnum, Eq, PartialEq, Hash)]
 pub enum GamePlatform {
   Linux,
   Windows,
@@ -33,6 +34,32 @@ pub enum GamePlatform {
 impl std::fmt::Display for GamePlatform {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "{}", serde_json::to_string(&self).unwrap())
+  }
+}
+
+impl Upload {
+  pub fn to_game_platforms(&self) -> Vec<GamePlatform> {
+    let mut platforms: Vec<GamePlatform> = Vec::new();
+
+    match self.r#type {
+      UploadType::HTML => platforms.push(GamePlatform::Web),
+      UploadType::Flash => platforms.push(GamePlatform::Flash),
+      UploadType::Java => platforms.push(GamePlatform::Java),
+      UploadType::Unity => platforms.push(GamePlatform::UnityWebPlayer),
+      _ => (),
+    }
+
+    for t in self.traits.iter() {
+      match t {
+        UploadTrait::PLinux => platforms.push(GamePlatform::Linux),
+        UploadTrait::PWindows => platforms.push(GamePlatform::Windows),
+        UploadTrait::POSX => platforms.push(GamePlatform::OSX),
+        UploadTrait::PAndroid => platforms.push(GamePlatform::Android),
+        _ => ()
+      }
+    }
+
+    platforms
   }
 }
 
@@ -412,39 +439,9 @@ pub async fn get_game_uploads(client: &Client, api_key: &str, game_id: u64) -> R
     .map_err(|e| format!("An error occurred while attempting to obtain the game uploads:\n{e}"))
 }
 
-/// List the available game platforms for a given list of uploads
-/// 
-/// # Arguments
-/// 
-/// * `uploads` - A game's list of uploads
-/// 
-/// # Returns
-/// 
-/// A vector of tuples containg the game platform and the id of the upload where they are present
-pub fn get_game_platforms(uploads: &[Upload]) -> Vec<(GamePlatform, u64)> {
-  let mut platforms: Vec<(GamePlatform, u64)> = Vec::new();
 
-  for u in uploads {
-    match u.r#type {
-      UploadType::HTML => platforms.push((GamePlatform::Web, u.id)),
-      UploadType::Flash => platforms.push((GamePlatform::Flash, u.id)),
-      UploadType::Java => platforms.push((GamePlatform::Java, u.id)),
-      UploadType::Unity => platforms.push((GamePlatform::UnityWebPlayer, u.id)),
-      _ => (),
-    }
-
-    for t in u.traits.iter() {
-      match t {
-        UploadTrait::PLinux => platforms.push((GamePlatform::Linux, u.id)),
-        UploadTrait::PWindows => platforms.push((GamePlatform::Windows, u.id)),
-        UploadTrait::POSX => platforms.push((GamePlatform::OSX, u.id)),
-        UploadTrait::PAndroid => platforms.push((GamePlatform::Android, u.id)),
-        _ => ()
-      }
-    }
-  }
-
-  platforms
+pub fn get_game_platforms(uploads: &[Upload], game_name: &str) -> Result<HashMap<GamePlatform, u64>, String> {
+  heuristics::get_game_platforms(uploads, game_name)
 }
 
 /// Get an upload's info
@@ -855,7 +852,6 @@ pub async fn launch(
     None => {
       let hi = heuristics_info.expect("We already checked if both were None!");
       heuristics::get_game_executable(upload_folder.as_path(), hi.0, &hi.1).await?
-        .ok_or_else(|| format!("Couldn't get the game executable file! Try setting one manually with the upload_executable option!"))?
     }
   }.canonicalize()
     .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))?;
