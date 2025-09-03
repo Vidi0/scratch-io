@@ -201,7 +201,7 @@ pub struct Game {
   pub cover_url: Option<String>,
   #[serde(with = "rfc3339")]
   pub created_at: OffsetDateTime,
-  #[serde(with = "rfc3339::option")]
+  #[serde(with = "rfc3339::option", default)]
   pub published_at: Option<OffsetDateTime>,
   pub min_price: u64,
   pub user: User,
@@ -348,7 +348,7 @@ pub struct CollectionGame {
   pub cover_url: Option<String>,
   #[serde(with = "rfc3339")]
   pub created_at: OffsetDateTime,
-  #[serde(with = "rfc3339::option")]
+  #[serde(with = "rfc3339::option", default)]
   pub published_at: Option<OffsetDateTime>,
   pub min_price: u64,
   #[serde(deserialize_with = "empty_object_as_vec")]
