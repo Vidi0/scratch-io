@@ -5,7 +5,7 @@ use md5::{Md5, Digest};
 use reqwest::{Client, Method, Response, header};
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
-use time::format_description::well_known::Rfc3339;
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 pub mod itch_api_types;
 pub mod serde_rules;
@@ -588,7 +588,7 @@ async fn download_game_cover(client: &Client, cover_url: &str, folder: &Path) ->
 /// 
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
-/// * `upload_id` - The ID of upload which will be downloaded
+/// * `upload_id` - The ID of the upload which will be downloaded
 /// 
 /// * `game_folder` - The folder where the downloadeded game files will be placed
 /// 
@@ -700,6 +700,54 @@ pub async fn download_upload(
     upload: Some(upload),
     game: Some(game),
   })
+}
+
+/// Updates an installed game upload
+/// 
+/// # Arguments
+/// 
+/// * `client` - A asynchronous reqwest Client
+/// 
+/// * `api_key` - A valid Itch.io API key to make the request
+/// 
+/// * `upload_id` - The ID of the installed upload which will be updated
+/// 
+/// * `game_folder` - The folder where the downloadeded game files are currently placed
+/// 
+/// * `upload_info` - A closure which reports the upload and the game info before the update starts
+/// 
+/// * `progress_callback` - A closure which reports the update progress
+/// 
+/// * `callback_interval` - The minimum time span between each progress_callback call
+/// 
+/// # Returns
+/// 
+/// The updated installation info about the upload
+/// 
+/// An error if something goes wrong
+pub async fn update(
+  client: &Client,
+  api_key: &str,
+  upload_id: u64,
+  game_folder: &Path,
+  last_updated: OffsetDateTime,
+  upload_info: impl FnOnce(&Upload, &Game),
+  progress_callback: impl Fn(DownloadStatus),
+  callback_interval: Duration,
+) -> Result<Option<InstalledUpload>, String> {
+  let upload: Upload = get_upload_info(client, api_key, upload_id).await?;
+
+  if upload.updated_at > last_updated {
+    move_upload_folder_to_backup(game_folder, upload_id).await?;
+    
+    let iu = download_upload(client, api_key, upload_id, Some(game_folder), upload_info, progress_callback, callback_interval).await?;
+
+    remove_folder_safely(get_upload_folder(game_folder, upload_id)).await?;
+
+    Ok(Some(iu))
+  } else {
+    Ok(None)
+  }
 }
 
 /// Import an already installed upload
