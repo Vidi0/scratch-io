@@ -1,5 +1,9 @@
 [package]
 name = "scratch-io"
+description = "A command-line tool for managing, downloading, and launching games from itch.io"
+repository = "https://github.com/Vidi0/scratch-io"
+license = "GPL-3.0-or-later"
+readme = "README.md"
 version = "0.1.0"
 edition = "2024"
 
