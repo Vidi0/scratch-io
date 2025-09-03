@@ -66,3 +66,9 @@ scratch-io --help
 - [itch-downloader](https://github.com/BraedonWooding/itch-downloader) – Example itch.io API usage
 - [itch.io docs: compatibility policy](https://docs.itch.ovh/itch/master/integrating/compatibility-policy.html)
 - [itch.io docs: manifest](https://docs.itch.ovh/itch/master/integrating/manifest.html)
+
+## 📝 TODO / Roadmap
+
+- **Integration with Heroic Games Launcher:**  
+  This project was designed with the intention of being integrated into [Heroic Games Launcher](https://heroicgameslauncher.com/).  
+  **Note:** Integration is not currently implemented.
