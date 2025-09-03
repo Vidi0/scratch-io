@@ -255,8 +255,8 @@ pub struct Upload {
   pub host: Option<String>,
   #[serde(with = "rfc3339")]
   pub created_at: OffsetDateTime,
-  #[serde(with = "rfc3339::option")]
-  pub updated_at: Option<OffsetDateTime>,
+  #[serde(with = "rfc3339")]
+  pub updated_at: OffsetDateTime,
   pub md5_hash: Option<String>,
 }
 
@@ -282,7 +282,7 @@ impl fmt::Display for Upload {
       self.display_name.as_deref().unwrap_or_default(),
       self.storage,
       self.created_at.format(&Rfc3339).unwrap_or_default(),
-      self.updated_at.as_ref().and_then(|date| date.format(&Rfc3339).ok()).unwrap_or_default(),
+      self.updated_at.format(&Rfc3339).unwrap_or_default(),
       self.md5_hash.as_deref().unwrap_or_default(),
       self.traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", ")
     )

@@ -79,7 +79,7 @@ impl std::fmt::Display for InstalledUpload {
       Some(u) => (
         u.display_name.as_deref().unwrap_or(&u.filename),
         u.created_at.format(&Rfc3339).unwrap_or_default(),
-        u.updated_at.as_ref().and_then(|date| date.format(&Rfc3339).ok()).unwrap_or_default(),
+        u.updated_at.format(&Rfc3339).unwrap_or_default(),
         u.traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", "),
       )
     };
@@ -462,7 +462,7 @@ pub fn get_game_platforms(uploads: &[Upload]) -> Vec<(GamePlatform, u64)> {
 /// A Upload struct with the info provided by the API
 /// 
 /// An error if something goes wrong
-async fn get_upload_info(client: &Client, api_key: &str, upload_id: u64) -> Result<Upload, String> {
+pub async fn get_upload_info(client: &Client, api_key: &str, upload_id: u64) -> Result<Upload, String> {
   itch_request_json::<UploadResponse>(
     client,
     Method::GET,
