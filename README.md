@@ -1,11 +1,68 @@
-Credits to:
+# 🎮 scratch-io
 
-https://itchapi.ryhn.link
-and
-https://github.com/BraedonWooding/itch-downloader
-for help with the itch.io API
+**scratch-io** is a command-line tool for managing, downloading, and launching games from [itch.io](https://itch.io).
 
-https://docs.itch.ovh/itch/master/integrating/compatibility-policy.html
-and
-https://docs.itch.ovh/itch/master/integrating/manifest.html
-for help with undestanding the itch.io packaging
+## ✨ Features
+
+- 🔑 Authentication with the itch.io API
+- 📥 Game download with automatic extraction
+- 🗃️ Management of installed games (list, move, delete, import)
+- 🚀 Game launch with smart heuristics to find the correct executable
+- 🗂️ Support for collections and game keys
+- 🖼️ Automatic cover art download
+
+## ⚡ Build
+
+Requires [Rust](https://www.rust-lang.org/tools/install) and `cargo`:
+
+```sh
+git clone https://github.com/Vidi0/scratch-io.git
+cd scratch-io
+cargo build --release
+```
+
+The binary will be placed in `target/release/scratch-io`.
+
+## 🚀 Usage
+
+Authenticate with your itch.io API key:
+
+```sh
+scratch-io auth YOUR_API_KEY
+```
+
+Download a game by its upload ID:
+
+```sh
+scratch-io download 123456
+```
+
+List installed games:
+
+```sh
+scratch-io installed
+```
+
+Launch an installed game:
+
+```sh
+scratch-io launch 123456 GAME_PLATFORM
+```
+
+See all options with:
+
+```sh
+scratch-io --help
+```
+
+## 🛠️ Environment variables
+
+- `SCRATCH_API_KEY`: itch.io API key
+- `SCRATCH_CONFIG_FILE`: Custom path for the configuration file
+
+## 📚 References
+
+- [itchapi.ryhn.link](https://itchapi.ryhn.link) – Unofficial itch.io API documentation
+- [itch-downloader](https://github.com/BraedonWooding/itch-downloader) – Example itch.io API usage
+- [itch.io docs: compatibility policy](https://docs.itch.ovh/itch/master/integrating/compatibility-policy.html)
+- [itch.io docs: manifest](https://docs.itch.ovh/itch/master/integrating/manifest.html)
