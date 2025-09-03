@@ -3,6 +3,7 @@ use crate::itch_api_types::Game;
 use crate::GamePlatform;
 
 const GOOD_LAUNCH_FILENAMES: &[&'static str] = &["start", "launch", "play", "run", "game", "launcher", "rungame"];
+// This multiplier has to be between 0 and 1
 const BEST_PROXIMITY_MULTIPLIER: f64 = 0.34;
 // If the level is 3 or more, stop searching the executable
 const MAX_DIRECTORY_LEVEL_DEPTH: usize = 2;
