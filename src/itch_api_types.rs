@@ -1,4 +1,5 @@
 use serde::{Serialize, Deserialize};
+use time::{OffsetDateTime, serde::rfc3339, format_description::well_known::Rfc3339};
 use std::fmt;
 
 use crate::serde_rules::*;
@@ -198,8 +199,10 @@ pub struct Game {
   pub r#type: GameType,
   pub classification: GameClassification,
   pub cover_url: Option<String>,
-  pub created_at: String,
-  pub published_at: Option<String>,
+  #[serde(with = "rfc3339")]
+  pub created_at: OffsetDateTime,
+  #[serde(with = "rfc3339::option")]
+  pub published_at: Option<OffsetDateTime>,
   pub min_price: u64,
   pub user: User,
   #[serde(deserialize_with = "empty_object_as_vec")]
@@ -230,8 +233,8 @@ Game: {}
       if self.min_price <= 0 { "Free" } else { "Paid" },
       self.classification,
       self.r#type,
-      self.created_at,
-      self.published_at.as_deref().unwrap_or_default(),
+      self.created_at.format(&Rfc3339).unwrap_or_default(),
+      self.published_at.as_ref().and_then(|date| date.format(&Rfc3339).ok()).unwrap_or_default(),
       self.traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", ")
     )
   }
@@ -250,8 +253,10 @@ pub struct Upload {
   pub display_name: Option<String>,
   pub storage: String,
   pub host: Option<String>,
-  pub created_at: String,
-  pub updated_at: Option<String>,
+  #[serde(with = "rfc3339")]
+  pub created_at: OffsetDateTime,
+  #[serde(with = "rfc3339::option")]
+  pub updated_at: Option<OffsetDateTime>,
   pub md5_hash: Option<String>,
 }
 
@@ -276,8 +281,8 @@ impl fmt::Display for Upload {
       self.filename,
       self.display_name.as_deref().unwrap_or_default(),
       self.storage,
-      self.created_at,
-      self.updated_at.as_deref().unwrap_or_default(),
+      self.created_at.format(&Rfc3339).unwrap_or_default(),
+      self.updated_at.as_ref().and_then(|date| date.format(&Rfc3339).ok()).unwrap_or_default(),
       self.md5_hash.as_deref().unwrap_or_default(),
       self.traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", ")
     )
@@ -289,8 +294,10 @@ pub struct Collection {
   pub id: u64,
   pub title: String,
   pub games_count: u64,
-  pub created_at: String,
-  pub updated_at: String,
+  #[serde(with = "rfc3339")]
+  pub created_at: OffsetDateTime,
+  #[serde(with = "rfc3339")]
+  pub updated_at: OffsetDateTime,
 }
 
 impl fmt::Display for Collection {
@@ -304,8 +311,8 @@ Name: {}
       self.id,
       self.title,
       self.games_count,
-      self.created_at,
-      self.updated_at
+      self.created_at.format(&Rfc3339).unwrap_or_default(),
+      self.updated_at.format(&Rfc3339).unwrap_or_default(),
     )
   }
 }
@@ -315,7 +322,8 @@ pub struct CollectionGameItem {
   pub game: CollectionGame,
   pub position: u64,
   pub user_id: u64,
-  pub created_at: String,
+  #[serde(with = "rfc3339")]
+  pub created_at: OffsetDateTime,
 }
 
 impl fmt::Display for CollectionGameItem {
@@ -338,8 +346,10 @@ pub struct CollectionGame {
   pub r#type: GameType,
   pub classification: GameClassification,
   pub cover_url: Option<String>,
-  pub created_at: String,
-  pub published_at: Option<String>,
+  #[serde(with = "rfc3339")]
+  pub created_at: OffsetDateTime,
+  #[serde(with = "rfc3339::option")]
+  pub published_at: Option<OffsetDateTime>,
   pub min_price: u64,
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub traits: Vec<GameTrait>,
@@ -367,8 +377,8 @@ Game: {}
       if self.min_price <= 0 { "Free" } else { "Paid" },
       self.classification,
       self.r#type,
-      self.created_at,
-      self.published_at.as_deref().unwrap_or_default(),
+      self.created_at.format(&Rfc3339).unwrap_or_default(),
+      self.published_at.as_ref().and_then(|date| date.format(&Rfc3339).ok()).unwrap_or_default(),
       self.traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", ")
     )
   }
@@ -380,8 +390,10 @@ pub struct OwnedKey {
   pub game_id: u64,
   pub downloads: u64,
   pub game: Game,
-  pub created_at: String,
-  pub updated_at: Option<String>,
+  #[serde(with = "rfc3339")]
+  pub created_at: OffsetDateTime,
+  #[serde(with = "rfc3339")]
+  pub updated_at: OffsetDateTime,
 }
 
 impl fmt::Display for OwnedKey {
@@ -395,8 +407,8 @@ Id: {}
       self.id,
       self.game_id,
       self.downloads,
-      self.created_at,
-      self.updated_at.as_deref().unwrap_or_default(),
+      self.created_at.format(&Rfc3339).unwrap_or_default(),
+      self.updated_at.format(&Rfc3339).unwrap_or_default(),
     )
   }
 }

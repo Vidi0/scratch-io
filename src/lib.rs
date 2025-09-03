@@ -5,6 +5,7 @@ use md5::{Md5, Digest};
 use reqwest::{Client, Method, Response, header};
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
+use time::format_description::well_known::Rfc3339;
 
 pub mod itch_api_types;
 pub mod serde_rules;
@@ -74,24 +75,24 @@ impl InstalledUpload {
 impl std::fmt::Display for InstalledUpload {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     let (u_name, u_created_at, u_updated_at, u_traits) = match self.upload.as_ref() {
-      None => ("", "", "", String::new()),
+      None => ("", String::new(), String::new(), String::new()),
       Some(u) => (
         u.display_name.as_deref().unwrap_or(&u.filename),
-        u.created_at.as_str(),
-        u.updated_at.as_deref().unwrap_or_default(),
+        u.created_at.format(&Rfc3339).unwrap_or_default(),
+        u.updated_at.as_ref().and_then(|date| date.format(&Rfc3339).ok()).unwrap_or_default(),
         u.traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", "),
       )
     };
 
     let (g_id, g_name, g_description, g_url, g_created_at, g_published_at, a_id, a_name, a_url) = match self.game.as_ref() {
-      None => (String::new(), "", "", "", "", "", String::new(), "", ""),
+      None => (String::new(), "", "", "", String::new(), String::new(), String::new(), "", ""),
       Some(g) => (
         g.id.to_string(),
         g.title.as_str(),
         g.short_text.as_deref().unwrap_or_default(),
         g.url.as_str(),
-        g.created_at.as_str(),
-        g.published_at.as_deref().unwrap_or_default(),
+        g.created_at.format(&Rfc3339).unwrap_or_default(),
+        g.published_at.as_ref().and_then(|date| date.format(&Rfc3339).ok()).unwrap_or_default(),
         g.user.id.to_string(),
         g.user.display_name.as_deref().unwrap_or(&g.user.username),
         g.user.url.as_str(),
