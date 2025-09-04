@@ -79,6 +79,19 @@ enum RequireApiCommands {
     /// If an ID is provided, list the games in its collection.
     collection_id: Option<u64>,
   },
+  /// Download a game cover gives its game ID
+  DownloadCover {
+    /// The ID of the game from which the cover will be downloaded
+    game_id: u64,
+    /// The filename of the downloaded cover image (without extension)
+    #[arg(long, env = "SCRATCH_FILENAME")]
+    filename: Option<String>,
+    /// The path where the downloaded file will be placed
+    /// 
+    /// Defaults to ~/Games/{game_name}/
+    #[arg(long, env = "SCRATCH_FOLDER")]
+    folder: Option<PathBuf>,
+  },
   /// Download the upload with the given ID
   Download {
     /// The ID of the upload to download
@@ -284,6 +297,10 @@ Upload id: {}
   installed_uploads.insert(upload_id, iu);
 }
 
+async fn download_cover(client: &Client, api_key: &str, game_id: u64, filename: Option<&str>, folder: Option<&Path>) {
+  scratch_io::download_game_cover_from_id(client, api_key, game_id, filename, folder).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
+}
+
 // Print a list of the currently installed games
 async fn print_installed_games(client: &Client, api_key: Option<&str>, installed_uploads: &mut HashMap<u64, InstalledUpload>) -> bool {
   let mut updated = false;
@@ -449,6 +466,9 @@ async fn main() {
         RequireApiCommands::Download { upload_id, install_path } => {
           download(&client, api_key.as_str(), upload_id, install_path.as_deref(), &mut config.installed_uploads).await;
           save_config(&config, custom_config_file);
+        }
+        RequireApiCommands::DownloadCover { game_id, filename, folder } => {
+          download_cover(&client, api_key.as_str(), game_id, filename.as_deref(), folder.as_deref()).await;
         }
         RequireApiCommands::Import { upload_id, install_path } => {
           import(&client, api_key.as_str(), upload_id, install_path.as_path(), &mut config.installed_uploads).await;

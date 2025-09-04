@@ -16,6 +16,8 @@ mod game_files_operations;
 use crate::itch_api_types::*;
 use crate::game_files_operations::*;
 
+const COVER_IMAGE_DEFAULT_FILENAME: &str = "cover";
+
 // This isn't inside itch_types because it is not something that the itch API returns
 // These platforms are *interpreted* from the data provided by the API
 /// The different platforms a upload can be made for
@@ -554,9 +556,9 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
 /// The path of the downloaded image
 /// 
 /// An error if something goes wrong
-async fn download_game_cover(client: &Client, cover_url: &str, folder: &Path) -> Result<PathBuf, String> {
+async fn download_game_cover(client: &Client, cover_url: &str, cover_filename: &str, folder: &Path) -> Result<PathBuf, String> {
   let cover_extension = cover_url.rsplit(".").next().unwrap_or_default();
-  let cover_path = folder.join(format!("cover.{cover_extension}"));
+  let cover_path = folder.join(format!("{cover_filename}.{cover_extension}"));
         
   if cover_path.try_exists().map_err(|e| e.to_string())? {
     return Ok(cover_path);
@@ -575,6 +577,52 @@ async fn download_game_cover(client: &Client, cover_url: &str, folder: &Path) ->
   ).await?;
  
   Ok(cover_path)
+}
+
+/// Download a game cover image from its game ID
+/// 
+/// # Arguments
+/// 
+/// * `client` - A asynchronous reqwest Client
+/// 
+/// * `api_key` - A valid Itch.io API key to make the request
+/// 
+/// * `game_id` - The ID of the game from which the cover will be downloaded
+/// 
+/// * `cover_filename` - The new filename of the cover (without the extension)
+/// 
+/// * `folder` - The game folder where the cover will be placed
+/// 
+/// # Returns
+/// 
+/// The path of the downloaded image, or None if the game doesn't have one
+/// 
+/// An error if something goes wrong
+pub async fn download_game_cover_from_id(client: &Client, api_key: &str, game_id: u64, cover_filename: Option<&str>, folder: Option<&Path>) -> Result<Option<PathBuf>, String> {
+  // Get the game info from the server
+  let game_info = get_game_info(client, api_key, game_id).await?;
+  // If the game doesn't have a cover, return
+  let Some(cover_url) = game_info.cover_url else {
+    return Ok(None);
+  };
+
+  // If the folder isn't set, set it to the default game folder
+  let folder = match folder {
+    Some(f) => f,
+    None => &get_game_folder(&game_info.title)?,
+  };
+
+  // Create the folder where the file is going to be placed if it doesn't already exist
+  tokio::fs::create_dir_all(folder).await
+    .map_err(|e| format!("Couldn't create the folder \"{}\": {e}", folder.to_string_lossy()))?;
+
+  // If the cover filename isn't set, set it to "cover"
+  let cover_filename = match cover_filename {
+    Some(f) => f,
+    None => COVER_IMAGE_DEFAULT_FILENAME,
+  };
+
+  download_game_cover(client, cover_url.as_str(), cover_filename, folder).await.map(|p| Some(p))
 }
 
 /// Download a game upload
@@ -648,7 +696,7 @@ pub async fn download_upload(
   let cover_image: Option<PathBuf> = match game.cover_url {
     None => None,
     Some(ref cover_url) => Some(
-      download_game_cover(client, cover_url, &game_folder).await
+      download_game_cover(client, cover_url, COVER_IMAGE_DEFAULT_FILENAME, &game_folder).await
         .inspect(|cp| progress_callback(DownloadStatus::DownloadedCover(cp.to_path_buf())))?
     )
   };
