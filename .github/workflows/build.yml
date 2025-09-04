@@ -102,7 +102,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/*
+          path: |
+            scratch-io-${{ matrix.target }}
+            scratch-io-${{ matrix.target }}.exe
 
   draft-release:
     permissions:
