@@ -114,6 +114,19 @@ enum RequireApiCommands {
 // These commands may receive a valid API key, or may not
 #[derive(Subcommand)]
 enum OptionalApiCommands {
+  /// Login with a username and password
+  Login {
+    /// The username of the user who logs in
+    username: String,
+    /// The password of the user who logs in
+    password: String,
+    /// The response of the reCAPTCHA (if required)
+    #[arg(long, env = "SCRATCH_RECAPTCHA_RESPONSE")]
+    recaptcha_response: Option<String>,
+    /// The TOTP 2nd factor authentication
+    #[arg(long, env = "SCRATCH_TOTP_CODE")]
+    totp_code: Option<u64>,
+  },
   /// List the installed games
   Installed,
   /// Remove a installed upload given its id
@@ -198,6 +211,24 @@ fn exit_if_already_installed(upload_id: u64, installed_uploads: &HashMap<u64, In
   if let Some(info) = installed_uploads.get(&upload_id) {
     eprintln_exit!("The game is already installed in: \"{}\"", info.game_folder.join(info.upload_id.to_string()).to_string_lossy());
   }
+}
+
+// Save a key to the config and print info
+fn auth(key: String, config_api_key: &mut Option<String>, profile: User) {
+  // We already checked if the key was valid
+  println!("Valid key!");
+  *config_api_key = Some(key);
+          
+  // Print user info
+  println!("Logged in as: {}", profile.get_name());
+}
+
+// Login with an username and password, save to the config and print info
+async fn login(client: &Client, username: &str, password: &str, recaptcha_response: Option<&str>, totp_code: Option<u64>, config_api_key: &mut Option<String>) {
+  let ls = scratch_io::login(client, username, password, recaptcha_response, totp_code).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
+  let profile = scratch_io::get_profile(client, ls.key.key.as_str()).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
+
+  auth(ls.key.key, config_api_key, profile);
 }
 
 // Return the user profile
@@ -436,17 +467,9 @@ async fn main() {
       let (api_key, profile) = api_key.unwrap_or_else(|e| eprintln_exit!("{e}"));
 
       match command {
-        RequireApiCommands::Auth { api_key: _ } => {
-          // We already checked if the key was valid
-          println!("Valid key!");
-          config.api_key = Some(api_key.clone());
-          
-          // Save the valid key to the config file
+        RequireApiCommands::Auth { api_key: k } => {
+          auth(k, &mut config.api_key, profile);
           save_config(&config, custom_config_file);
-          println!("The key was saved successfully.");
-
-          // Print user info
-          println!("Logged in as: {}", profile.get_name());
         }
         RequireApiCommands::Profile => {
           println!("{}", profile.to_string());
@@ -480,6 +503,10 @@ async fn main() {
       let (api_key, _profile) = api_key.ok().unzip();
 
       match command {
+        OptionalApiCommands::Login { username, password, recaptcha_response, totp_code } => {
+          login(&client, username.as_str(), password.as_str(), recaptcha_response.as_deref(), totp_code, &mut config.api_key).await;
+          save_config(&config, custom_config_file);
+        }
         OptionalApiCommands::Installed => {
           if print_installed_games(&client, api_key.as_deref(), &mut config.installed_uploads).await {
             save_config(&config, custom_config_file);

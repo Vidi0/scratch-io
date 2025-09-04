@@ -414,6 +414,24 @@ Id: {}
 }
 
 #[derive(Deserialize)]
+pub struct ItchCookie {
+  pub itchio: String,
+}
+
+#[derive(Deserialize)]
+pub struct ItchKey {
+  pub key: String,
+  pub id: u64,
+  pub user_id: u64,
+  pub source: String,
+  pub revoked: Option<bool>,
+  #[serde(with = "rfc3339")]
+  pub created_at: OffsetDateTime,
+  #[serde(with = "rfc3339")]
+  pub updated_at: OffsetDateTime,
+}
+
+#[derive(Deserialize)]
 #[serde(untagged)]
 pub enum ApiResponse<T> {
   Success(T),
@@ -430,6 +448,35 @@ impl<T> ApiResponse<T> {
       ApiResponse::Error { errors } => Err(format!("The server replied with an error:\n{}", errors.join("\n"))),
     }
   }
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum LoginResponse {
+  Success(LoginSuccess),
+  CaptchaError(LoginCaptchaError),
+  TOTPError(LoginTOTPError),
+}
+
+#[derive(Deserialize)]
+pub struct LoginSuccess {
+  pub success: bool,
+  pub cookie: ItchCookie,
+  pub key: ItchKey,
+}
+
+#[derive(Deserialize)]
+pub struct LoginCaptchaError {
+  pub success: bool,
+  pub recaptcha_needed: bool,
+  pub recaptcha_url: String,
+}
+
+#[derive(Deserialize)]
+pub struct LoginTOTPError {
+  pub success: bool,
+  pub totp_needed: bool,
+  pub token: String,
 }
 
 #[derive(Deserialize)]

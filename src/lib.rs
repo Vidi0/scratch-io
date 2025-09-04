@@ -319,6 +319,104 @@ Server hash: {hash}"
   Ok(())
 }
 
+/// Complete the login with the TOTP 2nd factor verification
+/// 
+/// # Arguments
+/// 
+/// * `client` - A asynchronous reqwest Client
+/// 
+/// * `totp_token` - The TOTP token returned by the previous login step
+/// 
+/// * `totp_code` - The 6-digit code returned by the TOTP application
+/// 
+/// # Returns
+/// 
+/// A LoginSuccess struct with the new API key
+/// 
+/// An error if something goes wrong
+async fn totp_verification(client: &Client, totp_token: &str, totp_code: u64) -> Result<LoginSuccess, String> {
+  itch_request_json::<LoginSuccess>(
+    client,
+    Method::POST,
+    &ItchApiUrl::V2(format!("totp/verify")),
+    "",
+    |b| b.form(&[
+      ("token", totp_token),
+      ("code", &totp_code.to_string())
+    ]),
+  ).await
+    .map_err(|e| format!("An error occurred while attempting log in:\n{e}"))
+}
+
+/// Login to Itch.io
+/// 
+/// Retrieve a API key from a username and password authentication
+/// 
+/// # Arguments
+/// 
+/// * `client` - A asynchronous reqwest Client
+/// 
+/// * `username` - The username OR email of the accout to log in with
+/// 
+/// * `password` - The password of the accout to log in with
+/// 
+/// * `recaptcha_response` - If required, the reCAPTCHA token from https://itch.io/captcha
+/// 
+/// * `totp_code` - If required, The 6-digit code returned by the TOTP application
+/// 
+/// # Returns
+/// 
+/// A LoginSuccess struct with the new API key
+/// 
+/// An error if something goes wrong
+pub async fn login(client: &Client, username: &str, password: &str, recaptcha_response: Option<&str>, totp_code: Option<u64>) -> Result<LoginSuccess, String> {
+  let mut params: Vec<(&'static str, &str)> = vec![
+    ("username", username),
+    ("password", password),
+    ("force_recaptcha", "false"),
+    ("source", "desktop"),
+  ];
+
+  if let Some(rr) = recaptcha_response {
+    params.push(("recaptcha_response", rr));
+  }
+
+  let response = itch_request_json::<LoginResponse>(
+    client,
+    Method::POST,
+    &ItchApiUrl::V2(format!("login")),
+    "",
+    |b| b.form(&params),
+  ).await
+    .map_err(|e| format!("An error occurred while attempting log in:\n{e}"))?;
+
+  let ls = match response {
+    LoginResponse::CaptchaError(e) => {
+      return Err(format!(
+  r#"A reCAPTCHA verification is required to continue!
+  Go to "{}" and solve the reCAPTCHA.
+  To obtain the token, paste the following command on the developer console:
+    console.log(grecaptcha.getResponse())
+  Then run the login command again with the --recaptcha-response option."#,
+        e.recaptcha_url.as_str()
+      ));
+    }
+    LoginResponse::TOTPError(e) => {
+      let Some(totp_code) = totp_code else {
+        return Err(format!(
+  r#"The accout has 2 step verification enabled via TOTP
+  Run the login command again with the --totp-code={{VERIFICATION_CODE}} option."#
+        ));
+      };
+
+      totp_verification(client, e.token.as_str(), totp_code).await?
+    }
+    LoginResponse::Success(ls) => ls
+  };
+
+  Ok(ls)
+}
+
 /// Get the API key's profile
 /// 
 /// This can be used to verify that a given Itch.io API key is valid
