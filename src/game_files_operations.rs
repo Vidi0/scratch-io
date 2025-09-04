@@ -21,6 +21,7 @@ pub fn find_cover_filename<P: AsRef<Path>>(game_folder: P) -> Result<Option<Stri
   Ok(None)
 }
 
+#[cfg_attr(not(unix), allow(unused_variables))]
 pub fn make_executable<P: AsRef<Path>>(path: P) -> Result<(), String> {
   #[cfg(unix)]
   {
