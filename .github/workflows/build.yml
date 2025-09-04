@@ -31,6 +31,38 @@ jobs:
       - name: Install deps (aarch64 linux only)
         if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
         run: |
+          if [[ $ImageOS == "ubuntu24" ]]; then
+            cat <<EOF > deb822sources
+          Types: deb
+          URIs: http://archive.ubuntu.com/ubuntu
+          Suites: noble noble-updates noble-backports
+          Components: main restricted universe multiverse
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          Types: deb
+          URIs: http://security.ubuntu.com/ubuntu/
+          Suites: noble-security
+          Components: main restricted universe multiverse
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          Types: deb
+          URIs: http://ports.ubuntu.com/ubuntu-ports/
+          Suites: noble noble-updates noble-backports
+          Components: main restricted universe multiverse
+          Architectures: arm64
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+
+          Types: deb
+          URIs: http://security.ports.ubuntu.com/ubuntu-ports/
+          Suites: noble-security
+          Components: main restricted universe multiverse
+          Architectures: arm64
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          EOF
+          
+          fi
+  
+          sudo mv deb822sources /etc/apt/sources.list.d/ubuntu.sources
           sudo dpkg --add-architecture arm64
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu libssl-dev:arm64
