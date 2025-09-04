@@ -5,7 +5,7 @@
 ## ✨ Features
 
 - 🔑 Authentication with the itch.io API
-- 📥 Game download with automatic extraction
+- 📥 Game download with automatic extraction (zip, tar.gz, tar.xz, ...)
 - 🗃️ Management of installed games (list, move, delete, import)
 - 🚀 Game launch with smart heuristics to find the correct executable
 - 🗂️ Support for collections and game keys
@@ -73,8 +73,13 @@ scratch-io --help
 - [itch.io docs: compatibility policy](https://docs.itch.ovh/itch/master/integrating/compatibility-policy.html)
 - [itch.io docs: manifest](https://docs.itch.ovh/itch/master/integrating/manifest.html)
 
-## 📝 TODO / Roadmap
+## 📝 Roadmap
 
 - **Integration with Heroic Games Launcher:**  
   This project was designed with the intention of being integrated into [Heroic Games Launcher](https://heroicgameslauncher.com/).  
   **Note:** Integration is not currently implemented.
+
+## 📝 TODO
+
+1. Reading the game executable from the [itch.io manifest](https://docs.itch.ovh/itch/master/integrating/manifest.html)
+2. Reporting game playtime to the itch.io servers
