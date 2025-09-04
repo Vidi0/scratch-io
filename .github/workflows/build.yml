@@ -124,4 +124,4 @@ jobs:
           draft: true
           generate_release_notes: true
           files: |
-            target/**/release/*
+            scratch-io-*
