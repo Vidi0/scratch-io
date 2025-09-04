@@ -5,8 +5,6 @@ on:
   push:
     tags:
       - "v*.*.*"
-    branches:
-      - main
 
 env:
   CARGO_TERM_COLOR: always
@@ -34,7 +32,7 @@ jobs:
         if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu libssl-dev
+          sudo apt-get install -y gcc-aarch64-linux-gnu libssl-dev:arm64
           export OPENSSL_DIR=/usr/lib/aarch64-linux-gnu/
 
       - name: Setup target
