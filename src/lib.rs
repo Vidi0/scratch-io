@@ -159,7 +159,7 @@ Cover image: \"{}\"
 /// 
 /// # Arguments
 /// 
-/// * `client` - A asynchronous reqwest Client
+/// * `client` - An asynchronous reqwest Client
 /// 
 /// * `method` - The request method (GET, POST, etc.)
 /// 
@@ -207,7 +207,7 @@ async fn itch_request(
 /// 
 /// # Arguments
 /// 
-/// * `client` - A asynchronous reqwest Client
+/// * `client` - An asynchronous reqwest Client
 /// 
 /// * `method` - The request method (GET, POST, etc.)
 /// 
@@ -323,7 +323,7 @@ Server hash: {hash}"
 /// 
 /// # Arguments
 /// 
-/// * `client` - A asynchronous reqwest Client
+/// * `client` - An asynchronous reqwest Client
 /// 
 /// * `totp_token` - The TOTP token returned by the previous login step
 /// 
@@ -354,7 +354,7 @@ async fn totp_verification(client: &Client, totp_token: &str, totp_code: u64) ->
 /// 
 /// # Arguments
 /// 
-/// * `client` - A asynchronous reqwest Client
+/// * `client` - An asynchronous reqwest Client
 /// 
 /// * `username` - The username OR email of the accout to log in with
 /// 
@@ -423,7 +423,7 @@ pub async fn login(client: &Client, username: &str, password: &str, recaptcha_re
 /// 
 /// # Arguments
 /// 
-/// * `client` - A asynchronous reqwest Client
+/// * `client` - An asynchronous reqwest Client
 /// 
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
@@ -448,7 +448,7 @@ pub async fn get_profile(client: &Client, api_key: &str) -> Result<User, String>
 /// 
 /// # Arguments
 /// 
-/// * `client` - A asynchronous reqwest Client
+/// * `client` - An asynchronous reqwest Client
 /// 
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
@@ -489,7 +489,7 @@ pub async fn get_owned_keys(client: &Client, api_key: &str) -> Result<Vec<OwnedK
 /// 
 /// # Arguments
 /// 
-/// * `client` - A asynchronous reqwest Client
+/// * `client` - An asynchronous reqwest Client
 /// 
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
@@ -516,7 +516,7 @@ pub async fn get_game_info(client: &Client, api_key: &str, game_id: u64) -> Resu
 /// 
 /// # Arguments
 /// 
-/// * `client` - A asynchronous reqwest Client
+/// * `client` - An asynchronous reqwest Client
 /// 
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
@@ -548,7 +548,7 @@ pub fn get_game_platforms(uploads: &[Upload], game_name: &str) -> Result<HashMap
 /// 
 /// # Arguments
 /// 
-/// * `client` - A asynchronous reqwest Client
+/// * `client` - An asynchronous reqwest Client
 /// 
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
@@ -575,7 +575,7 @@ pub async fn get_upload_info(client: &Client, api_key: &str, upload_id: u64) -> 
 /// 
 /// # Arguments
 /// 
-/// * `client` - A asynchronous reqwest Client
+/// * `client` - An asynchronous reqwest Client
 /// 
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
@@ -600,7 +600,7 @@ pub async fn get_collections(client: &Client, api_key: &str) -> Result<Vec<Colle
 /// 
 /// # Arguments
 /// 
-/// * `client` - A asynchronous reqwest Client
+/// * `client` - An asynchronous reqwest Client
 /// 
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
@@ -643,7 +643,7 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
 /// 
 /// # Arguments
 /// 
-/// * `client` - A asynchronous reqwest Client
+/// * `client` - An asynchronous reqwest Client
 /// 
 /// * `cover_url` - The url to the cover image file
 /// 
@@ -681,7 +681,7 @@ async fn download_game_cover(client: &Client, cover_url: &str, cover_filename: &
 /// 
 /// # Arguments
 /// 
-/// * `client` - A asynchronous reqwest Client
+/// * `client` - An asynchronous reqwest Client
 /// 
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
@@ -727,7 +727,7 @@ pub async fn download_game_cover_from_id(client: &Client, api_key: &str, game_id
 /// 
 /// # Arguments
 /// 
-/// * `client` - A asynchronous reqwest Client
+/// * `client` - An asynchronous reqwest Client
 /// 
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
@@ -849,7 +849,7 @@ pub async fn download_upload(
 /// 
 /// # Arguments
 /// 
-/// * `client` - A asynchronous reqwest Client
+/// * `client` - An asynchronous reqwest Client
 /// 
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
