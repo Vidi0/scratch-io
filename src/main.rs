@@ -60,7 +60,7 @@ enum Commands {
 // These commands will receive a valid API key and its profile
 #[derive(Subcommand)]
 enum RequireApiCommands {
-  /// Save an API key to use in the other commands
+  /// Log in with an API key to use in the other commands
   Auth {
     /// The API key to save
     api_key: String,
@@ -129,6 +129,8 @@ enum OptionalApiCommands {
     #[arg(long, env = "SCRATCH_TOTP_CODE")]
     totp_code: Option<u64>,
   },
+  /// Remove the saved API key
+  Logout,
   /// List the installed games
   Installed,
   /// Remove a installed upload given its id
@@ -231,6 +233,17 @@ async fn login(client: &Client, username: &str, password: &str, recaptcha_respon
   let profile = scratch_io::get_profile(client, ls.key.key.as_str()).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
 
   auth(ls.key.key, config_api_key, profile);
+}
+
+// Remove the saved API key (if any)
+fn logout(config_api_key: &mut Option<String>) {
+  match config_api_key {
+    None => eprintln!("There isn't any API key saved!"),
+    Some(_) => {
+      *config_api_key = None;
+      println!("Logged out.");
+    }
+  }
 }
 
 // Return the user profile
@@ -507,6 +520,10 @@ async fn main() {
       match command {
         OptionalApiCommands::Login { username, password, recaptcha_response, totp_code } => {
           login(&client, username.as_str(), password.as_str(), recaptcha_response.as_deref(), totp_code, &mut config.api_key).await;
+          save_config(&config, custom_config_file);
+        }
+        OptionalApiCommands::Logout => {
+          logout(&mut config.api_key);
           save_config(&config, custom_config_file);
         }
         OptionalApiCommands::Installed => {
