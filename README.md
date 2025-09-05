@@ -61,9 +61,13 @@ See all options with:
 scratch-io --help
 ```
 
-> ⚠️ **Warning:**  
+> [!WARNING]
 > Due to how the itch.io API works, it is not possible to update a game in-place.  
 > To update a game, you must remove it and install it again.
+
+> [!NOTE]
+> Launching games is determined by heuristics, so it may not always work for every game.  
+> If the executable for a game is not detected correctly, please leave an issue in the repository describing your case.
 
 ## 🛠️ Environment variables
 
