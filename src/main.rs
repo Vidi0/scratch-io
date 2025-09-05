@@ -189,7 +189,7 @@ async fn get_api_key(client: &Client, keys: &[Option<&str>], saved_key_index: us
   let key_index = keys
     .iter()
     .position(|&k| k.is_some())
-    .ok_or_else(|| String::from("Error: an Itch.io API key is required, either via --api-key or the auth command."))?;
+    .ok_or_else(|| String::from("Error: an Itch.io API key is required, either via --api-key, auth, or the login command."))?;
   let api_key: String = keys[key_index].expect("If the index isn't valid, we should have exited before!").to_string();
   let is_saved_key = key_index == saved_key_index;
   
