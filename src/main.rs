@@ -19,6 +19,7 @@ macro_rules! eprintln_exit {
 #[serde_as]
 #[derive(Serialize, Deserialize)]
 struct Config {
+  config_version: u64,
   api_key: Option<String>,
   #[serde_as(as = "HashMap<DisplayFromStr, _>")]
   installed_uploads: HashMap<u64, InstalledUpload>,
@@ -27,6 +28,7 @@ struct Config {
 impl ::std::default::Default for Config {
   fn default() -> Self {
     Self {
+      config_version: 0,
       api_key: None,
       installed_uploads: HashMap::new(),
     }
