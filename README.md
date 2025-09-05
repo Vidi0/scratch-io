@@ -92,3 +92,8 @@ scratch-io --help
 1. Reading the game executable from the [itch.io manifest](https://docs.itch.ovh/itch/master/integrating/manifest.html)
 2. Reporting game playtime to the itch.io servers
 3. Ability to update and verify games packed with [butler](https://itch.io/docs/butler/)
+
+## 📝 License
+
+**scratch-io** is released under the GPL-3.0-or-later license.  
+This project uses many third-party crates; their licenses are listed in `LICENSE-THIRD-PARTY.html`.
