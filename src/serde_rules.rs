@@ -1,8 +1,7 @@
-use serde::{Serialize, Serializer, Deserialize, Deserializer};
-use serde::de::{Visitor, SeqAccess, Error, MapAccess, IgnoredAny};
+use serde::Deserialize;
+use serde::de::{Visitor, SeqAccess, MapAccess, IgnoredAny};
 use std::fmt;
 use std::marker::PhantomData;
-use std::collections::{BTreeMap, HashMap};
 
 pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error> where
   D: serde::de::Deserializer<'de>,
@@ -41,31 +40,4 @@ pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Erro
   }
 
   deserializer.deserialize_any(Helper(PhantomData))
-}
-
-/// Serialize HashMap<u64, V> as a map with string keys.
-pub fn serialize_u64_map<S, V>(map: &HashMap<u64, V>, serializer: S,) -> Result<S::Ok, S::Error> where
-  S: Serializer,
-  V: Serialize,
-{
-  // Use an ordered map for deterministic output; use HashMap if you prefer.
-  let mut tmp: BTreeMap<String, &V> = BTreeMap::new();
-  for (k, v) in map {
-    tmp.insert(k.to_string(), v);
-  }
-  tmp.serialize(serializer)
-}
-
-/// Deserialize a map with string keys into HashMap<u64, V>.
-pub fn deserialize_u64_map<'de, D, V>(deserializer: D) -> Result<HashMap<u64, V>, D::Error> where
-  D: Deserializer<'de>,
-  V: Deserialize<'de>,
-{
-  let tmp: BTreeMap<String, V> = BTreeMap::deserialize(deserializer)?;
-  let mut map = HashMap::with_capacity(tmp.len());
-  for (k, v) in tmp {
-    let num = k.parse::<u64>().map_err(|e| Error::custom(format!("invalid u64 key `{}`: {}", k, e)))?;
-    map.insert(num, v);
-  }
-  Ok(map)
 }

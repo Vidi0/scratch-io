@@ -1,9 +1,10 @@
 use reqwest::Client;
 use serde::{Serialize, Deserialize};
+use serde_with::{serde_as, DisplayFromStr};
 use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
-use scratch_io::{heuristics, itch_api_types::*, serde_rules::*, DownloadStatus, InstalledUpload};
+use scratch_io::{heuristics, itch_api_types::*, DownloadStatus, InstalledUpload};
 
 const APP_CONFIGURATION_NAME: &str = "scratch-io";
 const APP_CONFIGURATION_FILE: &str = "config";
@@ -15,13 +16,11 @@ macro_rules! eprintln_exit {
   }};
 }
 
+#[serde_as]
 #[derive(Serialize, Deserialize)]
 struct Config {
   api_key: Option<String>,
-  #[serde(
-    serialize_with = "serialize_u64_map",
-    deserialize_with = "deserialize_u64_map"
-  )]
+  #[serde_as(as = "HashMap<DisplayFromStr, _>")]
   installed_uploads: HashMap<u64, InstalledUpload>,
 }
 
