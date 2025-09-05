@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use time::format_description::well_known::Rfc3339;
 
 pub mod itch_api_types;
-pub mod serde_rules;
 pub mod heuristics;
 mod extract;
 mod game_files_operations;
