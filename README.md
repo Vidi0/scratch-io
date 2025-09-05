@@ -61,6 +61,10 @@ See all options with:
 scratch-io --help
 ```
 
+> ⚠️ **Warning:**  
+> Due to how the itch.io API works, it is not possible to update a game in-place.  
+> To update a game, you must remove it and install it again.
+
 ## 🛠️ Environment variables
 
 - `SCRATCH_API_KEY`: itch.io API key
@@ -83,3 +87,4 @@ scratch-io --help
 
 1. Reading the game executable from the [itch.io manifest](https://docs.itch.ovh/itch/master/integrating/manifest.html)
 2. Reporting game playtime to the itch.io servers
+3. Ability to update and verify games packed with [butler](https://itch.io/docs/butler/)
