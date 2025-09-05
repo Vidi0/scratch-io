@@ -58,7 +58,7 @@ scratch-io launch 123456 GAME_PLATFORM
 See all options with:
 
 ```sh
-scratch-io --help
+scratch-io help
 ```
 
 > [!WARNING]
