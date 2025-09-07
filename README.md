@@ -96,5 +96,5 @@ scratch-io help
 
 ## 📝 License
 
-**scratch-io** is released under the GPL-3.0-or-later license.  
+The code in this repository is released under the GPL-3.0-or-later license.  
 This project uses many third-party crates; their licenses are listed in `LICENSE-THIRD-PARTY.html`.
