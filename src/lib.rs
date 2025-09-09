@@ -10,8 +10,9 @@ use time::format_description::well_known::Rfc3339;
 
 pub mod itch_api_types;
 pub mod heuristics;
-mod extract;
 mod game_files_operations;
+mod itch_manifest;
+mod extract;
 use crate::itch_api_types::*;
 use crate::game_files_operations::*;
 
