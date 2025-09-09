@@ -90,9 +90,11 @@ scratch-io help
 
 ## 📝 TODO
 
-1. Reading the game executable from the [itch.io manifest](https://docs.itch.ovh/itch/master/integrating/manifest.html)
-2. Reporting game playtime to the itch.io servers
-3. Ability to update and verify games packed with [butler](https://itch.io/docs/butler/)
+- [ ] Read and use the [itch.io manifest](https://docs.itch.ovh/itch/master/integrating/manifest.html)
+  - [ ] Detect game executable from manifest actions
+  - [ ] Handle game prerequisites from manifest
+- [ ] Report game playtime to the itch.io servers
+- [ ] Support updating and verifying games packed with [butler](https://itch.io/docs/butler/)
 
 ## 📝 License
 
