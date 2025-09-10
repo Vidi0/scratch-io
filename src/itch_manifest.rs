@@ -7,9 +7,9 @@ const MANIFEST_PLAY_ACTION: &str = "play";
 
 #[derive(Deserialize)]
 pub struct Action {
-  name: String,
-  path: String,
-  args: Option<Vec<String>>,
+  pub name: String,
+  pub path: String,
+  pub args: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]

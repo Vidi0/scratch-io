@@ -5,6 +5,7 @@ use md5::{Md5, Digest};
 use reqwest::{Client, Method, Response, header};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::borrow::Cow;
 use serde::{Deserialize, Serialize};
 use time::format_description::well_known::Rfc3339;
 
@@ -981,26 +982,45 @@ pub async fn launch(
   upload_id: u64,
   game_folder: &Path,
   heuristics_info: Option<(&GamePlatform, &Game)>,
-  upload_executable: Option<&Path>,
+  upload_alternative_executable: Option<&Path>,
   wrapper: &[String],
   game_arguments: &[String],
   launch_start_callback: impl FnOnce(&Path, &str)
 ) -> Result<(), String> {
-  if heuristics_info.is_none() && upload_executable.is_none() {
-    Err("At least one of heruristics_info or upload_executable must be set to be able to determina the game executable!")?
+  if heuristics_info.is_none() && upload_alternative_executable.is_none() {
+    Err("At least one of heruristics_info or upload_alternative_executable must be set to be able to determine the game executable!")?
   }
 
   let upload_folder: PathBuf = get_upload_folder(game_folder, upload_id);
-
-  // Get the upload executable file, from the arguments or from heuristics
-  let upload_executable = match upload_executable {
-    Some(p) => p.to_path_buf(),
-    None => {
-      let hi = heuristics_info.expect("We already checked if both were None!");
-      heuristics::get_game_executable(upload_folder.as_path(), hi.0, &hi.1).await?
-    }
-  }.canonicalize()
-    .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))?;
+  
+// Determine the upload executable and its launch arguments from the function arguments, manifest, or heuristics.
+// Rules:
+// 1. If an alternative upload executable is provided, use it along with the function's game arguments.
+// 2. Otherwise, if a manifest exists, use its executable:
+//    a) If the function received game arguments, use those.
+//    b) Otherwise, use the arguments from the manifest.
+// 3. If neither of the above, use heuristics to locate the executable, along with the function's game arguments if any.
+  let (upload_executable, game_arguments): (PathBuf, Cow<[String]>) = if let Some(p) = upload_alternative_executable {
+    (p.to_path_buf(), Cow::Borrowed(game_arguments))
+  } else if let Some(a) = itch_manifest::launch_action(&upload_folder, None)? {
+    (
+      PathBuf::from(&a.path),
+      if game_arguments.is_empty() {
+        Cow::Owned(a.args.unwrap_or_default())
+      } else {
+        Cow::Borrowed(game_arguments)
+      }
+    )
+  } else {
+    let hi = heuristics_info.expect("We already checked if both were None!");
+    (
+      heuristics::get_game_executable(upload_folder.as_path(), hi.0, &hi.1).await?,
+      Cow::Borrowed(game_arguments),
+    )
+  };
+  
+  upload_executable.canonicalize()
+    .map_err(|e| format!("Error getting the canonical form of the executable path!: {e}"))?;
 
   // Make the file executable
   make_executable(&upload_executable)?;
@@ -1024,7 +1044,7 @@ pub async fn launch(
 
   // Add the working directory and the game arguments
   game_process.current_dir(&upload_folder)
-    .args(game_arguments);
+    .args(game_arguments.as_ref());
 
   launch_start_callback(upload_executable.as_path(), format!("{:?}", game_process).as_str());
 
