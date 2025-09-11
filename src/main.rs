@@ -75,10 +75,12 @@ enum RequireApiCommands {
     /// The ID of the game to retrieve information about
     game_id: u64,
   },
-  /// List the collections of the profile, or the games of the collection
-  Collections {
-    /// If an ID is provided, list the games in its collection.
-    collection_id: Option<u64>,
+  /// List the profile's collections
+  Collections,
+  /// List the games in the given collection
+  CollectionGames {
+    /// The ID of the collection where the games are located.
+    collection_id: u64,
   },
   /// Download a game cover gives its game ID
   DownloadCover {
@@ -496,11 +498,11 @@ async fn main() {
         RequireApiCommands::Game { game_id } => {
           print_game_info(&client, api_key.as_str(), game_id).await;
         }
-        RequireApiCommands::Collections { collection_id } => {
-          match collection_id {
-            None => print_collections(&client, api_key.as_str()).await,
-            Some(id) => print_collection_games(&client, api_key.as_str(), id).await,
-          }
+        RequireApiCommands::Collections => {
+          print_collections(&client, api_key.as_str()).await;
+        }
+        RequireApiCommands::CollectionGames { collection_id } => {
+          print_collection_games(&client, api_key.as_str(), collection_id).await;
         }
         RequireApiCommands::Download { upload_id, install_path } => {
           download(&client, api_key.as_str(), upload_id, install_path.as_deref(), &mut config.installed_uploads).await;
