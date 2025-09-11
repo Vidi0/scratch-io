@@ -153,12 +153,17 @@ enum OptionalApiCommands {
   Launch {
     /// The ID of the upload to launch
     upload_id: u64,
+    /// The itch manifest's action to call the game with
+    /// 
+    /// Returns an error if the action isn't present in the manifest, or the manifest is missing
+    #[arg(long, env = "SCRATCH_LAUNCH_ACTION", group = "upload_target")]
+    launch_action: Option<String>,
     /// The platform for which the game binary will be searched
     /// 
     /// The Itch.io uploads don't specify a game binary, so which file to run will be decided by heuristics.
     /// 
     /// The heuristics need to know which platform is the executable they are searching.
-    #[arg(value_enum, group = "upload_target")]
+    #[arg(long, env = "SCRATCH_PLATFORM", group = "upload_target")]
     platform: Option<scratch_io::GamePlatform>,
     /// Instead of the platform (or in addition to), a executable path can be provided
     #[arg(long, env = "SCRATCH_UPLOAD_EXECUTABLE_PATH", group = "upload_target")]
@@ -414,6 +419,7 @@ async fn move_upload(upload_id: u64, dst_game_folder: &Path, installed_uploads: 
 // Launch an installed upload
 async fn launch_upload(
   upload_id: u64,
+  launch_action: Option<&str>,
   platform: Option<scratch_io::GamePlatform>,
   upload_executable_path: Option<&Path>,
   wrapper: Option<String>,
@@ -439,6 +445,7 @@ async fn launch_upload(
   scratch_io::launch(
     upload_id,
     game_folder.as_path(),
+    launch_action,
     heuristics_info,
     upload_executable_path,
     wrapper.as_slice(),
@@ -542,8 +549,8 @@ async fn main() {
           move_upload(upload_id, game_path_dst.as_path(), &mut config.installed_uploads).await;
           save_config(&config, custom_config_file);
         }
-        OptionalApiCommands::Launch { upload_id, platform, upload_executable_path, wrapper, game_arguments } => {
-          launch_upload(upload_id, platform, upload_executable_path.as_deref(), wrapper, game_arguments, &config.installed_uploads).await;
+        OptionalApiCommands::Launch { upload_id, launch_action, platform, upload_executable_path, wrapper, game_arguments } => {
+          launch_upload(upload_id, launch_action.as_deref(), platform, upload_executable_path.as_deref(), wrapper, game_arguments, &config.installed_uploads).await;
         }
       }
     }

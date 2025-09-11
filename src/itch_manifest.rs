@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::fs;
 use serde::Deserialize;
 
@@ -10,6 +10,14 @@ pub struct Action {
   pub name: String,
   pub path: String,
   pub args: Option<Vec<String>>,
+}
+
+impl Action {
+  pub fn get_canonical_path(&self, folder: &Path) -> Result<PathBuf, String> {
+    folder.join(&self.path)
+      .canonicalize()
+      .map_err(|e| format!("Error getting the canonical form of the action path! Maybe it doesn't exist: {}\n{e}", self.path))
+  }
 }
 
 #[derive(Deserialize)]

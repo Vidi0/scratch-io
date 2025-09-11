@@ -71,12 +71,12 @@ pub async fn move_upload_folder_to_backup<P: AsRef<Path>>(game_folder: P, upload
 /// Removes a folder recursively, but checks if it is a dangerous path before doing so
 pub async fn remove_folder_safely<P: AsRef<Path>>(path: P) -> Result<(), String> {
   let canonical = tokio::fs::canonicalize(&path).await
-    .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))?;
+    .map_err(|e| format!("Error getting the canonical form of the game folder! Maybe it doesn't exist: {}\n{e}", path.as_ref().to_string_lossy()))?;
 
   let home = dirs::home_dir()
     .ok_or(format!("Couldn't determine the home directory"))?
     .canonicalize()
-    .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))?;
+    .map_err(|e| format!("Error getting the canonical form of the system home folder! Why?\n{e}"))?;
 
   if canonical == home {
     Err(format!("Refusing to remove home directory!"))?

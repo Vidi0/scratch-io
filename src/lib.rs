@@ -839,7 +839,7 @@ pub async fn download_upload(
     upload_id,
     // Get the absolute (canonical) form of the path
     game_folder: game_folder.canonicalize()
-      .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))?,
+      .map_err(|e| format!("Error getting the canonical form of the game folder! Maybe it doesn't exist: {}\n{e}", game_folder.to_string_lossy()))?,
     cover_image: cover_image.map(|p| p.file_name().expect("Cover image doesn't have a filename?").to_string_lossy().to_string()),
     upload: Some(upload),
     game: Some(game),
@@ -874,7 +874,7 @@ pub async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder:
     upload_id,
     // Get the absolute (canonical) form of the path
     game_folder: game_folder.canonicalize()
-      .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))?,
+      .map_err(|e| format!("Error getting the canonical form of the game folder! Maybe it doesn't exist: {}\n{e}", game_folder.to_string_lossy()))?,
     cover_image,
     upload: Some(upload),
     game: Some(game),
@@ -954,7 +954,7 @@ pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Pa
   remove_folder_without_child_folders(src_game_folder).await?;
 
   dst_game_folder.canonicalize()
-    .map_err(|e| format!("Error getting the canonical form of the path!: {e}"))
+    .map_err(|e| format!("Error getting the canonical form of the destination game folder! Maybe it doesn't exist: {}\n{e}", dst_game_folder.to_string_lossy()))
 }
 
 /// Launchs an installed upload
@@ -964,6 +964,8 @@ pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Pa
 /// * `upload_id` - The ID of upload which will be launched
 /// 
 /// * `game_folder` - The folder where the game uploads are placed
+/// 
+/// * `launch_action` - The name of the launch action in the upload folder's itch manifest
 /// 
 /// * `heuristics_info` - Some info required to guess which file is the upload executable
 /// 
@@ -981,14 +983,15 @@ pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Pa
 pub async fn launch(
   upload_id: u64,
   game_folder: &Path,
+  launch_action: Option<&str>,
   heuristics_info: Option<(&GamePlatform, &Game)>,
   upload_alternative_executable: Option<&Path>,
   wrapper: &[String],
   game_arguments: &[String],
   launch_start_callback: impl FnOnce(&Path, &str)
 ) -> Result<(), String> {
-  if heuristics_info.is_none() && upload_alternative_executable.is_none() {
-    Err("At least one of heruristics_info or upload_alternative_executable must be set to be able to determine the game executable!")?
+  if launch_action.is_none() && heuristics_info.is_none() && upload_alternative_executable.is_none() {
+    Err("At least one of launch_action, heruristics_info or upload_alternative_executable must be set to be able to determine the game executable!")?
   }
 
   let upload_folder: PathBuf = get_upload_folder(game_folder, upload_id);
@@ -996,22 +999,25 @@ pub async fn launch(
 // Determine the upload executable and its launch arguments from the function arguments, manifest, or heuristics.
 // Rules:
 // 1. If an alternative upload executable is provided, use it along with the function's game arguments.
-// 2. Otherwise, if a manifest exists, use its executable:
+// 2. Otherwise, if a manifest exists, use its executable based on launch_action:
 //    a) If the function received game arguments, use those.
 //    b) Otherwise, use the arguments from the manifest.
 // 3. If neither of the above, use heuristics to locate the executable, along with the function's game arguments if any.
   let (upload_executable, game_arguments): (PathBuf, Cow<[String]>) = if let Some(p) = upload_alternative_executable {
     (p.to_path_buf(), Cow::Borrowed(game_arguments))
-  } else if let Some(a) = itch_manifest::launch_action(&upload_folder, None)? {
+  } else if let Some(a) = itch_manifest::launch_action(&upload_folder, launch_action)? {
     (
-      PathBuf::from(&a.path),
+      a.get_canonical_path(&upload_folder)?,
       if game_arguments.is_empty() {
         Cow::Owned(a.args.unwrap_or_default())
       } else {
         Cow::Borrowed(game_arguments)
       }
     )
+  } else if let Some(la) = launch_action {
+    return Err(format!("The provided launch action doesn't exist: {la}"));
   } else {
+
     let hi = heuristics_info.expect("We already checked if both were None!");
     (
       heuristics::get_game_executable(upload_folder.as_path(), hi.0, &hi.1).await?,
@@ -1020,7 +1026,7 @@ pub async fn launch(
   };
   
   upload_executable.canonicalize()
-    .map_err(|e| format!("Error getting the canonical form of the executable path!: {e}"))?;
+    .map_err(|e| format!("Error getting the canonical form of the upload executable path! Maybe it doesn't exist: {}\n{e}", upload_executable.to_string_lossy()))?;
 
   // Make the file executable
   make_executable(&upload_executable)?;
