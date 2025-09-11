@@ -12,6 +12,19 @@ pub struct Action {
   pub args: Option<Vec<String>>,
 }
 
+impl std::fmt::Display for Action {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f,
+"    Name: {}
+      Path: {}
+      Arguments: {}",
+      self.name,
+      self.path,
+      self.args.as_ref().unwrap_or(&Vec::new()).iter().map(|a| format!("\"{a}\"")).collect::<Vec<String>>().join(", "),
+    )
+  }
+}
+
 impl Action {
   pub fn get_canonical_path(&self, folder: &Path) -> Result<PathBuf, String> {
     folder.join(&self.path)
@@ -21,12 +34,22 @@ impl Action {
 }
 
 #[derive(Deserialize)]
-struct Manifest {
-  actions: Vec<Action>,
+pub struct Manifest {
+  pub actions: Vec<Action>,
+}
+
+impl std::fmt::Display for Manifest {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f,
+"  Manifest actions:
+{}",
+      self.actions.iter().map(|a| a.to_string()).collect::<Vec<String>>().join("\n"),
+    )
+  }
 }
 
 /// Read the manifest from a folder and parse it (if any)
-fn read_manifest(upload_folder: &Path) -> Result<Option<Manifest>, String> {
+pub fn read_manifest(upload_folder: &Path) -> Result<Option<Manifest>, String> {
   let manifest_path = upload_folder.join(MANIFEST_FILENAME);
 
   if !manifest_path.is_file() {
@@ -53,10 +76,4 @@ pub fn launch_action(upload_folder: &Path, action_name: Option<&str>) -> Result<
     manifest.actions.into_iter()
       .find(|a| a.name == action_name)
   )
-}
-
-/// List all the available actions given the the folder where the game manifest is located
-pub fn list_actions(upload_folder: &Path) -> Result<Vec<Action>, String> {
-  read_manifest(upload_folder)
-    .map(|mo| mo.map_or(Vec::new(), |m| m.actions))
 }

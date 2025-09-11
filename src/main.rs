@@ -136,7 +136,12 @@ enum OptionalApiCommands {
   Logout,
   /// List the installed games
   Installed,
-  /// Remove a installed upload given its id
+  /// Get the installed information about an upload given its ID
+  InstalledUpload {
+    /// The ID of the upload to retrieve information about
+    upload_id: u64,
+  },
+  /// Remove a installed upload given its ID
   Remove {
     /// The ID of the upload to remove
     upload_id: u64,
@@ -380,6 +385,33 @@ async fn print_installed_games(client: &Client, api_key: Option<&str>, installed
   updated
 }
 
+// Print the installed info of an upload
+async fn print_installed_upload(client: &Client, api_key: Option<&str>, upload_id: u64, installed_uploads: &mut HashMap<u64, InstalledUpload>) -> bool {
+  
+  let iu = get_installed_upload_info_mut(upload_id, installed_uploads);
+  let mut updated = false;
+
+  if let Some(key) = api_key {
+    match iu.add_missing_info(&client, key, false).await {
+      Ok(u) => updated |= u,
+      Err(e) => println!("Warning: Couldn't update the game info!: {e}"),
+    }
+  } else {
+    println!("Warning: Couldn't update the game info!: Missing, invalid or couldn't verify the api key.")
+  }
+
+  println!("{iu}");
+
+  let manifest = scratch_io::get_upload_manifest(upload_id, &iu.game_folder).await
+    .unwrap_or_else(|e| eprintln_exit!("Couldn't get the itch manifest of the upload!: {e}"));
+
+  if let Some(m) = manifest {
+    println!("{m}");
+  }
+
+  updated
+}
+
 // Import an already installed upload from a folder
 async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder: &Path, installed_uploads: &mut HashMap<u64, InstalledUpload>) {
   exit_if_already_installed(upload_id, installed_uploads);
@@ -538,6 +570,11 @@ async fn main() {
         }
         OptionalApiCommands::Installed => {
           if print_installed_games(&client, api_key.as_deref(), &mut config.installed_uploads).await {
+            save_config(&config, custom_config_file);
+          }
+        }
+        OptionalApiCommands::InstalledUpload { upload_id } => {
+          if print_installed_upload(&client, api_key.as_deref(), upload_id, &mut config.installed_uploads).await {
             save_config(&config, custom_config_file);
           }
         }

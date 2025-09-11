@@ -957,6 +957,25 @@ pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Pa
     .map_err(|e| format!("Error getting the canonical form of the destination game folder! Maybe it doesn't exist: {}\n{e}", dst_game_folder.to_string_lossy()))
 }
 
+/// Retrieve the itch manifest from an installed upload
+/// 
+/// # Arguments
+/// 
+/// * `upload_id` - The ID of upload from which the info will be retrieved
+/// 
+/// * `game_folder` - The folder with the game files where the upload folder is placed
+/// 
+/// # Returns
+/// 
+/// A Manifest struct with the manifest actions info, or None if the manifest isn't present
+/// 
+/// An error if something goes wrong
+pub async fn get_upload_manifest(upload_id: u64, game_folder: &Path) -> Result<Option<itch_manifest::Manifest>, String> {
+  let upload_folder = get_upload_folder(game_folder, upload_id);
+
+  itch_manifest::read_manifest(&upload_folder)
+}
+
 /// Launchs an installed upload
 /// 
 /// # Arguments
