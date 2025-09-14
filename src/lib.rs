@@ -74,6 +74,12 @@ pub enum DownloadStatus {
   Extract,
 }
 
+pub enum LaunchMethod<'a> {
+  AlternativeExecutable(&'a Path),
+  ManifestAction(&'a str),
+  Heuristics(&'a GamePlatform, &'a Game),
+}
+
 /// Some information about a installed upload
 #[derive(Serialize, Deserialize)]
 pub struct InstalledUpload {
@@ -1002,49 +1008,57 @@ pub async fn get_upload_manifest(upload_id: u64, game_folder: &Path) -> Result<O
 pub async fn launch(
   upload_id: u64,
   game_folder: &Path,
-  launch_action: Option<&str>,
-  heuristics_info: Option<(&GamePlatform, &Game)>,
-  upload_alternative_executable: Option<&Path>,
+  launch_method: LaunchMethod<'_>,
   wrapper: &[String],
   game_arguments: &[String],
   launch_start_callback: impl FnOnce(&Path, &str)
 ) -> Result<(), String> {
-  if launch_action.is_none() && heuristics_info.is_none() && upload_alternative_executable.is_none() {
-    Err("At least one of launch_action, heruristics_info or upload_alternative_executable must be set to be able to determine the game executable!")?
-  }
-
   let upload_folder: PathBuf = get_upload_folder(game_folder, upload_id);
   
-// Determine the upload executable and its launch arguments from the function arguments, manifest, or heuristics.
-// Rules:
-// 1. If an alternative upload executable is provided, use it along with the function's game arguments.
-// 2. Otherwise, if a manifest exists, use its executable based on launch_action:
-//    a) If the function received game arguments, use those.
-//    b) Otherwise, use the arguments from the manifest.
-// 3. If neither of the above, use heuristics to locate the executable, along with the function's game arguments if any.
-  let (upload_executable, game_arguments): (PathBuf, Cow<[String]>) = if let Some(p) = upload_alternative_executable {
-    (p.to_path_buf(), Cow::Borrowed(game_arguments))
-  } else if let Some(a) = itch_manifest::launch_action(&upload_folder, launch_action)? {
-    (
-      a.get_canonical_path(&upload_folder)?,
-      if game_arguments.is_empty() {
-        Cow::Owned(a.args.unwrap_or_default())
-      } else {
-        Cow::Borrowed(game_arguments)
-      }
-    )
-  } else if let Some(la) = launch_action {
-    return Err(format!("The provided launch action doesn't exist: {la}"));
-  } else {
+  // Determine the upload executable and its launch arguments from the function arguments, manifest, or heuristics.
+  let (upload_executable, game_arguments): (&Path, Cow<[String]>) = match launch_method {
+    // 1. If the launch method is an alternative executable, then that executable with the arguments provided to the function
+    LaunchMethod::AlternativeExecutable(p) => (p, Cow::Borrowed(game_arguments)),
+    // 2. If the launch method is a manifest action, use its executable
+    LaunchMethod::ManifestAction(a) => {
+      let ma = itch_manifest::launch_action(&upload_folder, Some(a))?
+        .ok_or(format!("The provided launch action doesn't exist in the manifest: {a}"))?;
+      (
+        &PathBuf::from(ma.path),
+        match game_arguments.is_empty(){
+          // a) If the function's game arguments aren't empty, use those.
+          false => Cow::Borrowed(game_arguments),
+          // b) Otherwise, use the arguments from the manifest.
+          true => Cow::Owned(ma.args.unwrap_or_default()),
+        },
+      )
+    }
+    // 3. Otherwise, if the launch method are the heuristics, use them to locate the executable
+    LaunchMethod::Heuristics(gp, g) => {
+      // But first, check if the game has a manifest with a "play" action, and use it if possible
+      let mao = itch_manifest::launch_action(&upload_folder, None)?;
 
-    let hi = heuristics_info.expect("We already checked if both were None!");
-    (
-      heuristics::get_game_executable(upload_folder.as_path(), hi.0, &hi.1).await?,
-      Cow::Borrowed(game_arguments),
-    )
+      match mao {
+        // If the manifest has a "play" action, launch from it
+        Some(ma) => (
+          &PathBuf::from(ma.path),
+          match game_arguments.is_empty(){
+            // a) If the function's game arguments aren't empty, use those.
+            false => Cow::Borrowed(game_arguments),
+            // b) Otherwise, use the arguments from the manifest.
+            true => Cow::Owned(ma.args.unwrap_or_default()),
+          },
+        ),
+        // Else, now use the heuristics to determine the executable, with the function's game arguments
+        None => (
+          &heuristics::get_game_executable(upload_folder.as_path(), gp, g).await?,
+          Cow::Borrowed(game_arguments),
+        )
+      }
+    }
   };
   
-  upload_executable.canonicalize()
+  let upload_executable = upload_executable.canonicalize()
     .map_err(|e| format!("Error getting the canonical form of the upload executable path! Maybe it doesn't exist: {}\n{e}", upload_executable.to_string_lossy()))?;
 
   // Make the file executable

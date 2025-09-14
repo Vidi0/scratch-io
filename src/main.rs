@@ -154,24 +154,24 @@ enum OptionalApiCommands {
     game_path_dst: PathBuf,
   },
   /// Launchs an installed game given its upload ID and the platform or executable path
-  #[command(group(clap::ArgGroup::new("upload_target").required(true).multiple(true)))]
+  #[command(group(clap::ArgGroup::new("launch_method").required(true).multiple(true)))]
   Launch {
     /// The ID of the upload to launch
     upload_id: u64,
     /// The itch manifest's action to call the game with
     /// 
     /// Returns an error if the action isn't present in the manifest, or the manifest is missing
-    #[arg(long, env = "SCRATCH_LAUNCH_ACTION", group = "upload_target")]
+    #[arg(long, env = "SCRATCH_LAUNCH_ACTION", group = "launch_method")]
     launch_action: Option<String>,
     /// The platform for which the game binary will be searched
     /// 
     /// The Itch.io uploads don't specify a game binary, so which file to run will be decided by heuristics.
     /// 
     /// The heuristics need to know which platform is the executable they are searching.
-    #[arg(long, env = "SCRATCH_PLATFORM", group = "upload_target")]
+    #[arg(long, env = "SCRATCH_PLATFORM", group = "launch_method")]
     platform: Option<scratch_io::GamePlatform>,
     /// Instead of the platform (or in addition to), a executable path can be provided
-    #[arg(long, env = "SCRATCH_UPLOAD_EXECUTABLE_PATH", group = "upload_target")]
+    #[arg(long, env = "SCRATCH_UPLOAD_EXECUTABLE_PATH", group = "launch_method")]
     upload_executable_path: Option<PathBuf>,
     /// A wrapper command to launch the game with
     #[arg(long, env = "SCRATCH_WRAPPER")]
@@ -451,35 +451,38 @@ async fn move_upload(upload_id: u64, dst_game_folder: &Path, installed_uploads: 
 // Launch an installed upload
 async fn launch_upload(
   upload_id: u64,
-  launch_action: Option<&str>,
-  platform: Option<scratch_io::GamePlatform>,
   upload_executable_path: Option<&Path>,
-  wrapper: Option<String>,
-  game_arguments: Option<String>,
+  launch_action: Option<&str>,
+  platform: Option<&scratch_io::GamePlatform>,
+  wrapper: Option<&str>,
+  game_arguments: Option<&str>,
   installed_uploads: &HashMap<u64, InstalledUpload>
 ) {
   let upload_info = get_installed_upload_info(upload_id, installed_uploads);
   let game_folder = upload_info.game_folder.to_path_buf();
+  
+  let wrapper: Vec<String> = wrapper.map_or(Vec::new(), |w|
+    shell_words::split(w).unwrap_or_else(|e| eprintln_exit!("Couldn't split the wrapper arguments: {w}\n{e}"))
+  );
+  
+  let game_arguments: Vec<String> = game_arguments.map_or(Vec::new(), |a|
+    shell_words::split(a).unwrap_or_else(|e| eprintln_exit!("Couldn't split the game arguments: {a}\n{e}"))
+  );
 
-  let heuristics_info: Option<(&scratch_io::GamePlatform, &Game)> = match platform {
-    None => None,
-    Some(ref p) => Some((p, upload_info.game.as_ref().unwrap_or_else(|| eprintln_exit!("Missing game or upload info. Use the \"installed\" command to fill missing info")))),
+  let launch_method = if let Some(p) = upload_executable_path {
+    scratch_io::LaunchMethod::AlternativeExecutable(p)
+  } else if let Some(la) = launch_action {
+    scratch_io::LaunchMethod::ManifestAction(la)
+  } else if let Some(p) = platform {
+    scratch_io::LaunchMethod::Heuristics(p, upload_info.game.as_ref().unwrap_or_else(|| eprintln_exit!(r#"Missing game or upload info. Use the "installed" command to fill missing info"#)))
+  } else {
+    eprintln_exit!(r#"A launch method is required! One of: "launch_action", "platform" or "upload_executable_path" must exist!"#)
   };
-
-  let game_arguments: Vec<String>= game_arguments.map_or(Vec::new(), |a|
-    shell_words::split(a.as_str()).unwrap_or_else(|e| eprintln_exit!("Couldn't split the game arguments: {a}\n{e}"))
-  );
-
-  let wrapper: Vec<String>= wrapper.map_or(Vec::new(), |w: String|
-    shell_words::split(w.as_str()).unwrap_or_else(|e| eprintln_exit!("Couldn't split the wrapper arguments: {w}\n{e}"))
-  );
 
   scratch_io::launch(
     upload_id,
     game_folder.as_path(),
-    launch_action,
-    heuristics_info,
-    upload_executable_path,
+    launch_method,
     wrapper.as_slice(),
     game_arguments.as_slice(),
     |up, command| println!("Launching game:\n  Executable path: \"{}\"\n  Command: {command}", up.to_string_lossy())
@@ -587,7 +590,7 @@ async fn main() {
           save_config(&config, custom_config_file);
         }
         OptionalApiCommands::Launch { upload_id, launch_action, platform, upload_executable_path, wrapper, game_arguments } => {
-          launch_upload(upload_id, launch_action.as_deref(), platform, upload_executable_path.as_deref(), wrapper, game_arguments, &config.installed_uploads).await;
+          launch_upload(upload_id, upload_executable_path.as_deref(), launch_action.as_deref(), platform.as_ref(), wrapper.as_deref(), game_arguments.as_deref(), &config.installed_uploads).await;
         }
       }
     }
