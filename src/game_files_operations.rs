@@ -30,8 +30,14 @@ pub fn make_executable<P: AsRef<Path>>(path: P) -> Result<(), String> {
     let metadata = std::fs::metadata(&path)
       .map_err(|e| format!("Couldn't read file metadata of \"{}\": {e}", path.as_ref().to_string_lossy()))?;
     let mut permissions = metadata.permissions();
-    
     let mode = permissions.mode();
+    
+    // If all the executable bits are already set, return Ok()
+    if mode & 0o111 == 0o111 {
+      return Ok(());
+    }
+
+    // Otherwise, add execute bits
     permissions.set_mode(mode | 0o111);
 
     std::fs::set_permissions(&path, permissions)
