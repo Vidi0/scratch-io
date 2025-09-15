@@ -15,16 +15,16 @@ futures-util = "0.3.31"
 indicatif = "0.18.0"
 md-5 = "0.10.6"
 reqwest = { version = "0.12.23", default-features = false, features = ["rustls-tls", "http2", "stream", "system-proxy", "charset"] }
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.143"
+serde = { version = "1.0.223", features = ["derive"] }
+serde_json = "1.0.145"
 serde_with = "3.14.0"
 shell-words = "1.1.0"
 strsim = "0.11.1"
 time = { version = "0.3.43", features = ["formatting", "parsing", "serde"] }
 tokio = { version = "1.47.1", features = ["fs", "macros", "process", "rt-multi-thread"] }
-toml = "0.9.5"
+toml = "0.9.6"
 
-zip = { version = "4.6.1", optional = true }
+zip = { version = "5.1.1", optional = true }
 tar = { version = "0.4.44", optional = true }
 flate2 = { version = "1.1.2", optional = true }
 bzip2 = { version = "0.6.0", optional = true }
