@@ -4,7 +4,7 @@ description = "A command-line tool for managing, downloading, and launching game
 repository = "https://github.com/Vidi0/scratch-io"
 license = "GPL-3.0-or-later"
 readme = "README.md"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 
 [dependencies]
