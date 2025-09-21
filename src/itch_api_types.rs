@@ -47,13 +47,13 @@ pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Erro
 /// A itch.io API address
 /// 
 /// Use the Other variant with the full URL when it isn't a known API version
-pub enum ItchApiUrl {
-  V1(String),
-  V2(String),
-  Other(String),
+pub enum ItchApiUrl<'a> {
+  V1(&'a str),
+  V2(&'a str),
+  Other(&'a str),
 }
 
-impl fmt::Display for ItchApiUrl {
+impl fmt::Display for ItchApiUrl<'_> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "{}", 
       match self {
