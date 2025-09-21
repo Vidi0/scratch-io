@@ -190,12 +190,16 @@ async fn itch_request(
 ) -> Result<Response, String> {
   let mut request: reqwest::RequestBuilder = client.request(method, url.to_string());
 
+  // Add authentication based on the API's version.
   request = match url {
     // https://itchapi.ryhn.link/API/V1/index.html#authentication
     ItchApiUrl::V1(..) => request.header(header::AUTHORIZATION, format!("Bearer {api_key}")),
     // https://itchapi.ryhn.link/API/V2/index.html#authentication
     ItchApiUrl::V2(..) => request.header(header::AUTHORIZATION, api_key),
+    // If it isn't a known API version, just leave it without authentication
+    ItchApiUrl::Other(..) => request,
   };
+
   // This header is set to ensure the use of the v2 version
   // https://itchapi.ryhn.link/API/V2/index.html
   if let ItchApiUrl::V2(_) = url {

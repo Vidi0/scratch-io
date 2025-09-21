@@ -2,6 +2,9 @@ use serde::{Serialize, Deserialize};
 use time::{OffsetDateTime, serde::rfc3339, format_description::well_known::Rfc3339};
 use std::fmt;
 
+const ITCH_API_V1_BASE_URL: &str = "https://itch.io/api/1";
+const ITCH_API_V2_BASE_URL: &str = "https://api.itch.io";
+
 pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error> where
   D: serde::de::Deserializer<'de>,
   T: Deserialize<'de>,
@@ -41,13 +44,13 @@ pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Erro
   deserializer.deserialize_any(Helper(std::marker::PhantomData))
 }
 
-const ITCH_API_V1_BASE_URL: &str = "https://itch.io/api/1";
-const ITCH_API_V2_BASE_URL: &str = "https://api.itch.io";
-
 /// A itch.io API address
+/// 
+/// Use the Other variant with the full URL when it isn't a known API version
 pub enum ItchApiUrl {
   V1(String),
   V2(String),
+  Other(String),
 }
 
 impl fmt::Display for ItchApiUrl {
@@ -56,6 +59,7 @@ impl fmt::Display for ItchApiUrl {
       match self {
         ItchApiUrl::V1(u) => format!("{ITCH_API_V1_BASE_URL}/{u}"),
         ItchApiUrl::V2(u) => format!("{ITCH_API_V2_BASE_URL}/{u}"),
+        ItchApiUrl::Other(u) => format!("{u}"),
       }
     )
   }
