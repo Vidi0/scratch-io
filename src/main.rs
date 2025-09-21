@@ -324,28 +324,26 @@ async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&
     &api_key,
     upload_id,
     dest,
-    |u, g| {
-      println!("\
+    |u, g| println!("\
 Upload id: {}
   Game id: {}
   Game: {}
   Filename: {}",
-        u.id,
-        g.id,
-        g.title,
-        u.filename
-      );
-      progress_bar.set_length(u.size.unwrap_or(0));
-    },
-  |download_status| {
+      u.id,
+      g.id,
+      g.title,
+      u.filename
+    ),
+    |download_status| {
       match download_status {
         DownloadStatus::Warning(w) => println!("{w}"),
-        DownloadStatus::DownloadedCover(c) => println!("Downloaded game cover to: \"{}\"", c.to_string_lossy()),
-        DownloadStatus::StartingDownload() => {
+        DownloadStatus::DownloadedCover { game_cover_path } => println!("Downloaded game cover to: \"{}\"", game_cover_path.to_string_lossy()),
+        DownloadStatus::StartingDownload { bytes_to_download } => {
           println!("Starting download...");
+          progress_bar.set_length(bytes_to_download);
           progress_bar.set_draw_target(indicatif::ProgressDrawTarget::stderr());
         }
-        DownloadStatus::Download(d) => progress_bar.set_position(d),
+        DownloadStatus::DownloadProgress { downloaded_bytes } => progress_bar.set_position(downloaded_bytes),
         DownloadStatus::Extract => println!("Extracting archive..."),
       };
     },

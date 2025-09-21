@@ -68,9 +68,15 @@ impl Upload {
 
 pub enum DownloadStatus {
   Warning(String),
-  DownloadedCover(PathBuf),
-  StartingDownload(),
-  Download(u64),
+  DownloadedCover {
+    game_cover_path: PathBuf
+  },
+  StartingDownload {
+    bytes_to_download: u64,
+  },
+  DownloadProgress {
+    downloaded_bytes: u64,
+  },
   Extract,
 }
 
@@ -265,6 +271,8 @@ async fn itch_request_json<T>(
 /// 
 /// * `md5_hash` - A md5 hash to check the file against. If none, don't verify the download
 /// 
+/// * `file_size_callback` - A clousure called with total size the downloaded file will have after the download
+/// 
 /// * `progress_callback` - A closure called with the number of downloaded bytes at the moment
 /// 
 /// * `callback_interval` - The minimum time span between each progress_callback call
@@ -280,6 +288,7 @@ async fn download_file(
   api_key: &str,
   file_path: &Path,
   md5_hash: Option<&str>,
+  file_size_callback: impl Fn(Option<u64>),
   progress_callback: impl Fn(u64),
   callback_interval: Duration,
 ) -> Result<(), String> {
@@ -292,21 +301,46 @@ async fn download_file(
       .ok_or(format!("The path where the file was going to be downloaded doesn't have a name!"))?
       .to_string_lossy()
   ));
-  
-  let file_response = itch_request(
-    client,
-    Method::GET,
-    url,
-    api_key,
-    |b| b
-  ).await?;
 
   // Create an inner scope to ensure that all variables (and, most importantly, the file) are dropped before renaming the file
   {
+    // Open the file where the data is going to be downloaded
+    // Use the append option to ensure that the old download data isn't deleted
+    let mut file = tokio::fs::OpenOptions::new()
+      .append(true)
+      .create(true)
+      .open(&partial_file_path).await
+      .map_err(|e| format!("Couldn't open file: {}\n{e}", partial_file_path.to_string_lossy()))?;
+    
+    let already_downloaded_bytes: u64 = file.metadata().await
+      .map_err(|e| format!("Couldn't get file metadata: {}\n{e}", partial_file_path.to_string_lossy()))?
+      .len();
+
+    let file_response: Response = {
+      // If the download file already exists with a size, set the range header to download only the needed data
+      if already_downloaded_bytes == 0 {
+        itch_request(client, Method::GET, url, api_key, |b| b).await?
+      } else {
+        let res = itch_request(client, Method::GET, url, api_key, |b| b.header(header::RANGE, format!("{already_downloaded_bytes}-"))).await?;
+
+        // 206 code means the server will send the requested range
+        // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/206
+        if res.status().as_u16() == 206 {
+          res
+        }
+        // Else the server doesn't support ranges
+        // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Range
+        else {
+          //////////////////////////////////// TODOOOO ////////////////////////////// Add a command to remove half-downloaded files, so they can avoid this problem
+          return Err(format!("The HTTP server to download the file from doesn't support ranges! It should have returned HTTP code 206 but it returned: {}", res.status().as_u16()))
+        }       
+      }
+    };
+
+    file_size_callback(file_response.content_length().map(|b| already_downloaded_bytes + b));
+
     // Prepare the download, the hasher, and the callback variables
-    let mut downloaded_bytes: u64 = 0;
-    let mut file = tokio::fs::File::create(&partial_file_path).await
-      .map_err(|e| e.to_string())?;
+    let mut downloaded_bytes: u64 = already_downloaded_bytes;
     let mut stream = file_response.bytes_stream();
     let mut hasher = Md5::new();
     let mut last_callback = Instant::now();
@@ -711,6 +745,7 @@ async fn download_game_cover(client: &Client, cover_url: &str, cover_filename: &
     &cover_path,
     None,
     |_| (),
+    |_| (),
     Duration::MAX,
   ).await?;
  
@@ -835,11 +870,9 @@ pub async fn download_upload(
     None => None,
     Some(ref cover_url) => Some(
       download_game_cover(client, cover_url, COVER_IMAGE_DEFAULT_FILENAME, &game_folder).await
-        .inspect(|cp| progress_callback(DownloadStatus::DownloadedCover(cp.to_path_buf())))?
+        .inspect(|cp| progress_callback(DownloadStatus::DownloadedCover { game_cover_path: cp.to_path_buf() }))?
     )
   };
-
-  progress_callback(DownloadStatus::StartingDownload());
 
   // Download the file
   download_file(
@@ -848,7 +881,8 @@ pub async fn download_upload(
     api_key,
     &upload_archive,
     upload.md5_hash.as_deref(),
-    |bytes| progress_callback(DownloadStatus::Download(bytes)),
+    |bytes| progress_callback(DownloadStatus::StartingDownload { bytes_to_download: bytes.unwrap_or(upload.size.unwrap_or_default()) } ),
+    |bytes| progress_callback(DownloadStatus::DownloadProgress { downloaded_bytes: bytes } ),
     callback_interval,
   ).await?;
   
