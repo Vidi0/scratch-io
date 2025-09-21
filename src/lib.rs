@@ -273,55 +273,72 @@ async fn download_file(
   progress_callback: impl Fn(u64),
   callback_interval: Duration,
 ) -> Result<(), String> {
-  // Prepare the download, the hasher, and the callback variables
-  let mut downloaded_bytes: u64 = 0;
-  let mut file = tokio::fs::File::create(&file_path).await
-    .map_err(|e| e.to_string())?;
-  let mut stream = file_response.bytes_stream();
-  let mut hasher = Md5::new();
-  let mut last_callback = Instant::now();
 
-  // Save chunks to the file async
-  // Also, compute the md5 hash while it is being downloaded
-  while let Some(chunk) = stream.next().await {
-    // Return an error if the chunk is invalid
-    let chunk = chunk
-      .map_err(|e| format!("Error reading chunk: {e}"))?;
+  // The file will be downloaded to this file with the .part extension,
+  // and then the extension will be removed when the download ends
+  let partial_file_path: PathBuf = file_path.with_file_name(format!(
+    "{}.part",
+    file_path.file_name()
+      .ok_or(format!("The path where the file was going to be downloaded doesn't have a name!"))?
+      .to_string_lossy()
+  ));
 
-    // Write the chunk to the file
-    file.write_all(&chunk).await
-      .map_err(|e| format!("Error writing chunk to the file: {e}"))?;
+  // Create an inner scope to ensure that all variables (and, most importantly, the file) are dropped before renaming the file
+  {
+    // Prepare the download, the hasher, and the callback variables
+    let mut downloaded_bytes: u64 = 0;
+    let mut file = tokio::fs::File::create(&partial_file_path).await
+      .map_err(|e| e.to_string())?;
+    let mut stream = file_response.bytes_stream();
+    let mut hasher = Md5::new();
+    let mut last_callback = Instant::now();
 
-    // If the file has a md5 hash, update the hasher
-    if md5_hash.is_some() {
-      hasher.update(&chunk);
+    // Save chunks to the file async
+    // Also, compute the md5 hash while it is being downloaded
+    while let Some(chunk) = stream.next().await {
+      // Return an error if the chunk is invalid
+      let chunk = chunk
+        .map_err(|e| format!("Error reading chunk: {e}"))?;
+
+      // Write the chunk to the file
+      file.write_all(&chunk).await
+        .map_err(|e| format!("Error writing chunk to the file: {e}"))?;
+
+      // If the file has a md5 hash, update the hasher
+      if md5_hash.is_some() {
+        hasher.update(&chunk);
+      }
+    
+      // Send a callback with the progress
+      downloaded_bytes += chunk.len() as u64;
+      if last_callback.elapsed() > callback_interval {
+        last_callback = Instant::now();
+        progress_callback(downloaded_bytes);
+      }
     }
-  
-    // Send a callback with the progress
-    downloaded_bytes += chunk.len() as u64;
-    if last_callback.elapsed() > callback_interval {
-      last_callback = Instant::now();
-      progress_callback(downloaded_bytes);
+
+    progress_callback(downloaded_bytes);
+
+    // If the hashes aren't equal, exit with an error
+    if let Some(hash) = md5_hash {
+      let file_hash = format!("{:x}", hasher.finalize());
+
+      if !file_hash.eq_ignore_ascii_case(&hash) {
+        return Err(format!("File verification failed! The file hash and the hash provided by the server are different.\n\
+  File hash:   {file_hash}
+  Server hash: {hash}"
+        ));
+      }
     }
+
+    // Sync the file to ensure all the data has been written
+    file.sync_all().await
+      .map_err(|e| e.to_string())?;
   }
 
-  progress_callback(downloaded_bytes);
-
-  // If the hashes aren't equal, exit with an error
-  if let Some(hash) = md5_hash {
-    let file_hash = format!("{:x}", hasher.finalize());
-
-    if !file_hash.eq_ignore_ascii_case(&hash) {
-      return Err(format!("File verification failed! The file hash and the hash provided by the server are different.\n\
-File hash:   {file_hash}
-Server hash: {hash}"
-      ));
-    }
-  }
-
-  // Sync the file to ensure all the data has been written
-  file.sync_all().await
-    .map_err(|e| e.to_string())?;
+  // Move the downloaded file to its final destination
+  tokio::fs::rename(&partial_file_path, file_path).await
+    .map_err(|e| format!("Couldn't move the downloaded file:\n  from: \"{}\"\n  to: \"{}\"\n{e}", partial_file_path.to_string_lossy(), file_path.to_string_lossy()))?;
 
   Ok(())
 }
