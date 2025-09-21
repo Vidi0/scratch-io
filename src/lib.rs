@@ -251,11 +251,15 @@ async fn itch_request_json<T>(
     .into_result()
 }
 
-/// Download a file given a reqwest Response
+/// Download a file from an Itch API URL
 /// 
 /// # Arguments
 /// 
-/// * `file_response` - A reqwest Response for the file
+/// * `client` - An asynchronous reqwest Client
+/// 
+/// * `url` - A itch.io API address to download the file from
+/// 
+/// * `api_key` - A valid (or invalid, if the endpoint doesn't require it) Itch.io API key to make the request
 /// 
 /// * `file_path` - The path where the file will be placed
 /// 
@@ -271,7 +275,9 @@ async fn itch_request_json<T>(
 /// 
 /// An error if the download, of any filesystem operation fails; or if the hash provided doesn't match the file
 async fn download_file(
-  file_response: Response,
+  client: &Client,
+  url: ItchApiUrl<'_>,
+  api_key: &str,
   file_path: &Path,
   md5_hash: Option<&str>,
   progress_callback: impl Fn(u64),
@@ -286,6 +292,14 @@ async fn download_file(
       .ok_or(format!("The path where the file was going to be downloaded doesn't have a name!"))?
       .to_string_lossy()
   ));
+  
+  let file_response = itch_request(
+    client,
+    Method::GET,
+    url,
+    api_key,
+    |b| b
+  ).await?;
 
   // Create an inner scope to ensure that all variables (and, most importantly, the file) are dropped before renaming the file
   {
@@ -690,12 +704,10 @@ async fn download_game_cover(client: &Client, cover_url: &str, cover_filename: &
     return Ok(cover_path);
   }
 
-  let cover_response = client.request(Method::GET, cover_url)
-    .send().await
-    .map_err(|e| format!("Error while sending request: {e}"))?;
-
   download_file(
-    cover_response,
+    client,
+    ItchApiUrl::Other(cover_url),
+    "",
     &cover_path,
     None,
     |_| (),
@@ -829,18 +841,11 @@ pub async fn download_upload(
 
   progress_callback(DownloadStatus::StartingDownload());
 
-  // Start the download, but don't save it to a file yet
-  let file_response = itch_request(
-    client,
-    Method::GET,
-    ItchApiUrl::V2(&format!("uploads/{upload_id}/download")),
-    api_key,
-    |b| b
-  ).await?;
-
   // Download the file
   download_file(
-    file_response,
+    client,
+    ItchApiUrl::V2(&format!("uploads/{upload_id}/download")),
+    api_key,
     &upload_archive,
     upload.md5_hash.as_deref(),
     |bytes| progress_callback(DownloadStatus::Download(bytes)),
