@@ -316,25 +316,34 @@ async fn download_file(
       .map_err(|e| format!("Couldn't get file metadata: {}\n{e}", partial_file_path.to_string_lossy()))?
       .len();
 
-    let file_response: Response = {
+    let file_response: Response = 'r: {
       // If the download file already exists with a size, set the range header to download only the needed data
-      if already_downloaded_bytes == 0 {
-        itch_request(client, Method::GET, url, api_key, |b| b).await?
-      } else {
-        let res = itch_request(client, Method::GET, url, api_key, |b| b.header(header::RANGE, format!("{already_downloaded_bytes}-"))).await?;
+      if already_downloaded_bytes > 0 {
+        let res = itch_request(client, Method::GET, url, api_key,
+          |b| b.header(header::RANGE, format!("{already_downloaded_bytes}-"))
+        ).await?;
 
-        // 206 code means the server will send the requested range
-        // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/206
-        if res.status().as_u16() == 206 {
-          res
-        }
-        // Else the server doesn't support ranges
-        // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Range
-        else {
-          //////////////////////////////////// TODOOOO ////////////////////////////// Add a command to remove half-downloaded files, so they can avoid this problem
-          return Err(format!("The HTTP server to download the file from doesn't support ranges! It should have returned HTTP code 206 but it returned: {}", res.status().as_u16()))
-        }       
+        match res.status().as_u16() {
+          // 206 code means the server will send the requested range
+          // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/206
+          206 => break 'r res,
+
+          // 200 code means the server doesn't support ranges, so download the whole file
+          // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Range
+          200 => {
+            // First, remove the old partially downloaded file
+            file.set_len(0).await
+              .map_err(|e| format!("Couldn't remove old partially downloaded file: {}\n{e}", partial_file_path.to_string_lossy()))?;
+
+            // Don't break, so the request without the range header is returned instead
+          },
+
+          // Any code other than 200 or 206 means that something went wrong
+          _ => return Err(format!("The HTTP server to download the file from didn't return HTTP code 200 nor 206, so exiting! It returned: {}", res.status().as_u16())),
+        }   
       }
+
+      itch_request(client, Method::GET, url, api_key, |b| b).await?
     };
 
     file_size_callback(file_response.content_length().map(|b| already_downloaded_bytes + b));
