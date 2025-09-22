@@ -190,7 +190,7 @@ Cover image: \"{}\"
 async fn itch_request(
   client: &Client,
   method: Method,
-  url: ItchApiUrl<'_>,
+  url: &ItchApiUrl<'_>,
   api_key: &str,
   options: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder
 ) -> Result<Response, String> {
@@ -242,7 +242,7 @@ async fn itch_request(
 async fn itch_request_json<T>(
   client: &Client,
   method: Method,
-  url: ItchApiUrl<'_>,
+  url: &ItchApiUrl<'_>,
   api_key: &str,
   options: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
 ) -> Result<T, String> where
@@ -284,7 +284,7 @@ async fn itch_request_json<T>(
 /// An error if the download, of any filesystem operation fails; or if the hash provided doesn't match the file
 async fn download_file(
   client: &Client,
-  url: ItchApiUrl<'_>,
+  url: &ItchApiUrl<'_>,
   api_key: &str,
   file_path: &Path,
   md5_hash: Option<&str>,
@@ -414,7 +414,7 @@ async fn totp_verification(client: &Client, totp_token: &str, totp_code: u64) ->
   itch_request_json::<LoginSuccess>(
     client,
     Method::POST,
-    ItchApiUrl::V2("totp/verify"),
+    &ItchApiUrl::V2("totp/verify"),
     "",
     |b| b.form(&[
       ("token", totp_token),
@@ -460,7 +460,7 @@ pub async fn login(client: &Client, username: &str, password: &str, recaptcha_re
   let response = itch_request_json::<LoginResponse>(
     client,
     Method::POST,
-    ItchApiUrl::V2("login"),
+    &ItchApiUrl::V2("login"),
     "",
     |b| b.form(&params),
   ).await
@@ -512,7 +512,7 @@ pub async fn get_profile(client: &Client, api_key: &str) -> Result<User, String>
   itch_request_json::<ProfileResponse>(
     client,
     Method::GET,
-    ItchApiUrl::V2("profile"),
+    &ItchApiUrl::V2("profile"),
     api_key,
     |b| b,
   ).await
@@ -540,7 +540,7 @@ pub async fn get_owned_keys(client: &Client, api_key: &str) -> Result<Vec<OwnedK
     let mut response = itch_request_json::<OwnedKeysResponse>(
       client,
       Method::GET,
-      ItchApiUrl::V2("profile/owned-keys"),
+      &ItchApiUrl::V2("profile/owned-keys"),
       api_key,
       |b| b.query(&[("page", page)]),
     ).await
@@ -580,7 +580,7 @@ pub async fn get_game_info(client: &Client, api_key: &str, game_id: u64) -> Resu
   itch_request_json::<GameInfoResponse>(
     client,
     Method::GET,
-    ItchApiUrl::V2(&format!("games/{game_id}")),
+    &ItchApiUrl::V2(&format!("games/{game_id}")),
     api_key,
     |b| b,
   ).await
@@ -607,7 +607,7 @@ pub async fn get_game_uploads(client: &Client, api_key: &str, game_id: u64) -> R
   itch_request_json::<GameUploadsResponse>(
     client,
     Method::GET,
-    ItchApiUrl::V2(&format!("games/{game_id}/uploads")),
+    &ItchApiUrl::V2(&format!("games/{game_id}/uploads")),
     api_key,
     |b| b,
   ).await
@@ -639,7 +639,7 @@ pub async fn get_upload_info(client: &Client, api_key: &str, upload_id: u64) -> 
   itch_request_json::<UploadResponse>(
     client,
     Method::GET,
-    ItchApiUrl::V2(&format!("uploads/{upload_id}")),
+    &ItchApiUrl::V2(&format!("uploads/{upload_id}")),
     api_key,
     |b| b,
   ).await
@@ -664,7 +664,7 @@ pub async fn get_collections(client: &Client, api_key: &str) -> Result<Vec<Colle
   itch_request_json::<CollectionsResponse>(
     client,
     Method::GET,
-    ItchApiUrl::V2("profile/collections"),
+    &ItchApiUrl::V2("profile/collections"),
     api_key,
     |b| b,
   ).await
@@ -694,7 +694,7 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
     let mut response = itch_request_json::<CollectionGamesResponse>(
       client,
       Method::GET,
-      ItchApiUrl::V2(&format!("collections/{collection_id}/collection-games")),
+      &ItchApiUrl::V2(&format!("collections/{collection_id}/collection-games")),
       api_key,
       |b| b.query(&[("page", page)]),
     ).await
@@ -740,7 +740,7 @@ async fn download_game_cover(client: &Client, cover_url: &str, cover_filename: &
 
   download_file(
     client,
-    ItchApiUrl::Other(cover_url),
+    &ItchApiUrl::Other(cover_url),
     "",
     &cover_path,
     None,
@@ -877,7 +877,7 @@ pub async fn download_upload(
   // Download the file
   download_file(
     client,
-    ItchApiUrl::V2(&format!("uploads/{upload_id}/download")),
+    &ItchApiUrl::V2(&format!("uploads/{upload_id}/download")),
     api_key,
     &upload_archive,
     upload.md5_hash.as_deref(),
