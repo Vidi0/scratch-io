@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::{ffi::OsStr, path::{Path, PathBuf}};
 
 pub fn find_cover_filename<P: AsRef<Path>>(game_folder: P) -> Result<Option<String>, String> { 
   let child_entries = std::fs::read_dir(&game_folder)
@@ -62,6 +62,18 @@ pub fn get_game_folder(game_title: &str) -> Result<PathBuf, String> {
       p.join("Games")
         .join(game_title)
     )
+}
+
+/// Adds a .part extension to the given Path
+pub fn add_part_extension<P: AsRef<Path>>(file: P) -> Result<PathBuf, String> {
+  Ok(
+    file.as_ref().with_file_name(format!(
+      "{}.part",
+      file.as_ref().file_name()
+        .ok_or(format!("Couldn't add .part extension to the file because it doesn't have a name!: {}", file.as_ref().to_string_lossy()))?
+        .to_string_lossy()
+    ))
+  )
 }
 
 #[allow(dead_code)]
@@ -139,6 +151,26 @@ async fn copy_dir_all<P: AsRef<Path>>(src: P, dst: P) -> Result<(), String> {
           .map_err(|e| format!("Couldn't copy file:\n  from: \"{}\"\n  to: \"{}\"\n{e}", src_path.to_string_lossy(), dst_path.to_string_lossy()))?;
       } 
     }
+  }
+
+  Ok(())
+}
+
+/// Returns an error if the provided folder has any child other than `only_child_name`
+pub async fn ensure_folder_has_only_child<P: AsRef<Path>>(folder: P, only_child_name: &OsStr) -> Result<(), String> {
+  let mut entries = tokio::fs::read_dir(&folder).await
+    .map_err(|e| format!("Couldn't read dir \"{}\": {e}", folder.as_ref().to_string_lossy()))?;
+
+  // Return an error if the first entry isn't the one allowed
+  if let Some(entry) = entries.next_entry().await.map_err(|e| e.to_string())? {
+    if entry.file_name() != only_child_name {
+      return Err(format!("The folder: \"{}\" should only have one child, \"{}\", but it has one child named: \"{}\"", folder.as_ref().to_string_lossy(), only_child_name.to_string_lossy(), entry.file_name().to_string_lossy()));
+    }
+  }
+
+  // Return an error if the folder has more than one entry
+  if let Some(entry) = entries.next_entry().await.map_err(|e| e.to_string())? {
+    return Err(format!("The folder: \"{}\" should only have one child, \"{}\", but it also one child named: \"{}\"", folder.as_ref().to_string_lossy(), only_child_name.to_string_lossy(), entry.file_name().to_string_lossy()));
   }
 
   Ok(())

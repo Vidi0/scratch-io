@@ -295,12 +295,7 @@ async fn download_file(
 
   // The file will be downloaded to this file with the .part extension,
   // and then the extension will be removed when the download ends
-  let partial_file_path: PathBuf = file_path.with_file_name(format!(
-    "{}.part",
-    file_path.file_name()
-      .ok_or(format!("The path where the file was going to be downloaded doesn't have a name!"))?
-      .to_string_lossy()
-  ));
+  let partial_file_path: PathBuf = add_part_extension(file_path)?;
 
   // Create an inner scope to ensure that all variables (and, most importantly, the file) are dropped before renaming the file
   {
@@ -859,17 +854,23 @@ pub async fn download_upload(
   // The new upload_folder is game_folder + the upload id
   let upload_folder: PathBuf = get_upload_folder(game_folder, upload_id);
 
+  // upload_archive is the location where the upload will be downloaded
+  let upload_archive: PathBuf = upload_folder.join(&upload.filename);
+  
   // Check if the folder where the upload files will be placed is empty
   if !is_folder_empty(&upload_folder)? {
-    return Err(format!("The upload folder isn't empty!: \"{}\"", upload_folder.to_string_lossy()));
+    // If it only contains the partially downloaded atchive, the it is correct
+    ensure_folder_has_only_child(&upload_folder, 
+      add_part_extension(&upload_archive)?
+        .file_name()
+        .expect("If the file doesn't have a name add_part_extension should have failed!")
+    ).await
+      .map_err(|e| format!("The upload folder isn't empty!: \"{}\"\n{e}", upload_folder.to_string_lossy()))?;
   }
   
   // Create the folder if it doesn't already exist
   tokio::fs::create_dir_all(&upload_folder).await
     .map_err(|e| format!("Couldn't create the folder \"{}\": {e}", upload_folder.to_string_lossy()))?;
-  
-  // upload_archive is the location where the upload will be downloaded
-  let upload_archive: PathBuf = upload_folder.join(&upload.filename);
 
 
   // --- DOWNLOAD --- 
