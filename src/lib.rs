@@ -1,7 +1,7 @@
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 use tokio::time::{Instant, Duration};
 use futures_util::StreamExt;
-use md5::{Md5, Digest};
+use md5::{Md5, Digest, digest::core_api::CoreWrapper};
 use reqwest::{Client, Method, Response, header};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -302,8 +302,9 @@ async fn download_file(
     // Open the file where the data is going to be downloaded
     // Use the append option to ensure that the old download data isn't deleted
     let mut file = tokio::fs::OpenOptions::new()
-      .append(true)
       .create(true)
+      .append(true)
+      .read(true)
       .open(&partial_file_path).await
       .map_err(|e| format!("Couldn't open file: {}\n{e}", partial_file_path.to_string_lossy()))?;
     
@@ -345,8 +346,32 @@ async fn download_file(
     file_size_callback(file_response.content_length().map(|b| downloaded_bytes + b));
 
     // Prepare the download, the hasher, and the callback variables
+    let mut hasher: CoreWrapper<md5::Md5Core> = Md5::new();
+
+    // If a partial file was already downloaded, hash the old downloaded data
+    if downloaded_bytes > 0 {
+      let mut br = tokio::io::BufReader::new(&mut file);
+
+      loop {
+        let buffer = br.fill_buf().await
+          .map_err(|e| format!("Couldn't read file: \"{}\"\n{e}", partial_file_path.to_string_lossy()))?;
+  
+        // If buffer is empty then BufReader has reached the EOF
+        if buffer.is_empty() {
+          break;
+        }
+
+        // Update the hasher
+        hasher.update(buffer);
+
+        // Marked the hashed bytes as read
+        let len = buffer.len();
+        br.consume(len);
+      }
+    }
+
+    // Prepare the download and the callback variables
     let mut stream = file_response.bytes_stream();
-    let mut hasher = Md5::new();
     let mut last_callback = Instant::now();
 
     // Save chunks to the file async
