@@ -318,14 +318,14 @@ async fn download_file(
           |b| b.header(header::RANGE, format!("bytes={already_downloaded_bytes}-"))
         ).await?;
 
-        match res.status().as_u16() {
-          // 206 code means the server will send the requested range
+        match res.status() {
+          // 206 Partial Content code means the server will send the requested range
           // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/206
-          206 => break 'r res,
+          reqwest::StatusCode::PARTIAL_CONTENT => break 'r res,
 
-          // 200 code means the server doesn't support ranges, so download the whole file
+          // 200 OK code means the server doesn't support ranges, so download the whole file
           // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Range
-          200 => {
+          reqwest::StatusCode::OK => {
             // First, remove the old partially downloaded file
             already_downloaded_bytes = 0;
             file.set_len(0).await
