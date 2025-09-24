@@ -405,7 +405,7 @@ async fn download_file(
       let file_hash = format!("{:x}", hasher.finalize());
 
       if !file_hash.eq_ignore_ascii_case(&hash) {
-        return Err(format!("File verification failed! The file hash and the hash provided by the server are different.\n\
+        return Err(format!("File verification failed! The file hash and the hash provided by the server are different.\n
   File hash:   {file_hash}
   Server hash: {hash}"
         ));
