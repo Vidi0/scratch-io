@@ -315,7 +315,7 @@ async fn download_file(
       // If the download file already exists with a size, set the range header to download only the needed data
       if already_downloaded_bytes > 0 {
         let res = itch_request(client, Method::GET, url, api_key,
-          |b| b.header(header::RANGE, format!("{already_downloaded_bytes}-"))
+          |b| b.header(header::RANGE, format!("bytes={already_downloaded_bytes}-"))
         ).await?;
 
         match res.status().as_u16() {
