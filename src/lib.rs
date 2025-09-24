@@ -307,7 +307,7 @@ async fn download_file(
       .open(&partial_file_path).await
       .map_err(|e| format!("Couldn't open file: {}\n{e}", partial_file_path.to_string_lossy()))?;
     
-    let already_downloaded_bytes: u64 = file.metadata().await
+    let mut already_downloaded_bytes: u64 = file.metadata().await
       .map_err(|e| format!("Couldn't get file metadata: {}\n{e}", partial_file_path.to_string_lossy()))?
       .len();
 
@@ -327,6 +327,7 @@ async fn download_file(
           // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Range
           200 => {
             // First, remove the old partially downloaded file
+            already_downloaded_bytes = 0;
             file.set_len(0).await
               .map_err(|e| format!("Couldn't remove old partially downloaded file: {}\n{e}", partial_file_path.to_string_lossy()))?;
 
