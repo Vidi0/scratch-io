@@ -345,11 +345,11 @@ async fn download_file(
 
     file_size_callback(file_response.content_length().map(|b| downloaded_bytes + b));
 
-    // Prepare the download, the hasher, and the callback variables
-    let mut hasher: CoreWrapper<md5::Md5Core> = Md5::new();
+    // Create the hasher variable
+    let mut md5_hash: Option<(CoreWrapper<md5::Md5Core>, &str)> = md5_hash.map(|s| (Md5::new(), s));
 
     // If a partial file was already downloaded, hash the old downloaded data
-    if downloaded_bytes > 0 {
+    if let Some((ref mut hasher, _)) = md5_hash && downloaded_bytes > 0 {
       let mut br = tokio::io::BufReader::new(&mut file);
 
       loop {
@@ -386,7 +386,7 @@ async fn download_file(
         .map_err(|e| format!("Error writing chunk to the file: {e}"))?;
 
       // If the file has a md5 hash, update the hasher
-      if md5_hash.is_some() {
+      if let Some((ref mut hasher, _)) = md5_hash {
         hasher.update(&chunk);
       }
     
@@ -401,7 +401,7 @@ async fn download_file(
     progress_callback(downloaded_bytes);
 
     // If the hashes aren't equal, exit with an error
-    if let Some(hash) = md5_hash {
+    if let Some((hasher, hash)) = md5_hash {
       let file_hash = format!("{:x}", hasher.finalize());
 
       if !file_hash.eq_ignore_ascii_case(&hash) {
