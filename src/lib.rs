@@ -307,15 +307,15 @@ async fn download_file(
       .open(&partial_file_path).await
       .map_err(|e| format!("Couldn't open file: {}\n{e}", partial_file_path.to_string_lossy()))?;
     
-    let mut already_downloaded_bytes: u64 = file.metadata().await
+    let mut downloaded_bytes: u64 = file.metadata().await
       .map_err(|e| format!("Couldn't get file metadata: {}\n{e}", partial_file_path.to_string_lossy()))?
       .len();
 
     let file_response: Response = 'r: {
       // If the download file already exists with a size, set the range header to download only the needed data
-      if already_downloaded_bytes > 0 {
+      if downloaded_bytes > 0 {
         let res = itch_request(client, Method::GET, url, api_key,
-          |b| b.header(header::RANGE, format!("bytes={already_downloaded_bytes}-"))
+          |b| b.header(header::RANGE, format!("bytes={downloaded_bytes}-"))
         ).await?;
 
         match res.status() {
@@ -327,7 +327,7 @@ async fn download_file(
           // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Range
           reqwest::StatusCode::OK => {
             // First, remove the old partially downloaded file
-            already_downloaded_bytes = 0;
+            downloaded_bytes = 0;
             file.set_len(0).await
               .map_err(|e| format!("Couldn't remove old partially downloaded file: {}\n{e}", partial_file_path.to_string_lossy()))?;
 
@@ -342,10 +342,9 @@ async fn download_file(
       itch_request(client, Method::GET, url, api_key, |b| b).await?
     };
 
-    file_size_callback(file_response.content_length().map(|b| already_downloaded_bytes + b));
+    file_size_callback(file_response.content_length().map(|b| downloaded_bytes + b));
 
     // Prepare the download, the hasher, and the callback variables
-    let mut downloaded_bytes: u64 = already_downloaded_bytes;
     let mut stream = file_response.bytes_stream();
     let mut hasher = Md5::new();
     let mut last_callback = Instant::now();
