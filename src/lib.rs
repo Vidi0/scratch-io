@@ -257,6 +257,98 @@ async fn itch_request_json<T>(
     .into_result()
 }
 
+/// Hash a file into a MD5 hasher
+/// 
+/// # Arguments
+/// 
+/// * `readable` - Anything that implements tokio::io::AsyncRead to read the data from, could be a File
+/// 
+/// * `hasher` - A mutable reference to a MD5 hasher, which will be updated with the file data
+/// 
+/// # Returns
+/// 
+/// An error if something goes wrong
+async fn hash_readable_async(readable: impl tokio::io::AsyncRead + Unpin, hasher: &mut CoreWrapper<md5::Md5Core>) -> Result<(), String> {
+  let mut br = tokio::io::BufReader::new(readable);
+
+  loop {
+    let buffer = br.fill_buf().await
+      .map_err(|e| format!("Couldn't read file in order to hash it!\n{e}"))?;
+
+    // If buffer is empty then BufReader has reached the EOF
+    if buffer.is_empty() {
+      break Ok(());
+    }
+
+    // Update the hasher
+    hasher.update(buffer);
+
+    // Marked the hashed bytes as read
+    let len = buffer.len();
+    br.consume(len);
+  }
+}
+
+/// Stream a reqwest Response into a File async
+/// 
+/// # Arguments
+/// 
+/// * `response` - A file download response
+/// 
+/// * `file` - An opened File with write access
+/// 
+/// * `md5_hash` - If provided, the hasher to update with the received data
+/// 
+/// * `progress_callback` - A closure called with the number of downloaded bytes at the moment
+/// 
+/// * `callback_interval` - The minimum time span between each progress_callback call
+/// 
+/// # Returns
+/// 
+/// The total downloaded bytes
+/// 
+/// An error if something goes wrong
+async fn stream_response_into_file(
+  response: Response,
+  file: &mut tokio::fs::File,
+  mut md5_hash: Option<&mut CoreWrapper<md5::Md5Core>>,
+  progress_callback: impl Fn(u64),
+  callback_interval: Duration,
+) -> Result<u64, String> {
+  // Prepare the download and the callback variables
+  let mut downloaded_bytes: u64 = 0;
+  let mut stream = response.bytes_stream();
+  let mut last_callback = Instant::now();
+
+  // Save chunks to the file async
+  // Also, compute the md5 hash while it is being downloaded
+  while let Some(chunk) = stream.next().await {
+    // Return an error if the chunk is invalid
+    let chunk = chunk
+      .map_err(|e| format!("Error reading chunk: {e}"))?;
+
+    // Write the chunk to the file
+    file.write_all(&chunk).await
+      .map_err(|e| format!("Error writing chunk to the file: {e}"))?;
+
+    // If the file has a md5 hash, update the hasher
+    if let Some(ref mut hasher) = md5_hash {
+      hasher.update(&chunk);
+    }
+  
+    // Send a callback with the progress
+    downloaded_bytes += chunk.len() as u64;
+    if last_callback.elapsed() > callback_interval {
+      last_callback = Instant::now();
+      progress_callback(downloaded_bytes);
+    }
+  }
+
+  progress_callback(downloaded_bytes);
+
+  Ok(downloaded_bytes)
+}
+
 /// Download a file from an Itch API URL
 /// 
 /// # Arguments
@@ -281,143 +373,121 @@ async fn itch_request_json<T>(
 /// 
 /// A hasher, empty if update_md5_hash is false
 /// 
-/// An error if the download, of any filesystem operation fails; or if the hash provided doesn't match the file
+/// An error if something goes wrong
 async fn download_file(
   client: &Client,
   url: &ItchApiUrl<'_>,
   api_key: &str,
   file_path: &Path,
   md5_hash: Option<&str>,
-  file_size_callback: impl Fn(Option<u64>),
+  file_size_callback: impl Fn(u64),
   progress_callback: impl Fn(u64),
   callback_interval: Duration,
 ) -> Result<(), String> {
+
+  // Create the hasher variable
+  let mut md5_hash: Option<(CoreWrapper<md5::Md5Core>, &str)> = md5_hash.map(|s| (Md5::new(), s));
 
   // The file will be downloaded to this file with the .part extension,
   // and then the extension will be removed when the download ends
   let partial_file_path: PathBuf = add_part_extension(file_path)?;
 
-  // Create an inner scope to ensure that all variables (and, most importantly, the file) are dropped before renaming the file
-  {
-    // Open the file where the data is going to be downloaded
-    // Use the append option to ensure that the old download data isn't deleted
-    let mut file = tokio::fs::OpenOptions::new()
-      .create(true)
-      .append(true)
-      .read(true)
-      .open(&partial_file_path).await
-      .map_err(|e| format!("Couldn't open file: {}\n{e}", partial_file_path.to_string_lossy()))?;
-    
-    let mut downloaded_bytes: u64 = file.metadata().await
-      .map_err(|e| format!("Couldn't get file metadata: {}\n{e}", partial_file_path.to_string_lossy()))?
-      .len();
-
-    let file_response: Response = 'r: {
-      // If the download file already exists with a size, set the range header to download only the needed data
-      if downloaded_bytes > 0 {
-        let res = itch_request(client, Method::GET, url, api_key,
-          |b| b.header(header::RANGE, format!("bytes={downloaded_bytes}-"))
-        ).await?;
-
-        match res.status() {
-          // 206 Partial Content code means the server will send the requested range
-          // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/206
-          reqwest::StatusCode::PARTIAL_CONTENT => break 'r res,
-
-          // 200 OK code means the server doesn't support ranges, so download the whole file
-          // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Range
-          reqwest::StatusCode::OK => {
-            // First, remove the old partially downloaded file
-            downloaded_bytes = 0;
-            file.set_len(0).await
-              .map_err(|e| format!("Couldn't remove old partially downloaded file: {}\n{e}", partial_file_path.to_string_lossy()))?;
-
-            // Don't break, so the request without the range header is returned instead
-          },
-
-          // Any code other than 200 or 206 means that something went wrong
-          _ => return Err(format!("The HTTP server to download the file from didn't return HTTP code 200 nor 206, so exiting! It returned: {}", res.status().as_u16())),
-        }   
-      }
-
-      itch_request(client, Method::GET, url, api_key, |b| b).await?
-    };
-
-    file_size_callback(file_response.content_length().map(|b| downloaded_bytes + b));
-
-    // Create the hasher variable
-    let mut md5_hash: Option<(CoreWrapper<md5::Md5Core>, &str)> = md5_hash.map(|s| (Md5::new(), s));
-
-    // If a partial file was already downloaded, hash the old downloaded data
-    if let Some((ref mut hasher, _)) = md5_hash && downloaded_bytes > 0 {
-      let mut br = tokio::io::BufReader::new(&mut file);
-
-      loop {
-        let buffer = br.fill_buf().await
-          .map_err(|e| format!("Couldn't read file: \"{}\"\n{e}", partial_file_path.to_string_lossy()))?;
+  // Open the file where the data is going to be downloaded
+  // Use the append option to ensure that the old download data isn't deleted
+  let mut file = tokio::fs::OpenOptions::new()
+    .create(true)
+    .append(true)
+    .read(true)
+    .open(&partial_file_path).await
+    .map_err(|e| format!("Couldn't open file: {}\n{e}", partial_file_path.to_string_lossy()))?;
   
-        // If buffer is empty then BufReader has reached the EOF
-        if buffer.is_empty() {
-          break;
-        }
+  let mut downloaded_bytes: u64 = file.metadata().await
+    .map_err(|e| format!("Couldn't get file metadata: {}\n{e}", partial_file_path.to_string_lossy()))?
+    .len();
 
-        // Update the hasher
-        hasher.update(buffer);
+  let file_response: Option<Response> = {
+    // Send a request for the whole file
+    let res = itch_request(client, Method::GET, url, api_key, |b| b).await?;
 
-        // Marked the hashed bytes as read
-        let len = buffer.len();
-        br.consume(len);
-      }
-    }
-
-    // Prepare the download and the callback variables
-    let mut stream = file_response.bytes_stream();
-    let mut last_callback = Instant::now();
-
-    // Save chunks to the file async
-    // Also, compute the md5 hash while it is being downloaded
-    while let Some(chunk) = stream.next().await {
-      // Return an error if the chunk is invalid
-      let chunk = chunk
-        .map_err(|e| format!("Error reading chunk: {e}"))?;
-
-      // Write the chunk to the file
-      file.write_all(&chunk).await
-        .map_err(|e| format!("Error writing chunk to the file: {e}"))?;
-
-      // If the file has a md5 hash, update the hasher
-      if let Some((ref mut hasher, _)) = md5_hash {
-        hasher.update(&chunk);
-      }
+    let download_size = res.content_length().ok_or_else(|| format!("Couldn't get the Content Length of the file to download!\n{res:?}"))?;
+    file_size_callback(download_size);
     
-      // Send a callback with the progress
-      downloaded_bytes += chunk.len() as u64;
-      if last_callback.elapsed() > callback_interval {
-        last_callback = Instant::now();
-        progress_callback(downloaded_bytes);
-      }
+    // If the file is bigger than it should, return an error
+    if downloaded_bytes > download_size {
+      return Err(format!("The file: \"{}\" contains more data than the whole downloaded file should have!\n
+Current file size: {downloaded_bytes}
+Server reported size: {download_size}",
+      partial_file_path.to_string_lossy()));
     }
 
-    progress_callback(downloaded_bytes);
-
-    // If the hashes aren't equal, exit with an error
-    if let Some((hasher, hash)) = md5_hash {
-      let file_hash = format!("{:x}", hasher.finalize());
-
-      if !file_hash.eq_ignore_ascii_case(&hash) {
-        return Err(format!("File verification failed! The file hash and the hash provided by the server are different.\n
-  File hash:   {file_hash}
-  Server hash: {hash}"
-        ));
-      }
+    // If the file is exactly the size it should be, then return None so nothing more is downloaded
+    else if downloaded_bytes == download_size {
+      None
     }
 
-    // Sync the file to ensure all the data has been written
-    file.sync_all().await
-      .map_err(|e| e.to_string())?;
+    // If the file is empty, then return the request for the whole file
+    else if downloaded_bytes == 0 {
+      Some(res)
+    }
+
+    // Else, then the file is not empty, and smaller than the whole file
+    // Therefore, download the remaining file range
+    else {
+      let part_res = itch_request(client, Method::GET, url, api_key,
+        |b| b.header(header::RANGE, format!("bytes={downloaded_bytes}-"))
+      ).await?;
+
+      match part_res.status() {
+        // 206 Partial Content code means the server will send the requested range
+        // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/206
+        reqwest::StatusCode::PARTIAL_CONTENT => Some(part_res),
+
+        // 200 OK code means the server doesn't support ranges, so download the whole file
+        // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Range
+        reqwest::StatusCode::OK => {
+          // First, remove the old partially downloaded file
+          downloaded_bytes = 0;
+          file.set_len(0).await
+            .map_err(|e| format!("Couldn't remove old partially downloaded file: {}\n{e}", partial_file_path.to_string_lossy()))?;
+
+          // Return the response for the whole file
+          Some(res)
+        },
+
+        // Any code other than 200 or 206 means that something went wrong
+        _ => return Err(format!("The HTTP server to download the file from didn't return HTTP code 200 nor 206, so exiting! It returned: {}\n{part_res:?}", part_res.status().as_u16())),
+      }
+    }
+  };
+
+  // If a partial file was already downloaded, hash the old downloaded data
+  if let Some((ref mut hasher, _)) = md5_hash && downloaded_bytes > 0 {
+    hash_readable_async(&mut file, hasher).await?;
   }
 
+  // Stream the Response into the File
+  if let Some(res) = file_response {
+    stream_response_into_file(res, &mut file, md5_hash.as_mut().map(|(h, _)| h), |b| progress_callback(downloaded_bytes + b), callback_interval).await?;
+  }
+
+  // If the hashes aren't equal, exit with an error
+  if let Some((hasher, hash)) = md5_hash {
+    let file_hash = format!("{:x}", hasher.finalize());
+
+    if !file_hash.eq_ignore_ascii_case(&hash) {
+      return Err(format!("File verification failed! The file hash and the hash provided by the server are different.\n
+File hash:   {file_hash}
+Server hash: {hash}"
+      ));
+    }
+  }
+
+  // Sync the file to ensure all the data has been written
+  file.sync_all().await
+    .map_err(|e| e.to_string())?;
+
   // Move the downloaded file to its final destination
+  // This has to be the last call in this function because after it, the File is not longer valid
   tokio::fs::rename(&partial_file_path, file_path).await
     .map_err(|e| format!("Couldn't move the downloaded file:\n  from: \"{}\"\n  to: \"{}\"\n{e}", partial_file_path.to_string_lossy(), file_path.to_string_lossy()))?;
 
@@ -916,7 +986,7 @@ pub async fn download_upload(
     api_key,
     &upload_archive,
     upload.md5_hash.as_deref(),
-    |bytes| progress_callback(DownloadStatus::StartingDownload { bytes_to_download: bytes.unwrap_or(upload.size.unwrap_or_default()) } ),
+    |bytes| progress_callback(DownloadStatus::StartingDownload { bytes_to_download: bytes } ),
     |bytes| progress_callback(DownloadStatus::DownloadProgress { downloaded_bytes: bytes } ),
     callback_interval,
   ).await?;
