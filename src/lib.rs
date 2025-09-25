@@ -409,14 +409,15 @@ async fn download_file(
     // Send a request for the whole file
     let res = itch_request(client, Method::GET, url, api_key, |b| b).await?;
 
-    let download_size = res.content_length().ok_or_else(|| format!("Couldn't get the Content Length of the file to download!\n{res:?}"))?;
+    let download_size = res.content_length()
+      .ok_or_else(|| format!("Couldn't get the Content Length of the file to download!\n{res:?}"))?;
     file_size_callback(download_size);
     
     // If the file is bigger than it should, return an error
     if downloaded_bytes > download_size {
       return Err(format!("The file: \"{}\" contains more data than the whole downloaded file should have!\n
-Current file size: {downloaded_bytes}
-Server reported size: {download_size}",
+  Current file size: {downloaded_bytes}
+  Server reported size: {download_size}",
       partial_file_path.to_string_lossy()));
     }
 
@@ -476,8 +477,8 @@ Server reported size: {download_size}",
 
     if !file_hash.eq_ignore_ascii_case(&hash) {
       return Err(format!("File verification failed! The file hash and the hash provided by the server are different.\n
-File hash:   {file_hash}
-Server hash: {hash}"
+  File hash:   {file_hash}
+  Server hash: {hash}"
       ));
     }
   }
