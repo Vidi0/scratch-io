@@ -3,14 +3,13 @@ use tokio::time::{Instant, Duration};
 use futures_util::StreamExt;
 use md5::{Md5, Digest, digest::core_api::CoreWrapper};
 use reqwest::{Client, Method, Response, header};
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::borrow::Cow;
 use serde::{Deserialize, Serialize};
 use time::format_description::well_known::Rfc3339;
 
 pub mod itch_api_types;
-pub mod heuristics;
+mod heuristics;
 mod game_files_operations;
 mod itch_manifest;
 mod extract;
@@ -717,9 +716,25 @@ pub async fn get_game_uploads(client: &Client, api_key: &str, game_id: u64) -> R
     .map_err(|e| format!("An error occurred while attempting to obtain the game uploads:\n{e}"))
 }
 
+/// Find out which platforms a game's uploads are available in
+/// 
+/// # Arguments
+/// 
+/// * `uploads` - A list of a game's uploads
+/// 
+/// # Returns
+/// 
+/// A vector of tuples containing an upload ID and the game platform in which it is available
+pub fn get_game_platforms(uploads: &[Upload]) -> Vec<(u64, GamePlatform)> {
+  let mut platforms: Vec<(u64, GamePlatform)> = Vec::new();
 
-pub fn get_game_platforms(uploads: &[Upload], game_name: &str) -> Result<HashMap<GamePlatform, u64>, String> {
-  heuristics::get_game_platforms(uploads, game_name)
+  for u in uploads {
+    for p in u.to_game_platforms() {
+      platforms.push((u.id, p));
+    }
+  }
+
+  platforms
 }
 
 /// Get an upload's info

@@ -4,7 +4,7 @@ use serde_with::{serde_as, DisplayFromStr};
 use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
-use scratch_io::{heuristics, itch_api_types::*, DownloadStatus, InstalledUpload};
+use scratch_io::{itch_api_types::*, DownloadStatus, InstalledUpload};
 
 const APP_CONFIGURATION_NAME: &str = "scratch-io";
 const APP_CONFIGURATION_FILE: &str = "config";
@@ -286,10 +286,10 @@ async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
   println!("{game_info}");
 
   let uploads = scratch_io::get_game_uploads(&client, &api_key, game_id).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
-  let platforms = heuristics::get_game_platforms(uploads.as_slice(), game_info.title.as_str()).unwrap_or_else(|e| eprintln_exit!("{e}"));
+  let platforms = scratch_io::get_game_platforms(uploads.as_slice());
   
   println!("  Platforms:");
-  println!("{}", platforms.iter().map(|(p, uid)| format!("    {}, {uid}", p.to_string())).collect::<Vec<String>>().join("\n"));
+  println!("{}", platforms.iter().map(|(uid, p)| format!("    {uid}, {p}")).collect::<Vec<String>>().join("\n"));
   println!("  Uploads:");
   println!("{}", uploads.iter().map(|u| u.to_string()).collect::<Vec<String>>().join("\n"));
 }

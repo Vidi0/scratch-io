@@ -1,10 +1,8 @@
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use crate::itch_api_types::*;
 use crate::GamePlatform;
 
 const GOOD_LAUNCH_FILENAMES: &[&'static str] = &["start", "launch", "play", "run", "game", "launcher", "rungame"];
-const BAD_UPLOAD_NAMES: &[&'static str] = &["openvr", "openar", "openxr", "demo", "jam"];
 const ARCHITECTURE_SUFFIXES: &[&'static str] = {
   #[cfg(target_pointer_width = "64")]
   { &["64"] }
@@ -39,20 +37,6 @@ impl GamePlatform {
       GamePlatform::OSX => &[],
       GamePlatform::Android => &[],
       GamePlatform::Web => &["index"],
-      GamePlatform::Flash => &[],
-      GamePlatform::Java => &[],
-      GamePlatform::UnityWebPlayer => &[],
-    }
-  }
-
-  fn get_good_upload_names(&self) -> &'static [&'static str] {
-    match self {
-      // These must only be ascii alphanumeric lowercase
-      GamePlatform::Linux => &["linux"],
-      GamePlatform::Windows => &["windows"],
-      GamePlatform::OSX => &["mac", "osx", "macos"],
-      GamePlatform::Android => &["android"],
-      GamePlatform::Web => &[],
       GamePlatform::Flash => &[],
       GamePlatform::Java => &[],
       GamePlatform::UnityWebPlayer => &[],
@@ -161,87 +145,6 @@ fn rate_executable(file_path: &Path, directory_levels: usize, platform: &GamePla
   Ok(rating)
 }
 
-/// List the best upload for each available game platform for a given list of uploads
-/// 
-/// # Arguments
-/// 
-/// * `uploads` - A game's list of uploads
-/// 
-/// * `game_name` - The game name (for the heuristics)
-/// 
-/// # Returns
-/// 
-/// A hashmap containg the game platform and the id of the upload where they are present
-pub fn get_game_platforms(uploads: &[Upload], game_name: &str) -> Result<HashMap<GamePlatform, u64>, String> {
-  // This vector store the platforms, in which index of the slice they are present and their rating
-  let mut platforms: HashMap<GamePlatform, (usize, Option<i64>)> = HashMap::new();
-  
-  // For each upload
-  for (index, u) in uploads.iter().enumerate() {
-    // For each platform of the upload
-    for p in u.to_game_platforms() {
-      // If the platform isn't already in the HashMap, add it
-      // Don't calculate the score yet because it will probably not be needed
-      if !platforms.contains_key(&p) {
-        platforms.insert(p, (index, None));
-        continue;
-      }
-
-      // If the platform is in the HashMap, calculate both ratings
-      // and keep only the higher one
-      let (old_index, old_rating) = platforms.get(&p).expect("We have just checked and it existed!");
-      let old_rating = match old_rating {
-        Some(r) => *r,
-        None => rate_upload(uploads.get(*old_index).expect("The index must exist!"), &p, game_name)?,
-      };
-
-      let new_rating = rate_upload(uploads.get(index).expect("The index must exist!"), &p, game_name)?;
-      if new_rating > old_rating {
-        platforms.insert(p, (index, Some(new_rating)));
-      }
-    }
-  }
-
-  Ok(
-    platforms.into_iter()
-      .map(|(p, (index, _))| (p, uploads.get(index).expect("The upload in this index has to exist!").id))
-      .collect()
-  )
-}
-
-fn rate_upload(upload: &Upload, platform: &GamePlatform, game_title: &str) -> Result<i64, String> {
-  let mut rating: i64 = 0;
-  let filename_with_things = crate::game_files_operations::file_without_extension(upload.filename.as_str())?;
-  let upload_filename = make_alphanumeric_lowercase(filename_with_things.to_string());
-
-  // If the filename contains a bad name (e.g: demo, jam), lower the rating
-  for n in BAD_UPLOAD_NAMES {
-    if upload_filename.contains(n) {
-      rating -= 400;
-    }
-  }
-
-  // If the filename contains the bit version (e.g: 64, 32), raise the rating a bit 
-  if ARCHITECTURE_SUFFIXES.iter().any(|s| upload_filename.contains(s)) {
-    rating += 50;
-  }
-
-  // If the filename is longer it is worse (a bit)
-  rating -= upload_filename.len() as i64 / 2;
-
-  for n in platform.get_good_upload_names() {
-    if upload_filename.contains(n) {
-      rating += 500;
-    }
-  }
-
-  rating += proximity_rating_with_suffixes(&upload_filename, game_title, platform.get_good_upload_names(), 4, 450, 200, BEST_PROXIMITY_MULTIPLIER);
-
-  rating += 50 * score_version(filename_with_things.as_str());
-
-  Ok(rating)
-}
-
 fn make_alphanumeric_lowercase(mut string: String) -> String {
   string.retain(|c| c.is_ascii_alphanumeric());
   string.make_ascii_lowercase();
@@ -270,56 +173,4 @@ fn proximity_rating_with_suffixes(a: &str, b: &str, suffixes: &[&str], max_dista
   }
 
   rating
-}
-
-fn find_versions(s: &str) -> Vec<String> {
-  let mut versions = Vec::new();
-  let mut current = String::new();
-
-  for c in s.chars() {
-    if c.is_ascii_digit() || c == '.' {
-      current.push(c);
-    } else {
-      if is_valid_version(&current) {
-        versions.push(current.clone());
-      }
-      current.clear();
-    }
-  }
-
-  // catch last one if string ends with version
-  if is_valid_version(&current) {
-    versions.push(current);
-  }
-
-  versions
-}
-
-fn is_valid_version(s: &str) -> bool {
-  let parts: Vec<_> = s.split('.').collect();
-  parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
-}
-
-/// Returns an store if it finds a version (e.g: 1.13.2)
-fn score_version(s: &str) -> i64 {
-
-  let mut score: i64 = 0;
-  let versions = find_versions(s);
-  
-  for v in versions {
-    let parts: Vec<_> = v.split('.').collect();
-    let mut current_score: i64 = 0; 
-
-    for (i, part) in parts.iter().enumerate() {
-      if let Ok(n) = part.parse::<i64>() {
-        // weight decreases with position: major > minor > patch
-        // The formula is ( 10 ^ ( 1 - i ) ) * ( 1 +  n / ( n + 1 ) )
-        current_score += (10_f64.powf(1.0 - (i as f64)) * (1.0 + (n as f64 - 1.0) / n as f64)) as i64;
-      }
-    }
-
-    score = score.max(current_score);
-  }
-
-  score
 }
