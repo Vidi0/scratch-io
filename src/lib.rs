@@ -92,6 +92,8 @@ pub struct InstalledUpload {
   pub upload_id: u64,
   pub game_folder: PathBuf,
   pub cover_image: Option<String>,
+  // upload and game are optional because this way, if the Game or Upload structs change
+  // in the Itch's API, they can be obtained again without invalidating all previous configs
   pub upload: Option<Upload>,
   pub game: Option<Game>,
 }
