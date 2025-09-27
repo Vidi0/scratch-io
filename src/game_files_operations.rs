@@ -57,7 +57,7 @@ pub fn get_upload_folder<P: AsRef<Path>>(game_folder: P, upload_id: u64) -> Path
 /// It fais if dirs::home_dir is None
 pub fn get_game_folder(game_title: &str) -> Result<PathBuf, String> {
   directories::BaseDirs::new()
-    .ok_or(format!("Couldn't determine the home directory"))
+    .ok_or_else(|| format!("Couldn't determine the home directory"))
     .map(|d| d.home_dir()
       .join("Games")
       .join(game_title)
@@ -70,7 +70,7 @@ pub fn add_part_extension<P: AsRef<Path>>(file: P) -> Result<PathBuf, String> {
     file.as_ref().with_file_name(format!(
       "{}.part",
       file.as_ref().file_name()
-        .ok_or(format!("Couldn't add .part extension to the file because it doesn't have a name!: {}", file.as_ref().to_string_lossy()))?
+        .ok_or_else(|| format!("Couldn't add .part extension to the file because it doesn't have a name!: {}", file.as_ref().to_string_lossy()))?
         .to_string_lossy()
     ))
   )
@@ -92,7 +92,7 @@ pub async fn remove_folder_safely<P: AsRef<Path>>(path: P) -> Result<(), String>
     .map_err(|e| format!("Error getting the canonical form of the game folder! Maybe it doesn't exist: {}\n{e}", path.as_ref().to_string_lossy()))?;
 
   let home = directories::BaseDirs::new()
-    .ok_or(format!("Couldn't determine the home directory"))?
+    .ok_or_else(|| format!("Couldn't determine the home directory"))?
     .home_dir()
     .canonicalize()
     .map_err(|e| format!("Error getting the canonical form of the system home folder! Why?\n{e}"))?;
@@ -226,14 +226,14 @@ pub async fn move_folder<P: AsRef<Path>>(src: P, dst: P) -> Result<(), String> {
 // If path already exists, change it a bit until it doesn't. Return the available path
 pub fn find_available_path<P: AsRef<Path>>(path: P) -> Result<PathBuf, String> {
   let parent = path.as_ref().parent()
-    .ok_or(format!("Error getting parent of: \"{}\"", path.as_ref().to_string_lossy()))?;
+    .ok_or_else(|| format!("Error getting parent of: \"{}\"", path.as_ref().to_string_lossy()))?;
 
   let mut i = 0;
   loop {
     // i is printed in hexadecimal because it looks better
     let current_filename = format!("{}{:x}",
       path.as_ref().file_name()
-        .ok_or(format!("Error getting file name of: \"{}\"", path.as_ref().to_string_lossy()))?
+        .ok_or_else(|| format!("Error getting file name of: \"{}\"", path.as_ref().to_string_lossy()))?
         .to_string_lossy(),
       i
     );
@@ -260,7 +260,7 @@ fn move_folder_child<P: AsRef<Path>>(folder: P) -> Result<(), String> {
       .map_err(|e| e.to_string())?;
     let from = child.path();
     let to = folder.as_ref().parent()
-      .ok_or(format!("Error getting parent of: \"{}\"", folder.as_ref().to_string_lossy()))?
+      .ok_or_else(|| format!("Error getting parent of: \"{}\"", folder.as_ref().to_string_lossy()))?
       .join(child.file_name());
 
     if !to.try_exists().map_err(|e| e.to_string())? {

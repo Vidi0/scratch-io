@@ -1205,7 +1205,7 @@ pub async fn launch(
     // 2. If the launch method is a manifest action, use its executable
     LaunchMethod::ManifestAction(a) => {
       let ma = itch_manifest::launch_action(&upload_folder, Some(a))?
-        .ok_or(format!("The provided launch action doesn't exist in the manifest: {a}"))?;
+        .ok_or_else(|| format!("The provided launch action doesn't exist in the manifest: {a}"))?;
       (
         &PathBuf::from(ma.path),
         match game_arguments.is_empty(){
