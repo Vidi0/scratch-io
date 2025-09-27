@@ -1,38 +1,18 @@
 use reqwest::Client;
-use serde::{Serialize, Deserialize};
-use serde_with::{serde_as, DisplayFromStr};
 use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use scratch_io::{itch_api_types::*, DownloadStatus, InstalledUpload};
 
-const APP_CONFIGURATION_NAME: &str = "scratch-io";
-const APP_CONFIGURATION_FILE: &str = "config";
+mod config;
+use config::Config;
 
+#[macro_export]
 macro_rules! eprintln_exit {
   ($($arg:tt)*) => {{
     eprintln!($($arg)*);
     std::process::exit(1);
   }};
-}
-
-#[serde_as]
-#[derive(Serialize, Deserialize)]
-struct Config {
-  config_version: u64,
-  api_key: Option<String>,
-  #[serde_as(as = "HashMap<DisplayFromStr, _>")]
-  installed_uploads: HashMap<u64, InstalledUpload>,
-}
-
-impl ::std::default::Default for Config {
-  fn default() -> Self {
-    Self {
-      config_version: 0,
-      api_key: None,
-      installed_uploads: HashMap::new(),
-    }
-  }
 }
 
 #[derive(Parser)]
@@ -182,20 +162,6 @@ enum OptionalApiCommands {
     #[arg(long, env = "SCRATCH_GAME_ARGUMENTS")]
     game_arguments: Option<String>,
   },
-}
-
-fn load_config(custom_path: Option<&Path>) -> Config {
-  match custom_path {
-    None => confy::load(APP_CONFIGURATION_NAME, APP_CONFIGURATION_FILE),
-    Some(p) => confy::load_path(&p),
-  }.unwrap_or_else(|e| eprintln_exit!("Error while reading configuration file!\n{}", e))
-}
-
-fn save_config(config: &Config, custom_path: Option<&Path>) {
-  match custom_path {
-    None => confy::store(APP_CONFIGURATION_NAME, APP_CONFIGURATION_FILE, config),
-    Some(p) => confy::store_path(&p, config),
-  }.unwrap_or_else(|e| eprintln_exit!("Error while saving to the configuration file!\n{}", e))
 }
 
 async fn get_api_key(client: &Client, keys: &[Option<&str>], saved_key_index: usize) -> Result<(String, User), String> {
@@ -496,8 +462,8 @@ async fn main() {
   let cli: Cli = Cli::parse();
 
   // Get the config from the file
-  let custom_config_file = cli.config_file.as_deref();
-  let mut config: Config = load_config(custom_config_file);
+  let custom_config_file = cli.config_file;
+  let mut config: Config = Config::load_unwrap(custom_config_file.clone()).await;
 
   // Create reqwest client
   let client: Client = Client::new();
@@ -527,7 +493,7 @@ async fn main() {
       match command {
         RequireApiCommands::Auth { api_key: k } => {
           auth(k, &mut config.api_key, profile);
-          save_config(&config, custom_config_file);
+          config.save_unwrap(custom_config_file).await;
         }
         RequireApiCommands::Profile => {
           println!("{}", profile.to_string());
@@ -546,14 +512,14 @@ async fn main() {
         }
         RequireApiCommands::Download { upload_id, install_path } => {
           download(&client, api_key.as_str(), upload_id, install_path.as_deref(), &mut config.installed_uploads).await;
-          save_config(&config, custom_config_file);
+          config.save_unwrap(custom_config_file).await;
         }
         RequireApiCommands::DownloadCover { game_id, filename, folder } => {
           download_cover(&client, api_key.as_str(), game_id, filename.as_deref(), folder.as_deref()).await;
         }
         RequireApiCommands::Import { upload_id, install_path } => {
           import(&client, api_key.as_str(), upload_id, install_path.as_path(), &mut config.installed_uploads).await;
-          save_config(&config, custom_config_file);
+          config.save_unwrap(custom_config_file).await;
         }
       }
     }
@@ -563,29 +529,29 @@ async fn main() {
       match command {
         OptionalApiCommands::Login { username, password, recaptcha_response, totp_code } => {
           login(&client, username.as_str(), password.as_str(), recaptcha_response.as_deref(), totp_code, &mut config.api_key).await;
-          save_config(&config, custom_config_file);
+          config.save_unwrap(custom_config_file).await;
         }
         OptionalApiCommands::Logout => {
           logout(&mut config.api_key);
-          save_config(&config, custom_config_file);
+          config.save_unwrap(custom_config_file).await;
         }
         OptionalApiCommands::Installed => {
           if print_installed_games(&client, api_key.as_deref(), &mut config.installed_uploads).await {
-            save_config(&config, custom_config_file);
+            config.save_unwrap(custom_config_file).await;
           }
         }
         OptionalApiCommands::InstalledUpload { upload_id } => {
           if print_installed_upload(&client, api_key.as_deref(), upload_id, &mut config.installed_uploads).await {
-            save_config(&config, custom_config_file);
+            config.save_unwrap(custom_config_file).await;
           }
         }
         OptionalApiCommands::Remove { upload_id } => {
           remove_upload(upload_id, &mut config.installed_uploads).await;
-          save_config(&config, custom_config_file);
+          config.save_unwrap(custom_config_file).await;
         }
         OptionalApiCommands::Move { upload_id, game_path_dst } => {
           move_upload(upload_id, game_path_dst.as_path(), &mut config.installed_uploads).await;
-          save_config(&config, custom_config_file);
+          config.save_unwrap(custom_config_file).await;
         }
         OptionalApiCommands::Launch { upload_id, launch_action, platform, upload_executable_path, wrapper, game_arguments } => {
           launch_upload(upload_id, upload_executable_path.as_deref(), launch_action.as_deref(), platform.as_ref(), wrapper.as_deref(), game_arguments.as_deref(), &config.installed_uploads).await;

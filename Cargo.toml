@@ -9,8 +9,7 @@ edition = "2024"
 
 [dependencies]
 clap = { version = "4.5.47", features = ["derive", "env"] }
-confy = "1.0.0"
-dirs = "6.0.0"
+directories = "6.0.0"
 futures-util = "0.3.31"
 indicatif = "0.18.0"
 md-5 = "0.10.6"

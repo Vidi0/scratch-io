@@ -56,11 +56,11 @@ pub fn get_upload_folder<P: AsRef<Path>>(game_folder: P, upload_id: u64) -> Path
 /// 
 /// It fais if dirs::home_dir is None
 pub fn get_game_folder(game_title: &str) -> Result<PathBuf, String> {
-  dirs::home_dir()
+  directories::BaseDirs::new()
     .ok_or(format!("Couldn't determine the home directory"))
-    .map(|p| 
-      p.join("Games")
-        .join(game_title)
+    .map(|d| d.home_dir()
+      .join("Games")
+      .join(game_title)
     )
 }
 
@@ -91,8 +91,9 @@ pub async fn remove_folder_safely<P: AsRef<Path>>(path: P) -> Result<(), String>
   let canonical = tokio::fs::canonicalize(&path).await
     .map_err(|e| format!("Error getting the canonical form of the game folder! Maybe it doesn't exist: {}\n{e}", path.as_ref().to_string_lossy()))?;
 
-  let home = dirs::home_dir()
+  let home = directories::BaseDirs::new()
     .ok_or(format!("Couldn't determine the home directory"))?
+    .home_dir()
     .canonicalize()
     .map_err(|e| format!("Error getting the canonical form of the system home folder! Why?\n{e}"))?;
 
