@@ -1,28 +1,6 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::fs::{File};
 use crate::game_files_operations::*;
-
-/// Checks if the folder where the archive will be extracted is empty
-/// 
-/// Returns the folder where the files will be extracted and if it is empty or not
-fn is_extraction_folder_empty(file_path: &Path, format: &ArchiveFormat) -> Result<(bool, PathBuf), String> {
-  if let ArchiveFormat::Other = format {
-    return Ok((true, file_path.to_path_buf()));
-  }
-
-  let folder = file_path
-    .parent()
-    .expect(format!("Couldn't get the parent of the archive: \"{}\"", file_path.to_string_lossy()).as_str())
-    .join(file_without_extension(file_path).expect("File doesn't have an extension?"));
-
-  // If the directory exists and isn't empty, return an error
-  if !is_folder_empty(&folder)? {
-    return Ok((false, folder));
-  }
-
-  Ok((true, folder))
-}
-
 
 enum ArchiveFormat {
   Zip,
@@ -37,96 +15,103 @@ enum ArchiveFormat {
 /// Gets the archive format of the file
 /// 
 /// If the file is not an archive, then the format is `ArchiveFormat::Other`
-fn get_archive_format(file: &Path) -> ArchiveFormat {
-  let Some(extension) = file.extension().map(|e| e.to_string_lossy()) else {
-    return ArchiveFormat::Other
+fn get_archive_format(file: &Path) -> Result<ArchiveFormat, String> {
+  let Some(extension) = file.extension().map(|e| e.to_string_lossy().to_lowercase()) else {
+    return Ok(ArchiveFormat::Other)
   };
 
   // At this point, we know the file has an extension
-  let is_tar_compressed: bool = get_file_stem(file).expect("File doesn't have an extension?")
+  let is_tar_compressed: bool = get_file_stem(file)
+    .map_err(|e| format!("Couldn't get archive format because it doesn't have a filename!: \"{}\"\n{e}", file.to_string_lossy()))?
     .to_lowercase()
     .ends_with(".tar");
 
-  if extension.eq_ignore_ascii_case("zip") {
-    ArchiveFormat::Zip
-  } else if extension.eq_ignore_ascii_case("tar") {
-    ArchiveFormat::Tar
-  } else if is_tar_compressed && extension.eq_ignore_ascii_case("gz")
-    || extension.eq_ignore_ascii_case("tgz")
-    || extension.eq_ignore_ascii_case("taz") {
-    ArchiveFormat::TarGz
-  } else if is_tar_compressed && extension.eq_ignore_ascii_case("bz2")
-    || extension.eq_ignore_ascii_case("tbz")
-    || extension.eq_ignore_ascii_case("tbz2")
-    || extension.eq_ignore_ascii_case("tz2") {
-    ArchiveFormat::TarBz2
-  } else if is_tar_compressed && extension.eq_ignore_ascii_case("xz")
-    || extension.eq_ignore_ascii_case("txz") {
-    ArchiveFormat::TarXz
-  } else if is_tar_compressed && extension.eq_ignore_ascii_case("zst")
-    || extension.eq_ignore_ascii_case("tzst") {
-    ArchiveFormat::TarZst
-  } else {
-    ArchiveFormat::Other
-  }
+  Ok(
+    match extension.as_str() {
+      "zip" => ArchiveFormat::Zip,
+
+      "tar" => ArchiveFormat::Tar,
+
+      "gz" if is_tar_compressed => ArchiveFormat::TarGz,
+      "tgz" | "taz" => ArchiveFormat::TarGz,
+
+      "bz2" if is_tar_compressed => ArchiveFormat::TarBz2,
+      "tbz" | "tbz2" | "tz2" => ArchiveFormat::TarBz2,
+
+      "xz" if is_tar_compressed => ArchiveFormat::TarXz,
+      "txz" => ArchiveFormat::TarXz,
+
+      "zst" if is_tar_compressed => ArchiveFormat::TarZst,
+      "tzst" => ArchiveFormat::TarZst,
+
+      _ => ArchiveFormat::Other,
+    }
+  )
 }
 
-/// Extracts the archive into a folder with the same name (without the extension)
-/// 
-/// This function can return a path to a file (if it's not a valid archive) or to the extracted folder
-pub async fn extract(file_path: &Path) -> Result<(), String> {
-  let format: ArchiveFormat = get_archive_format(file_path);
+/// Extracts the archive into the given folder
+///
+/// If the file isn't an archive it will be moved to the folder
+pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), String> {
+  // If the extract folder isn't empty, return an error
+  if !is_folder_empty(extract_folder)? {
+    return Err(format!("Extraction folder isn't empty: \"{}\"", extract_folder.to_string_lossy()))
+  }
+  
+  // Create the extraction folder if it doesn't already exist
+  tokio::fs::create_dir_all(&extract_folder).await
+    .map_err(|e| format!("Couldn't create the folder \"{}\": {e}", extract_folder.to_string_lossy()))?;
+
+  let format: ArchiveFormat = get_archive_format(file_path)?;
 
   // If the file isn't an archive, return now
   if let ArchiveFormat::Other = format {
-    crate::make_executable(file_path)?;
+    // Get the file destination
+    let destination = extract_folder.join(
+      file_path.file_name().ok_or_else(|| format!("Couldn't get the file destination because it doesn't have a name: {}", file_path.to_string_lossy()))?
+    );
+
+    // Move the file
+    tokio::fs::rename(file_path, &destination).await
+      .map_err(|e| format!("Couldn't move the file:\n  Source: \"{}\"\n  Destination: \"{}\"\n{e}", file_path.to_string_lossy(), destination.to_string_lossy()))?;
+
+    // Make it executable
+    crate::make_executable(&destination)?;
+
     return Ok(());
   }
 
-  let parent_folder = file_path.parent()
-    .expect(format!("Couldn't get the parent of the archive: \"{}\"", file_path.to_string_lossy()).as_str());
+  // The archive will be extracted to the extract_folder_temp, and then moved to its final destination once the extraction is completed
+  let extract_folder_temp = add_part_extension(extract_folder)
+    .map_err(|e| format!("Couldn't add part extension to the extract temp folder!: \"{}\"{e}", file_path.to_string_lossy()))?;
 
-  let extract_folder = is_extraction_folder_empty(file_path, &format).and_then(|(is_empty, folder)| {
-    if is_empty {
-      Ok(folder)
-    } else {
-      Err(format!("The folder where the archive will be extracted isn't empty!: \"{}\"", folder.to_string_lossy()))
-    }
-  })?;
+  // The extraction temporal folder could have contents if a previous extraction was cancelled
+  // For that reason, don't check if the folder is empty
 
+  // Open the file in read-only mode
   let file = File::open(file_path)
     .map_err(|e| e.to_string())?;
 
+  // Extract the archive based on its format
   match format {
-    ArchiveFormat::Other => {
-      panic!("If the format is Other, we should've exited before!");
-    }
-    ArchiveFormat::Zip => {
-      extract_zip(&file, &extract_folder)?;
-    }
-    ArchiveFormat::Tar => {
-      extract_tar(&file, &extract_folder)?;
-    }
-    ArchiveFormat::TarGz => {
-      extract_tar_gz(&file, &extract_folder)?;
-    }
-    ArchiveFormat::TarBz2 => {
-      extract_tar_bz2(&file, &extract_folder)?;
-    }
-    ArchiveFormat::TarXz => {
-      extract_tar_xz(&file, &extract_folder)?;
-    }
-    ArchiveFormat::TarZst => {
-      extract_tar_zst(&file, &extract_folder)?;
-    }
+    ArchiveFormat::Other => unreachable!("If the format is Other, we should've exited before!"),
+    ArchiveFormat::Zip => extract_zip(&file, &extract_folder_temp)?,
+    ArchiveFormat::Tar => extract_tar(&file, &extract_folder_temp)?,
+    ArchiveFormat::TarGz => extract_tar_gz(&file, &extract_folder_temp)?,
+    ArchiveFormat::TarBz2 => extract_tar_bz2(&file, &extract_folder_temp)?,
+    ArchiveFormat::TarXz => extract_tar_xz(&file, &extract_folder_temp)?,
+    ArchiveFormat::TarZst => extract_tar_zst(&file, &extract_folder_temp)?,
   }
 
   // Remove the archive
   tokio::fs::remove_file(file_path).await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| format!("Couldn't remove the archive: \"{}\"\n{e}", file_path.to_string_lossy()))?;
 
-  // Move all the contents of the extrated file to the upload folder
-  remove_root_folder(&parent_folder)?;
+  // If the extraction folder has any common roots, remove them
+  remove_root_folder(&extract_folder_temp)?;
+  
+  // Move the temporal folder to its destination
+  move_folder(extract_folder_temp.as_path(), extract_folder).await?;
 
   Ok(())
 }

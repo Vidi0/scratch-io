@@ -1,4 +1,6 @@
-use std::{ffi::OsStr, path::{Path, PathBuf}};
+use std::path::{Path, PathBuf};
+
+const UPLOAD_ARCHIVE_NAME: &str = "download";
 
 pub fn find_cover_filename<P: AsRef<Path>>(game_folder: P) -> Result<Option<String>, String> { 
   let child_entries = std::fs::read_dir(&game_folder)
@@ -47,9 +49,14 @@ pub fn make_executable<P: AsRef<Path>>(path: P) -> Result<(), String> {
   Ok(())
 }
 
-/// Joins the upload folder and the upload id
+/// Get the upload folder based on its game folder
 pub fn get_upload_folder<P: AsRef<Path>>(game_folder: P, upload_id: u64) -> PathBuf {
-  game_folder.as_ref().join(upload_id.to_string())
+  game_folder.as_ref().join(format!("{upload_id}"))
+}
+
+/// Get the upload archive path based on its game folder and upload_id
+pub fn get_upload_archive_path<P: AsRef<Path>>(game_folder: P, upload_id: u64, upload_filename: &str) -> PathBuf {
+  game_folder.as_ref().join(format!("{upload_id}-{UPLOAD_ARCHIVE_NAME}-{upload_filename}"))
 }
 
 /// The game folder is `dirs::home_dir`+`Games`+`game_title`
@@ -74,16 +81,6 @@ pub fn add_part_extension<P: AsRef<Path>>(file: P) -> Result<PathBuf, String> {
         .to_string_lossy()
     ))
   )
-}
-
-#[allow(dead_code)]
-pub async fn move_upload_folder_to_backup<P: AsRef<Path>>(game_folder: P, upload_id: u64) -> Result<PathBuf, String> {
-  let upload_folder = get_upload_folder(&game_folder, upload_id);
-  let new_folder = find_available_path(game_folder.as_ref().join(format!("{upload_id}.old")))?;
-
-  move_folder(&upload_folder, &new_folder).await?;
-
-  Ok(new_folder)
 }
 
 /// Removes a folder recursively, but checks if it is a dangerous path before doing so
@@ -149,29 +146,9 @@ async fn copy_dir_all<P: AsRef<Path>>(src: P, dst: P) -> Result<(), String> {
       } else {
         tokio::fs::copy(&src_path, &dst_path)
           .await
-          .map_err(|e| format!("Couldn't copy file:\n  from: \"{}\"\n  to: \"{}\"\n{e}", src_path.to_string_lossy(), dst_path.to_string_lossy()))?;
+          .map_err(|e| format!("Couldn't copy file:\n  Source: \"{}\"\n  Destination: \"{}\"\n{e}", src_path.to_string_lossy(), dst_path.to_string_lossy()))?;
       } 
     }
-  }
-
-  Ok(())
-}
-
-/// Returns an error if the provided folder has any child other than `only_child_name`
-pub async fn ensure_folder_has_only_child<P: AsRef<Path>>(folder: P, only_child_name: &OsStr) -> Result<(), String> {
-  let mut entries = tokio::fs::read_dir(&folder).await
-    .map_err(|e| format!("Couldn't read dir \"{}\": {e}", folder.as_ref().to_string_lossy()))?;
-
-  // Return an error if the first entry isn't the one allowed
-  if let Some(entry) = entries.next_entry().await.map_err(|e| e.to_string())? {
-    if entry.file_name() != only_child_name {
-      return Err(format!("The folder: \"{}\" should only have one child, \"{}\", but it has one child named: \"{}\"", folder.as_ref().to_string_lossy(), only_child_name.to_string_lossy(), entry.file_name().to_string_lossy()));
-    }
-  }
-
-  // Return an error if the folder has more than one entry
-  if let Some(entry) = entries.next_entry().await.map_err(|e| e.to_string())? {
-    return Err(format!("The folder: \"{}\" should only have one child, \"{}\", but it also one child named: \"{}\"", folder.as_ref().to_string_lossy(), only_child_name.to_string_lossy(), entry.file_name().to_string_lossy()));
   }
 
   Ok(())
@@ -219,7 +196,7 @@ pub async fn move_folder<P: AsRef<Path>>(src: P, dst: P) -> Result<(), String> {
       remove_folder_safely(&src).await?;
       Ok(())
     }
-    Err(e) => Err(format!("Couldn't move the folder:\n  from: \"{}\"\n  to: \"{}\"\n{e}", src.as_ref().to_string_lossy(), dst.as_ref().to_string_lossy())),
+    Err(e) => Err(format!("Couldn't move the folder:\n  Source: \"{}\"\n  Destination: \"{}\"\n{e}", src.as_ref().to_string_lossy(), dst.as_ref().to_string_lossy())),
   }
 }
 
@@ -325,14 +302,4 @@ pub fn get_file_stem<P: AsRef<Path>>(path: P) -> Result<String, String> {
     .file_stem()
     .ok_or_else(|| format!("Error removing stem from path: \"{}\"", path.as_ref().to_string_lossy()))
     .map(|stem| stem.to_string_lossy().to_string())
-}
-
-pub fn file_without_extension<P: AsRef<Path>>(file: P) -> Result<String, String> {
-  let mut stem = get_file_stem(&file)?;
-
-  if stem.to_lowercase().ends_with(".tar") {
-    stem = get_file_stem(&Path::new(&stem))?;
-  }
-
-  Ok(stem)
 }

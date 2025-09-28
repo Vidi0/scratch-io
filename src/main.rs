@@ -409,7 +409,7 @@ async fn move_upload(upload_id: u64, dst_game_folder: &Path, installed_uploads: 
   upload_info.game_folder = scratch_io::r#move(upload_id, src_game_folder.as_path(), dst_game_folder).await
     .unwrap_or_else(|e| eprintln_exit!("Couldn't move upload!\n{e}"));
 
-  println!("Moved upload {upload_id}\n  from: \"{}\"\n  to: \"{}\"", src_game_folder.to_string_lossy(), upload_info.game_folder.to_string_lossy());
+  println!("Moved upload {upload_id}\n  Source: \"{}\"\n  Destination: \"{}\"", src_game_folder.to_string_lossy(), upload_info.game_folder.to_string_lossy());
 }
 
 // Launch an installed upload

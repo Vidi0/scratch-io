@@ -491,7 +491,7 @@ async fn download_file(
   // Move the downloaded file to its final destination
   // This has to be the last call in this function because after it, the File is not longer valid
   tokio::fs::rename(&partial_file_path, file_path).await
-    .map_err(|e| format!("Couldn't move the downloaded file:\n  from: \"{}\"\n  to: \"{}\"\n{e}", partial_file_path.to_string_lossy(), file_path.to_string_lossy()))?;
+    .map_err(|e| format!("Couldn't move the downloaded file:\n  Source: \"{}\"\n  Destination: \"{}\"\n{e}", partial_file_path.to_string_lossy(), file_path.to_string_lossy()))?;
 
   Ok(())
 }
@@ -964,26 +964,12 @@ pub async fn download_upload(
     None => &get_game_folder(&game.title)?,
   };
 
-  // The new upload_folder is game_folder + the upload id
-  let upload_folder: PathBuf = get_upload_folder(game_folder, upload_id);
-
   // upload_archive is the location where the upload will be downloaded
-  let upload_archive: PathBuf = upload_folder.join(&upload.filename);
-  
-  // Check if the folder where the upload files will be placed is empty
-  if !is_folder_empty(&upload_folder)? {
-    // If it only contains the partially downloaded atchive, the it is correct
-    ensure_folder_has_only_child(&upload_folder, 
-      add_part_extension(&upload_archive)?
-        .file_name()
-        .expect("If the file doesn't have a name add_part_extension should have failed!")
-    ).await
-      .map_err(|e| format!("The upload folder isn't empty!: \"{}\"\n{e}", upload_folder.to_string_lossy()))?;
-  }
-  
-  // Create the folder if it doesn't already exist
-  tokio::fs::create_dir_all(&upload_folder).await
-    .map_err(|e| format!("Couldn't create the folder \"{}\": {e}", upload_folder.to_string_lossy()))?;
+  let upload_archive: PathBuf = get_upload_archive_path(game_folder, upload_id, &upload.filename);
+
+  // Create the game folder if it doesn't already exist
+  tokio::fs::create_dir_all(&game_folder).await
+    .map_err(|e| format!("Couldn't create the folder \"{}\": {e}", game_folder.to_string_lossy()))?;
 
 
   // --- DOWNLOAD --- 
@@ -1019,9 +1005,12 @@ pub async fn download_upload(
 
   progress_callback(DownloadStatus::Extract);
 
+  // The new upload_folder is game_folder + the upload id
+  let upload_folder: PathBuf = get_upload_folder(game_folder, upload_id);
+
   // Extracts the downloaded archive (if it's an archive)
   // game_files can be the path of an executable or the path to the extracted folder
-  extract::extract(&upload_archive).await
+  extract::extract(&upload_archive, &upload_folder).await
     .map_err(|e| e.to_string())?;
 
   Ok(InstalledUpload {
