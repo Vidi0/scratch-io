@@ -111,7 +111,7 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), Stri
   remove_root_folder(&extract_folder_temp)?;
   
   // Move the temporal folder to its destination
-  move_folder(extract_folder_temp.as_path(), extract_folder).await?;
+  move_folder(&extract_folder_temp, extract_folder).await?;
 
   Ok(())
 }

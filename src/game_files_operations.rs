@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 const UPLOAD_ARCHIVE_NAME: &str = "download";
 
-pub fn find_cover_filename<P: AsRef<Path>>(game_folder: P) -> Result<Option<String>, String> { 
+pub fn find_cover_filename(game_folder: impl AsRef<Path>) -> Result<Option<String>, String> { 
   let child_entries = std::fs::read_dir(&game_folder)
     .map_err(|e| format!("Couldn't read direcotory: \"{}\"\n{e}", game_folder.as_ref().to_string_lossy()))?;
 
@@ -24,7 +24,7 @@ pub fn find_cover_filename<P: AsRef<Path>>(game_folder: P) -> Result<Option<Stri
 }
 
 #[cfg_attr(not(unix), allow(unused_variables))]
-pub fn make_executable<P: AsRef<Path>>(path: P) -> Result<(), String> {
+pub fn make_executable(path: impl AsRef<Path>) -> Result<(), String> {
   #[cfg(unix)]
   {
     use std::os::unix::fs::PermissionsExt;
@@ -50,12 +50,12 @@ pub fn make_executable<P: AsRef<Path>>(path: P) -> Result<(), String> {
 }
 
 /// Get the upload folder based on its game folder
-pub fn get_upload_folder<P: AsRef<Path>>(game_folder: P, upload_id: u64) -> PathBuf {
+pub fn get_upload_folder(game_folder: impl AsRef<Path>, upload_id: u64) -> PathBuf {
   game_folder.as_ref().join(format!("{upload_id}"))
 }
 
 /// Get the upload archive path based on its game folder and upload_id
-pub fn get_upload_archive_path<P: AsRef<Path>>(game_folder: P, upload_id: u64, upload_filename: &str) -> PathBuf {
+pub fn get_upload_archive_path(game_folder: impl AsRef<Path>, upload_id: u64, upload_filename: &str) -> PathBuf {
   game_folder.as_ref().join(format!("{upload_id}-{UPLOAD_ARCHIVE_NAME}-{upload_filename}"))
 }
 
@@ -72,7 +72,7 @@ pub fn get_game_folder(game_title: &str) -> Result<PathBuf, String> {
 }
 
 /// Adds a .part extension to the given Path
-pub fn add_part_extension<P: AsRef<Path>>(file: P) -> Result<PathBuf, String> {
+pub fn add_part_extension(file: impl AsRef<Path>) -> Result<PathBuf, String> {
   Ok(
     file.as_ref().with_file_name(format!(
       "{}.part",
@@ -84,7 +84,7 @@ pub fn add_part_extension<P: AsRef<Path>>(file: P) -> Result<PathBuf, String> {
 }
 
 /// Removes a folder recursively, but checks if it is a dangerous path before doing so
-pub async fn remove_folder_safely<P: AsRef<Path>>(path: P) -> Result<(), String> {
+pub async fn remove_folder_safely(path: impl AsRef<Path>) -> Result<(), String> {
   let canonical = tokio::fs::canonicalize(&path).await
     .map_err(|e| format!("Error getting the canonical form of the game folder! Maybe it doesn't exist: {}\n{e}", path.as_ref().to_string_lossy()))?;
 
@@ -105,7 +105,7 @@ pub async fn remove_folder_safely<P: AsRef<Path>>(path: P) -> Result<(), String>
 }
 
 /// Checks if a folder is empty
-pub fn is_folder_empty<P: AsRef<Path>>(folder: P) -> Result<bool, String> {
+pub fn is_folder_empty(folder: impl AsRef<Path>) -> Result<bool, String> {
   if folder.as_ref().is_dir() {
     if folder.as_ref().read_dir().map_err(|e| e.to_string())?.next().is_none() {
       Ok(true)
@@ -122,7 +122,7 @@ pub fn is_folder_empty<P: AsRef<Path>>(folder: P) -> Result<bool, String> {
 }
 
 /// Copy all the folder contents to another location
-async fn copy_dir_all<P: AsRef<Path>>(src: P, dst: P) -> Result<(), String> {
+async fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), String> {
   if !src.as_ref().is_dir() {
     return Err(format!("Not a folder: \"{}\"", src.as_ref().to_string_lossy()));
   }
@@ -155,7 +155,7 @@ async fn copy_dir_all<P: AsRef<Path>>(src: P, dst: P) -> Result<(), String> {
 }
 
 /// This function will remove a folder AND ITS CONTENTS if it doesn't have another folder inside
-pub async fn remove_folder_without_child_folders<P: AsRef<Path>>(folder: P) -> Result<(), String> {
+pub async fn remove_folder_without_child_folders(folder: impl AsRef<Path>) -> Result<(), String> {
   // If there isn't another folder inside, remove the folder
   let child_entries = std::fs::read_dir(&folder)
     .map_err(|e| e.to_string())?;
@@ -179,7 +179,7 @@ pub async fn remove_folder_without_child_folders<P: AsRef<Path>>(folder: P) -> R
 /// Move a folder and its contents to another location
 /// 
 /// It also works if the destination is on another filesystem
-pub async fn move_folder<P: AsRef<Path>>(src: P, dst: P) -> Result<(), String> {
+pub async fn move_folder(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), String> {
   if !src.as_ref().is_dir() {
     Err(format!("The source folder doesn't exist!: \"{}\"", src.as_ref().to_string_lossy()))?;
   }
@@ -201,7 +201,7 @@ pub async fn move_folder<P: AsRef<Path>>(src: P, dst: P) -> Result<(), String> {
 }
 
 // If path already exists, change it a bit until it doesn't. Return the available path
-pub fn find_available_path<P: AsRef<Path>>(path: P) -> Result<PathBuf, String> {
+pub fn find_available_path(path: impl AsRef<Path>) -> Result<PathBuf, String> {
   let parent = path.as_ref().parent()
     .ok_or_else(|| format!("Error getting parent of: \"{}\"", path.as_ref().to_string_lossy()))?;
 
@@ -223,7 +223,7 @@ pub fn find_available_path<P: AsRef<Path>>(path: P) -> Result<PathBuf, String> {
   }
 }
 
-fn move_folder_child<P: AsRef<Path>>(folder: P) -> Result<(), String> {
+fn move_folder_child(folder: impl AsRef<Path>) -> Result<(), String> {
   let child_entries = std::fs::read_dir(&folder)
     .map_err(|e| e.to_string())?;
 
@@ -272,7 +272,7 @@ fn move_folder_child<P: AsRef<Path>>(folder: P) -> Result<(), String> {
 /// and unwraps its children to its parent
 /// 
 /// If applied to the folder `foo` in `/foo/bar/something.txt`, the remainig structure is `/foo/something.txt`
-pub fn remove_root_folder<P: AsRef<Path>>(folder: P) -> Result<(), String> {
+pub fn remove_root_folder(folder: impl AsRef<Path>) -> Result<(), String> {
   loop {
     // list entries
     let mut entries: std::fs::ReadDir = std::fs::read_dir(&folder)
@@ -297,7 +297,7 @@ pub fn remove_root_folder<P: AsRef<Path>>(folder: P) -> Result<(), String> {
   }
 }
 
-pub fn get_file_stem<P: AsRef<Path>>(path: P) -> Result<String, String> {
+pub fn get_file_stem(path: impl AsRef<Path>) -> Result<String, String> {
   path.as_ref()
     .file_stem()
     .ok_or_else(|| format!("Error removing stem from path: \"{}\"", path.as_ref().to_string_lossy()))
