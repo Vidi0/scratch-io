@@ -393,6 +393,13 @@ async fn download_file(
   // and then the extension will be removed when the download ends
   let partial_file_path: PathBuf = add_part_extension(file_path)?;
 
+  // If there already exists a file in file_path, then move it to partial_file_path
+  // This way, the file's length and its hash are verified
+  if tokio::fs::try_exists(file_path).await.map_err(|e| format!("Couldn't check is the file exists!: \"{}\"\n{e}", file_path.to_string_lossy()))? {
+    tokio::fs::rename(file_path, &partial_file_path).await
+      .map_err(|e| format!("Couldn't move the downloaded file:\n  Source: \"{}\"\n  Destination: \"{}\"\n{e}", file_path.to_string_lossy(), partial_file_path.to_string_lossy()))?;
+  }
+
   // Open the file where the data is going to be downloaded
   // Use the append option to ensure that the old download data isn't deleted
   let mut file = tokio::fs::OpenOptions::new()

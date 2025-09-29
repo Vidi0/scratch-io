@@ -58,10 +58,6 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), Stri
     return Err(format!("Extraction folder isn't empty: \"{}\"", extract_folder.to_string_lossy()))
   }
   
-  // Create the extraction folder if it doesn't already exist
-  tokio::fs::create_dir_all(&extract_folder).await
-    .map_err(|e| format!("Couldn't create the folder \"{}\": {e}", extract_folder.to_string_lossy()))?;
-
   let format: ArchiveFormat = get_archive_format(file_path)?;
 
   // If the file isn't an archive, return now
