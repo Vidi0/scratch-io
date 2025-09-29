@@ -16,8 +16,6 @@ mod extract;
 use crate::itch_api_types::*;
 use crate::game_files_operations::*;
 
-const COVER_IMAGE_DEFAULT_FILENAME: &str = "cover";
-
 // This isn't inside itch_types because it is not something that the itch API returns
 // These platforms are *interpreted* from the data provided by the API
 /// The different platforms a upload can be made for
@@ -1091,9 +1089,7 @@ pub async fn remove(upload_id: u64, game_folder: &Path) -> Result<(), String> {
   // The upload folder has been removed
 
   // If there isn't another upload folder, remove the whole game folder
-  remove_folder_without_child_folders(&game_folder).await?;
-
-  Ok(())
+  remove_useless_game_dir(game_folder).await
 }
 
 /// Move an installed upload to a new game folder
@@ -1136,7 +1132,7 @@ pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Pa
   }
 
   // If src_game_folder doesn't contain any other upload, remove it
-  remove_folder_without_child_folders(src_game_folder).await?;
+  remove_useless_game_dir(src_game_folder).await?;
 
   dst_game_folder.canonicalize()
     .map_err(|e| format!("Error getting the canonical form of the destination game folder! Maybe it doesn't exist: {}\n{e}", dst_game_folder.to_string_lossy()))

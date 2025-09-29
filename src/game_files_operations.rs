@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
-const UPLOAD_ARCHIVE_NAME: &str = "download";
+pub const UPLOAD_ARCHIVE_NAME: &str = "download";
+pub const COVER_IMAGE_DEFAULT_FILENAME: &str = "cover";
 
 pub fn find_cover_filename(game_folder: impl AsRef<Path>) -> Result<Option<String>, String> { 
   let child_entries = std::fs::read_dir(&game_folder)
@@ -15,7 +16,7 @@ pub fn find_cover_filename(game_folder: impl AsRef<Path>) -> Result<Option<Strin
       continue;
     };
 
-    if path.is_file() && stem.eq_ignore_ascii_case("cover")  {
+    if path.is_file() && stem.eq_ignore_ascii_case(COVER_IMAGE_DEFAULT_FILENAME)  {
       return Ok(Some(child.file_name().to_string_lossy().to_string()));
     }
   }
@@ -154,9 +155,10 @@ async fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()
   Ok(())
 }
 
-/// This function will remove a folder AND ITS CONTENTS if it doesn't have another folder inside
-pub async fn remove_folder_without_child_folders(folder: impl AsRef<Path>) -> Result<(), String> {
-  // If there isn't another folder inside, remove the folder
+/// Remove a folder if its only contents are in the `allowed_filenames` slice
+/// 
+/// This can be used, for example, to remove a folder if its only contents are cache data
+async fn remove_dir_if_only(folder: impl AsRef<Path>, allowed_filenames: &[&str]) -> Result<(), String> {
   let child_entries = std::fs::read_dir(&folder)
     .map_err(|e| e.to_string())?;
 
@@ -164,16 +166,32 @@ pub async fn remove_folder_without_child_folders(folder: impl AsRef<Path>) -> Re
     let child = child
       .map_err(|e| e.to_string())?;
 
+    // If the child is a folder, return without removing the folder
     if child.file_type().map_err(|e| e.to_string())?.is_dir() {
       return Ok(())
     }
+
+    // For each of the allowed filenames
+    // If the name of the child is allowed, then continue with the next child
+    // Else, return without removing the folder
+    for &filename in allowed_filenames {
+      if child.file_name() == filename {
+        continue;
+      }
+    }
+
+    return Ok(())
   }
 
-  // If we're here, that means the folder doesn't have any other
-  // folder inside, so we can remove it
+  // If we're here, that means the folder can be deleted
   remove_folder_safely(&folder).await?;
 
   Ok(())
+}
+
+/// Remove a game folder if its only contents are not the game files, but the game cover image, etc.
+pub async fn remove_useless_game_dir(game_folder: impl AsRef<Path>) -> Result<(), String> {
+  remove_dir_if_only(game_folder, &[COVER_IMAGE_DEFAULT_FILENAME]).await
 }
 
 /// Move a folder and its contents to another location
