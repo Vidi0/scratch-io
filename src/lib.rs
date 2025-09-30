@@ -1138,7 +1138,7 @@ pub async fn remove_partial_download(client: &Client, api_key: &str, upload_id: 
   }
   
   // If the game folder is now useless, remove it
-  remove_useless_game_dir(game_folder).await?;
+  was_something_deleted |= remove_useless_game_dir(game_folder).await?;
 
   Ok(was_something_deleted)
 }
@@ -1168,7 +1168,9 @@ pub async fn remove(upload_id: u64, game_folder: &Path) -> Result<(), String> {
   // The upload folder has been removed
 
   // If there isn't another upload folder, remove the whole game folder
-  remove_useless_game_dir(game_folder).await
+  remove_useless_game_dir(game_folder).await?;
+
+  Ok(())
 }
 
 /// Move an installed upload to a new game folder

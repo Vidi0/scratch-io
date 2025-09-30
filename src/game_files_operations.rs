@@ -157,40 +157,52 @@ async fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()
 
 /// Remove a folder if its only contents are in the `allowed_filenames` slice
 /// 
+/// Note that this function checks for the filename stem, so "cover" in allowed_filenames
+/// would match cover.png, cover.jpeg, cover.gif, etc.
+/// 
 /// This can be used, for example, to remove a folder if its only contents are cache data
-async fn remove_dir_if_only(folder: impl AsRef<Path>, allowed_filenames: &[&str]) -> Result<(), String> {
+/// 
+/// Returns whether the folder was removed or not
+async fn remove_dir_if_only(folder: impl AsRef<Path>, allowed_filenames: &[&str]) -> Result<bool, String> {
   let child_entries = std::fs::read_dir(&folder)
     .map_err(|e| e.to_string())?;
 
-  for child in child_entries {
+  'a: for child in child_entries {
     let child = child
       .map_err(|e| e.to_string())?;
 
     // If the child is a folder, return without removing the folder
     if child.file_type().map_err(|e| e.to_string())?.is_dir() {
-      return Ok(())
+      return Ok(false)
     }
+
+    // Get the child filename stem
+    let Some(child_stem) = child.path().file_stem().map(|s| s.to_os_string()) else {
+      return Ok(false);
+    };
 
     // For each of the allowed filenames
     // If the name of the child is allowed, then continue with the next child
     // Else, return without removing the folder
     for &filename in allowed_filenames {
-      if child.file_name() == filename {
-        continue;
+      if child_stem == filename {
+        continue 'a;
       }
     }
 
-    return Ok(())
+    return Ok(false)
   }
 
   // If we're here, that means the folder can be deleted
   remove_folder_safely(&folder).await?;
 
-  Ok(())
+  Ok(true)
 }
 
 /// Remove a game folder if its only contents are not the game files, but the game cover image, etc.
-pub async fn remove_useless_game_dir(game_folder: impl AsRef<Path>) -> Result<(), String> {
+/// 
+/// Returns whether the folder was removed or not
+pub async fn remove_useless_game_dir(game_folder: impl AsRef<Path>) -> Result<bool, String> {
   remove_dir_if_only(game_folder, &[COVER_IMAGE_DEFAULT_FILENAME]).await
 }
 
