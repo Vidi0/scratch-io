@@ -62,6 +62,16 @@ enum RequireApiCommands {
     /// The ID of the collection where the games are located.
     collection_id: u64,
   },
+  /// Download the upload with the given ID
+  Download {
+    /// The ID of the upload to download
+    upload_id: u64,
+    /// The path where the download folder will be placed
+    /// 
+    /// Defaults to ~/Games/{game_name}/
+    #[arg(long, env = "SCRATCH_INSTALL_PATH")]
+    install_path: Option<PathBuf>,
+  },
   /// Download a game cover gives its game ID
   DownloadCover {
     /// The ID of the game from which the cover will be downloaded
@@ -75,11 +85,11 @@ enum RequireApiCommands {
     #[arg(long, env = "SCRATCH_FOLDER")]
     folder: Option<PathBuf>,
   },
-  /// Download the upload with the given ID
-  Download {
-    /// The ID of the upload to download
+  /// Remove partially downloaded upload files
+  RemovePartialDownload {
+    /// The ID of the upload which has been partially downloaded
     upload_id: u64,
-    /// The path where the download folder will be placed
+    /// The path where the download folder has been placed
     /// 
     /// Defaults to ~/Games/{game_name}/
     #[arg(long, env = "SCRATCH_INSTALL_PATH")]
@@ -324,6 +334,18 @@ async fn download_cover(client: &Client, api_key: &str, game_id: u64, filename: 
   scratch_io::download_game_cover_from_id(client, api_key, game_id, filename, folder).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
 }
 
+// Remove partially downloaded game files
+async fn remove_partial_download(client: &Client, api_key: &str, upload_id: u64, game_folder: Option<&Path>) {
+  let was_something_deleted = scratch_io::remove_partial_download(client, api_key, upload_id, game_folder).await
+    .unwrap_or_else(|e| eprintln_exit!("Couldn't remove partial download: {e}"));
+
+  if was_something_deleted {
+    println!("Removed partially downloaded files from upload {upload_id}.");
+  } else {
+    println!("Didn't found anything to be removed!")
+  }
+}
+
 // Print a list of the currently installed games
 async fn print_installed_games(client: &Client, api_key: Option<&str>, installed_uploads: &mut HashMap<u64, InstalledUpload>) -> bool {
   let mut updated = false;
@@ -516,6 +538,9 @@ async fn main() {
         }
         RequireApiCommands::DownloadCover { game_id, filename, folder } => {
           download_cover(&client, api_key.as_str(), game_id, filename.as_deref(), folder.as_deref()).await;
+        }
+        RequireApiCommands::RemovePartialDownload { upload_id, install_path } => {
+          remove_partial_download(&client, api_key.as_str(), upload_id, install_path.as_deref()).await;
         }
         RequireApiCommands::Import { upload_id, install_path } => {
           import(&client, api_key.as_str(), upload_id, install_path.as_path(), &mut config.installed_uploads).await;

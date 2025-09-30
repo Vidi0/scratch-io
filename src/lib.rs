@@ -1037,7 +1037,7 @@ pub async fn download_upload(
 /// 
 /// * `api_key` - A valid Itch.io API key to make the request
 /// 
-/// * `upload_id` - The ID of upload which will be imported
+/// * `upload_id` - The ID of the upload which will be imported
 /// 
 /// * `game_folder` - The folder where the game files are currectly placed
 /// 
@@ -1062,6 +1062,85 @@ pub async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder:
     upload: Some(upload),
     game: Some(game),
   })
+}
+
+/// Remove partially downloaded game files from a cancelled download
+/// 
+/// # Arguments
+/// 
+/// * `client` - An asynchronous reqwest Client
+/// 
+/// * `api_key` - A valid Itch.io API key to get info about the game to remove
+/// 
+/// * `upload_id` - The ID of the upload whose download was canceled
+/// 
+/// * `game_folder` - The folder where the game files are currectly placed
+/// 
+/// # Returns
+/// 
+/// True if something was actually deleted
+/// 
+/// An error if something goes wrong
+pub async fn remove_partial_download(client: &Client, api_key: &str, upload_id: u64, game_folder: Option<&Path>) -> Result<bool, String> {
+  // Obtain information about the game and the upload
+  let upload: Upload = get_upload_info(client, api_key, upload_id).await?;
+  let game: Game = get_game_info(client, api_key, upload.game_id).await?;
+
+  // If the game_folder is unset, set it to ~/Games/{game_name}/
+  let game_folder = match game_folder {
+    Some(f) => f,
+    None => &get_game_folder(&game.title)?,
+  };
+
+  // Vector of files and folders to be removed
+  let to_be_removed_folders: &[PathBuf] = &[
+    // **Do not remove the upload folder!**
+
+    // The upload partial folder
+    // Example: ~/Games/ExampleGame/123456.part/
+    add_part_extension(get_upload_folder(game_folder, upload_id))?,
+  ];
+
+  let to_be_removed_files: &[PathBuf] = {
+    let upload_archive  = get_upload_archive_path(game_folder, upload_id, &upload.filename);
+
+    &[
+      // The upload partial archive
+      // Example: ~/Games/ExampleGame/123456-download-ArchiveName.zip.part
+      add_part_extension(&upload_archive)?,
+
+      // The upload downloaded archive
+      // Example: ~/Games/ExampleGame/123456-download-ArchiveName.zip
+      upload_archive,
+    ]
+  };
+
+  // Set this variable to true if some file or folder was deleted
+  let mut was_something_deleted: bool = false;
+
+  // Remove the partially downloaded files
+  for f in to_be_removed_files {
+    if f.try_exists().map_err(|e| format!("Couldn't check if the file exists: \"{}\"\n{e}", f.to_string_lossy()))? {
+      tokio::fs::remove_file(f).await
+        .map_err(|e| format!("Couldn't remove file: \"{}\"\n{e}", f.to_string_lossy()))?;
+
+      was_something_deleted = true;
+    }
+  }
+
+  // Remove the partially downloaded folders
+  for f in to_be_removed_folders {
+    if f.try_exists().map_err(|e| format!("Couldn't check if the folder exists: \"{}\"\n{e}", f.to_string_lossy()))? {
+      remove_folder_safely(f).await?;
+
+      was_something_deleted = true;
+    }
+  }
+  
+  // If the game folder is now useless, remove it
+  remove_useless_game_dir(game_folder).await?;
+
+  Ok(was_something_deleted)
 }
 
 /// Remove an installed upload
