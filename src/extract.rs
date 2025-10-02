@@ -62,6 +62,10 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), Stri
 
   // If the file isn't an archive, return now
   if let ArchiveFormat::Other = format {
+    // Create the destination folder
+    tokio::fs::create_dir_all(&extract_folder).await
+      .map_err(|e| format!("Couldn't create folder \"{}\": {e}", extract_folder.to_string_lossy()))?;
+
     // Get the file destination
     let destination = extract_folder.join(
       file_path.file_name().ok_or_else(|| format!("Couldn't get the file destination because it doesn't have a name: {}", file_path.to_string_lossy()))?
@@ -82,7 +86,9 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), Stri
     .map_err(|e| format!("Couldn't add part extension to the extract temp folder!: \"{}\"{e}", file_path.to_string_lossy()))?;
 
   // The extraction temporal folder could have contents if a previous extraction was cancelled
-  // For that reason, don't check if the folder is empty
+  // For that reason, don't check if the folder is empty; but create it if it doesn't exist
+  tokio::fs::create_dir_all(&extract_folder_temp).await
+    .map_err(|e| format!("Couldn't create folder \"{}\": {e}", extract_folder_temp.to_string_lossy()))?;
 
   // Open the file in read-only mode
   let file = File::open(file_path)
