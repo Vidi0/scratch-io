@@ -2,6 +2,49 @@ use std::path::{Path, PathBuf};
 
 pub const UPLOAD_ARCHIVE_NAME: &str = "download";
 pub const COVER_IMAGE_DEFAULT_FILENAME: &str = "cover";
+pub const GAME_FOLDER: &str = "Games";
+
+/// Get the upload folder based on its game folder
+pub fn get_upload_folder(game_folder: impl AsRef<Path>, upload_id: u64) -> PathBuf {
+  game_folder.as_ref().join(format!("{upload_id}"))
+}
+
+/// Get the upload archive path based on its game folder and upload_id
+pub fn get_upload_archive_path(game_folder: impl AsRef<Path>, upload_id: u64, upload_filename: &str) -> PathBuf {
+  game_folder.as_ref().join(format!("{upload_id}-{UPLOAD_ARCHIVE_NAME}-{upload_filename}"))
+}
+
+/// Adds a .part extension to the given Path
+pub fn add_part_extension(file: impl AsRef<Path>) -> Result<PathBuf, String> {
+  let filename = file.as_ref().file_name()
+    .ok_or_else(|| format!("Couldn't add .part extension to the file because it doesn't have a name!: {}", file.as_ref().to_string_lossy()))?
+    .to_string_lossy()
+    .to_string();
+
+  Ok(file.as_ref().with_file_name(format!("{filename}.part")))
+}
+
+/// The game folder is `dirs::home_dir`+`Games`+`game_title`
+/// 
+/// It fais if dirs::home_dir is None
+pub fn get_game_folder(game_title: &str) -> Result<PathBuf, String> {
+  let mut game_folder = directories::BaseDirs::new()
+    .ok_or_else(|| format!("Couldn't determine the home directory"))?
+    .home_dir()
+    .join(GAME_FOLDER);
+
+  game_folder.push(game_title);
+
+  Ok(game_folder)
+}
+
+/// Gets the stem (non-extension) of the given Path
+pub fn get_file_stem(path: impl AsRef<Path>) -> Result<String, String> {
+  path.as_ref()
+    .file_stem()
+    .ok_or_else(|| format!("Error removing stem from path: \"{}\"", path.as_ref().to_string_lossy()))
+    .map(|stem| stem.to_string_lossy().to_string())
+}
 
 pub fn find_cover_filename(game_folder: impl AsRef<Path>) -> Result<Option<String>, String> { 
   let child_entries = std::fs::read_dir(&game_folder)
@@ -48,40 +91,6 @@ pub fn make_executable(path: impl AsRef<Path>) -> Result<(), String> {
   }
 
   Ok(())
-}
-
-/// Get the upload folder based on its game folder
-pub fn get_upload_folder(game_folder: impl AsRef<Path>, upload_id: u64) -> PathBuf {
-  game_folder.as_ref().join(format!("{upload_id}"))
-}
-
-/// Get the upload archive path based on its game folder and upload_id
-pub fn get_upload_archive_path(game_folder: impl AsRef<Path>, upload_id: u64, upload_filename: &str) -> PathBuf {
-  game_folder.as_ref().join(format!("{upload_id}-{UPLOAD_ARCHIVE_NAME}-{upload_filename}"))
-}
-
-/// The game folder is `dirs::home_dir`+`Games`+`game_title`
-/// 
-/// It fais if dirs::home_dir is None
-pub fn get_game_folder(game_title: &str) -> Result<PathBuf, String> {
-  directories::BaseDirs::new()
-    .ok_or_else(|| format!("Couldn't determine the home directory"))
-    .map(|d| d.home_dir()
-      .join("Games")
-      .join(game_title)
-    )
-}
-
-/// Adds a .part extension to the given Path
-pub fn add_part_extension(file: impl AsRef<Path>) -> Result<PathBuf, String> {
-  Ok(
-    file.as_ref().with_file_name(format!(
-      "{}.part",
-      file.as_ref().file_name()
-        .ok_or_else(|| format!("Couldn't add .part extension to the file because it doesn't have a name!: {}", file.as_ref().to_string_lossy()))?
-        .to_string_lossy()
-    ))
-  )
 }
 
 /// Removes a folder recursively, but checks if it is a dangerous path before doing so
@@ -325,11 +334,4 @@ pub fn remove_root_folder(folder: impl AsRef<Path>) -> Result<(), String> {
 
     // loop again in case we had nested single-root dirs
   }
-}
-
-pub fn get_file_stem(path: impl AsRef<Path>) -> Result<String, String> {
-  path.as_ref()
-    .file_stem()
-    .ok_or_else(|| format!("Error removing stem from path: \"{}\"", path.as_ref().to_string_lossy()))
-    .map(|stem| stem.to_string_lossy().to_string())
 }
