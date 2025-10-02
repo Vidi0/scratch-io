@@ -104,7 +104,7 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), Stri
     .map_err(|e| format!("Couldn't remove the archive: \"{}\"\n{e}", file_path.to_string_lossy()))?;
 
   // If the extraction folder has any common roots, remove them
-  remove_root_folder(&extract_folder_temp)?;
+  remove_root_folder(&extract_folder_temp).await?;
   
   // Move the temporal folder to its destination
   move_folder(&extract_folder_temp, extract_folder).await?;

@@ -262,46 +262,58 @@ pub fn find_available_path(path: impl AsRef<Path>) -> Result<PathBuf, String> {
   }
 }
 
-fn move_folder_child(folder: impl AsRef<Path>) -> Result<(), String> {
-  let child_entries = std::fs::read_dir(&folder)
-    .map_err(|e| e.to_string())?;
-
+/// This function takes `base_folder` and `last_root`, which has to be a child or grandchild of `base_folder`
+/// 
+/// Then, it moves all `last_root` contents into `base_folder`,
+/// and removes all the empty folders between `last_root` and `base_folder`
+/// 
+/// If applied to the folder `foo/` and `foo/bar/` in `/foo/bar/baz.txt`, the remainig structure is `/foo/baz.txt`
+async fn move_folder_child(last_root: impl AsRef<Path>, base_folder: impl AsRef<Path>) -> Result<(), String> {
   // If a file or a folder already exists in the destination folder, rename it and save the new name and
   // the original name to this Vector. At the end, after removing the parent folder, rename all elements of this Vector
   let mut collisions: Vec<(PathBuf, PathBuf)> = Vec::new();
 
-  // move its children up one level
-  for child in child_entries {
-    let child = child
-      .map_err(|e| e.to_string())?;
-    let from = child.path();
-    let to = folder.as_ref().parent()
-      .ok_or_else(|| format!("Error getting parent of: \"{}\"", folder.as_ref().to_string_lossy()))?
-      .join(child.file_name());
+  let mut child_entries = tokio::fs::read_dir(&last_root).await
+    .map_err(|e| format!("Couldn't read folder entries of: \"{}\"\n{e}", last_root.as_ref().to_string_lossy()))?;
 
-    if !to.try_exists().map_err(|e| e.to_string())? {
-      std::fs::rename(&from, &to)
-        .map_err(|e| e.to_string())?;
+  // Move its children up one level
+  while let Some(child) = child_entries.next_entry().await.map_err(|e| format!("Couldn't get next folder entry: \"{}\"\n{e}", last_root.as_ref().to_string_lossy()))? {
+
+    let from = child.path();
+    let to = base_folder.as_ref().join(child.file_name());
+
+    if !to.try_exists().map_err(|e| format!("Couldn't check is the path exists!: \"{}\"\n{e}", to.to_string_lossy()))? {
+      tokio::fs::rename(&from, &to).await
+        .map_err(|e| format!("Couldn't move the item:\n  Source: \"{}\"\n  Destination: \"{}\"\n{e}", from.to_string_lossy(), to.to_string_lossy()))?;
     } else {
-      // if the children filename already exists on the parent, rename it to a
+      // If the children filename already exists on the parent, rename it to a
       // temporal name and, at the end, rename all the temporal names in order to the final names
       let temporal_name: PathBuf = find_available_path(&to)?;
-      std::fs::rename(&from, &temporal_name)
-        .map_err(|e| e.to_string())?;
+      tokio::fs::rename(&from, &temporal_name).await
+        .map_err(|e| format!("Couldn't move the item:\n  Source: \"{}\"\n  Destination: \"{}\"\n{e}", from.to_string_lossy(), temporal_name.to_string_lossy()))?;
 
       // save the change to the collisions vector
       collisions.push((temporal_name, to));
     }
   }
 
-  // remove the now-empty wrapper dir
-  std::fs::remove_dir(&folder)
-    .map_err(|e| e.to_string())?;
+  // Remove the now-empty wrapper dirs
+  let mut current_root = last_root.as_ref().to_path_buf();
+  while is_folder_empty(&current_root)? {
+    let parent = current_root.parent()
+      .ok_or_else(|| format!("Error getting parent of: \"{}\"", current_root.to_string_lossy()))?
+      .to_path_buf();
+
+    tokio::fs::remove_dir(&current_root).await
+      .map_err(|e| format!("Couldn't remove empty folder: \"{}\"\n{e}", current_root.to_string_lossy()))?;
+
+    current_root = parent;
+  }
 
   // now move all of the filenames that have collided to their original name
   for (src, dst) in collisions.iter() {
-    std::fs::rename(&src, &dst)
-      .map_err(|e| e.to_string())?;
+    tokio::fs::rename(&src, &dst).await
+      .map_err(|e| format!("Couldn't move the item:\n  Source: \"{}\"\n  Destination: \"{}\"\n{e}", src.to_string_lossy(), dst.to_string_lossy()))?;
   }
 
   Ok(())
@@ -310,28 +322,38 @@ fn move_folder_child(folder: impl AsRef<Path>) -> Result<(), String> {
 /// This fuction removes all the common root folders that only contain another folder
 /// and unwraps its children to its parent
 /// 
-/// If applied to the folder `foo` in `/foo/bar/something.txt`, the remainig structure is `/foo/something.txt`
-pub fn remove_root_folder(folder: impl AsRef<Path>) -> Result<(), String> {
-  loop {
-    // list entries
-    let mut entries: std::fs::ReadDir = std::fs::read_dir(&folder)
-      .map_err(|e| e.to_string())?;
+/// If applied to the folder `foo` in `/foo/bar/baz.txt`, the remainig structure is `/foo/baz.txt`
+pub async fn remove_root_folder(folder: impl AsRef<Path>) -> Result<(), String> {
+  // This variable is the last nested root of the folder
+  let mut last_root: PathBuf = folder.as_ref().to_path_buf();
+  let mut is_there_any_root: bool = false;
 
-    // first entry (or empty)
-    let first = match entries.next() {
-      None => return Ok(()),
-      Some(v) => v.map_err(|e| e.to_string())?,
+  loop {
+    // List entries
+    let mut entries: tokio::fs::ReadDir = tokio::fs::read_dir(&last_root).await
+      .map_err(|e| format!("Couldn't read folder entries of: \"{}\"\n{e}", last_root.to_string_lossy()))?;
+
+    // First entry (or empty)
+    let Some(first) = entries.next_entry().await.map_err(|e| format!("Couldn't get next folder entry: \"{}\"\n{e}", last_root.to_string_lossy()))? else {
+      break;
     };
 
-    // if there’s another entry, stop (not a single root)
-    // if the entry is a file, also stop
-    if entries.next().is_some() || first.path().is_file() {
-      return Ok(());
-    }
+    // If there’s another entry, stop (not a single root)
+    // If the entry is a file, also stop
+    if entries.next_entry().await.map_err(|e| format!("Couldn't get next folder entry: \"{}\"\n{e}", last_root.to_string_lossy()))?.is_some() || first.path().is_file() {
+      break;
+    };
 
-    // At this point, we know that first.path() is the wrapper dir
-    move_folder_child(&first.path())?;
-
-    // loop again in case we had nested single-root dirs
+    // At this point, we know that first is a wrapper dir,
+    // so set last_root to that and loop again in case there are nested roots
+    is_there_any_root = true;
+    last_root = first.path();
   }
+
+  // Remove the wrappers
+  if is_there_any_root {
+    move_folder_child(last_root, folder).await?;
+  }
+  
+  Ok(())
 }
