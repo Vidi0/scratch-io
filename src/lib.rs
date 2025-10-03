@@ -948,6 +948,7 @@ pub async fn download_upload(
   api_key: &str,
   upload_id: u64,
   game_folder: Option<&Path>,
+  skip_hash_verification: bool,
   upload_info: impl FnOnce(&Upload, &Game),
   progress_callback: impl Fn(DownloadStatus),
   callback_interval: Duration,
@@ -994,14 +995,18 @@ pub async fn download_upload(
     &ItchApiUrl::V2(&format!("uploads/{upload_id}/download")),
     api_key,
     &upload_archive,
-    upload.md5_hash.as_deref(),
+    // Only pass the hash if skip_hash_verification is false
+    upload.md5_hash.as_deref().filter(|_| !skip_hash_verification),
     |bytes| progress_callback(DownloadStatus::StartingDownload { bytes_to_download: bytes } ),
     |bytes| progress_callback(DownloadStatus::DownloadProgress { downloaded_bytes: bytes } ),
     callback_interval,
   ).await?;
   
   // Print a warning if the upload doesn't have a hash in the server
-  if upload.md5_hash.is_none() {
+  // or the hash verification is skipped
+  if skip_hash_verification {
+    progress_callback(DownloadStatus::Warning("Skipping hash verification! The file integrity won't be checked!".to_string()));
+  } else if upload.md5_hash.is_none() {
     progress_callback(DownloadStatus::Warning("Missing md5 hash. Couldn't verify the file integrity!".to_string()));
   }
 

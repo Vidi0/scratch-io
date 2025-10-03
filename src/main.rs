@@ -71,6 +71,9 @@ enum RequireApiCommands {
     /// Defaults to ~/Games/{game_name}/
     #[arg(long, env = "SCRATCH_INSTALL_PATH")]
     install_path: Option<PathBuf>,
+    /// Skip the hash verification and allow installing modified files (unsafe)
+    #[arg(long, env = "SCRATCH_SKIP_HASH_VERIFICATION")]
+    skip_hash_verification: bool,
   },
   /// Download a game cover gives its game ID
   DownloadCover {
@@ -285,7 +288,7 @@ async fn print_collection_games(client: &Client, api_key: &str, collection_id: u
 }
 
 // Download a game's upload
-async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&Path>, installed_uploads: &mut HashMap<u64, InstalledUpload>) {
+async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&Path>, skip_hash_verification: bool, installed_uploads: &mut HashMap<u64, InstalledUpload>) {
   exit_if_already_installed(upload_id, installed_uploads);
 
   let progress_bar = indicatif::ProgressBar::hidden();
@@ -300,6 +303,7 @@ async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&
     &api_key,
     upload_id,
     dest,
+    skip_hash_verification,
     |u, g| println!("\
 Upload id: {}
   Game id: {}
@@ -532,8 +536,8 @@ async fn main() {
         RequireApiCommands::CollectionGames { collection_id } => {
           print_collection_games(&client, api_key.as_str(), collection_id).await;
         }
-        RequireApiCommands::Download { upload_id, install_path } => {
-          download(&client, api_key.as_str(), upload_id, install_path.as_deref(), &mut config.installed_uploads).await;
+        RequireApiCommands::Download { upload_id, install_path, skip_hash_verification } => {
+          download(&client, api_key.as_str(), upload_id, install_path.as_deref(), skip_hash_verification, &mut config.installed_uploads).await;
           config.save_unwrap(custom_config_file).await;
         }
         RequireApiCommands::DownloadCover { game_id, filename, folder } => {
