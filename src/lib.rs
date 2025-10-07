@@ -418,7 +418,7 @@ async fn download_file(
     
     // If the file is bigger than it should, return an error
     if downloaded_bytes > download_size {
-      return Err(format!("The file: \"{}\" contains more data than the whole downloaded file should have!\n
+      return Err(format!("The file: \"{}\" contains more data than the whole downloaded file should have!
   Current file size: {downloaded_bytes}
   Server reported size: {download_size}",
       partial_file_path.to_string_lossy()));
