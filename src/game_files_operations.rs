@@ -46,53 +46,6 @@ pub fn get_file_stem(path: impl AsRef<Path>) -> Result<String, String> {
     .map(|stem| stem.to_string_lossy().to_string())
 }
 
-#[cfg_attr(not(unix), allow(unused_variables))]
-pub fn make_executable(path: impl AsRef<Path>) -> Result<(), String> {
-  #[cfg(unix)]
-  {
-    use std::os::unix::fs::PermissionsExt;
-
-    let metadata = std::fs::metadata(&path)
-      .map_err(|e| format!("Couldn't read file metadata of \"{}\": {e}", path.as_ref().to_string_lossy()))?;
-    let mut permissions = metadata.permissions();
-    let mode = permissions.mode();
-    
-    // If all the executable bits are already set, return Ok()
-    if mode & 0o111 == 0o111 {
-      return Ok(());
-    }
-
-    // Otherwise, add execute bits
-    permissions.set_mode(mode | 0o111);
-
-    std::fs::set_permissions(&path, permissions)
-      .map_err(|e| format!("Couldn't set permissions of \"{}\": {e}", path.as_ref().to_string_lossy()))?;
-  }
-
-  Ok(())
-}
-
-/// Removes a folder recursively, but checks if it is a dangerous path before doing so
-pub async fn remove_folder_safely(path: impl AsRef<Path>) -> Result<(), String> {
-  let canonical = tokio::fs::canonicalize(&path).await
-    .map_err(|e| format!("Error getting the canonical form of the game folder! Maybe it doesn't exist: {}\n{e}", path.as_ref().to_string_lossy()))?;
-
-  let home = directories::BaseDirs::new()
-    .ok_or_else(|| format!("Couldn't determine the home directory"))?
-    .home_dir()
-    .canonicalize()
-    .map_err(|e| format!("Error getting the canonical form of the system home folder! Why?\n{e}"))?;
-
-  if canonical == home {
-    Err(format!("Refusing to remove home directory!"))?
-  }
-
-  tokio::fs::remove_dir_all(&path).await
-    .map_err(|e| format!("Couldn't remove directory: \"{}\"\n{e}", path.as_ref().to_string_lossy()))?;
-
-  Ok(())
-}
-
 /// Checks if a folder is empty
 pub fn is_folder_empty(folder: impl AsRef<Path>) -> Result<bool, String> {
   if folder.as_ref().is_dir() {
@@ -125,6 +78,53 @@ pub async fn remove_folder_if_empty(folder: impl AsRef<Path>) -> Result<bool, St
     .map_err(|e| format!("Couldn't remove empty folder: \"{}\"\n{e}", folder.as_ref().to_string_lossy()))?;
 
   Ok(true)
+}
+
+/// Removes a folder recursively, but checks if it is a dangerous path before doing so
+pub async fn remove_folder_safely(path: impl AsRef<Path>) -> Result<(), String> {
+  let canonical = tokio::fs::canonicalize(&path).await
+    .map_err(|e| format!("Error getting the canonical form of the game folder! Maybe it doesn't exist: {}\n{e}", path.as_ref().to_string_lossy()))?;
+
+  let home = directories::BaseDirs::new()
+    .ok_or_else(|| format!("Couldn't determine the home directory"))?
+    .home_dir()
+    .canonicalize()
+    .map_err(|e| format!("Error getting the canonical form of the system home folder! Why?\n{e}"))?;
+
+  if canonical == home {
+    Err(format!("Refusing to remove home directory!"))?
+  }
+
+  tokio::fs::remove_dir_all(&path).await
+    .map_err(|e| format!("Couldn't remove directory: \"{}\"\n{e}", path.as_ref().to_string_lossy()))?;
+
+  Ok(())
+}
+
+#[cfg_attr(not(unix), allow(unused_variables))]
+pub fn make_executable(path: impl AsRef<Path>) -> Result<(), String> {
+  #[cfg(unix)]
+  {
+    use std::os::unix::fs::PermissionsExt;
+
+    let metadata = std::fs::metadata(&path)
+      .map_err(|e| format!("Couldn't read file metadata of \"{}\": {e}", path.as_ref().to_string_lossy()))?;
+    let mut permissions = metadata.permissions();
+    let mode = permissions.mode();
+    
+    // If all the executable bits are already set, return Ok()
+    if mode & 0o111 == 0o111 {
+      return Ok(());
+    }
+
+    // Otherwise, add execute bits
+    permissions.set_mode(mode | 0o111);
+
+    std::fs::set_permissions(&path, permissions)
+      .map_err(|e| format!("Couldn't set permissions of \"{}\": {e}", path.as_ref().to_string_lossy()))?;
+  }
+
+  Ok(())
 }
 
 /// Copy all the folder contents to another location
