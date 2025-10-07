@@ -1321,21 +1321,6 @@ pub async fn launch(
   Ok(())
 }
 
-/// Get the web url of web a game (if it exists)
-/// 
-/// # Arguments
-/// 
-/// * `uploads` - The list of a game's uploads
-///
-/// # Returns
-/// 
-/// The web game URL if any
-pub fn get_uploads_web_game_url(uploads: &[Upload]) -> Option<String> {
-  uploads.iter()
-    .find(|u| matches!(u.r#type, UploadType::HTML))
-    .map(|u| get_web_game_url(u.id))
-}
-
 /// Get the url to a itch.io web game
 /// 
 /// # Arguments
