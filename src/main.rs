@@ -79,14 +79,17 @@ enum RequireApiCommands {
   DownloadCover {
     /// The ID of the game from which the cover will be downloaded
     game_id: u64,
+    /// The path where the downloaded file will be placed
+    #[arg(long, env = "SCRATCH_FOLDER")]
+    folder: PathBuf,
     /// The filename of the downloaded cover image (without extension)
+    /// 
+    /// Defaults to "cover"
     #[arg(long, env = "SCRATCH_FILENAME")]
     filename: Option<String>,
-    /// The path where the downloaded file will be placed
-    /// 
-    /// Defaults to ~/Games/{game_name}/
-    #[arg(long, env = "SCRATCH_FOLDER")]
-    folder: Option<PathBuf>,
+    /// Replace the cover image, if one was found
+    #[arg(long, env = "SCRATCH_FORCE_DOWNLOAD")]
+    force_download: bool,
   },
   /// Remove partially downloaded upload files
   RemovePartialDownload {
@@ -334,8 +337,14 @@ Upload id: {}
   installed_uploads.insert(upload_id, iu);
 }
 
-async fn download_cover(client: &Client, api_key: &str, game_id: u64, filename: Option<&str>, folder: Option<&Path>) {
-  scratch_io::download_game_cover_from_id(client, api_key, game_id, filename, folder).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
+// Download a game's cover image
+async fn download_cover(client: &Client, api_key: &str, game_id: u64, folder: &Path, filename: Option<&str>, force_download: bool) {
+  let cover_path = scratch_io::download_game_cover(client, api_key, game_id, folder, filename, force_download).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
+
+  match cover_path {
+    None => eprintln_exit!("The provided game with id: \"{game_id}\" doesn't have a cover image!"),
+    Some(p) => println!("Game cover image downloaded to: \"{}\"", p.to_string_lossy()),
+  }
 }
 
 // Remove partially downloaded game files
@@ -540,8 +549,8 @@ async fn main() {
           download(&client, api_key.as_str(), upload_id, install_path.as_deref(), skip_hash_verification, &mut config.installed_uploads).await;
           config.save_unwrap(custom_config_file).await;
         }
-        RequireApiCommands::DownloadCover { game_id, filename, folder } => {
-          download_cover(&client, api_key.as_str(), game_id, filename.as_deref(), folder.as_deref()).await;
+        RequireApiCommands::DownloadCover { game_id, folder, filename, force_download } => {
+          download_cover(&client, api_key.as_str(), game_id, folder.as_path(), filename.as_deref(), force_download).await;
         }
         RequireApiCommands::RemovePartialDownload { upload_id, install_path } => {
           remove_partial_download(&client, api_key.as_str(), upload_id, install_path.as_deref()).await;

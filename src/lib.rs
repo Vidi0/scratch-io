@@ -88,7 +88,6 @@ pub enum LaunchMethod<'a> {
 pub struct InstalledUpload {
   pub upload_id: u64,
   pub game_folder: PathBuf,
-  pub cover_image: Option<String>,
   // upload and game are optional because this way, if the Game or Upload structs change
   // in the Itch's API, they can be obtained again without invalidating all previous configs
   pub upload: Option<Upload>,
@@ -143,7 +142,6 @@ impl std::fmt::Display for InstalledUpload {
     write!(f, "\
 Upload id: {}
 Game folder: \"{}\"
-Cover image: \"{}\"
   Upload:
     Name: {u_name}
     Created at: {u_created_at}
@@ -162,7 +160,6 @@ Cover image: \"{}\"
     URL: {a_url}",
       self.upload_id,
       self.game_folder.to_string_lossy(),
-      self.cover_image.as_deref().unwrap_or_default(),
     )
   }
 }
@@ -837,44 +834,9 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
   Ok(games)
 }
 
-/// Download a game cover image from the provided url
-/// 
-/// # Arguments
-/// 
-/// * `client` - An asynchronous reqwest Client
-/// 
-/// * `cover_url` - The url to the cover image file
-/// 
-/// * `folder` - The game folder where the cover will be placed
-/// 
-/// # Returns
-/// 
-/// The path of the downloaded image
-/// 
-/// An error if something goes wrong
-async fn download_game_cover(client: &Client, cover_url: &str, cover_filename: &str, folder: &Path) -> Result<PathBuf, String> {
-  let cover_extension = cover_url.rsplit(".").next().unwrap_or_default();
-  let cover_path = folder.join(format!("{cover_filename}.{cover_extension}"));
-        
-  if cover_path.try_exists().map_err(|e| e.to_string())? {
-    return Ok(cover_path);
-  }
-
-  download_file(
-    client,
-    &ItchApiUrl::Other(cover_url),
-    "",
-    &cover_path,
-    None,
-    |_| (),
-    |_| (),
-    Duration::MAX,
-  ).await?;
- 
-  Ok(cover_path)
-}
-
 /// Download a game cover image from its game ID
+/// 
+/// The image will be a PNG. This is because the Itch.io servers return that type of image
 /// 
 /// # Arguments
 /// 
@@ -884,27 +846,23 @@ async fn download_game_cover(client: &Client, cover_url: &str, cover_filename: &
 /// 
 /// * `game_id` - The ID of the game from which the cover will be downloaded
 /// 
-/// * `cover_filename` - The new filename of the cover (without the extension)
-/// 
 /// * `folder` - The game folder where the cover will be placed
+/// 
+/// * `cover_filename` - The new filename of the cover
+/// 
+/// * `force_download` - If true, download the cover image again, even if it already exists
 /// 
 /// # Returns
 /// 
 /// The path of the downloaded image, or None if the game doesn't have one
 /// 
 /// An error if something goes wrong
-pub async fn download_game_cover_from_id(client: &Client, api_key: &str, game_id: u64, cover_filename: Option<&str>, folder: Option<&Path>) -> Result<Option<PathBuf>, String> {
+pub async fn download_game_cover(client: &Client, api_key: &str, game_id: u64, folder: &Path, cover_filename: Option<&str>, force_download: bool) -> Result<Option<PathBuf>, String> {
   // Get the game info from the server
   let game_info = get_game_info(client, api_key, game_id).await?;
   // If the game doesn't have a cover, return
   let Some(cover_url) = game_info.cover_url else {
     return Ok(None);
-  };
-
-  // If the folder isn't set, set it to the default game folder
-  let folder = match folder {
-    Some(f) => f,
-    None => &get_game_folder(&game_info.title)?,
   };
 
   // Create the folder where the file is going to be placed if it doesn't already exist
@@ -917,7 +875,25 @@ pub async fn download_game_cover_from_id(client: &Client, api_key: &str, game_id
     None => COVER_IMAGE_DEFAULT_FILENAME,
   };
 
-  download_game_cover(client, &cover_url, cover_filename, folder).await.map(|p| Some(p))
+  let cover_path = folder.join(cover_filename);
+  
+  // If the cover image already exists and the force variable is false, don't replace the original image
+  if !force_download && cover_path.try_exists().map_err(|e| format!("Couldn't check if the game cover image exists: \"{}\"\n{e}", cover_path.to_string_lossy()))? {
+    return Ok(Some(cover_path));
+  }
+
+  download_file(
+    client,
+    &ItchApiUrl::Other(&cover_url),
+    "",
+    &cover_path,
+    None,
+    |_| (),
+    |_| (),
+    Duration::MAX,
+  ).await?;
+  
+  Ok(Some(cover_path))
 }
 
 /// Download a game upload
@@ -980,15 +956,6 @@ pub async fn download_upload(
 
   // --- DOWNLOAD --- 
 
-  // Download the cover image
-  let cover_image: Option<PathBuf> = match game.cover_url {
-    None => None,
-    Some(ref cover_url) => Some(
-      download_game_cover(client, cover_url, COVER_IMAGE_DEFAULT_FILENAME, &game_folder).await
-        .inspect(|cp| progress_callback(DownloadStatus::DownloadedCover { game_cover_path: cp.to_path_buf() }))?
-    )
-  };
-
   // Download the file
   download_file(
     client,
@@ -1028,7 +995,6 @@ pub async fn download_upload(
     // Get the absolute (canonical) form of the path
     game_folder: game_folder.canonicalize()
       .map_err(|e| format!("Error getting the canonical form of the game folder! Maybe it doesn't exist: {}\n{e}", game_folder.to_string_lossy()))?,
-    cover_image: cover_image.map(|p| p.file_name().expect("Cover image doesn't have a filename?").to_string_lossy().to_string()),
     upload: Some(upload),
     game: Some(game),
   })
@@ -1056,14 +1022,11 @@ pub async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder:
   let upload: Upload = get_upload_info(client, api_key, upload_id).await?;
   let game: Game = get_game_info(client, api_key, upload.game_id).await?;
   
-  let cover_image: Option<String> = find_cover_filename(game_folder)?;
-
   Ok(InstalledUpload {
     upload_id,
     // Get the absolute (canonical) form of the path
     game_folder: game_folder.canonicalize()
       .map_err(|e| format!("Error getting the canonical form of the game folder! Maybe it doesn't exist: {}\n{e}", game_folder.to_string_lossy()))?,
-    cover_image,
     upload: Some(upload),
     game: Some(game),
   })
@@ -1143,7 +1106,7 @@ pub async fn remove_partial_download(client: &Client, api_key: &str, upload_id: 
   }
   
   // If the game folder is now useless, remove it
-  was_something_deleted |= remove_useless_game_dir(game_folder).await?;
+  was_something_deleted |= remove_folder_if_empty(game_folder).await?;
 
   Ok(was_something_deleted)
 }
@@ -1172,8 +1135,8 @@ pub async fn remove(upload_id: u64, game_folder: &Path) -> Result<(), String> {
   remove_folder_safely(upload_folder).await?;
   // The upload folder has been removed
 
-  // If there isn't another upload folder, remove the whole game folder
-  remove_useless_game_dir(game_folder).await?;
+  // If the game folder is empty, remove it
+  remove_folder_if_empty(game_folder).await?;
 
   Ok(())
 }
@@ -1210,15 +1173,8 @@ pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Pa
   // Move the upload folder
   move_folder(src_upload_folder.as_path(), dst_upload_folder.as_path()).await?;
 
-  // Copy the cover image (if it exists)
-  let cover_image = find_cover_filename(src_game_folder)?;
-  if let Some(cover) = cover_image {
-    tokio::fs::copy(src_game_folder.join(cover.as_str()), dst_game_folder.join(cover.as_str())).await
-      .map_err(|e| format!("Couldn't copy game cover image: {e}"))?;
-  }
-
-  // If src_game_folder doesn't contain any other upload, remove it
-  remove_useless_game_dir(src_game_folder).await?;
+  // If src_game_folder is empty, remove it
+  remove_folder_if_empty(src_game_folder).await?;
 
   dst_game_folder.canonicalize()
     .map_err(|e| format!("Error getting the canonical form of the destination game folder! Maybe it doesn't exist: {}\n{e}", dst_game_folder.to_string_lossy()))

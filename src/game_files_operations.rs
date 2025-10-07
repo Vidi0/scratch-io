@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 pub const UPLOAD_ARCHIVE_NAME: &str = "download";
-pub const COVER_IMAGE_DEFAULT_FILENAME: &str = "cover";
+pub const COVER_IMAGE_DEFAULT_FILENAME: &str = "cover.png";
 pub const GAME_FOLDER: &str = "Games";
 
 /// Get the upload folder based on its game folder
@@ -44,27 +44,6 @@ pub fn get_file_stem(path: impl AsRef<Path>) -> Result<String, String> {
     .file_stem()
     .ok_or_else(|| format!("Error removing stem from path: \"{}\"", path.as_ref().to_string_lossy()))
     .map(|stem| stem.to_string_lossy().to_string())
-}
-
-pub fn find_cover_filename(game_folder: impl AsRef<Path>) -> Result<Option<String>, String> { 
-  let child_entries = std::fs::read_dir(&game_folder)
-    .map_err(|e| format!("Couldn't read direcotory: \"{}\"\n{e}", game_folder.as_ref().to_string_lossy()))?;
-
-  for child in child_entries {
-    let child: std::fs::DirEntry = child
-      .map_err(|e| e.to_string())?;
-    let path: PathBuf = child.path();
-
-    let Some(stem) = path.file_stem() else {
-      continue;
-    };
-
-    if path.is_file() && stem.eq_ignore_ascii_case(COVER_IMAGE_DEFAULT_FILENAME)  {
-      return Ok(Some(child.file_name().to_string_lossy().to_string()));
-    }
-  }
-
-  Ok(None)
 }
 
 #[cfg_attr(not(unix), allow(unused_variables))]
@@ -131,6 +110,23 @@ pub fn is_folder_empty(folder: impl AsRef<Path>) -> Result<bool, String> {
   }
 }
 
+/// Remove a folder if it is empty
+/// 
+/// Returns whether the folder was removed or not
+pub async fn remove_folder_if_empty(folder: impl AsRef<Path>) -> Result<bool, String> {
+  // Return if the folder is not empty
+  let true = is_folder_empty(&folder)? else {
+    // The folder wasn't removed, so return false
+    return Ok(false);
+  };
+
+  // Remove the empty folder
+  tokio::fs::remove_dir(&folder).await
+    .map_err(|e| format!("Couldn't remove empty folder: \"{}\"\n{e}", folder.as_ref().to_string_lossy()))?;
+
+  Ok(true)
+}
+
 /// Copy all the folder contents to another location
 async fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), String> {
   if !src.as_ref().is_dir() {
@@ -162,57 +158,6 @@ async fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()
   }
 
   Ok(())
-}
-
-/// Remove a folder if its only contents are in the `allowed_filenames` slice
-/// 
-/// Note that this function checks for the filename stem, so "cover" in allowed_filenames
-/// would match cover.png, cover.jpeg, cover.gif, etc.
-/// 
-/// This can be used, for example, to remove a folder if its only contents are cache data
-/// 
-/// Returns whether the folder was removed or not
-async fn remove_dir_if_only(folder: impl AsRef<Path>, allowed_filenames: &[&str]) -> Result<bool, String> {
-  let child_entries = std::fs::read_dir(&folder)
-    .map_err(|e| e.to_string())?;
-
-  'a: for child in child_entries {
-    let child = child
-      .map_err(|e| e.to_string())?;
-
-    // If the child is a folder, return without removing the folder
-    if child.file_type().map_err(|e| e.to_string())?.is_dir() {
-      return Ok(false)
-    }
-
-    // Get the child filename stem
-    let Some(child_stem) = child.path().file_stem().map(|s| s.to_os_string()) else {
-      return Ok(false);
-    };
-
-    // For each of the allowed filenames
-    // If the name of the child is allowed, then continue with the next child
-    // Else, return without removing the folder
-    for &filename in allowed_filenames {
-      if child_stem == filename {
-        continue 'a;
-      }
-    }
-
-    return Ok(false)
-  }
-
-  // If we're here, that means the folder can be deleted
-  remove_folder_safely(&folder).await?;
-
-  Ok(true)
-}
-
-/// Remove a game folder if its only contents are not the game files, but the game cover image, etc.
-/// 
-/// Returns whether the folder was removed or not
-pub async fn remove_useless_game_dir(game_folder: impl AsRef<Path>) -> Result<bool, String> {
-  remove_dir_if_only(game_folder, &[COVER_IMAGE_DEFAULT_FILENAME]).await
 }
 
 /// Move a folder and its contents to another location
