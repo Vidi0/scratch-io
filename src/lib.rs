@@ -408,35 +408,27 @@ async fn download_file(
     .map_err(|e| format!("Couldn't get file metadata: {}\n{e}", partial_file_path.to_string_lossy()))?
     .len();
 
-  let file_response: Option<Response> = {
+  let file_response: Option<Response> = 'r: {
     // Send a request for the whole file
     let res = itch_request(client, Method::GET, url, api_key, |b| b).await?;
 
     let download_size = res.content_length()
       .ok_or_else(|| format!("Couldn't get the Content Length of the file to download!\n{res:?}"))?;
+
     file_size_callback(download_size);
     
-    // If the file is bigger than it should, return an error
-    if downloaded_bytes > download_size {
-      return Err(format!("The file: \"{}\" contains more data than the whole downloaded file should have!
-  Current file size: {downloaded_bytes}
-  Server reported size: {download_size}",
-      partial_file_path.to_string_lossy()));
+    // If the file is empty, then return the request for the whole file
+    if downloaded_bytes == 0 {
+      break 'r Some(res);
     }
-
+    
     // If the file is exactly the size it should be, then return None so nothing more is downloaded
     else if downloaded_bytes == download_size {
-      None
+      break 'r None;
     }
 
-    // If the file is empty, then return the request for the whole file
-    else if downloaded_bytes == 0 {
-      Some(res)
-    }
-
-    // Else, then the file is not empty, and smaller than the whole file
-    // Therefore, download the remaining file range
-    else {
+    // If the file is not empty, and smaller than the whole file, download the remaining file range
+    else if downloaded_bytes < download_size {
       let part_res = itch_request(client, Method::GET, url, api_key,
         |b| b.header(header::RANGE, format!("bytes={downloaded_bytes}-"))
       ).await?;
@@ -444,24 +436,29 @@ async fn download_file(
       match part_res.status() {
         // 206 Partial Content code means the server will send the requested range
         // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/206
-        reqwest::StatusCode::PARTIAL_CONTENT => Some(part_res),
+        reqwest::StatusCode::PARTIAL_CONTENT => break 'r Some(part_res),
 
-        // 200 OK code means the server doesn't support ranges, so download the whole file
+        // 200 OK code means the server doesn't support ranges
         // https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Range
-        reqwest::StatusCode::OK => {
-          // First, remove the old partially downloaded file
-          downloaded_bytes = 0;
-          file.set_len(0).await
-            .map_err(|e| format!("Couldn't remove old partially downloaded file: {}\n{e}", partial_file_path.to_string_lossy()))?;
-
-          // Return the response for the whole file
-          Some(res)
-        },
+        // Don't break, so the fallback code is run instead and the whole file is downloaded
+        reqwest::StatusCode::OK => (),
 
         // Any code other than 200 or 206 means that something went wrong
         _ => return Err(format!("The HTTP server to download the file from didn't return HTTP code 200 nor 206, so exiting! It returned: {}\n{part_res:?}", part_res.status().as_u16())),
       }
     }
+
+    // If we're here, that means one of two things:
+    //
+    // 1. The file is bigger than it should
+    // 2. The server doesn't support ranges
+    //
+    // In either case, the current file should be removed and downloaded again fully
+    downloaded_bytes = 0;
+    file.set_len(0).await
+      .map_err(|e| format!("Couldn't remove old partially downloaded file: {}\n{e}", partial_file_path.to_string_lossy()))?;
+
+    Some(res)
   };
 
   // If a partial file was already downloaded, hash the old downloaded data
