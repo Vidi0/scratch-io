@@ -65,9 +65,6 @@ impl Upload {
 
 pub enum DownloadStatus {
   Warning(String),
-  DownloadedCover {
-    game_cover_path: PathBuf
-  },
   StartingDownload {
     bytes_to_download: u64,
   },

@@ -320,7 +320,6 @@ Upload id: {}
     |download_status| {
       match download_status {
         DownloadStatus::Warning(w) => println!("{w}"),
-        DownloadStatus::DownloadedCover { game_cover_path } => println!("Downloaded game cover to: \"{}\"", game_cover_path.to_string_lossy()),
         DownloadStatus::StartingDownload { bytes_to_download } => {
           println!("Starting download...");
           progress_bar.set_length(bytes_to_download);
