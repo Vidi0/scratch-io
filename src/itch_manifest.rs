@@ -1,28 +1,15 @@
 use std::path::{Path, PathBuf};
 use std::fs;
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 
 const MANIFEST_FILENAME: &str = ".itch.toml";
 const MANIFEST_PLAY_ACTION: &str = "play";
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Action {
   pub name: String,
   pub path: String,
   pub args: Option<Vec<String>>,
-}
-
-impl std::fmt::Display for Action {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f,
-"    Name: {}
-      Path: {}
-      Arguments: {}",
-      self.name,
-      self.path,
-      self.args.as_ref().unwrap_or(&Vec::new()).iter().map(|a| format!("\"{a}\"")).collect::<Vec<String>>().join(", "),
-    )
-  }
 }
 
 impl Action {
@@ -33,19 +20,9 @@ impl Action {
   }
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Manifest {
   pub actions: Vec<Action>,
-}
-
-impl std::fmt::Display for Manifest {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f,
-"  Manifest actions:
-{}",
-      self.actions.iter().map(|a| a.to_string()).collect::<Vec<String>>().join("\n"),
-    )
-  }
 }
 
 /// Read the manifest from a folder and parse it (if any)

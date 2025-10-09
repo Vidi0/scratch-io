@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use time::{OffsetDateTime, serde::rfc3339, format_description::well_known::Rfc3339};
+use time::{OffsetDateTime, serde::rfc3339};
 use std::fmt;
 
 const ITCH_API_V1_BASE_URL: &str = "https://itch.io/api/1";
@@ -65,7 +65,7 @@ impl fmt::Display for ItchApiUrl<'_> {
   }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum GameTrait {
   #[serde(rename = "p_linux")]
   PLinux,
@@ -83,13 +83,7 @@ pub enum GameTrait {
   InPressSystem,
 }
 
-impl fmt::Display for GameTrait {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", serde_json::to_string(&self).unwrap())
-  }
-}
-
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum UploadTrait {
   #[serde(rename = "p_linux")]
   PLinux,
@@ -103,13 +97,7 @@ pub enum UploadTrait {
   Demo,
 }
 
-impl fmt::Display for UploadTrait {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", serde_json::to_string(&self).unwrap())
-  }
-}
-
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum GameClassification {
   #[serde(rename = "game")]
   Game,
@@ -131,13 +119,7 @@ pub enum GameClassification {
   Other,
 }
 
-impl fmt::Display for GameClassification {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", serde_json::to_string(&self).unwrap())
-  }
-}
-
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum GameType {
   #[serde(rename = "default")]
   Default,
@@ -151,13 +133,7 @@ pub enum GameType {
   Unity,
 }
 
-impl fmt::Display for GameType {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", serde_json::to_string(&self).unwrap())
-  }
-}
-
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum UploadType {
   #[serde(rename = "default")]
   Default,
@@ -189,13 +165,7 @@ pub enum UploadType {
   Other,
 }
 
-impl fmt::Display for UploadType {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", serde_json::to_string(&self).unwrap())
-  }
-}
-
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct User {
   pub id: u64,
   pub username: String,
@@ -214,24 +184,7 @@ impl User {
   }
 }
 
-impl fmt::Display for User {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "\
-Id: {}
-Name: {}
-Display name: {}
-URL: {}
-Cover URL: {}",
-      self.id,
-      self.username,
-      self.display_name.as_deref().unwrap_or_default(),
-      self.url,
-      self.cover_url.as_deref().unwrap_or_default(),
-    )
-  }
-}
-
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Game {
   pub id: u64,
   pub url: String,
@@ -250,38 +203,7 @@ pub struct Game {
   pub traits: Vec<GameTrait>,
 }
 
-impl fmt::Display for Game {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "\
-Id: {}
-Game: {}
-  Description: {}
-  URL: {}
-  Cover URL: {}
-  Author: {}
-  Price: {}
-  Classification: {}
-  Type: {}
-  Created at: {}
-  Published at: {}
-  Traits: {}",
-      self.id,
-      self.title,
-      self.short_text.as_deref().unwrap_or_default(),
-      self.url,
-      self.cover_url.as_deref().unwrap_or_default(),
-      self.user.get_name(),
-      if self.min_price <= 0 { "Free" } else { "Paid" },
-      self.classification,
-      self.r#type,
-      self.created_at.format(&Rfc3339).unwrap_or_default(),
-      self.published_at.as_ref().and_then(|date| date.format(&Rfc3339).ok()).unwrap_or_default(),
-      self.traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", ")
-    )
-  }
-}
-
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Upload {
   pub position: u64,
   pub id: u64,
@@ -301,36 +223,7 @@ pub struct Upload {
   pub md5_hash: Option<String>,
 }
 
-impl fmt::Display for Upload {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, 
-"    Position: {}
-    ID: {}
-      Size: {}
-      Type: {}
-      Filename: {}
-      Display name: {}
-      Storage: {}
-      Created at: {}
-      Updated at: {}
-      MD5 hash: {}
-      Traits: {}",
-      self.position,
-      self.id,
-      self.size.as_ref().map(|n| n.to_string()).unwrap_or_default(),
-      self.r#type,
-      self.filename,
-      self.display_name.as_deref().unwrap_or_default(),
-      self.storage,
-      self.created_at.format(&Rfc3339).unwrap_or_default(),
-      self.updated_at.format(&Rfc3339).unwrap_or_default(),
-      self.md5_hash.as_deref().unwrap_or_default(),
-      self.traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", ")
-    )
-  }
-}
-
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Collection {
   pub id: u64,
   pub title: String,
@@ -341,24 +234,7 @@ pub struct Collection {
   pub updated_at: OffsetDateTime,
 }
 
-impl fmt::Display for Collection {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "\
-Id: {}
-Name: {}
-  Games count: {}
-  Created at: {}
-  Updated at: {}",
-      self.id,
-      self.title,
-      self.games_count,
-      self.created_at.format(&Rfc3339).unwrap_or_default(),
-      self.updated_at.format(&Rfc3339).unwrap_or_default(),
-    )
-  }
-}
-
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CollectionGameItem {
   pub game: CollectionGame,
   pub position: u64,
@@ -367,18 +243,7 @@ pub struct CollectionGameItem {
   pub created_at: OffsetDateTime,
 }
 
-impl fmt::Display for CollectionGameItem {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "\
-Position: {}
-{}",
-      self.position,
-      self.game,
-    )
-  }
-}
-
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CollectionGame {
   pub id: u64,
   pub url: String,
@@ -396,36 +261,7 @@ pub struct CollectionGame {
   pub traits: Vec<GameTrait>,
 }
 
-impl fmt::Display for CollectionGame {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "\
-Id: {}
-Game: {}
-  Description: {}
-  URL: {}
-  Cover URL: {}
-  Price: {}
-  Classification: {}
-  Type: {}
-  Created at: {}
-  Published at: {}
-  Traits: {}",
-      self.id,
-      self.title,
-      self.short_text.as_deref().unwrap_or_default(),
-      self.url,
-      self.cover_url.as_deref().unwrap_or_default(),
-      if self.min_price <= 0 { "Free" } else { "Paid" },
-      self.classification,
-      self.r#type,
-      self.created_at.format(&Rfc3339).unwrap_or_default(),
-      self.published_at.as_ref().and_then(|date| date.format(&Rfc3339).ok()).unwrap_or_default(),
-      self.traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", ")
-    )
-  }
-}
-
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OwnedKey {
   pub id: u64,
   pub game_id: u64,
@@ -437,29 +273,12 @@ pub struct OwnedKey {
   pub updated_at: OffsetDateTime,
 }
 
-impl fmt::Display for OwnedKey {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "\
-Id: {}
-  Game Id: {}
-  Downloads: {}
-  Created at: {}
-  Updated at: {}",
-      self.id,
-      self.game_id,
-      self.downloads,
-      self.created_at.format(&Rfc3339).unwrap_or_default(),
-      self.updated_at.format(&Rfc3339).unwrap_or_default(),
-    )
-  }
-}
-
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ItchCookie {
   pub itchio: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ItchKey {
   pub key: String,
   pub id: u64,
@@ -472,7 +291,7 @@ pub struct ItchKey {
   pub updated_at: OffsetDateTime,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ApiResponse<T> {
   Success(T),
@@ -491,7 +310,7 @@ impl<T> ApiResponse<T> {
   }
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum LoginResponse {
   Success(LoginSuccess),
@@ -499,55 +318,55 @@ pub enum LoginResponse {
   TOTPError(LoginTOTPError),
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LoginSuccess {
   pub success: bool,
   pub cookie: ItchCookie,
   pub key: ItchKey,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LoginCaptchaError {
   pub success: bool,
   pub recaptcha_needed: bool,
   pub recaptcha_url: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LoginTOTPError {
   pub success: bool,
   pub totp_needed: bool,
   pub token: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProfileResponse {
   pub user: User,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GameInfoResponse {
   pub game: Game,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GameUploadsResponse {
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub uploads: Vec<Upload>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UploadResponse {
   pub upload: Upload,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CollectionsResponse {
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub collections: Vec<Collection>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CollectionGamesResponse {
   pub page: u64,
   pub per_page: u64,
@@ -555,7 +374,7 @@ pub struct CollectionGamesResponse {
   pub collection_games: Vec<CollectionGameItem>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OwnedKeysResponse {
   pub page: u64,
   pub per_page: u64,

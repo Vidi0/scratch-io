@@ -258,36 +258,28 @@ async fn verify_key(client: &Client, api_key: &str, is_saved_key: bool) -> Resul
 async fn print_owned_keys(client: &Client, api_key: &str) {
   let keys = scratch_io::get_owned_keys(&client, &api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
 
-  println!("{}", keys.iter().map(|k| k.to_string()).collect::<Vec<String>>().join("\n"));
+  println!("{keys:#?}");
 }
 
 
 // Print information about a game, including its uploads and platforms
 async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
-  let game_info = scratch_io::get_game_info(&client, &api_key, game_id).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
-  println!("{game_info}");
+  println!("{:#?}", scratch_io::get_game_info(&client, &api_key, game_id).await.unwrap_or_else(|e| eprintln_exit!("{e}")));
 
   let uploads = scratch_io::get_game_uploads(&client, &api_key, game_id).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
-  let platforms = scratch_io::get_game_platforms(uploads.as_slice());
+  println!("{uploads:#?}");
   
-  println!("  Platforms:");
-  println!("{}", platforms.iter().map(|(uid, p)| format!("    {uid}, {p}")).collect::<Vec<String>>().join("\n"));
-  println!("  Uploads:");
-  println!("{}", uploads.iter().map(|u| u.to_string()).collect::<Vec<String>>().join("\n"));
+  println!("{:#?}", scratch_io::get_game_platforms(uploads.as_slice()));
 }
 
 // Print information about the user's collections
 async fn print_collections(client: &Client, api_key: &str) {
-  for col in scratch_io::get_collections(&client, &api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}")) {
-    println!("{col}");
-  }
+  println!("{:#?}", scratch_io::get_collections(&client, &api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}")));
 }
 
 // Print the games listed in a collection
 async fn print_collection_games(client: &Client, api_key: &str, collection_id: u64) {
-  for cg in scratch_io::get_collection_games(&client, &api_key, collection_id).await.unwrap_or_else(|e| eprintln_exit!("{e}")) {
-    println!("{cg}");
-  }
+  println!("{:#?}", scratch_io::get_collection_games(&client, &api_key, collection_id).await.unwrap_or_else(|e| eprintln_exit!("{e}")))
 }
 
 // Download a game's upload
@@ -307,16 +299,7 @@ async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&
     upload_id,
     dest,
     skip_hash_verification,
-    |u, g| println!("\
-Upload id: {}
-  Game id: {}
-  Game: {}
-  Filename: {}",
-      u.id,
-      g.id,
-      g.title,
-      u.filename
-    ),
+    |u, g| println!("{g:#?}\n{u:#?}"),
     |download_status| {
       match download_status {
         DownloadStatus::Warning(w) => println!("{w}"),
@@ -330,9 +313,10 @@ Upload id: {}
       };
     },
     std::time::Duration::from_millis(100)
-  ).await.inspect(|iu| println!("Game upload downloaded to: \"{}\"", iu.game_folder.join(iu.upload_id.to_string()).to_string_lossy()))
+  ).await
     .unwrap_or_else(|e| eprintln_exit!("Error while downloading file!\n{}", e));
 
+  println!("Game upload downloaded to: \"{}\"", iu.game_folder.join(iu.upload_id.to_string()).to_string_lossy());
   installed_uploads.insert(upload_id, iu);
 }
 
@@ -373,7 +357,7 @@ async fn print_installed_games(client: &Client, api_key: Option<&str>, installed
       warning = (true, format!("Missing, invalid or couldn't verify the api key."))
     }
 
-    println!("{iu}");
+    println!("{iu:#?}");
   }
 
   if warning.0 {
@@ -398,13 +382,13 @@ async fn print_installed_upload(client: &Client, api_key: Option<&str>, upload_i
     println!("Warning: Couldn't update the game info!: Missing, invalid or couldn't verify the api key.")
   }
 
-  println!("{iu}");
+  println!("{iu:#?}");
 
   let manifest = scratch_io::get_upload_manifest(upload_id, &iu.game_folder).await
     .unwrap_or_else(|e| eprintln_exit!("Couldn't get the itch manifest of the upload!: {e}"));
 
   if let Some(m) = manifest {
-    println!("{m}");
+    println!("{m:#?}");
   }
 
   updated
@@ -483,7 +467,7 @@ async fn launch_upload(
     launch_method,
     wrapper.as_slice(),
     game_arguments.as_slice(),
-    |up, command| println!("Launching game:\n  Executable path: \"{}\"\n  Command: {command}", up.to_string_lossy())
+    |up, command| println!("Launching game:\n  Executable path: \"{}\"\n  {command:?}", up.to_string_lossy())
   ).await
     .unwrap_or_else(|e| eprintln_exit!("Couldn't launch: {upload_id}\n{e}"));
 }
@@ -530,7 +514,7 @@ async fn main() {
           config.save_unwrap(custom_config_file).await;
         }
         RequireApiCommands::Profile => {
-          println!("{}", profile.to_string());
+          println!("{profile:#?}");
         }
         RequireApiCommands::Owned => {
           print_owned_keys(&client, api_key.as_str()).await;

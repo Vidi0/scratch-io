@@ -6,12 +6,11 @@ use reqwest::{Client, Method, Response, header};
 use std::path::{Path, PathBuf};
 use std::borrow::Cow;
 use serde::{Deserialize, Serialize};
-use time::format_description::well_known::Rfc3339;
 
 pub mod itch_api_types;
+pub mod itch_manifest;
 mod heuristics;
 mod game_files_operations;
-mod itch_manifest;
 mod extract;
 use crate::itch_api_types::*;
 use crate::game_files_operations::*;
@@ -19,7 +18,7 @@ use crate::game_files_operations::*;
 // This isn't inside itch_types because it is not something that the itch API returns
 // These platforms are *interpreted* from the data provided by the API
 /// The different platforms a upload can be made for
-#[derive(Serialize, Clone, clap::ValueEnum, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, clap::ValueEnum)]
 pub enum GamePlatform {
   Linux,
   Windows,
@@ -29,12 +28,6 @@ pub enum GamePlatform {
   Flash,
   Java,
   UnityWebPlayer,
-}
-
-impl std::fmt::Display for GamePlatform {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(f, "{}", serde_json::to_string(&self).unwrap())
-  }
 }
 
 impl Upload {
@@ -81,7 +74,7 @@ pub enum LaunchMethod<'a> {
 }
 
 /// Some information about a installed upload
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InstalledUpload {
   pub upload_id: u64,
   pub game_folder: PathBuf,
@@ -106,58 +99,6 @@ impl InstalledUpload {
     }
 
     Ok(updated)
-  }
-}
-
-impl std::fmt::Display for InstalledUpload {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    let (u_name, u_created_at, u_updated_at, u_traits) = match self.upload.as_ref() {
-      None => ("", String::new(), String::new(), String::new()),
-      Some(u) => (
-        u.display_name.as_deref().unwrap_or(&u.filename),
-        u.created_at.format(&Rfc3339).unwrap_or_default(),
-        u.updated_at.format(&Rfc3339).unwrap_or_default(),
-        u.traits.iter().map(|t| t.to_string()).collect::<Vec<String>>().join(", "),
-      )
-    };
-
-    let (g_id, g_name, g_description, g_url, g_created_at, g_published_at, a_id, a_name, a_url) = match self.game.as_ref() {
-      None => (String::new(), "", "", "", String::new(), String::new(), String::new(), "", ""),
-      Some(g) => (
-        g.id.to_string(),
-        g.title.as_str(),
-        g.short_text.as_deref().unwrap_or_default(),
-        g.url.as_str(),
-        g.created_at.format(&Rfc3339).unwrap_or_default(),
-        g.published_at.as_ref().and_then(|date| date.format(&Rfc3339).ok()).unwrap_or_default(),
-        g.user.id.to_string(),
-        g.user.display_name.as_deref().unwrap_or(&g.user.username),
-        g.user.url.as_str(),
-      )
-    };
-
-    write!(f, "\
-Upload id: {}
-Game folder: \"{}\"
-  Upload:
-    Name: {u_name}
-    Created at: {u_created_at}
-    Updated at: {u_updated_at}
-    Traits: {u_traits}
-  Game:
-    Id: {g_id}
-    Name: {g_name}
-    Description: {g_description}
-    URL: {g_url}
-    Created at: {g_created_at}
-    Published at: {g_published_at}
-  Author
-    Id: {a_id}
-    Name: {a_name}
-    URL: {a_url}",
-      self.upload_id,
-      self.game_folder.to_string_lossy(),
-    )
   }
 }
 
@@ -1222,7 +1163,7 @@ pub async fn launch(
   launch_method: LaunchMethod<'_>,
   wrapper: &[String],
   game_arguments: &[String],
-  launch_start_callback: impl FnOnce(&Path, &str)
+  launch_start_callback: impl FnOnce(&Path, &tokio::process::Command)
 ) -> Result<(), String> {
   let upload_folder: PathBuf = get_upload_folder(game_folder, upload_id);
   
@@ -1296,12 +1237,12 @@ pub async fn launch(
   game_process.current_dir(&upload_folder)
     .args(game_arguments.as_ref());
 
-  launch_start_callback(upload_executable.as_path(), format!("{:?}", game_process).as_str());
+  launch_start_callback(upload_executable.as_path(), &game_process);
 
   let mut child = game_process.spawn()
     .map_err(|e| {
-      let code = e.raw_os_error();
-      if code.is_some_and(|n| n == 8) {
+      // Error code 8: Exec format error
+      if let Some(8) = e.raw_os_error() {
         format!("Couldn't spawn the child process because it is not an executable format for this OS\n\
           Maybe a wrapper is missing or the selected game executable isn't the correct one!")
       } else {
