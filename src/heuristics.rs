@@ -113,7 +113,7 @@ fn rate_executable(file_path: &Path, directory_levels: usize, platform: &GamePla
   // Most of the checks will be based on the filename
   let filename: String = make_alphanumeric_lowercase(
     file_path.file_stem()
-      .expect("File doesn't have a filename????")
+      .ok_or_else(|| format!("File doesn't have a filename????: \"{}\"", file_path.to_string_lossy()))?
       .to_string_lossy()
       .to_string()
   );

@@ -180,12 +180,12 @@ enum OptionalApiCommands {
   },
 }
 
-async fn get_api_key(client: &Client, keys: &[Option<&str>], saved_key_index: usize) -> Result<(String, User), String> {
-  let key_index = keys
-    .iter()
-    .position(|&k| k.is_some())
+async fn get_api_key(client: &Client, keys: Vec<Option<String>>, saved_key_index: usize) -> Result<(String, User), String> {
+  let (key_index, api_key) = keys.into_iter()
+    .enumerate()
+    .find_map(|(index, key)| key.map(|k| (index, k)))
     .ok_or_else(|| String::from("Error: an Itch.io API key is required, either via --api-key, auth, or the login command."))?;
-  let api_key: String = keys[key_index].expect("If the index isn't valid, we should have exited before!").to_string();
+
   let is_saved_key = key_index == saved_key_index;
   
   // Verify the key and get user info
@@ -489,13 +489,13 @@ async fn main() {
   let api_key = get_api_key(
     &client,
     // The api key is:
-    &[
+    vec![
       // 1. If the command is auth, then the provided key
-      if let Commands::RequireApi(RequireApiCommands::Auth { api_key }) = &cli.command { Some(api_key.as_str()) } else { None },
+      if let Commands::RequireApi(RequireApiCommands::Auth { api_key }) = &cli.command { Some(api_key.to_string()) } else { None },
       // 2. If --api-key is set, then that key
-      cli.api_key.as_deref(),
+      cli.api_key,
       // 3. If not, then the saved config
-      config.api_key.as_deref(),
+      config.api_key.to_owned(),
       // 4. If there isn't a saved config, throw an error
     ],
     // The index of the previously saved config, to print a different error message
