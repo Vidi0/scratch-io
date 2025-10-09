@@ -52,7 +52,7 @@ scratch-io installed
 Launch an installed game:
 
 ```sh
-scratch-io launch 123456 GAME_PLATFORM
+scratch-io launch 123456 --platform GAME_PLATFORM
 ```
 
 See all options with:
