@@ -289,7 +289,7 @@ async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&
   let progress_bar = indicatif::ProgressBar::hidden();
   progress_bar.set_style(
     indicatif::ProgressStyle::default_bar()
-      .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})").expect("Invalid indicatif template???")
+      .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}) ({eta})").expect("Invalid indicatif template???")
       .progress_chars("#>-")
   );
 
