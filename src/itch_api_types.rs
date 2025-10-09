@@ -66,6 +66,28 @@ impl fmt::Display for ItchApiUrl<'_> {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum GameClassification {
+  #[serde(rename = "game")]
+  Game,
+  #[serde(rename = "assets")]
+  Assets,
+  #[serde(rename = "game_mod")]
+  GameMod,
+  #[serde(rename = "physical_game")]
+  PhysicalGame,
+  #[serde(rename = "soundtrack")]
+  Soundtrack,
+  #[serde(rename = "tool")]
+  Tool,
+  #[serde(rename = "comic")]
+  Comic,
+  #[serde(rename = "book")]
+  Book,
+  #[serde(rename = "other")]
+  Other,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum GameTrait {
   #[serde(rename = "p_linux")]
   PLinux,
@@ -95,28 +117,6 @@ pub enum UploadTrait {
   PAndroid,
   #[serde(rename = "demo")]
   Demo,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum GameClassification {
-  #[serde(rename = "game")]
-  Game,
-  #[serde(rename = "assets")]
-  Assets,
-  #[serde(rename = "game_mod")]
-  GameMod,
-  #[serde(rename = "physical_game")]
-  PhysicalGame,
-  #[serde(rename = "soundtrack")]
-  Soundtrack,
-  #[serde(rename = "tool")]
-  Tool,
-  #[serde(rename = "comic")]
-  Comic,
-  #[serde(rename = "book")]
-  Book,
-  #[serde(rename = "other")]
-  Other,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
