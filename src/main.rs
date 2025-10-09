@@ -116,10 +116,10 @@ enum OptionalApiCommands {
   /// Login with a username and password
   Login {
     /// The username of the user who logs in
-    #[arg(env = "SCRATCH_USERNAME")]
+    #[arg(long, env = "SCRATCH_USERNAME")]
     username: String,
     /// The password of the user who logs in
-    #[arg(env = "SCRATCH_PASSWORD")]
+    #[arg(long, env = "SCRATCH_PASSWORD")]
     password: String,
     /// The response of the reCAPTCHA (if required)
     #[arg(long, env = "SCRATCH_RECAPTCHA_RESPONSE")]

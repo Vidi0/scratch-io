@@ -28,13 +28,13 @@ The binary will be placed in `target/release/scratch-io`.
 Authenticate with your itch.io API key:
 
 ```sh
-scratch-io auth YOUR_API_KEY
+scratch-io auth API_KEY
 ```
 
 Alternatively, log in using your username and password:
 
 ```sh
-scratch-io login USERNAME PASSWORD
+scratch-io login --username USERNAME --password PASSWORD
 ```
 
 Download a game by its upload ID:
