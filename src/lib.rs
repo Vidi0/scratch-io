@@ -79,7 +79,7 @@ pub struct InstalledUpload {
   pub upload_id: u64,
   pub game_folder: PathBuf,
   // upload and game are optional because this way, if the Game or Upload structs change
-  // in the Itch's API, they can be obtained again without invalidating all previous configs
+  // in the itch's API, they can be obtained again without invalidating all previous configs
   pub upload: Option<Upload>,
   pub game: Option<Game>,
 }
@@ -112,7 +112,7 @@ impl InstalledUpload {
 /// 
 /// * `url` - A itch.io API address to make the request against
 /// 
-/// * `api_key` - A valid Itch.io API key to make the request
+/// * `api_key` - A valid itch.io API key to make the request
 /// 
 /// * `options` - A closure that modifies the request builder just before sending it
 /// 
@@ -164,7 +164,7 @@ async fn itch_request(
 /// 
 /// * `url` - A itch.io API address to make the request against
 /// 
-/// * `api_key` - A valid Itch.io API key to make the request
+/// * `api_key` - A valid itch.io API key to make the request
 /// 
 /// * `options` - A closure that modifies the request builder just before sending it
 /// 
@@ -283,7 +283,7 @@ async fn stream_response_into_file(
   Ok(downloaded_bytes)
 }
 
-/// Download a file from an Itch API URL
+/// Download a file from an itch API URL
 /// 
 /// # Arguments
 /// 
@@ -291,7 +291,7 @@ async fn stream_response_into_file(
 /// 
 /// * `url` - A itch.io API address to download the file from
 /// 
-/// * `api_key` - A valid (or invalid, if the endpoint doesn't require it) Itch.io API key to make the request
+/// * `api_key` - A valid (or invalid, if the endpoint doesn't require it) itch.io API key to make the request
 /// 
 /// * `file_path` - The path where the file will be placed
 /// 
@@ -462,7 +462,7 @@ async fn totp_verification(client: &Client, totp_token: &str, totp_code: u64) ->
     .map_err(|e| format!("An error occurred while attempting log in:\n{e}"))
 }
 
-/// Login to Itch.io
+/// Login to itch.io
 /// 
 /// Retrieve a API key from a username and password authentication
 /// 
@@ -533,13 +533,13 @@ pub async fn login(client: &Client, username: &str, password: &str, recaptcha_re
 
 /// Get the API key's profile
 /// 
-/// This can be used to verify that a given Itch.io API key is valid
+/// This can be used to verify that a given itch.io API key is valid
 /// 
 /// # Arguments
 /// 
 /// * `client` - An asynchronous reqwest Client
 /// 
-/// * `api_key` - A valid Itch.io API key to make the request
+/// * `api_key` - A valid itch.io API key to make the request
 /// 
 /// # Returns
 /// 
@@ -564,7 +564,7 @@ pub async fn get_profile(client: &Client, api_key: &str) -> Result<User, String>
 /// 
 /// * `client` - An asynchronous reqwest Client
 /// 
-/// * `api_key` - A valid Itch.io API key to make the request
+/// * `api_key` - A valid itch.io API key to make the request
 /// 
 /// # Returns
 /// 
@@ -599,13 +599,13 @@ pub async fn get_owned_keys(client: &Client, api_key: &str) -> Result<Vec<OwnedK
   Ok(keys)
 }
 
-/// Get the information about a game in Itch.io
+/// Get the information about a game in itch.io
 /// 
 /// # Arguments
 /// 
 /// * `client` - An asynchronous reqwest Client
 /// 
-/// * `api_key` - A valid Itch.io API key to make the request
+/// * `api_key` - A valid itch.io API key to make the request
 /// 
 /// * `game_id` - The ID of the game from which information will be obtained
 /// 
@@ -632,7 +632,7 @@ pub async fn get_game_info(client: &Client, api_key: &str, game_id: u64) -> Resu
 /// 
 /// * `client` - An asynchronous reqwest Client
 /// 
-/// * `api_key` - A valid Itch.io API key to make the request
+/// * `api_key` - A valid itch.io API key to make the request
 /// 
 /// * `game_id` - The ID of the game from which information will be obtained
 /// 
@@ -680,7 +680,7 @@ pub fn get_game_platforms(uploads: &[Upload]) -> Vec<(u64, GamePlatform)> {
 /// 
 /// * `client` - An asynchronous reqwest Client
 /// 
-/// * `api_key` - A valid Itch.io API key to make the request
+/// * `api_key` - A valid itch.io API key to make the request
 /// 
 /// * `upload_id` - The ID of the upload from which information will be obtained
 /// 
@@ -707,7 +707,7 @@ pub async fn get_upload_info(client: &Client, api_key: &str, upload_id: u64) -> 
 /// 
 /// * `client` - An asynchronous reqwest Client
 /// 
-/// * `api_key` - A valid Itch.io API key to make the request
+/// * `api_key` - A valid itch.io API key to make the request
 /// 
 /// # Returns
 /// 
@@ -732,7 +732,7 @@ pub async fn get_collections(client: &Client, api_key: &str) -> Result<Vec<Colle
 /// 
 /// * `client` - An asynchronous reqwest Client
 /// 
-/// * `api_key` - A valid Itch.io API key to make the request
+/// * `api_key` - A valid itch.io API key to make the request
 /// 
 /// * `collection_id` - The ID of the collection from which information will be obtained
 /// 
@@ -771,13 +771,13 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
 
 /// Download a game cover image from its game ID
 /// 
-/// The image will be a PNG. This is because the Itch.io servers return that type of image
+/// The image will be a PNG. This is because the itch.io servers return that type of image
 /// 
 /// # Arguments
 /// 
 /// * `client` - An asynchronous reqwest Client
 /// 
-/// * `api_key` - A valid Itch.io API key to make the request
+/// * `api_key` - A valid itch.io API key to make the request
 /// 
 /// * `game_id` - The ID of the game from which the cover will be downloaded
 /// 
@@ -837,7 +837,7 @@ pub async fn download_game_cover(client: &Client, api_key: &str, game_id: u64, f
 /// 
 /// * `client` - An asynchronous reqwest Client
 /// 
-/// * `api_key` - A valid Itch.io API key to make the request
+/// * `api_key` - A valid itch.io API key to make the request
 /// 
 /// * `upload_id` - The ID of the upload which will be downloaded
 /// 
@@ -941,7 +941,7 @@ pub async fn download_upload(
 /// 
 /// * `client` - An asynchronous reqwest Client
 /// 
-/// * `api_key` - A valid Itch.io API key to make the request
+/// * `api_key` - A valid itch.io API key to make the request
 /// 
 /// * `upload_id` - The ID of the upload which will be imported
 /// 
@@ -973,7 +973,7 @@ pub async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder:
 /// 
 /// * `client` - An asynchronous reqwest Client
 /// 
-/// * `api_key` - A valid Itch.io API key to get info about the game to remove
+/// * `api_key` - A valid itch.io API key to get info about the game to remove
 /// 
 /// * `upload_id` - The ID of the upload whose download was canceled
 /// 

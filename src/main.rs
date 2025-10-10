@@ -161,7 +161,7 @@ enum OptionalApiCommands {
     launch_action: Option<String>,
     /// The platform for which the game binary will be searched
     /// 
-    /// The Itch.io uploads don't specify a game binary, so which file to run will be decided by heuristics.
+    /// The itch.io uploads don't specify a game binary, so which file to run will be decided by heuristics.
     /// 
     /// The heuristics need to know which platform is the executable they are searching.
     #[arg(long, env = "SCRATCH_PLATFORM", group = "launch_method")]
@@ -184,7 +184,7 @@ async fn get_api_key(client: &Client, keys: Vec<Option<String>>, saved_key_index
   let (key_index, api_key) = keys.into_iter()
     .enumerate()
     .find_map(|(index, key)| key.map(|k| (index, k)))
-    .ok_or_else(|| String::from("Error: an Itch.io API key is required, either via --api-key, auth, or the login command."))?;
+    .ok_or_else(|| String::from("Error: an itch.io API key is required, either via --api-key, auth, or the login command."))?;
 
   let is_saved_key = key_index == saved_key_index;
   

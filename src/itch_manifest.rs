@@ -41,7 +41,7 @@ pub fn read_manifest(upload_folder: &Path) -> Result<Option<Manifest>, String> {
     .map_err(|e| format!("Couldn't parse itch manifest: {}\n{e}", manifest_path.as_path().to_string_lossy()))
 }
 
-/// Returns a Itch Manifest Action given its name and the folder where the game manifest is located
+/// Returns a itch Manifest Action given its name and the folder where the game manifest is located
 pub fn launch_action(upload_folder: &Path, action_name: Option<&str>) -> Result<Option<Action>, String> {
   let Some(manifest) = read_manifest(upload_folder)? else {
     return Ok(None);
