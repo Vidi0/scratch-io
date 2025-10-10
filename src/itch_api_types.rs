@@ -5,6 +5,13 @@ use std::fmt;
 const ITCH_API_V1_BASE_URL: &str = "https://itch.io/api/1";
 const ITCH_API_V2_BASE_URL: &str = "https://api.itch.io";
 
+/// Deserialize an empty object as an empty vector
+/// 
+/// This is needed because of how the itch.io API works
+/// 
+/// https://itchapi.ryhn.link/API/index.html
+/// 
+/// https://github.com/itchio/itch.io/issues/1301
 pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error> where
   D: serde::de::Deserializer<'de>,
   T: Deserialize<'de>,
