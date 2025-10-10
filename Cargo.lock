@@ -1585,6 +1585,7 @@ dependencies = [
  "shell-words",
  "strsim",
  "tar",
+ "thiserror",
  "time",
  "tokio",
  "toml",

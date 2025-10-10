@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::fs::{File};
 use crate::game_files_operations::*;
+use crate::error::*;
 
 enum ArchiveFormat {
   Zip,
@@ -15,14 +16,13 @@ enum ArchiveFormat {
 /// Gets the archive format of the file
 /// 
 /// If the file is not an archive, then the format is `ArchiveFormat::Other`
-fn get_archive_format(file: &Path) -> Result<ArchiveFormat, String> {
+fn get_archive_format(file: &Path) -> Result<ArchiveFormat> {
   let Some(extension) = file.extension().map(|e| e.to_string_lossy().to_lowercase()) else {
     return Ok(ArchiveFormat::Other)
   };
 
   // At this point, we know the file has an extension
-  let is_tar_compressed: bool = get_file_stem(file)
-    .map_err(|e| format!("Couldn't get archive format because it doesn't have a filename!: \"{}\"\n{e}", file.to_string_lossy()))?
+  let is_tar_compressed: bool = get_file_stem(file)?
     .to_lowercase()
     .ends_with(".tar");
 
@@ -52,10 +52,10 @@ fn get_archive_format(file: &Path) -> Result<ArchiveFormat, String> {
 /// Extracts the archive into the given folder
 ///
 /// If the file isn't an archive it will be moved to the folder
-pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), String> {
+pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<()> {
   // If the extract folder isn't empty, return an error
   if !is_folder_empty(extract_folder)? {
-    return Err(format!("Extraction folder isn't empty: \"{}\"", extract_folder.to_string_lossy()))
+    return Err(FilesystemError::FolderShouldBeEmpty(extract_folder.to_path_buf()).into());
   }
   
   let format: ArchiveFormat = get_archive_format(file_path)?;
@@ -64,16 +64,16 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), Stri
   if let ArchiveFormat::Other = format {
     // Create the destination folder
     tokio::fs::create_dir_all(&extract_folder).await
-      .map_err(|e| format!("Couldn't create folder \"{}\": {e}", extract_folder.to_string_lossy()))?;
+      .map_err(|error| FilesystemError::CreateFolder { error, path: extract_folder.to_path_buf() })?;
 
     // Get the file destination
     let destination = extract_folder.join(
-      file_path.file_name().ok_or_else(|| format!("Couldn't get the file destination because it doesn't have a name: {}", file_path.to_string_lossy()))?
+      file_path.file_name().ok_or_else(|| FilesystemError::PathWithoutFilename(file_path.to_path_buf()))?
     );
 
     // Move the file
     tokio::fs::rename(file_path, &destination).await
-      .map_err(|e| format!("Couldn't move the file:\n  Source: \"{}\"\n  Destination: \"{}\"\n{e}", file_path.to_string_lossy(), destination.to_string_lossy()))?;
+      .map_err(|error| FilesystemError::Move { error, src: file_path.to_path_buf(), dst: destination.to_path_buf() })?;
 
     // Make it executable
     crate::make_executable(&destination)?;
@@ -82,17 +82,16 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), Stri
   }
 
   // The archive will be extracted to the extract_folder_temp, and then moved to its final destination once the extraction is completed
-  let extract_folder_temp = add_part_extension(extract_folder)
-    .map_err(|e| format!("Couldn't add part extension to the extract temp folder!: \"{}\"{e}", file_path.to_string_lossy()))?;
+  let extract_folder_temp = add_part_extension(extract_folder)?;
 
   // The extraction temporal folder could have contents if a previous extraction was cancelled
   // For that reason, don't check if the folder is empty; but create it if it doesn't exist
   tokio::fs::create_dir_all(&extract_folder_temp).await
-    .map_err(|e| format!("Couldn't create folder \"{}\": {e}", extract_folder_temp.to_string_lossy()))?;
+    .map_err(|error| FilesystemError::CreateFolder { error, path: extract_folder_temp.to_path_buf() })?;
 
   // Open the file in read-only mode
   let file = File::open(file_path)
-    .map_err(|e| e.to_string())?;
+    .map_err(|error| FilesystemError::OpenFile { error, path: file_path.to_path_buf() })?;
 
   // Extract the archive based on its format
   match format {
@@ -107,7 +106,7 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), Stri
 
   // Remove the archive
   tokio::fs::remove_file(file_path).await
-    .map_err(|e| format!("Couldn't remove the archive: \"{}\"\n{e}", file_path.to_string_lossy()))?;
+    .map_err(|error| FilesystemError::RemoveFile { error, path: file_path.to_path_buf() })?;
 
   // If the extraction folder has any common roots, remove them
   remove_root_folder(&extract_folder_temp).await?;
@@ -119,11 +118,11 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), Stri
 }
 
 #[cfg_attr(not(feature = "zip"), allow(unused_variables))]
-fn extract_zip(file: &File, folder: &Path) -> Result<(), String> {
+fn extract_zip(file: &File, folder: &Path) -> Result<()> {
   #[cfg(feature = "zip")] 
   {
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
-    archive.extract(&folder).map_err(|e| format!("Error extracting ZIP archive: {e}"))
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| FilesystemError::OpenExtractionReader { error: Box::new(e), format: "ZIP" })?;
+    archive.extract(&folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "ZIP" }.into())
   }
 
   #[cfg(not(feature = "zip"))]
@@ -133,11 +132,11 @@ fn extract_zip(file: &File, folder: &Path) -> Result<(), String> {
 }
 
 #[cfg_attr(not(feature = "tar"), allow(unused_variables))]
-fn extract_tar(file: &File, folder: &Path) -> Result<(), String> {
+fn extract_tar(file: &File, folder: &Path) -> Result<()> {
   #[cfg(feature = "tar")]
   {
     let mut tar_decoder = tar::Archive::new(file);
-    tar_decoder.unpack(&folder).map_err(|e| format!("Error extracting tar archive: {e}"))
+    tar_decoder.unpack(&folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar" }.into())
   }
 
   #[cfg(not(feature = "tar"))]
@@ -147,12 +146,12 @@ fn extract_tar(file: &File, folder: &Path) -> Result<(), String> {
 }
 
 #[cfg_attr(not(feature = "gzip"), allow(unused_variables))]
-fn extract_tar_gz(file: &File, folder: &Path) -> Result<(), String> {
+fn extract_tar_gz(file: &File, folder: &Path) -> Result<()> {
   #[cfg(feature = "gzip")]
   {
     let gz_decoder = flate2::read::GzDecoder::new(file);
     let mut tar_decoder = tar::Archive::new(gz_decoder);
-    tar_decoder.unpack(&folder).map_err(|e| format!("Error extracting tar.gz archive: {e}"))
+    tar_decoder.unpack(&folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar.gz" }.into())
   }
 
   #[cfg(not(feature = "gzip"))]
@@ -162,12 +161,12 @@ fn extract_tar_gz(file: &File, folder: &Path) -> Result<(), String> {
 }
 
 #[cfg_attr(not(feature = "bzip2"), allow(unused_variables))]
-fn extract_tar_bz2(file: &File, folder: &Path) -> Result<(), String> {
+fn extract_tar_bz2(file: &File, folder: &Path) -> Result<()> {
   #[cfg(feature = "bzip2")]
   {
     let bz2_decoder = bzip2::read::BzDecoder::new(file);
     let mut tar_decoder = tar::Archive::new(bz2_decoder);
-    tar_decoder.unpack(&folder).map_err(|e| format!("Error extracting tar.gz archive: {e}"))
+    tar_decoder.unpack(&folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar.bz2" }.into())
   }
 
   #[cfg(not(feature = "bzip2"))]
@@ -177,12 +176,12 @@ fn extract_tar_bz2(file: &File, folder: &Path) -> Result<(), String> {
 }
 
 #[cfg_attr(not(feature = "xz"), allow(unused_variables))]
-fn extract_tar_xz(file: &File, folder: &Path) -> Result<(), String> {
+fn extract_tar_xz(file: &File, folder: &Path) -> Result<()> {
   #[cfg(feature = "xz")]
   {
     let xz_decoder = liblzma::read::XzDecoder::new(file);
     let mut tar_decoder = tar::Archive::new(xz_decoder);
-    tar_decoder.unpack(&folder).map_err(|e| format!("Error extracting tar.xz archive: {e}"))
+    tar_decoder.unpack(&folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar.xz" }.into())
   }
   
   #[cfg(not(feature = "xz"))]
@@ -192,12 +191,12 @@ fn extract_tar_xz(file: &File, folder: &Path) -> Result<(), String> {
 }
 
 #[cfg_attr(not(feature = "zstd"), allow(unused_variables))]
-fn extract_tar_zst(file: &File, folder: &Path) -> Result<(), String> {
+fn extract_tar_zst(file: &File, folder: &Path) -> Result<()> {
   #[cfg(feature = "zstd")]
   {
-    let zstd_decoder = zstd::Decoder::new(file).map_err(|e| format!("Error reading tar.zst archive: {e}"))?;
+    let zstd_decoder = zstd::Decoder::new(file).map_err(|e| FilesystemError::OpenExtractionReader { error: Box::new(e), format: "tar.zst" })?;
     let mut tar_decoder = tar::Archive::new(zstd_decoder);
-    tar_decoder.unpack(&folder).map_err(|e| format!("Error extracting tar.zst archive: {e}"))
+    tar_decoder.unpack(&folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar.zst" }.into())
   }
   
   #[cfg(not(feature = "zstd"))]

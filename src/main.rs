@@ -2,6 +2,7 @@ use reqwest::Client;
 use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
+use scratch_io::error::ErrorKind;
 use scratch_io::{itch_api_types::*, DownloadStatus, InstalledUpload};
 
 mod config;
@@ -244,13 +245,17 @@ fn logout(config_api_key: &mut Option<String>) {
 // Return the user profile
 async fn verify_key(client: &Client, api_key: &str, is_saved_key: bool) -> Result<User, String> {
   scratch_io::get_profile(&client, &api_key).await.map_err(|e| {
-    if !e.contains("invalid key") {
-      e
-    } else if is_saved_key {
-      format!("The key is not longer valid. Try logging in again.")
-    } else {
-      format!("The key is invalid!")
+    if let ErrorKind::ServerRepliedWithError(ref errors) = *e.kind {
+      if errors.iter().any(|e| e.contains("invalid key")) {
+        if is_saved_key {
+          return format!("The API key is not longer valid. Try logging in again.")
+        } else {
+          return format!("The API key is invalid!")
+        }
+      }
     }
+
+    e.to_string()
   })
 }
 

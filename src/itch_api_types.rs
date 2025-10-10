@@ -1,6 +1,7 @@
 use serde::{Serialize, Deserialize};
 use time::{OffsetDateTime, serde::rfc3339};
 use std::fmt;
+use crate::error::{ErrorKind, Result};
 
 const ITCH_API_V1_BASE_URL: &str = "https://itch.io/api/1";
 const ITCH_API_V2_BASE_URL: &str = "https://api.itch.io";
@@ -12,7 +13,7 @@ const ITCH_API_V2_BASE_URL: &str = "https://api.itch.io";
 /// https://itchapi.ryhn.link/API/index.html
 /// 
 /// https://github.com/itchio/itch.io/issues/1301
-pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error> where
+pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> std::result::Result<Vec<T>, D::Error> where
   D: serde::de::Deserializer<'de>,
   T: Deserialize<'de>,
 {
@@ -27,7 +28,7 @@ pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Erro
       formatter.write_str("an array or an empty object")
     }
 
-    fn visit_seq<A>(self, mut seq: A) -> Result<Vec<T>, A::Error> where
+    fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Vec<T>, A::Error> where
       A: serde::de::SeqAccess<'de>,
     {
       let mut items = Vec::new();
@@ -37,7 +38,7 @@ pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Erro
       Ok(items)
     }
 
-    fn visit_map<A>(self, mut map: A) -> Result<Vec<T>, A::Error> where
+    fn visit_map<A>(self, mut map: A) -> std::result::Result<Vec<T>, A::Error> where
       A: serde::de::MapAccess<'de>,
     {
       // Consume all keys without using them, returning empty Vec
@@ -309,10 +310,10 @@ pub enum ApiResponse<T> {
 }
 
 impl<T> ApiResponse<T> {
-  pub fn into_result(self) -> Result<T, String> {
+  pub fn into_result(self) -> Result<T> {
     match self {
       ApiResponse::Success(data) => Ok(data),
-      ApiResponse::Error { errors } => Err(format!("The server replied with an error:\n{}", errors.join("\n"))),
+      ApiResponse::Error { errors } => Err(ErrorKind::ServerRepliedWithError(errors).into()),
     }
   }
 }

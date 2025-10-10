@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use crate::itch_api_types::*;
+use crate::error::*;
 use crate::GamePlatform;
 
 const GOOD_LAUNCH_FILENAMES: &[&'static str] = &["start", "launch", "play", "run", "game", "launcher", "rungame"];
@@ -59,10 +60,10 @@ impl GamePlatform {
 /// A path with the possible game executable
 /// 
 /// An error if something goes wrong
-pub async fn get_game_executable(upload_folder: &Path, platform: &GamePlatform, game_info: &Game) -> Result<PathBuf, String> {
+pub async fn get_game_executable(upload_folder: &Path, platform: &GamePlatform, game_info: &Game) -> Result<PathBuf> {
   // If the folder is not a directory, return
   if !upload_folder.is_dir() {
-    return Err(format!("Not a folder: \"{}\"", upload_folder.to_string_lossy()));
+    return Err(FilesystemError::ExpectedToBeFolderButIsNot(upload_folder.to_path_buf()).into());
   }
   
   // This variable will store the best executable found at the moment and its rating
@@ -74,12 +75,12 @@ pub async fn get_game_executable(upload_folder: &Path, platform: &GamePlatform, 
 
   while let Some((folder, depth)) = queue.pop_front() {
     let mut entries = tokio::fs::read_dir(&folder).await
-      .map_err(|e| format!("Couldn't read dir \"{}\": {e}", folder.as_path().to_string_lossy()))?;
+      .map_err(|error| FilesystemError::ReadDirectory { error, path: folder.to_path_buf() })?;
 
-    while let Some(entry) = entries.next_entry().await.map_err(|e| e.to_string())? {
+    while let Some(entry) = entries.next_entry().await.map_err(|error| FilesystemError::ReadDirectoryNextEntry { error, path: folder.to_path_buf() })? {
       let entry_path = entry.path();
 
-      if entry.file_type().await.map_err(|e| e.to_string())?.is_dir() {
+      if entry.file_type().await.map_err(|error| FilesystemError::GetFileType { error, path: entry_path.to_path_buf() })?.is_dir() {
         // If we are on the last depth, don't go to the next one, stop now
         // For this reason it is < and not <=
         if depth < MAX_DIRECTORY_LEVEL_DEPTH {
@@ -97,11 +98,11 @@ pub async fn get_game_executable(upload_folder: &Path, platform: &GamePlatform, 
   if let Some(executable) = best_executable.0 {
     Ok(executable)
   } else {
-    Err(format!("Couldn't find any game file executable in: \"{}\"", upload_folder.to_string_lossy()))
+    Err(ErrorKind::ExecutableNotFound(upload_folder.to_path_buf()).into())
   }
 }
 
-fn rate_executable(file_path: &Path, directory_levels: usize, platform: &GamePlatform, game_info: &Game) -> Result<i64, String> {
+fn rate_executable(file_path: &Path, directory_levels: usize, platform: &GamePlatform, game_info: &Game) -> Result<i64> {
   let mut rating: i64 = 0;
 
   // base level: keep the rating
@@ -113,7 +114,7 @@ fn rate_executable(file_path: &Path, directory_levels: usize, platform: &GamePla
   // Most of the checks will be based on the filename
   let filename: String = make_alphanumeric_lowercase(
     file_path.file_stem()
-      .ok_or_else(|| format!("File doesn't have a filename????: \"{}\"", file_path.to_string_lossy()))?
+      .ok_or_else(|| FilesystemError::PathWithoutFilename(file_path.to_path_buf()))?
       .to_string_lossy()
       .to_string()
   );
