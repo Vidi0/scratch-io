@@ -591,6 +591,31 @@ pub async fn get_owned_keys(client: &Client, api_key: &str) -> Result<Vec<OwnedK
   Ok(keys)
 }
 
+/// Get the games that the user created or that the user is an admin of
+/// 
+/// # Arguments
+/// 
+/// * `client` - An asynchronous reqwest Client
+/// 
+/// * `api_key` - A valid itch.io API key to make the request
+/// 
+/// # Returns
+/// 
+/// A vector of OwnedKey structs with the info provided by the API
+/// 
+/// An error if something goes wrong
+pub async fn get_crated_games(client: &Client, api_key: &str) -> Result<Vec<CreatedGame>> {
+  itch_request_json::<CreatedGamesResponse>(
+    client,
+    Method::GET,
+    &ItchApiUrl::V2("profile/games"),
+    api_key,
+    |b| b,
+  ).await
+    .map(|res| res.games)
+    .add_context("An error occurred while attempting to obtain the list of the user created games:")
+}
+
 /// Get the information about a game in itch.io
 /// 
 /// # Arguments
