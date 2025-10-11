@@ -5,7 +5,7 @@ use std::path::PathBuf;
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Error, Debug)]
-#[error("{context}\n{kind}")]
+#[error("{context}{kind}")]
 pub struct Error {
   #[source]
   pub kind: Box<ErrorKind>,
