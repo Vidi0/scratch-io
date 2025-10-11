@@ -418,7 +418,7 @@ async fn download_file(
   if let Some((hasher, hash)) = md5_hash {
     let file_hash = format!("{:x}", hasher.finalize());
 
-    if !file_hash.eq_ignore_ascii_case(&hash) {
+    if !file_hash.eq_ignore_ascii_case(hash) {
       return Err(ErrorKind::MismatchedHashes { file_hash, server_hash: hash.to_string() }.into());
     }
   }

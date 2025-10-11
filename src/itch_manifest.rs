@@ -39,7 +39,7 @@ pub fn read_manifest(upload_folder: &Path) -> Result<Option<Manifest>> {
     .map_err(|error| FilesystemError::ReadFileToString { error, path: manifest_path.to_path_buf() })?;
 
   toml::from_str::<Manifest>(&manifest_text)
-    .map(|m| Some(m))
+    .map(Some)
     .map_err(|error| ParseError::ItchManifest { error, path: manifest_path, text: manifest_text }.into())
 }
 

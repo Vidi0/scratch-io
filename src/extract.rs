@@ -122,7 +122,7 @@ fn extract_zip(file: &File, folder: &Path) -> Result<()> {
   #[cfg(feature = "zip")] 
   {
     let mut archive = zip::ZipArchive::new(file).map_err(|e| FilesystemError::OpenExtractionReader { error: Box::new(e), format: "ZIP" })?;
-    archive.extract(&folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "ZIP" }.into())
+    archive.extract(folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "ZIP" }.into())
   }
 
   #[cfg(not(feature = "zip"))]
@@ -136,7 +136,7 @@ fn extract_tar(file: &File, folder: &Path) -> Result<()> {
   #[cfg(feature = "tar")]
   {
     let mut tar_decoder = tar::Archive::new(file);
-    tar_decoder.unpack(&folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar" }.into())
+    tar_decoder.unpack(folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar" }.into())
   }
 
   #[cfg(not(feature = "tar"))]
@@ -151,7 +151,7 @@ fn extract_tar_gz(file: &File, folder: &Path) -> Result<()> {
   {
     let gz_decoder = flate2::read::GzDecoder::new(file);
     let mut tar_decoder = tar::Archive::new(gz_decoder);
-    tar_decoder.unpack(&folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar.gz" }.into())
+    tar_decoder.unpack(folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar.gz" }.into())
   }
 
   #[cfg(not(feature = "gzip"))]
@@ -166,7 +166,7 @@ fn extract_tar_bz2(file: &File, folder: &Path) -> Result<()> {
   {
     let bz2_decoder = bzip2::read::BzDecoder::new(file);
     let mut tar_decoder = tar::Archive::new(bz2_decoder);
-    tar_decoder.unpack(&folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar.bz2" }.into())
+    tar_decoder.unpack(folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar.bz2" }.into())
   }
 
   #[cfg(not(feature = "bzip2"))]
@@ -181,7 +181,7 @@ fn extract_tar_xz(file: &File, folder: &Path) -> Result<()> {
   {
     let xz_decoder = liblzma::read::XzDecoder::new(file);
     let mut tar_decoder = tar::Archive::new(xz_decoder);
-    tar_decoder.unpack(&folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar.xz" }.into())
+    tar_decoder.unpack(folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar.xz" }.into())
   }
   
   #[cfg(not(feature = "xz"))]
@@ -196,7 +196,7 @@ fn extract_tar_zst(file: &File, folder: &Path) -> Result<()> {
   {
     let zstd_decoder = zstd::Decoder::new(file).map_err(|e| FilesystemError::OpenExtractionReader { error: Box::new(e), format: "tar.zst" })?;
     let mut tar_decoder = tar::Archive::new(zstd_decoder);
-    tar_decoder.unpack(&folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar.zst" }.into())
+    tar_decoder.unpack(folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar.zst" }.into())
   }
   
   #[cfg(not(feature = "zstd"))]

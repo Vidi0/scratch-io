@@ -84,7 +84,7 @@ impl Config {
     match ver {
       LAST_CONFIGURATION_VERSION => toml::from_str::<Config>(&config_text)
         .map_err(|error| ParseError::ConfigFile { error, path: config_file_path, text: config_text }.into()),
-      _ => return Err(ErrorKind::IncompatibleConfigVersion { config_file: config_file_path, config_version: ver, supported_version: LAST_CONFIGURATION_VERSION }.into())
+      _ => Err(ErrorKind::IncompatibleConfigVersion { config_file: config_file_path, config_version: ver, supported_version: LAST_CONFIGURATION_VERSION }.into())
     }
   }
   

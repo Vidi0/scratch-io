@@ -56,12 +56,10 @@ pub fn is_folder_empty(folder: impl AsRef<Path>) -> Result<bool> {
     } else {
       Ok(false)
     }
+  } else if folder.as_ref().exists() {
+    Err(FilesystemError::ExpectedToBeFolderButIsNot(folder.as_ref().to_path_buf()).into())
   } else {
-    if folder.as_ref().exists() {
-      Err(FilesystemError::ExpectedToBeFolderButIsNot(folder.as_ref().to_path_buf()).into())
-    } else {
-      Ok(true)
-    }
+    Ok(true)
   }
 }
 

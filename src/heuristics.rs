@@ -3,8 +3,8 @@ use crate::itch_api_types::*;
 use crate::error::*;
 use crate::GamePlatform;
 
-const GOOD_LAUNCH_FILENAMES: &[&'static str] = &["start", "launch", "play", "run", "game", "launcher", "rungame"];
-const ARCHITECTURE_SUFFIXES: &[&'static str] = {
+const GOOD_LAUNCH_FILENAMES: &[&str] = &["start", "launch", "play", "run", "game", "launcher", "rungame"];
+const ARCHITECTURE_SUFFIXES: &[&str] = {
   #[cfg(target_pointer_width = "64")]
   { &["64"] }
   #[cfg(not(target_pointer_width = "64"))]
