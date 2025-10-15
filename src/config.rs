@@ -1,11 +1,12 @@
+use crate::eprintln_exit;
+use scratch_io::InstalledUpload;
+
 use std::{collections::HashMap};
 use std::path::PathBuf;
 use directories::ProjectDirs;
 use serde::{Serialize, Deserialize};
 use serde_with::{serde_as, DisplayFromStr};
-use scratch_io::InstalledUpload;
-use scratch_io::error::*;
-use crate::eprintln_exit;
+use thiserror::Error;
 
 const APP_CONFIGURATION_NAME: &str = "scratch-io";
 const APP_CONFIGURATION_FILE: &str = "config.toml";
@@ -14,17 +15,17 @@ const LAST_CONFIGURATION_VERSION: u64 = 0;
 /// Gets the config folder of this application
 /// 
 /// If `custom_config_folder` is provided, then use that path
-fn get_config_folder(custom_config_folder: Option<PathBuf>) -> Result<ProjectDirs> {
+fn get_config_folder(custom_config_folder: Option<PathBuf>) -> Option<ProjectDirs> {
   match custom_config_folder {
     None => ProjectDirs::from("", "", APP_CONFIGURATION_NAME),
     Some(p) => ProjectDirs::from_path(p)
-  }.ok_or_else(|| FilesystemError::MissingProjectDirectory.into())
+  }
 }
 
 /// Gets the config file of this application
 /// 
 /// If `custom_config_folder` is provided, then use it as the config folder path instead of the system's default
-fn get_config_file(custom_config_folder: Option<PathBuf>) -> Result<PathBuf> {
+fn get_config_file(custom_config_folder: Option<PathBuf>) -> Option<PathBuf> {
   get_config_folder(custom_config_folder).map(|d| d.config_dir()
     .join(APP_CONFIGURATION_FILE)
   )
@@ -59,32 +60,103 @@ impl std::default::Default for Config {
   }
 }
 
+#[derive(Error, Debug)]
+pub enum LoadConfigError {
+  #[error("Couldn't determine the config file!")]
+  CouldntGetConfigFile,
+
+  #[error("Couldn't check if the path exists: \"{path}\"\n{error}")]
+  CouldntCheckIfPathExists {
+    path: PathBuf,
+    #[source]
+    error: std::io::Error,
+  },
+
+  #[error("Couldn't read the config file to a string: \"{path}\"\n{error}")]
+  CouldntReadFileToString {
+    path: PathBuf,
+    #[source]
+    error: std::io::Error,
+  },
+
+  #[error("Couldn't get the config version: \"{path}\"\n{error}\n\n{text}")]
+  InvalidConfigVersion {
+    path: PathBuf,
+    text: String,
+    #[source]
+    error: toml::de::Error,
+  },
+
+  #[error("Invalid configuration file: \"{path}\"\n{error}\n\n{text}")]
+  InvalidConfigFile {
+    path: PathBuf,
+    text: String,
+    #[source]
+    error: toml::de::Error,
+  },
+
+  #[error(
+r#"The config version of "{config_file}" is not compatible with this scratch-io version!
+Update to a newer scratch-io version to be able to load the given config.
+  Config version: {config_version}
+  Supported version: {supported_version}"#
+)]
+  IncompatibleConfigVersion {
+    config_file: PathBuf,
+    config_version: u64,
+    supported_version: u64,
+  },
+}
+
+#[derive(Error, Debug)]
+pub enum SaveConfigError {
+  #[error("Couldn't write the config string to a file: \"{path}\"\n{error}\n\n{text}")]
+  CouldntWriteStringToFile {
+    path: PathBuf,
+    text: String,
+    #[source]
+    error: std::io::Error,
+  },
+
+  #[error("Couldn't determine the config file!")]
+  CouldntGetConfigFile,
+  
+  #[error("Couldn't serialize config into TOML: \"{path}\"\n{error}")]
+  SerializeConfig {
+    #[source]
+    error: toml::ser::Error,
+    path: PathBuf,
+  },
+}
+
 impl Config {
   /// Load the application's config from a file
   /// 
   /// If `custom_config_folder` is provided, then use that as the config folder path instead of the system's default
-  pub async fn load(custom_config_folder: Option<PathBuf>) -> Result<Self> {
+  pub async fn load(custom_config_folder: Option<PathBuf>) -> Result<Self, LoadConfigError> {
     // Get the config path
-    let config_file_path: PathBuf = get_config_file(custom_config_folder)?;
+    let config_file_path: PathBuf = get_config_file(custom_config_folder)
+      .ok_or(LoadConfigError::CouldntGetConfigFile)?;
+
     // If the config doesn't exist, create one with Config::default()
-    if !config_file_path.try_exists().map_err(|error| FilesystemError::CheckIfPathExists { error, path: config_file_path.to_path_buf() })? {
+    if !config_file_path.try_exists().map_err(|error| LoadConfigError::CouldntCheckIfPathExists { path: config_file_path.to_path_buf(), error })? {
       return Ok(Config::default());
     }
 
     // Get the config text
     let config_text: String = tokio::fs::read_to_string(&config_file_path).await
-      .map_err(|error| FilesystemError::ReadFileToString { error, path: config_file_path.to_path_buf() })?;
+      .map_err(|error| LoadConfigError::CouldntReadFileToString { path: config_file_path.to_path_buf(), error })?;
 
     // Get the config version
     let ver = toml::from_str::<ConfigVersion>(&config_text)
-      .map_err(|error| ParseError::ConfigVersion { error, path: config_file_path.to_path_buf(), text: config_text.clone() })?
+      .map_err(|error| LoadConfigError::InvalidConfigVersion { path: config_file_path.to_path_buf(), text: config_text.clone(), error })?
       .config_version;
 
     // Parse the config depending on the version
     match ver {
       LAST_CONFIGURATION_VERSION => toml::from_str::<Config>(&config_text)
-        .map_err(|error| ParseError::ConfigFile { error, path: config_file_path, text: config_text }.into()),
-      _ => Err(ErrorKind::IncompatibleConfigVersion { config_file: config_file_path, config_version: ver, supported_version: LAST_CONFIGURATION_VERSION }.into())
+        .map_err(|error| LoadConfigError::InvalidConfigFile { path: config_file_path, text: config_text, error }),
+      _ => Err(LoadConfigError::IncompatibleConfigVersion { config_file: config_file_path, config_version: ver, supported_version: LAST_CONFIGURATION_VERSION })
     }
   }
   
@@ -98,17 +170,18 @@ impl Config {
   /// Save the application's config to a file
   /// 
   /// If `custom_config_folder` is provided, then use that as the config folder path instead of the system's default
-  pub async fn save(&self, custom_config_folder: Option<PathBuf>) -> Result<()> {
+  pub async fn save(&self, custom_config_folder: Option<PathBuf>) -> Result<(), SaveConfigError> {
     // Get the config path
-    let config_file_path: PathBuf = get_config_file(custom_config_folder)?;
+    let config_file_path: PathBuf = get_config_file(custom_config_folder)
+      .ok_or(SaveConfigError::CouldntGetConfigFile)?;
 
     // Get the config text
     let config_text = toml::to_string_pretty::<Config>(self)
-      .map_err(|error| ParseError::SerializeConfig { error, path: config_file_path.to_path_buf() })?;
+      .map_err(|error| SaveConfigError::SerializeConfig { error, path: config_file_path.to_path_buf() })?;
 
     // Write the config to a file
     tokio::fs::write(&config_file_path, &config_text).await
-      .map_err(|error| FilesystemError::WriteStringToFile { error, path: config_file_path }.into())
+      .map_err(|error| SaveConfigError::CouldntWriteStringToFile { path: config_file_path, text: config_text, error })
   }
   
   /// Save the application's config to a file and panic on error

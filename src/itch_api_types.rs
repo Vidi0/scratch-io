@@ -1,10 +1,18 @@
 use serde::{Serialize, Deserialize};
 use time::{OffsetDateTime, serde::rfc3339};
-use std::fmt;
-use crate::error::{ErrorKind, Result};
+use thiserror::Error;
 
 const ITCH_API_V1_BASE_URL: &str = "https://itch.io/api/1";
 const ITCH_API_V2_BASE_URL: &str = "https://api.itch.io";
+
+const ITCH_API_ERROR_AUTHENTICATION_REQUIRED: &str = "authentication required";
+const ITCH_API_ERROR_INVALID_API_KEY: &str = "invalid key";
+const ITCH_API_ERROR_INVALID_USER_OR_PASSWORD: &str = "Incorrect username or password";
+const ITCH_API_ERROR_INVALID_CAPTCHA_CODE: &str = "Please correctly complete reCAPTCHA";
+const ITCH_API_ERROR_INVALID_TOTP_CODE: &str = "invalid code";
+const ITCH_API_ERROR_INVALID_GAME: &str = "invalid game";
+const ITCH_API_ERROR_INVALID_UPLOAD: &str = "invalid upload";
+const ITCH_API_ERROR_INVALID_COLLECTION: &str = "invalid collection";
 
 /// Deserialize an empty object as an empty vector
 /// 
@@ -13,7 +21,7 @@ const ITCH_API_V2_BASE_URL: &str = "https://api.itch.io";
 /// https://itchapi.ryhn.link/API/index.html
 /// 
 /// https://github.com/itchio/itch.io/issues/1301
-pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> std::result::Result<Vec<T>, D::Error> where
+pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error> where
   D: serde::de::Deserializer<'de>,
   T: Deserialize<'de>,
 {
@@ -24,11 +32,11 @@ pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> std::result::Result<Ve
   {
     type Value = Vec<T>;
 
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
       formatter.write_str("an array or an empty object")
     }
 
-    fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Vec<T>, A::Error> where
+    fn visit_seq<A>(self, mut seq: A) -> Result<Vec<T>, A::Error> where
       A: serde::de::SeqAccess<'de>,
     {
       let mut items = Vec::new();
@@ -38,7 +46,7 @@ pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> std::result::Result<Ve
       Ok(items)
     }
 
-    fn visit_map<A>(self, mut map: A) -> std::result::Result<Vec<T>, A::Error> where
+    fn visit_map<A>(self, mut map: A) -> Result<Vec<T>, A::Error> where
       A: serde::de::MapAccess<'de>,
     {
       // Consume all keys without using them, returning empty Vec
@@ -61,8 +69,8 @@ pub enum ItchApiUrl<'a> {
   Other(&'a str),
 }
 
-impl fmt::Display for ItchApiUrl<'_> {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for ItchApiUrl<'_> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "{}", 
       match self {
         ItchApiUrl::V1(u) => format!("{ITCH_API_V1_BASE_URL}/{u}"),
@@ -332,15 +340,52 @@ pub enum ApiResponse<T> {
   },
 }
 
-impl<T> ApiResponse<T> {
-  pub fn into_result(self) -> Result<T> {
-    match self {
-      ApiResponse::Success(data) => Ok(data),
-      ApiResponse::Error { errors } => Err(ErrorKind::ServerRepliedWithError(errors).into()),
+#[derive(Error, Debug)]
+pub enum ApiResponseError {
+  #[error("An API key is required in order to send any API request.")]
+  AuthenticationRequired,
+
+  #[error("The provided API key is invalid!")]
+  InvalidApiKey,
+
+  #[error("The itch.io API returned an error:\n{0:#?}")]
+  Other(Vec<String>),
+}
+
+impl From<Vec<String>> for ApiResponseError {
+  fn from(value: Vec<String>) -> Self {
+    match value.as_slice() {
+      [v] if v == ITCH_API_ERROR_AUTHENTICATION_REQUIRED => Self::AuthenticationRequired,
+      [v] if v == ITCH_API_ERROR_INVALID_API_KEY => Self::InvalidApiKey,
+      _ => Self::Other(value),
     }
   }
 }
 
+pub trait IntoApiResult {
+  type Ok;
+  type Err: std::fmt::Debug + std::error::Error;
+
+  fn into_result(self) -> Result<Self::Ok, Self::Err>;
+}
+
+pub trait ApiResultWithoutCustomErrors {}
+
+impl<T: ApiResultWithoutCustomErrors> IntoApiResult for ApiResponse<T> {
+  type Ok = T;
+  type Err = ApiResponseError;
+
+  fn into_result(self) -> Result<Self::Ok, Self::Err> {
+    match self {
+      ApiResponse::Success(val) => Ok(val),
+      ApiResponse::Error { errors } => Err(errors.into()),
+    }
+  }
+}
+
+/// Response struct for:
+/// 
+/// https://api.itch.io/login
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum LoginResponse {
@@ -370,41 +415,71 @@ pub struct LoginTOTPError {
   pub token: String,
 }
 
+#[derive(Error, Debug)]
+pub enum LoginResponseError {
+  #[error("The username or the password is incorrect.")]
+  IncorrectUsernameOrPassword,
+
+  #[error(
+r#"A reCAPTCHA verification is required to continue!
+  Go to "{}" and solve the reCAPTCHA.
+  To obtain the token, paste the following command on the developer console:
+    console.log(grecaptcha.getResponse())
+  Then run the login command again with the --recaptcha-response option."#,
+  .0.recaptcha_url,
+)]
+  CaptchaNeeded(LoginCaptchaError),
+
+  #[error("The reCAPTCHA response code is incorrect!")]
+  IncorrectCaptchaResponseCode,
+
+  #[error(
+r#"The accout has 2 step verification enabled via TOTP
+  Run the login command again with the --totp-code={{VERIFICATION_CODE}} option."#
+)]
+  TOTPNeeded(LoginTOTPError),
+
+  #[error("The TOTP code is incorrect!")]
+  IncorrectTOTPCode,
+  
+  #[error(transparent)]
+  Other(#[from] ApiResponseError),
+}
+
+impl IntoApiResult for ApiResponse<LoginResponse> {
+  type Ok = LoginSuccess;
+  type Err = LoginResponseError;
+
+  fn into_result(self) -> Result<Self::Ok, Self::Err> {
+    match self {
+      ApiResponse::Success(lr) => match lr {
+        LoginResponse::Success(ls) => Ok(ls),
+        LoginResponse::CaptchaError(lce) => Err(LoginResponseError::CaptchaNeeded(lce)),
+        LoginResponse::TOTPError(lte) => Err(LoginResponseError::TOTPNeeded(lte)),
+      }
+      ApiResponse::Error { errors } => match errors.as_slice() {
+        [s] if s == ITCH_API_ERROR_INVALID_USER_OR_PASSWORD => Err(LoginResponseError::IncorrectUsernameOrPassword),
+        [s] if s == ITCH_API_ERROR_INVALID_CAPTCHA_CODE => Err(LoginResponseError::IncorrectCaptchaResponseCode),
+        [s] if s == ITCH_API_ERROR_INVALID_TOTP_CODE => Err(LoginResponseError::IncorrectTOTPCode),
+        _ => Err(ApiResponseError::from(errors).into()),
+      }
+    }
+  }
+}
+
+/// Response struct for:
+/// 
+/// https://api.itch.io/profile
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProfileResponse {
   pub user: User,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct GameInfoResponse {
-  pub game: Game,
-}
+impl ApiResultWithoutCustomErrors for ProfileResponse {}
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct GameUploadsResponse {
-  #[serde(deserialize_with = "empty_object_as_vec")]
-  pub uploads: Vec<Upload>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct UploadResponse {
-  pub upload: Upload,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CollectionsResponse {
-  #[serde(deserialize_with = "empty_object_as_vec")]
-  pub collections: Vec<Collection>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CollectionGamesResponse {
-  pub page: u64,
-  pub per_page: u64,
-  #[serde(deserialize_with = "empty_object_as_vec")]
-  pub collection_games: Vec<CollectionGameItem>,
-}
-
+/// Response struct for:
+/// 
+/// https://api.itch.io/profile/owned-keys
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OwnedKeysResponse {
   pub page: u64,
@@ -413,8 +488,151 @@ pub struct OwnedKeysResponse {
   pub owned_keys: Vec<OwnedKey>,
 }
 
+impl ApiResultWithoutCustomErrors for OwnedKeysResponse {}
+
+/// Response struct for:
+/// 
+/// https://api.itch.io/profile/games
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CreatedGamesResponse {
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub games: Vec<CreatedGame>,
+}
+
+impl ApiResultWithoutCustomErrors for CreatedGamesResponse {}
+
+/// Response struct for:
+/// 
+/// https://api.itch.io/profile/collections
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CollectionsResponse {
+  #[serde(deserialize_with = "empty_object_as_vec")]
+  pub collections: Vec<Collection>,
+}
+
+impl ApiResultWithoutCustomErrors for CollectionsResponse {}
+
+/// Response struct for:
+/// 
+/// https://api.itch.io/games/{GAME_ID}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GameInfoResponse {
+  pub game: Game,
+}
+
+#[derive(Error, Debug)]
+pub enum GameInfoResponseError {
+  #[error("The provided game ID is invalid.")]
+  InvalidGameID,
+  
+  #[error(transparent)]
+  Other(#[from] ApiResponseError),
+}
+
+impl IntoApiResult for ApiResponse<GameInfoResponse> {
+  type Ok = GameInfoResponse;
+  type Err = GameInfoResponseError;
+
+  fn into_result(self) -> Result<Self::Ok, Self::Err> {
+    match self {
+      ApiResponse::Success(gur) => Ok(gur),
+      ApiResponse::Error { errors } => match errors.as_slice() {
+        [s] if s == ITCH_API_ERROR_INVALID_GAME => Err(GameInfoResponseError::InvalidGameID),
+        _ => Err(ApiResponseError::from(errors).into())
+      },
+    }
+  }
+}
+
+/// Response struct for:
+/// 
+/// https://api.itch.io/games/{GAME_ID}/uploads
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GameUploadsResponse {
+  #[serde(deserialize_with = "empty_object_as_vec")]
+  pub uploads: Vec<Upload>,
+}
+
+impl IntoApiResult for ApiResponse<GameUploadsResponse> {
+  type Ok = GameUploadsResponse;
+  type Err = GameInfoResponseError;
+
+  fn into_result(self) -> Result<Self::Ok, Self::Err> {
+    match self {
+      ApiResponse::Success(gur) => Ok(gur),
+      ApiResponse::Error { errors } => match errors.as_slice() {
+        [s] if s == ITCH_API_ERROR_INVALID_GAME => Err(GameInfoResponseError::InvalidGameID),
+        _ => Err(ApiResponseError::from(errors).into())
+      },
+    }
+  }
+}
+
+/// Response struct for:
+/// 
+/// https://api.itch.io/uploads/{UPLOAD_ID}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UploadResponse {
+  pub upload: Upload,
+}
+
+#[derive(Error, Debug)]
+pub enum UploadResponseError {
+  #[error("The provided upload ID is invalid.")]
+  InvalidUploadID,
+  
+  #[error(transparent)]
+  Other(#[from] ApiResponseError),
+}
+
+impl IntoApiResult for ApiResponse<UploadResponse> {
+  type Ok = UploadResponse;
+  type Err = UploadResponseError;
+
+  fn into_result(self) -> Result<Self::Ok, Self::Err> {
+    match self {
+      ApiResponse::Success(ur) => Ok(ur),
+      ApiResponse::Error { errors } => match errors.as_slice() {
+        [s] if s == ITCH_API_ERROR_INVALID_UPLOAD => Err(UploadResponseError::InvalidUploadID),
+        _ => Err(ApiResponseError::from(errors).into())
+      },
+    }
+  }
+}
+
+/// Response struct for:
+/// 
+/// https://api.itch.io/collections/{COLLECTION_ID}/collection-games
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CollectionGamesResponse {
+  pub page: u64,
+  pub per_page: u64,
+  #[serde(deserialize_with = "empty_object_as_vec")]
+  pub collection_games: Vec<CollectionGameItem>,
+}
+
+#[derive(Error, Debug)]
+pub enum CollectionGamesResponseError {
+  #[error("The provided collection ID is invalid.")]
+  InvalidCollectionID,
+  
+  #[error(transparent)]
+  Other(#[from] ApiResponseError),
+}
+
+impl IntoApiResult for ApiResponse<CollectionGamesResponse> {
+  type Ok = CollectionGamesResponse;
+  type Err = CollectionGamesResponseError;
+
+  fn into_result(self) -> Result<Self::Ok, Self::Err> {
+    match self {
+      ApiResponse::Success(cgr) => Ok(cgr),
+      ApiResponse::Error { errors } => {
+        match errors.as_slice() {
+          [s] if s == ITCH_API_ERROR_INVALID_COLLECTION => Err(CollectionGamesResponseError::InvalidCollectionID),
+          _ => Err(ApiResponseError::from(errors).into()),
+        }
+      }
+    }
+  }
 }

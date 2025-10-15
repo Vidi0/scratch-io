@@ -1,10 +1,130 @@
 use std::path::{Path, PathBuf};
-
-use crate::error::*;
+use thiserror::Error;
 
 pub const UPLOAD_ARCHIVE_NAME: &str = "download";
 pub const COVER_IMAGE_DEFAULT_FILENAME: &str = "cover.png";
 pub const GAME_FOLDER: &str = "Games";
+
+#[derive(Error, Debug)]
+pub enum FilesystemError {
+  #[error("The following path doesn't have a name: \"{0}\"")]
+  PathWithoutFilename(PathBuf),
+
+  #[error("The following path doesn't have a parent: \"{0}\"")]
+  PathWithoutParent(PathBuf),
+
+  #[error("Couldn't determine the home directory")]
+  MissingHomeDirectory,
+
+  #[error("\"{0}\" is not a folder!")]
+  ExpectedToBeFolderButIsNot(PathBuf),
+
+  #[error("The folder should be empty but it isn't: \"{0}\"")]
+  FolderShouldBeEmpty(PathBuf),
+
+  #[error("Couldn't read directory elements: \"{path}\"\n{error}")]
+  ReadDirectory {
+    #[source]
+    error: tokio::io::Error,
+    path: PathBuf,
+  },
+
+  #[error("Couldn't read directory next element: \"{path}\"\n{error}")]
+  ReadDirectoryNextEntry {
+    #[source]
+    error: tokio::io::Error,
+    path: PathBuf,
+  },
+
+  #[error("Couldn't remove a empty folder: \"{path}\"\n{error}")]
+  RemoveEmptyDir {
+    #[source]
+    error: tokio::io::Error,
+    path: PathBuf,
+  },
+
+  #[error("Couldn't remove a folder and its contents: \"{path}\"\n{error}")]
+  RemoveDirWithContents {
+    #[source]
+    error: tokio::io::Error,
+    path: PathBuf,
+  },
+
+  #[error("Couldn't get the canonical (absolute) form of the path. Maybe it doesn't exist: \"{path}\"\n{error}")]
+  GetCanonicalPath {
+    #[source]
+    error: tokio::io::Error,
+    path: PathBuf,
+  },
+
+  #[error("Refusing to remove folder because it is an important path!: \"{0}\"")]
+  RefusingToRemoveFolder(PathBuf),
+
+  #[error("Couldn't read the file/directory metadata of: \"{path}\"\n{error}")]
+  ReadMetadata {
+    #[source]
+    error: tokio::io::Error,
+    path: PathBuf,
+  },
+
+  #[error("Couldn't change the file/directory permissions of: \"{path}\"\n{error}")]
+  ChangePermissions {
+    #[source]
+    error: tokio::io::Error,
+    path: PathBuf,
+  },
+
+  #[error("Couldn't create the folder: \"{path}\"\n{error}")]
+  CreateFolder {
+    #[source]
+    error: tokio::io::Error,
+    path: PathBuf,
+  },
+
+  #[error("Couldn't get the file type (file or folder) of: \"{path}\"\n{error}")]
+  GetFileType {
+    #[source]
+    error: tokio::io::Error,
+    path: PathBuf,
+  },
+
+  #[error("Couldn't copy file:\n  Source: \"{src}\"\n  Destination: \"{dst}\"\n{error}")]
+  CopyFile {
+    #[source]
+    error: tokio::io::Error,
+    src: PathBuf,
+    dst: PathBuf,
+  },
+
+  #[error("Couldn't remove file:\"{path}\"\n {error}")]
+  RemoveFile {
+    #[source]
+    error: tokio::io::Error,
+    path: PathBuf,
+  },
+
+  #[error("Couldn't move file/directory:\n  Source: \"{src}\"\n  Destination: \"{dst}\"\n{error}")]
+  Move {
+    #[source]
+    error: tokio::io::Error,
+    src: PathBuf,
+    dst: PathBuf,
+  },
+
+  #[error("Couldn't check if the path exists: \"{path}\"\n{error}")]
+  CheckIfPathExists {
+    #[source]
+    error: tokio::io::Error,
+    path: PathBuf,
+  },
+
+  #[error("Couldn't open the file: \"{path}\"\n{error}")]
+  OpenFile {
+    #[source]
+    error: tokio::io::Error,
+    path: PathBuf,
+  },  
+}
 
 /// Get the upload folder based on its game folder
 pub fn get_upload_folder(game_folder: impl AsRef<Path>, upload_id: u64) -> PathBuf {
@@ -17,7 +137,7 @@ pub fn get_upload_archive_path(game_folder: impl AsRef<Path>, upload_id: u64, up
 }
 
 /// Adds a .part extension to the given Path
-pub fn add_part_extension(file: impl AsRef<Path>) -> Result<PathBuf> {
+pub fn add_part_extension(file: impl AsRef<Path>) -> Result<PathBuf, FilesystemError> {
   let filename = file.as_ref()
     .file_name()
     .ok_or_else(|| FilesystemError::PathWithoutFilename(file.as_ref().to_path_buf()))?
@@ -29,9 +149,9 @@ pub fn add_part_extension(file: impl AsRef<Path>) -> Result<PathBuf> {
 /// The game folder is `dirs::home_dir`+`Games`+`game_title`
 /// 
 /// It fais if dirs::home_dir is None
-pub fn get_game_folder(game_title: &str) -> Result<PathBuf> {
+pub fn get_game_folder(game_title: &str) -> Result<PathBuf, FilesystemError> {
   let mut game_folder = directories::BaseDirs::new()
-    .ok_or_else(|| FilesystemError::MissingHomeDirectory)?
+    .ok_or(FilesystemError::MissingHomeDirectory)?
     .home_dir()
     .join(GAME_FOLDER);
 
@@ -41,15 +161,15 @@ pub fn get_game_folder(game_title: &str) -> Result<PathBuf> {
 }
 
 /// Gets the stem (non-extension) of the given Path
-pub fn get_file_stem(path: impl AsRef<Path>) -> Result<String> {
+pub fn get_file_stem(path: impl AsRef<Path>) -> Result<String, FilesystemError> {
   path.as_ref()
     .file_stem()
-    .ok_or_else(|| FilesystemError::PathWithoutFilename(path.as_ref().to_path_buf()).into())
+    .ok_or_else(|| FilesystemError::PathWithoutFilename(path.as_ref().to_path_buf()))
     .map(|stem| stem.to_string_lossy().to_string())
 }
 
 /// Checks if a folder is empty
-pub fn is_folder_empty(folder: impl AsRef<Path>) -> Result<bool> {
+pub fn is_folder_empty(folder: impl AsRef<Path>) -> Result<bool, FilesystemError> {
   if folder.as_ref().is_dir() {
     if folder.as_ref().read_dir().map_err(|error| FilesystemError::ReadDirectory { error, path: folder.as_ref().to_path_buf() })?.next().is_none() {
       Ok(true)
@@ -57,7 +177,7 @@ pub fn is_folder_empty(folder: impl AsRef<Path>) -> Result<bool> {
       Ok(false)
     }
   } else if folder.as_ref().exists() {
-    Err(FilesystemError::ExpectedToBeFolderButIsNot(folder.as_ref().to_path_buf()).into())
+    Err(FilesystemError::ExpectedToBeFolderButIsNot(folder.as_ref().to_path_buf()))
   } else {
     Ok(true)
   }
@@ -66,7 +186,7 @@ pub fn is_folder_empty(folder: impl AsRef<Path>) -> Result<bool> {
 /// Remove a folder if it is empty
 /// 
 /// Returns whether the folder was removed or not
-pub async fn remove_folder_if_empty(folder: impl AsRef<Path>) -> Result<bool> {
+pub async fn remove_folder_if_empty(folder: impl AsRef<Path>) -> Result<bool, FilesystemError> {
   // Return if the folder is not empty
   let true = is_folder_empty(&folder)? else {
     // The folder wasn't removed, so return false
@@ -81,13 +201,13 @@ pub async fn remove_folder_if_empty(folder: impl AsRef<Path>) -> Result<bool> {
 }
 
 /// Removes a folder recursively, but checks if it is a dangerous path before doing so
-pub async fn remove_folder_safely(path: impl AsRef<Path>) -> Result<()> {
+pub async fn remove_folder_safely(path: impl AsRef<Path>) -> Result<(), FilesystemError> {
   let canonical = tokio::fs::canonicalize(&path).await
     .map_err(|error| FilesystemError::GetCanonicalPath { error, path: path.as_ref().to_path_buf() })?;
 
   let home = {
     let basedirs = directories::BaseDirs::new()
-      .ok_or_else(|| FilesystemError::MissingHomeDirectory)?;
+      .ok_or(FilesystemError::MissingHomeDirectory)?;
     
     basedirs.home_dir()
       .canonicalize()
@@ -95,7 +215,7 @@ pub async fn remove_folder_safely(path: impl AsRef<Path>) -> Result<()> {
   };
 
   if canonical == home {
-    return Err(FilesystemError::RefusingToRemoveFolder(canonical).into());
+    return Err(FilesystemError::RefusingToRemoveFolder(canonical));
   }
 
   tokio::fs::remove_dir_all(&canonical).await
@@ -105,7 +225,7 @@ pub async fn remove_folder_safely(path: impl AsRef<Path>) -> Result<()> {
 }
 
 #[cfg_attr(not(unix), allow(unused_variables))]
-pub fn make_executable(path: impl AsRef<Path>) -> Result<()> {
+pub fn make_executable(path: impl AsRef<Path>) -> Result<(), FilesystemError> {
   #[cfg(unix)]
   {
     use std::os::unix::fs::PermissionsExt;
@@ -131,9 +251,9 @@ pub fn make_executable(path: impl AsRef<Path>) -> Result<()> {
 }
 
 /// Copy all the folder contents to another location
-async fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()> {
+async fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), FilesystemError> {
   if !src.as_ref().is_dir() {
-    return Err(FilesystemError::ExpectedToBeFolderButIsNot(src.as_ref().to_path_buf()).into());
+    return Err(FilesystemError::ExpectedToBeFolderButIsNot(src.as_ref().to_path_buf()));
   }
 
   let mut queue: std::collections::VecDeque<(PathBuf, PathBuf)> = std::collections::VecDeque::new();
@@ -166,9 +286,9 @@ async fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()
 /// Move a folder and its contents to another location
 /// 
 /// It also works if the destination is on another filesystem
-pub async fn move_folder(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()> {
+pub async fn move_folder(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), FilesystemError> {
   if !src.as_ref().is_dir() {
-    return Err(FilesystemError::ExpectedToBeFolderButIsNot(src.as_ref().to_path_buf()).into());
+    return Err(FilesystemError::ExpectedToBeFolderButIsNot(src.as_ref().to_path_buf()));
   }
 
   // Create the destination parent dir
@@ -182,12 +302,12 @@ pub async fn move_folder(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result
       copy_dir_all(&src, &dst).await?;
       remove_folder_safely(&src).await
     }
-    Err(error) => Err(FilesystemError::Move { error, src: src.as_ref().to_path_buf(), dst: dst.as_ref().to_path_buf() }.into()),
+    Err(error) => Err(FilesystemError::Move { error, src: src.as_ref().to_path_buf(), dst: dst.as_ref().to_path_buf() }),
   }
 }
 
 // If path already exists, change it a bit until it doesn't. Return the available path
-pub fn find_available_path(path: impl AsRef<Path>) -> Result<PathBuf> {
+pub fn find_available_path(path: impl AsRef<Path>) -> Result<PathBuf, FilesystemError> {
   let parent = path.as_ref().parent()
     .ok_or_else(|| FilesystemError::PathWithoutParent(path.as_ref().to_path_buf()))?;
 
@@ -215,7 +335,7 @@ pub fn find_available_path(path: impl AsRef<Path>) -> Result<PathBuf> {
 /// and removes all the empty folders between `last_root` and `base_folder`
 /// 
 /// If applied to the folder `foo/` and `foo/bar/` in `/foo/bar/baz.txt`, the remainig structure is `/foo/baz.txt`
-async fn move_folder_child(last_root: impl AsRef<Path>, base_folder: impl AsRef<Path>) -> Result<()> {
+async fn move_folder_child(last_root: impl AsRef<Path>, base_folder: impl AsRef<Path>) -> Result<(), FilesystemError> {
   // If a file or a folder already exists in the destination folder, rename it and save the new name and
   // the original name to this Vector. At the end, after removing the parent folder, rename all elements of this Vector
   let mut collisions: Vec<(PathBuf, PathBuf)> = Vec::new();
@@ -270,7 +390,7 @@ async fn move_folder_child(last_root: impl AsRef<Path>, base_folder: impl AsRef<
 /// and unwraps its children to its parent
 /// 
 /// If applied to the folder `foo` in `/foo/bar/baz.txt`, the remainig structure is `/foo/baz.txt`
-pub async fn remove_root_folder(folder: impl AsRef<Path>) -> Result<()> {
+pub async fn remove_root_folder(folder: impl AsRef<Path>) -> Result<(), FilesystemError> {
   // This variable is the last nested root of the folder
   let mut last_root: PathBuf = folder.as_ref().to_path_buf();
   let mut is_there_any_root: bool = false;

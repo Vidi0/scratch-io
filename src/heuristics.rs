@@ -1,7 +1,8 @@
-use std::path::{Path, PathBuf};
 use crate::itch_api_types::*;
-use crate::error::*;
+use crate::game_files_operations::FilesystemError;
 use crate::GamePlatform;
+use std::path::{Path, PathBuf};
+use thiserror::Error;
 
 const GOOD_LAUNCH_FILENAMES: &[&str] = &["start", "launch", "play", "run", "game", "launcher", "rungame"];
 const ARCHITECTURE_SUFFIXES: &[&str] = {
@@ -45,6 +46,15 @@ impl GamePlatform {
   }
 }
 
+#[derive(Error, Debug)]
+pub enum HeuristicsError {
+  #[error("A filesystem error occured:\n{0}")]
+  FilesystemError(#[from] FilesystemError),
+
+  #[error("Couldn't find any game file executable in: \"{0}\"")]
+  ExecutableNotFound(PathBuf),
+}
+
 /// Tries to get the best game executable based on some data
 /// 
 /// # Arguments
@@ -60,7 +70,7 @@ impl GamePlatform {
 /// A path with the possible game executable
 /// 
 /// An error if something goes wrong
-pub async fn get_game_executable(upload_folder: &Path, platform: &GamePlatform, game_info: &Game) -> Result<PathBuf> {
+pub async fn get_game_executable(upload_folder: &Path, platform: &GamePlatform, game_info: &Game) -> Result<PathBuf, HeuristicsError> {
   // If the folder is not a directory, return
   if !upload_folder.is_dir() {
     return Err(FilesystemError::ExpectedToBeFolderButIsNot(upload_folder.to_path_buf()).into());
@@ -98,11 +108,11 @@ pub async fn get_game_executable(upload_folder: &Path, platform: &GamePlatform, 
   if let Some(executable) = best_executable.0 {
     Ok(executable)
   } else {
-    Err(ErrorKind::ExecutableNotFound(upload_folder.to_path_buf()).into())
+    Err(HeuristicsError::ExecutableNotFound(upload_folder.to_path_buf()))
   }
 }
 
-fn rate_executable(file_path: &Path, directory_levels: usize, platform: &GamePlatform, game_info: &Game) -> Result<i64> {
+fn rate_executable(file_path: &Path, directory_levels: usize, platform: &GamePlatform, game_info: &Game) -> Result<i64, FilesystemError> {
   let mut rating: i64 = 0;
 
   // base level: keep the rating

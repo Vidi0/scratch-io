@@ -6,16 +6,17 @@ use reqwest::{Client, Method, Response, header};
 use std::path::{Path, PathBuf};
 use std::borrow::Cow;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 pub mod itch_api_types;
+pub mod itch_api_calls;
 pub mod itch_manifest;
-pub mod error;
 mod heuristics;
 mod game_files_operations;
 mod extract;
 use crate::itch_api_types::*;
+use crate::itch_api_calls::*;
 use crate::game_files_operations::*;
-use crate::error::*;
 
 // This isn't inside itch_types because it is not something that the itch API returns
 // These platforms are *interpreted* from the data provided by the API
@@ -58,6 +59,27 @@ impl Upload {
   }
 }
 
+/// Find out which platforms a game's uploads are available in
+/// 
+/// # Arguments
+/// 
+/// * `uploads` - A list of a game's uploads
+/// 
+/// # Returns
+/// 
+/// A vector of tuples containing an upload ID and the game platform in which it is available
+pub fn get_game_platforms(uploads: &[Upload]) -> Vec<(u64, GamePlatform)> {
+  let mut platforms: Vec<(u64, GamePlatform)> = Vec::new();
+
+  for u in uploads {
+    for p in u.to_game_platforms() {
+      platforms.push((u.id, p));
+    }
+  }
+
+  platforms
+}
+
 pub enum DownloadStatus {
   Warning(String),
   StartingDownload {
@@ -86,9 +108,18 @@ pub struct InstalledUpload {
   pub game: Option<Game>,
 }
 
+#[derive(Error, Debug)]
+pub enum AddMissingInsalledUploadInfoError {
+  #[error("Couldn't get the game info:\n{0}")]
+  GetGameInfo(#[from] ItchRequestJSONError<UploadResponse>),
+
+  #[error("Couldn't get the upload info:\n{0}")]
+  GetUploadInfo(#[from] ItchRequestJSONError<GameInfoResponse>),
+}
+
 impl InstalledUpload {
   /// Returns true if the info has been updated
-  pub async fn add_missing_info(&mut self, client: &Client, api_key: &str, force_update: bool) -> Result<bool> {
+  pub async fn add_missing_info(&mut self, client: &Client, api_key: &str, force_update: bool) -> Result<bool, AddMissingInsalledUploadInfoError> {
     let mut updated = false;
 
     if self.upload.is_none() || force_update {
@@ -104,93 +135,10 @@ impl InstalledUpload {
   }
 }
 
-/// Make a request to the itch.io API
-/// 
-/// # Arguments
-/// 
-/// * `client` - An asynchronous reqwest Client
-/// 
-/// * `method` - The request method (GET, POST, etc.)
-/// 
-/// * `url` - A itch.io API address to make the request against
-/// 
-/// * `api_key` - A valid itch.io API key to make the request
-/// 
-/// * `options` - A closure that modifies the request builder just before sending it
-/// 
-/// # Returns
-/// 
-/// The reqwest response
-/// 
-/// An error if sending the request fails
-async fn itch_request(
-  client: &Client,
-  method: Method,
-  url: &ItchApiUrl<'_>,
-  api_key: &str,
-  options: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder
-) -> Result<Response> {
-  let mut request: reqwest::RequestBuilder = client.request(method, url.to_string());
-
-  // Add authentication based on the API's version.
-  request = match url {
-    // https://itchapi.ryhn.link/API/V1/index.html#authentication
-    ItchApiUrl::V1(..) => request.header(header::AUTHORIZATION, format!("Bearer {api_key}")),
-    // https://itchapi.ryhn.link/API/V2/index.html#authentication
-    ItchApiUrl::V2(..) => request.header(header::AUTHORIZATION, api_key),
-    // If it isn't a known API version, just leave it without authentication
-    ItchApiUrl::Other(..) => request,
-  };
-
-  // This header is set to ensure the use of the v2 version
-  // https://itchapi.ryhn.link/API/V2/index.html
-  if let ItchApiUrl::V2(_) = url {
-    request = request.header(header::ACCEPT, "application/vnd.itch.v2");
-  }
-
-  // The callback is the final option before sending because
-  // it needs to be able to modify anything
-  request = options(request);
-
-  request.send().await
-    .map_err(|e| NetworkRequestError::Send(e).into())
-}
-
-/// Make a request to the itch.io API and parse the response as json
-/// 
-/// # Arguments
-/// 
-/// * `client` - An asynchronous reqwest Client
-/// 
-/// * `method` - The request method (GET, POST, etc.)
-/// 
-/// * `url` - A itch.io API address to make the request against
-/// 
-/// * `api_key` - A valid itch.io API key to make the request
-/// 
-/// * `options` - A closure that modifies the request builder just before sending it
-/// 
-/// # Returns
-/// 
-/// The reqwest response parsed as JSON into the provided type
-/// 
-/// An error if sending the request or parsing it fails
-async fn itch_request_json<T>(
-  client: &Client,
-  method: Method,
-  url: &ItchApiUrl<'_>,
-  api_key: &str,
-  options: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
-) -> Result<T> where
-  T: serde::de::DeserializeOwned,
-{
-  let text = itch_request(client, method, url, api_key, options).await?
-    .text().await
-    .map_err(NetworkRequestError::Text)?;
-
-  serde_json::from_str::<ApiResponse<T>>(&text)
-    .map_err(|error| ParseError::JSONRequestBody { error, body: text })?
-    .into_result()
+#[derive(Error, Debug)]
+pub enum HashReadableAsyncError {
+  #[error("Couldn't get data from a readable stream:\n{0}")]
+  ReadBuf(#[source] tokio::io::Error),
 }
 
 /// Hash a file into a MD5 hasher
@@ -204,12 +152,12 @@ async fn itch_request_json<T>(
 /// # Returns
 /// 
 /// An error if something goes wrong
-async fn hash_readable_async(readable: impl tokio::io::AsyncRead + Unpin, hasher: &mut CoreWrapper<md5::Md5Core>) -> Result<()> {
+async fn hash_readable_async(readable: impl tokio::io::AsyncRead + Unpin, hasher: &mut CoreWrapper<md5::Md5Core>) -> Result<(), HashReadableAsyncError> {
   let mut br = tokio::io::BufReader::new(readable);
 
   loop {
     let buffer = br.fill_buf().await
-      .map_err(FilesystemError::ReadFileBuf)?;
+      .map_err(HashReadableAsyncError::ReadBuf)?;
 
     // If buffer is empty then BufReader has reached the EOF
     if buffer.is_empty() {
@@ -223,6 +171,15 @@ async fn hash_readable_async(readable: impl tokio::io::AsyncRead + Unpin, hasher
     let len = buffer.len();
     br.consume(len);
   }
+}
+
+#[derive(Error, Debug)]
+pub enum StreamResponseIntoFileError {
+  #[error("Couldn't get next chunk of the network request:\n{0}")]
+  GetChunk(#[source] reqwest::Error),
+
+  #[error("Couldn't write a chunk of data to a file:\n{0}")]
+  WriteChunkToFile(#[source] tokio::io::Error),
 }
 
 /// Stream a reqwest Response into a File async
@@ -250,7 +207,7 @@ async fn stream_response_into_file(
   mut md5_hash: Option<&mut CoreWrapper<md5::Md5Core>>,
   progress_callback: impl Fn(u64),
   callback_interval: Duration,
-) -> Result<u64> {
+) -> Result<u64, StreamResponseIntoFileError> {
   // Prepare the download and the callback variables
   let mut downloaded_bytes: u64 = 0;
   let mut stream = response.bytes_stream();
@@ -261,11 +218,11 @@ async fn stream_response_into_file(
   while let Some(chunk) = stream.next().await {
     // Return an error if the chunk is invalid
     let chunk = chunk
-      .map_err(NetworkRequestError::GetChunk)?;
+      .map_err(StreamResponseIntoFileError::GetChunk)?;
 
     // Write the chunk to the file
     file.write_all(&chunk).await
-      .map_err(FilesystemError::WriteChunkToFile)?;
+      .map_err(StreamResponseIntoFileError::WriteChunkToFile)?;
 
     // If the file has a md5 hash, update the hasher
     if let Some(ref mut hasher) = md5_hash {
@@ -283,6 +240,56 @@ async fn stream_response_into_file(
   progress_callback(downloaded_bytes);
 
   Ok(downloaded_bytes)
+}
+
+#[derive(Error, Debug)]
+pub enum DownloadFileError {
+  #[error("A filesystem error occured:\n{0}")]
+  FilesystemError(#[from] FilesystemError),
+
+  #[error("Couldn't send a itch.io API request:\n{0}")]
+  CouldntSend(#[from] ItchRequestError),
+
+  #[error("Couldn't get the Content Length of the file to download!\n{url}")]
+  CouldntGetContentLength{
+    url: String,
+  },
+
+  #[error("The HTTP server to download the file from didn't return HTTP code 200 nor 206, so exiting! It returned: {status_code}\n{url}")]
+  InvalidPartialRequestResponse {
+    url: String,
+    status_code: u16,
+  },
+
+  #[error("Couldn't hash the downloaded file:\n{0}")]
+  CouldntHashReadable(#[from] HashReadableAsyncError),
+
+  #[error("Couldn't stream the itch.io API response into a file:\n{0}")]
+  CouldntStreamIntoFile(#[from] StreamResponseIntoFileError),
+
+  #[error(
+"File verification failed! The file hash and the hash provided by the server are different.
+  File hash:   {file_hash}
+  Server hash: {server_hash}"
+)]
+  MismatchedHashes {
+    file_hash: String,
+    server_hash: String,
+  },
+
+  #[error("Couldn't remove old partially downloaded file: \"{path}\"\n{error}")]
+  RemoveOldFile {
+    path: PathBuf,
+    #[source]
+    error: tokio::io::Error,
+  },
+
+  #[error("Couldn't sync the file data to the disk: \"{path}\"\n{error}")]
+  SyncFile {
+    path: PathBuf,
+    #[source]
+    error: tokio::io::Error,
+  },
 }
 
 /// Download a file from an itch API URL
@@ -319,7 +326,7 @@ async fn download_file(
   file_size_callback: impl Fn(u64),
   progress_callback: impl Fn(u64),
   callback_interval: Duration,
-) -> Result<()> {
+) -> Result<(), DownloadFileError> {
 
   // Create the hasher variable
   let mut md5_hash: Option<(CoreWrapper<md5::Md5Core>, &str)> = md5_hash.map(|s| (Md5::new(), s));
@@ -353,7 +360,7 @@ async fn download_file(
     let res = itch_request(client, Method::GET, url, api_key, |b| b).await?;
 
     let download_size = res.content_length()
-      .unwrap_or_else(|| todo!());
+      .ok_or_else(|| DownloadFileError::CouldntGetContentLength { url: res.url().to_string() })?;
 
     file_size_callback(download_size);
     
@@ -384,10 +391,7 @@ async fn download_file(
         reqwest::StatusCode::OK => (),
 
         // Any code other than 200 or 206 means that something went wrong
-        _ => {
-          let status_code = part_res.status();
-          return Err(NetworkRequestError::InvalidPartialRequestResponse { response: part_res, status_code }.into())
-        }
+        _ => return Err(DownloadFileError::InvalidPartialRequestResponse { url: part_res.url().to_string(), status_code: part_res.status().as_u16() })
       }
     }
 
@@ -399,7 +403,7 @@ async fn download_file(
     // In either case, the current file should be removed and downloaded again fully
     downloaded_bytes = 0;
     file.set_len(0).await
-      .map_err(|error| FilesystemError::RemoveOldFile { error, path: partial_file_path.to_path_buf() })?;
+      .map_err(|error| DownloadFileError::RemoveOldFile { path: partial_file_path.to_path_buf(), error })?;
 
     Some(res)
   };
@@ -419,13 +423,13 @@ async fn download_file(
     let file_hash = format!("{:x}", hasher.finalize());
 
     if !file_hash.eq_ignore_ascii_case(hash) {
-      return Err(ErrorKind::MismatchedHashes { file_hash, server_hash: hash.to_string() }.into());
+      return Err(DownloadFileError::MismatchedHashes { file_hash, server_hash: hash.to_string() });
     }
   }
 
   // Sync the file to ensure all the data has been written
   file.sync_all().await
-    .map_err(|error| FilesystemError::SyncFile { error, path: partial_file_path.to_path_buf() })?;
+    .map_err(|error| DownloadFileError::SyncFile { path: partial_file_path.to_path_buf(), error })?;
 
   // Move the downloaded file to its final destination
   // This has to be the last call in this function because after it, the File is not longer valid
@@ -435,355 +439,16 @@ async fn download_file(
   Ok(())
 }
 
-/// Complete the login with the TOTP 2nd factor verification
-/// 
-/// # Arguments
-/// 
-/// * `client` - An asynchronous reqwest Client
-/// 
-/// * `totp_token` - The TOTP token returned by the previous login step
-/// 
-/// * `totp_code` - The 6-digit code returned by the TOTP application
-/// 
-/// # Returns
-/// 
-/// A LoginSuccess struct with the new API key
-/// 
-/// An error if something goes wrong
-async fn totp_verification(client: &Client, totp_token: &str, totp_code: u64) -> Result<LoginSuccess> {
-  itch_request_json::<LoginSuccess>(
-    client,
-    Method::POST,
-    &ItchApiUrl::V2("totp/verify"),
-    "",
-    |b| b.form(&[
-      ("token", totp_token),
-      ("code", &totp_code.to_string())
-    ]),
-  ).await
-    .add_context("An error occurred while attempting log in:")
-}
+#[derive(Error, Debug)]
+pub enum DownloadGameCoverError {
+  #[error("A filesystem error occured:\n{0}")]
+  FilesystemError(#[from] FilesystemError),
 
-/// Login to itch.io
-/// 
-/// Retrieve a API key from a username and password authentication
-/// 
-/// # Arguments
-/// 
-/// * `client` - An asynchronous reqwest Client
-/// 
-/// * `username` - The username OR email of the accout to log in with
-/// 
-/// * `password` - The password of the accout to log in with
-/// 
-/// * `recaptcha_response` - If required, the reCAPTCHA token from https://itch.io/captcha
-/// 
-/// * `totp_code` - If required, The 6-digit code returned by the TOTP application
-/// 
-/// # Returns
-/// 
-/// A LoginSuccess struct with the new API key
-/// 
-/// An error if something goes wrong
-pub async fn login(client: &Client, username: &str, password: &str, recaptcha_response: Option<&str>, totp_code: Option<u64>) -> Result<LoginSuccess> {
-  let mut params: Vec<(&'static str, &str)> = vec![
-    ("username", username),
-    ("password", password),
-    ("force_recaptcha", "false"),
-    ("source", "desktop"),
-  ];
+  #[error("Couldn't get information about the game:\n{0}")]
+  CouldntGetGameInfo(#[from] ItchRequestJSONError<GameInfoResponse>),
 
-  if let Some(rr) = recaptcha_response {
-    params.push(("recaptcha_response", rr));
-  }
-
-  let response = itch_request_json::<LoginResponse>(
-    client,
-    Method::POST,
-    &ItchApiUrl::V2("login"),
-    "",
-    |b| b.form(&params),
-  ).await
-    .add_context("An error occurred while attempting log in:")?;
-
-  let ls = match response {
-    LoginResponse::CaptchaError(e) => {
-      return Err(ErrorKind::RECaptchaRequired { url: e.recaptcha_url }.into());
-    }
-    LoginResponse::TOTPError(e) => {
-      let Some(totp_code) = totp_code else {
-        return Err(ErrorKind::TOTPRequired.into());
-      };
-
-      totp_verification(client, e.token.as_str(), totp_code).await?
-    }
-    LoginResponse::Success(ls) => ls
-  };
-
-  Ok(ls)
-}
-
-/// Get the API key's profile
-/// 
-/// This can be used to verify that a given itch.io API key is valid
-/// 
-/// # Arguments
-/// 
-/// * `client` - An asynchronous reqwest Client
-/// 
-/// * `api_key` - A valid itch.io API key to make the request
-/// 
-/// # Returns
-/// 
-/// A User struct with the info provided by the API
-/// 
-/// An error if something goes wrong
-pub async fn get_profile(client: &Client, api_key: &str) -> Result<User> {
-  itch_request_json::<ProfileResponse>(
-    client,
-    Method::GET,
-    &ItchApiUrl::V2("profile"),
-    api_key,
-    |b| b,
-  ).await
-    .map(|res| res.user)
-    .add_context("An error occurred while attempting to get the profile info:")
-}
-
-/// Get the user's owned game keys
-/// 
-/// # Arguments
-/// 
-/// * `client` - An asynchronous reqwest Client
-/// 
-/// * `api_key` - A valid itch.io API key to make the request
-/// 
-/// # Returns
-/// 
-/// A vector of OwnedKey structs with the info provided by the API
-/// 
-/// An error if something goes wrong
-pub async fn get_owned_keys(client: &Client, api_key: &str) -> Result<Vec<OwnedKey>> {
-  let mut keys: Vec<OwnedKey> = Vec::new();
-  let mut page: u64 = 1;
-  loop {
-    let mut response = itch_request_json::<OwnedKeysResponse>(
-      client,
-      Method::GET,
-      &ItchApiUrl::V2("profile/owned-keys"),
-      api_key,
-      |b| b.query(&[("page", page)]),
-    ).await
-      .add_context("An error occurred while attempting to obtain the list of the user's game keys:")?;
-
-    let num_keys: u64 = response.owned_keys.len() as u64;
-    keys.append(&mut response.owned_keys);
-    // Warning!!!
-    // response.collection_games was merged into games, but it WAS NOT dropped!
-    // Its length is still accessible, but this doesn't make sense!
-    
-    if num_keys < response.per_page || num_keys == 0 {
-      break;
-    }
-    page += 1;
-  }
-
-  Ok(keys)
-}
-
-/// Get the games that the user created or that the user is an admin of
-/// 
-/// # Arguments
-/// 
-/// * `client` - An asynchronous reqwest Client
-/// 
-/// * `api_key` - A valid itch.io API key to make the request
-/// 
-/// # Returns
-/// 
-/// A vector of OwnedKey structs with the info provided by the API
-/// 
-/// An error if something goes wrong
-pub async fn get_crated_games(client: &Client, api_key: &str) -> Result<Vec<CreatedGame>> {
-  itch_request_json::<CreatedGamesResponse>(
-    client,
-    Method::GET,
-    &ItchApiUrl::V2("profile/games"),
-    api_key,
-    |b| b,
-  ).await
-    .map(|res| res.games)
-    .add_context("An error occurred while attempting to obtain the list of the user created games:")
-}
-
-/// Get the information about a game in itch.io
-/// 
-/// # Arguments
-/// 
-/// * `client` - An asynchronous reqwest Client
-/// 
-/// * `api_key` - A valid itch.io API key to make the request
-/// 
-/// * `game_id` - The ID of the game from which information will be obtained
-/// 
-/// # Returns
-/// 
-/// A Game struct with the info provided by the API
-/// 
-/// An error if something goes wrong
-pub async fn get_game_info(client: &Client, api_key: &str, game_id: u64) -> Result<Game> {
-  itch_request_json::<GameInfoResponse>(
-    client,
-    Method::GET,
-    &ItchApiUrl::V2(&format!("games/{game_id}")),
-    api_key,
-    |b| b,
-  ).await
-    .map(|res| res.game)
-    .add_context("An error occurred while attempting to obtain the game info:")
-}
-
-/// Get the game's uploads (downloadable files)
-/// 
-/// # Arguments
-/// 
-/// * `client` - An asynchronous reqwest Client
-/// 
-/// * `api_key` - A valid itch.io API key to make the request
-/// 
-/// * `game_id` - The ID of the game from which information will be obtained
-/// 
-/// # Returns
-/// 
-/// A vector of Upload structs with the info provided by the API
-/// 
-/// An error if something goes wrong
-pub async fn get_game_uploads(client: &Client, api_key: &str, game_id: u64) -> Result<Vec<Upload>> {
-  itch_request_json::<GameUploadsResponse>(
-    client,
-    Method::GET,
-    &ItchApiUrl::V2(&format!("games/{game_id}/uploads")),
-    api_key,
-    |b| b,
-  ).await
-    .map(|res| res.uploads)
-    .add_context("An error occurred while attempting to obtain the game uploads:")
-}
-
-/// Find out which platforms a game's uploads are available in
-/// 
-/// # Arguments
-/// 
-/// * `uploads` - A list of a game's uploads
-/// 
-/// # Returns
-/// 
-/// A vector of tuples containing an upload ID and the game platform in which it is available
-pub fn get_game_platforms(uploads: &[Upload]) -> Vec<(u64, GamePlatform)> {
-  let mut platforms: Vec<(u64, GamePlatform)> = Vec::new();
-
-  for u in uploads {
-    for p in u.to_game_platforms() {
-      platforms.push((u.id, p));
-    }
-  }
-
-  platforms
-}
-
-/// Get an upload's info
-/// 
-/// # Arguments
-/// 
-/// * `client` - An asynchronous reqwest Client
-/// 
-/// * `api_key` - A valid itch.io API key to make the request
-/// 
-/// * `upload_id` - The ID of the upload from which information will be obtained
-/// 
-/// # Returns
-/// 
-/// A Upload struct with the info provided by the API
-/// 
-/// An error if something goes wrong
-pub async fn get_upload_info(client: &Client, api_key: &str, upload_id: u64) -> Result<Upload> {
-  itch_request_json::<UploadResponse>(
-    client,
-    Method::GET,
-    &ItchApiUrl::V2(&format!("uploads/{upload_id}")),
-    api_key,
-    |b| b,
-  ).await
-    .map(|res| res.upload)
-    .add_context("An error occurred while attempting to obtain the upload information:")
-}
-
-/// List the user's game collections
-/// 
-/// # Arguments
-/// 
-/// * `client` - An asynchronous reqwest Client
-/// 
-/// * `api_key` - A valid itch.io API key to make the request
-/// 
-/// # Returns
-/// 
-/// A vector of Collection structs with the info provided by the API
-/// 
-/// An error if something goes wrong
-pub async fn get_collections(client: &Client, api_key: &str) -> Result<Vec<Collection>> {
-  itch_request_json::<CollectionsResponse>(
-    client,
-    Method::GET,
-    &ItchApiUrl::V2("profile/collections"),
-    api_key,
-    |b| b,
-  ).await
-    .map(|res| res.collections)
-    .add_context("An error occurred while attempting to obtain the list of the profile's collections:")
-}
-
-/// List a collection's games
-/// 
-/// # Arguments
-/// 
-/// * `client` - An asynchronous reqwest Client
-/// 
-/// * `api_key` - A valid itch.io API key to make the request
-/// 
-/// * `collection_id` - The ID of the collection from which information will be obtained
-/// 
-/// # Returns
-/// 
-/// A vector of CollectionGameItem structs with the info provided by the API
-/// 
-/// An error if something goes wrong
-pub async fn get_collection_games(client: &Client, api_key: &str, collection_id: u64) -> Result<Vec<CollectionGameItem>> {   
-  let mut games: Vec<CollectionGameItem> = Vec::new();
-  let mut page: u64 = 1;
-  loop {
-    let mut response = itch_request_json::<CollectionGamesResponse>(
-      client,
-      Method::GET,
-      &ItchApiUrl::V2(&format!("collections/{collection_id}/collection-games")),
-      api_key,
-      |b| b.query(&[("page", page)]),
-    ).await
-      .add_context("An error occurred while attempting to obtain the list of the collection's games:")?;
-
-    let num_games: u64 = response.collection_games.len() as u64;
-    games.append(&mut response.collection_games);
-    // Warning!!!
-    // response.collection_games was merged into games, but it WAS NOT dropped!
-    // Its length is still accessible, but this doesn't make sense!
-    
-    if num_games < response.per_page || num_games == 0 {
-      break;
-    }
-    page += 1;
-  }
-
-  Ok(games)
+  #[error("Couldn't download the game cover image:\n{0}")]
+  CouldntDownloadFile(#[from] DownloadFileError),
 }
 
 /// Download a game cover image from its game ID
@@ -809,7 +474,7 @@ pub async fn get_collection_games(client: &Client, api_key: &str, collection_id:
 /// The path of the downloaded image, or None if the game doesn't have one
 /// 
 /// An error if something goes wrong
-pub async fn download_game_cover(client: &Client, api_key: &str, game_id: u64, folder: &Path, cover_filename: Option<&str>, force_download: bool) -> Result<Option<PathBuf>> {
+pub async fn download_game_cover(client: &Client, api_key: &str, game_id: u64, folder: &Path, cover_filename: Option<&str>, force_download: bool) -> Result<Option<PathBuf>, DownloadGameCoverError> {
   // Get the game info from the server
   let game_info = get_game_info(client, api_key, game_id).await?;
   // If the game doesn't have a cover, return
@@ -848,6 +513,24 @@ pub async fn download_game_cover(client: &Client, api_key: &str, game_id: u64, f
   Ok(Some(cover_path))
 }
 
+#[derive(Error, Debug)]
+pub enum DownloadUploadError {
+  #[error("A filesystem error occured:\n{0}")]
+  FilesystemError(#[from] FilesystemError),
+
+  #[error("Couldn't get information about the game:\n{0}")]
+  CouldntGetGameInfo(#[from] ItchRequestJSONError<GameInfoResponse>),
+
+  #[error("Couldn't get information about the game upload:\n{0}")]
+  CouldntGetUploadInfo(#[from] ItchRequestJSONError<UploadResponse>),
+
+  #[error("Couldn't download the game cover image:\n{0}")]
+  CouldntDownloadFile(#[from] DownloadFileError),
+
+  #[error("Couldn't extract the upload archive:\n{0}")]
+  CouldntExtractArchive(#[from] crate::extract::ExtractError),
+}
+
 /// Download a game upload
 /// 
 /// # Arguments
@@ -880,7 +563,7 @@ pub async fn download_upload(
   upload_info: impl FnOnce(&Upload, &Game),
   progress_callback: impl Fn(DownloadStatus),
   callback_interval: Duration,
-) -> Result<InstalledUpload> {
+) -> Result<InstalledUpload, DownloadUploadError> {
 
   // --- DOWNLOAD PREPARATION --- 
 
@@ -939,8 +622,7 @@ pub async fn download_upload(
 
   // Extracts the downloaded archive (if it's an archive)
   // game_files can be the path of an executable or the path to the extracted folder
-  extract::extract(&upload_archive, &upload_folder).await
-    .add_context("Error while extracting the archive:")?;
+  extract::extract(&upload_archive, &upload_folder).await?;
 
   Ok(InstalledUpload {
     upload_id,
@@ -950,6 +632,18 @@ pub async fn download_upload(
     upload: Some(upload),
     game: Some(game),
   })
+}
+
+#[derive(Error, Debug)]
+pub enum ImportError {
+  #[error("A filesystem error occured:\n{0}")]
+  FilesystemError(#[from] FilesystemError),
+
+  #[error("Couldn't get the upload info:\n{0}")]
+  GetUploadInfo(#[from] ItchRequestJSONError<GameInfoResponse>),
+
+  #[error("Couldn't get the game info:\n{0}")]
+  GetGameInfo(#[from] ItchRequestJSONError<UploadResponse>),
 }
 
 /// Import an already installed upload
@@ -969,7 +663,7 @@ pub async fn download_upload(
 /// The installation info about the upload
 /// 
 /// An error if something goes wrong
-pub async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder: &Path) -> Result<InstalledUpload> {
+pub async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder: &Path) -> Result<InstalledUpload, ImportError> {
   // Obtain information about the game and the upload that will be downloaeded
   let upload: Upload = get_upload_info(client, api_key, upload_id).await?;
   let game: Game = get_game_info(client, api_key, upload.game_id).await?;
@@ -982,6 +676,18 @@ pub async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder:
     upload: Some(upload),
     game: Some(game),
   })
+}
+
+#[derive(Error, Debug)]
+pub enum RemovePartialDownloadError {
+  #[error("A filesystem error occured:\n{0}")]
+  FilesystemError(#[from] FilesystemError),
+
+  #[error("Couldn't get the upload info:\n{0}")]
+  GetUploadInfo(#[from] ItchRequestJSONError<GameInfoResponse>),
+
+  #[error("Couldn't get the game info:\n{0}")]
+  GetGameInfo(#[from] ItchRequestJSONError<UploadResponse>),
 }
 
 /// Remove partially downloaded game files from a cancelled download
@@ -1001,7 +707,7 @@ pub async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder:
 /// True if something was actually deleted
 /// 
 /// An error if something goes wrong
-pub async fn remove_partial_download(client: &Client, api_key: &str, upload_id: u64, game_folder: Option<&Path>) -> Result<bool> {
+pub async fn remove_partial_download(client: &Client, api_key: &str, upload_id: u64, game_folder: Option<&Path>) -> Result<bool, RemovePartialDownloadError> {
   // Obtain information about the game and the upload
   let upload: Upload = get_upload_info(client, api_key, upload_id).await?;
   let game: Game = get_game_info(client, api_key, upload.game_id).await?;
@@ -1074,7 +780,7 @@ pub async fn remove_partial_download(client: &Client, api_key: &str, upload_id: 
 /// # Returns
 /// 
 /// An error if something goes wrong
-pub async fn remove(upload_id: u64, game_folder: &Path) -> Result<()> {
+pub async fn remove(upload_id: u64, game_folder: &Path) -> Result<(), FilesystemError> {
 
   let upload_folder = get_upload_folder(game_folder, upload_id);
 
@@ -1093,6 +799,16 @@ pub async fn remove(upload_id: u64, game_folder: &Path) -> Result<()> {
   Ok(())
 }
 
+
+#[derive(Error, Debug)]
+pub enum MoveError {
+  #[error("A filesystem error occured:\n{0}")]
+  FilesystemError(#[from] FilesystemError),
+
+  #[error("The source upload folder should exist but it doesn't: \"{0}\"")]
+  SourceUploadFolderShouldExist(PathBuf),
+}
+
 /// Move an installed upload to a new game folder
 /// 
 /// # Arguments
@@ -1108,12 +824,12 @@ pub async fn remove(upload_id: u64, game_folder: &Path) -> Result<()> {
 /// The new game folder in its absolute (canonical) form
 /// 
 /// An error if something goes wrong
-pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Path) -> Result<PathBuf> {
+pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Path) -> Result<PathBuf, MoveError> {
   let src_upload_folder = get_upload_folder(src_game_folder, upload_id);
 
   // If there isn't a src_upload_folder, exit with error
   if !src_upload_folder.try_exists().map_err(|error| FilesystemError::CheckIfPathExists { error, path: src_upload_folder.to_path_buf() })? {
-    return Err(FilesystemError::FolderShouldExist(src_upload_folder).into());
+    return Err(MoveError::SourceUploadFolderShouldExist(src_upload_folder));
   }
   
   let dst_upload_folder = get_upload_folder(dst_game_folder, upload_id);
@@ -1145,10 +861,38 @@ pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Pa
 /// A Manifest struct with the manifest actions info, or None if the manifest isn't present
 /// 
 /// An error if something goes wrong
-pub async fn get_upload_manifest(upload_id: u64, game_folder: &Path) -> Result<Option<itch_manifest::Manifest>> {
+pub async fn get_upload_manifest(upload_id: u64, game_folder: &Path) -> Result<Option<itch_manifest::Manifest>, itch_manifest::ReadManifestError> {
   let upload_folder = get_upload_folder(game_folder, upload_id);
 
   itch_manifest::read_manifest(&upload_folder)
+}
+
+#[derive(Error, Debug)]
+pub enum LaunchError {
+  #[error("A filesystem error occured:\n{0}")]
+  FilesystemError(#[from] FilesystemError),
+
+  #[error("Couldn't get the upload info:\n{0}")]
+  ReadManifestError(#[from] itch_manifest::ReadManifestError),
+
+  #[error("The provided launch action doesn't exist in the manifest: {0}")]
+  MissingLaunchAction(String),
+
+  #[error("The heuristics game binary search failed!\n{0}")]
+  HeuristicsError(#[from] heuristics::HeuristicsError),
+
+  #[error("Couldn't spawn the child process:\n{0}")]
+  CantSpawnProcess(#[source] tokio::io::Error),
+
+  #[error(
+"Couldn't spawn the child process because it is not an executable format for this OS
+  Maybe a wrapper is missing or the selected game executable isn't the correct one!
+{0}"
+)]
+  CantSpawnProcessExecFormat(#[source] tokio::io::Error),
+
+  #[error("Error while awaiting for child exit!:\n{0}")]
+  WaitForChildExit(#[source] tokio::io::Error),
 }
 
 /// Launchs an installed upload
@@ -1181,7 +925,7 @@ pub async fn launch(
   wrapper: &[String],
   game_arguments: &[String],
   launch_start_callback: impl FnOnce(&Path, &tokio::process::Command)
-) -> Result<()> {
+) -> Result<(), LaunchError> {
   let upload_folder: PathBuf = get_upload_folder(game_folder, upload_id);
   
   // Determine the upload executable and its launch arguments from the function arguments, manifest, or heuristics.
@@ -1191,7 +935,7 @@ pub async fn launch(
     // 2. If the launch method is a manifest action, use its executable
     LaunchMethod::ManifestAction(a) => {
       let ma = itch_manifest::launch_action(&upload_folder, Some(a))?
-        .ok_or_else(|| ErrorKind::MissingLaunchAction(a.to_string()))?;
+        .ok_or_else(|| LaunchError::MissingLaunchAction(a.to_string()))?;
       (
         &PathBuf::from(ma.path),
         match game_arguments.is_empty(){
@@ -1260,27 +1004,14 @@ pub async fn launch(
     .map_err(|e|
       // Error code 8: Exec format error
       if let Some(8) = e.raw_os_error() {
-        FilesystemError::CantSpawnProcessExecFormat(e)
+        LaunchError::CantSpawnProcessExecFormat(e)
       } else {
-        FilesystemError::CantSpawnProcess(e)
+        LaunchError::CantSpawnProcess(e)
       }
     )?;
 
   child.wait().await
-    .map_err(FilesystemError::WaitForChildExit)?;
+    .map_err(LaunchError::WaitForChildExit)?;
 
   Ok(())
-}
-
-/// Get the url to a itch.io web game
-/// 
-/// # Arguments
-/// 
-/// * `upload_id` - The ID of the html upload
-/// 
-/// # Returns
-/// 
-/// The web game URL
-pub fn get_web_game_url(upload_id: u64) -> String {
-  format!("https://html-classic.itch.zone/html/{upload_id}/index.html")
 }

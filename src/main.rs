@@ -1,8 +1,8 @@
 use reqwest::Client;
 use clap::{Parser, Subcommand};
+use scratch_io::itch_api_calls::ItchRequestJSONError;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
-use scratch_io::error::ErrorKind;
 use scratch_io::{itch_api_types::*, DownloadStatus, InstalledUpload};
 
 mod config;
@@ -227,8 +227,8 @@ fn auth(key: String, config_api_key: &mut Option<String>, profile: User) {
 
 // Login with an username and password, save to the config and print info
 async fn login(client: &Client, username: &str, password: &str, recaptcha_response: Option<&str>, totp_code: Option<u64>, config_api_key: &mut Option<String>) {
-  let ls = scratch_io::login(client, username, password, recaptcha_response, totp_code).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
-  let profile = scratch_io::get_profile(client, ls.key.key.as_str()).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
+  let ls = scratch_io::itch_api_calls::login(client, username, password, recaptcha_response, totp_code).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
+  let profile = scratch_io::itch_api_calls::get_profile(client, ls.key.key.as_str()).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
 
   auth(ls.key.key, config_api_key, profile);
 }
@@ -246,35 +246,35 @@ fn logout(config_api_key: &mut Option<String>) {
 
 // Return the user profile
 async fn verify_key(client: &Client, api_key: &str, is_saved_key: bool) -> Result<User, String> {
-  scratch_io::get_profile(client, api_key).await.map_err(|e| {
-    if let ErrorKind::ServerRepliedWithError(ref errors) = *e.kind 
-      && errors.iter().any(|e| e.contains("invalid key")) {
-      if is_saved_key {
-        return "The API key is not longer valid. Try logging in again.".to_string()
-      } else {
-        return "The API key is invalid!".to_string()
+  scratch_io::itch_api_calls::get_profile(client, api_key).await.map_err(|e| {
+    match e {
+      ItchRequestJSONError::<ProfileResponse>::ServerRepliedWithError(ApiResponseError::InvalidApiKey) => {
+        if is_saved_key {
+          "The API key is no longer valid. Try logging in again.".to_string()
+        } else {
+          "The API key is invalid!".to_string()
+        }
       }
+      _ => e.to_string()
     }
-
-    e.to_string()
   })
 }
 
 // List the owned game keys
 async fn print_owned_keys(client: &Client, api_key: &str) {
-  println!("{:#?}", scratch_io::get_owned_keys(client, api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}")));
+  println!("{:#?}", scratch_io::itch_api_calls::get_owned_keys(client, api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}")));
 }
 
 // List the games that the user created or is an admin of
 async fn print_created_games(client: &Client, api_key: &str) {
-  println!("{:#?}", scratch_io::get_crated_games(client, api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}")))
+  println!("{:#?}", scratch_io::itch_api_calls::get_crated_games(client, api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}")))
 }
 
 // Print information about a game, including its uploads and platforms
 async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
-  println!("{:#?}", scratch_io::get_game_info(client, api_key, game_id).await.unwrap_or_else(|e| eprintln_exit!("{e}")));
+  println!("{:#?}", scratch_io::itch_api_calls::get_game_info(client, api_key, game_id).await.unwrap_or_else(|e| eprintln_exit!("{e}")));
 
-  let uploads = scratch_io::get_game_uploads(client, api_key, game_id).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
+  let uploads = scratch_io::itch_api_calls::get_game_uploads(client, api_key, game_id).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
   println!("{uploads:#?}");
   
   println!("{:#?}", scratch_io::get_game_platforms(uploads.as_slice()));
@@ -282,12 +282,12 @@ async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
 
 // Print information about the user's collections
 async fn print_collections(client: &Client, api_key: &str) {
-  println!("{:#?}", scratch_io::get_collections(client, api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}")));
+  println!("{:#?}", scratch_io::itch_api_calls::get_collections(client, api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}")));
 }
 
 // Print the games listed in a collection
 async fn print_collection_games(client: &Client, api_key: &str, collection_id: u64) {
-  println!("{:#?}", scratch_io::get_collection_games(client, api_key, collection_id).await.unwrap_or_else(|e| eprintln_exit!("{e}")))
+  println!("{:#?}", scratch_io::itch_api_calls::get_collection_games(client, api_key, collection_id).await.unwrap_or_else(|e| eprintln_exit!("{e}")))
 }
 
 // Download a game's upload

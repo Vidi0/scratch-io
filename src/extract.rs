@@ -1,9 +1,11 @@
-use std::path::Path;
-use std::fs::{File};
 use crate::game_files_operations::*;
-use crate::error::*;
+use crate::game_files_operations::FilesystemError;
+use std::path::{Path, PathBuf};
+use std::fs::File;
+use thiserror::Error;
 
-enum ArchiveFormat {
+#[derive(Debug, Clone, PartialEq)]
+pub enum ArchiveFormat {
   Zip,
   Tar,
   TarGz,
@@ -13,16 +15,25 @@ enum ArchiveFormat {
   Other,
 }
 
+#[derive(Error, Debug)]
+#[error("Couldn't get the file stem of: \"{path}\"\n{error}")]
+pub struct GetArchiveFormatError {
+  path: PathBuf,
+  #[source]
+  error: FilesystemError,
+}
+
 /// Gets the archive format of the file
 /// 
 /// If the file is not an archive, then the format is `ArchiveFormat::Other`
-fn get_archive_format(file: &Path) -> Result<ArchiveFormat> {
+fn get_archive_format(file: &Path) -> Result<ArchiveFormat, GetArchiveFormatError> {
   let Some(extension) = file.extension().map(|e| e.to_string_lossy().to_lowercase()) else {
     return Ok(ArchiveFormat::Other)
   };
 
   // At this point, we know the file has an extension
-  let is_tar_compressed: bool = get_file_stem(file)?
+  let is_tar_compressed: bool = get_file_stem(file)
+    .map_err(|error| GetArchiveFormatError { path: file.to_path_buf(), error })?
     .to_lowercase()
     .ends_with(".tar");
 
@@ -49,10 +60,26 @@ fn get_archive_format(file: &Path) -> Result<ArchiveFormat> {
   )
 }
 
+#[derive(Error, Debug)]
+pub enum ExtractError {
+  #[error("A filesystem error occured:\n{0}")]
+  FilesystemError(#[from] FilesystemError),
+
+  #[error("Couldn't get the archive format of the file to extract!\n{0}")]
+  CouldntGetArchiveFormat(#[from] GetArchiveFormatError),
+
+  #[error("Couldn't extract the archive:\"{path}\"\n{error}")]
+  CouldntExtractArchive {
+    path: PathBuf,
+    #[source]
+    error: ExtractSpecificFormatError,
+  },
+}
+
 /// Extracts the archive into the given folder
 ///
 /// If the file isn't an archive it will be moved to the folder
-pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<()> {
+pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), ExtractError> {
   // If the extract folder isn't empty, return an error
   if !is_folder_empty(extract_folder)? {
     return Err(FilesystemError::FolderShouldBeEmpty(extract_folder.to_path_buf()).into());
@@ -96,13 +123,13 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<()> {
   // Extract the archive based on its format
   match format {
     ArchiveFormat::Other => unreachable!("If the format is Other, we should've exited before!"),
-    ArchiveFormat::Zip => extract_zip(&file, &extract_folder_temp)?,
-    ArchiveFormat::Tar => extract_tar(&file, &extract_folder_temp)?,
-    ArchiveFormat::TarGz => extract_tar_gz(&file, &extract_folder_temp)?,
-    ArchiveFormat::TarBz2 => extract_tar_bz2(&file, &extract_folder_temp)?,
-    ArchiveFormat::TarXz => extract_tar_xz(&file, &extract_folder_temp)?,
-    ArchiveFormat::TarZst => extract_tar_zst(&file, &extract_folder_temp)?,
-  }
+    ArchiveFormat::Zip => extract_zip(&file, &extract_folder_temp),
+    ArchiveFormat::Tar => extract_tar(&file, &extract_folder_temp),
+    ArchiveFormat::TarGz => extract_tar_gz(&file, &extract_folder_temp),
+    ArchiveFormat::TarBz2 => extract_tar_bz2(&file, &extract_folder_temp),
+    ArchiveFormat::TarXz => extract_tar_xz(&file, &extract_folder_temp),
+    ArchiveFormat::TarZst => extract_tar_zst(&file, &extract_folder_temp),
+  }.map_err(|error| ExtractError::CouldntExtractArchive { path: file_path.to_path_buf(), error })?;
 
   // Remove the archive
   tokio::fs::remove_file(file_path).await
@@ -117,12 +144,25 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<()> {
   Ok(())
 }
 
+#[derive(Error, Debug)]
+pub enum ExtractSpecificFormatError {
+  #[error("Couldn't extract ZIP archive:\n{0}")]
+  Zip(#[from] zip::result::ZipError),
+
+  #[error("Couldn't extract {format:?} archive\n{error}")]
+  Other {
+    format: ArchiveFormat,
+    #[source]
+    error: std::io::Error,
+  },
+}
+
 #[cfg_attr(not(feature = "zip"), allow(unused_variables))]
-fn extract_zip(file: &File, folder: &Path) -> Result<()> {
+fn extract_zip(file: &File, folder: &Path) -> Result<(), ExtractSpecificFormatError> {
   #[cfg(feature = "zip")] 
   {
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| FilesystemError::OpenExtractionReader { error: Box::new(e), format: "ZIP" })?;
-    archive.extract(folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "ZIP" }.into())
+    let mut archive = zip::ZipArchive::new(file)?;
+    archive.extract(folder).map_err(|e| e.into())
   }
 
   #[cfg(not(feature = "zip"))]
@@ -132,11 +172,11 @@ fn extract_zip(file: &File, folder: &Path) -> Result<()> {
 }
 
 #[cfg_attr(not(feature = "tar"), allow(unused_variables))]
-fn extract_tar(file: &File, folder: &Path) -> Result<()> {
+fn extract_tar(file: &File, folder: &Path) -> Result<(), ExtractSpecificFormatError> {
   #[cfg(feature = "tar")]
   {
     let mut tar_decoder = tar::Archive::new(file);
-    tar_decoder.unpack(folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar" }.into())
+    tar_decoder.unpack(folder).map_err(|error| ExtractSpecificFormatError::Other { format: ArchiveFormat::Tar, error })
   }
 
   #[cfg(not(feature = "tar"))]
@@ -146,12 +186,12 @@ fn extract_tar(file: &File, folder: &Path) -> Result<()> {
 }
 
 #[cfg_attr(not(feature = "gzip"), allow(unused_variables))]
-fn extract_tar_gz(file: &File, folder: &Path) -> Result<()> {
+fn extract_tar_gz(file: &File, folder: &Path) -> Result<(), ExtractSpecificFormatError> {
   #[cfg(feature = "gzip")]
   {
     let gz_decoder = flate2::read::GzDecoder::new(file);
     let mut tar_decoder = tar::Archive::new(gz_decoder);
-    tar_decoder.unpack(folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar.gz" }.into())
+    tar_decoder.unpack(folder).map_err(|error| ExtractSpecificFormatError::Other { format: ArchiveFormat::TarGz, error })
   }
 
   #[cfg(not(feature = "gzip"))]
@@ -161,12 +201,12 @@ fn extract_tar_gz(file: &File, folder: &Path) -> Result<()> {
 }
 
 #[cfg_attr(not(feature = "bzip2"), allow(unused_variables))]
-fn extract_tar_bz2(file: &File, folder: &Path) -> Result<()> {
+fn extract_tar_bz2(file: &File, folder: &Path) -> Result<(), ExtractSpecificFormatError> {
   #[cfg(feature = "bzip2")]
   {
     let bz2_decoder = bzip2::read::BzDecoder::new(file);
     let mut tar_decoder = tar::Archive::new(bz2_decoder);
-    tar_decoder.unpack(folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar.bz2" }.into())
+    tar_decoder.unpack(folder).map_err(|error| ExtractSpecificFormatError::Other { format: ArchiveFormat::TarBz2, error })
   }
 
   #[cfg(not(feature = "bzip2"))]
@@ -176,12 +216,12 @@ fn extract_tar_bz2(file: &File, folder: &Path) -> Result<()> {
 }
 
 #[cfg_attr(not(feature = "xz"), allow(unused_variables))]
-fn extract_tar_xz(file: &File, folder: &Path) -> Result<()> {
+fn extract_tar_xz(file: &File, folder: &Path) -> Result<(), ExtractSpecificFormatError> {
   #[cfg(feature = "xz")]
   {
     let xz_decoder = liblzma::read::XzDecoder::new(file);
     let mut tar_decoder = tar::Archive::new(xz_decoder);
-    tar_decoder.unpack(folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar.xz" }.into())
+    tar_decoder.unpack(folder).map_err(|error| ExtractSpecificFormatError::Other { format: ArchiveFormat::TarXz, error })
   }
   
   #[cfg(not(feature = "xz"))]
@@ -191,12 +231,12 @@ fn extract_tar_xz(file: &File, folder: &Path) -> Result<()> {
 }
 
 #[cfg_attr(not(feature = "zstd"), allow(unused_variables))]
-fn extract_tar_zst(file: &File, folder: &Path) -> Result<()> {
+fn extract_tar_zst(file: &File, folder: &Path) -> Result<(), ExtractSpecificFormatError> {
   #[cfg(feature = "zstd")]
   {
-    let zstd_decoder = zstd::Decoder::new(file).map_err(|e| FilesystemError::OpenExtractionReader { error: Box::new(e), format: "tar.zst" })?;
+    let zstd_decoder = zstd::Decoder::new(file).map_err(|error| ExtractSpecificFormatError::Other { format: ArchiveFormat::TarZst, error })?;
     let mut tar_decoder = tar::Archive::new(zstd_decoder);
-    tar_decoder.unpack(folder).map_err(|e| FilesystemError::Extracting { error: Box::new(e), format: "tar.zst" }.into())
+    tar_decoder.unpack(folder).map_err(|error| ExtractSpecificFormatError::Other { format: ArchiveFormat::TarZst, error })
   }
   
   #[cfg(not(feature = "zstd"))]
