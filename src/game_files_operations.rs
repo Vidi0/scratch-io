@@ -9,7 +9,7 @@ pub fn get_upload_folder(game_folder: impl AsRef<Path>, upload_id: u64) -> PathB
   game_folder.as_ref().join(format!("{upload_id}"))
 }
 
-/// Get the upload archive path based on its game folder and upload_id
+/// Get the upload archive path based on its game folder and `upload_id`
 pub fn get_upload_archive_path(
   game_folder: impl AsRef<Path>,
   upload_id: u64,
@@ -39,7 +39,7 @@ pub fn add_part_extension(file: impl AsRef<Path>) -> Result<PathBuf, String> {
 
 /// The game folder is `dirs::home_dir`+`Games`+`game_title`
 ///
-/// It fais if dirs::home_dir is None
+/// It fais if `dirs::home_dir` is None
 pub fn get_game_folder(game_title: &str) -> Result<PathBuf, String> {
   let mut game_folder = directories::BaseDirs::new()
     .ok_or_else(|| "Couldn't determine the home directory".to_string())?
@@ -128,7 +128,7 @@ pub async fn remove_folder_safely(path: impl AsRef<Path>) -> Result<(), String> 
     })?;
 
   if canonical == home {
-    Err("Refusing to remove home directory!".to_string())?
+    return Err("Refusing to remove home directory!".to_string());
   }
 
   tokio::fs::remove_dir_all(&path).await.map_err(|e| {
@@ -243,7 +243,7 @@ pub async fn move_folder(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result
   })?;
 
   match tokio::fs::rename(&src, &dst).await {
-    Ok(_) => Ok(()),
+    Ok(()) => Ok(()),
     Err(e) if e.kind() == tokio::io::ErrorKind::CrossesDevices => {
       // fallback: copy + delete
       copy_dir_all(&src, &dst).await?;
@@ -322,20 +322,12 @@ async fn move_folder_child(
     let from = child.path();
     let to = base_folder.as_ref().join(child.file_name());
 
-    if !to.try_exists().map_err(|e| {
+    if to.try_exists().map_err(|e| {
       format!(
         "Couldn't check is the path exists!: \"{}\"\n{e}",
         to.to_string_lossy()
       )
     })? {
-      tokio::fs::rename(&from, &to).await.map_err(|e| {
-        format!(
-          "Couldn't move the item:\n  Source: \"{}\"\n  Destination: \"{}\"\n{e}",
-          from.to_string_lossy(),
-          to.to_string_lossy()
-        )
-      })?;
-    } else {
       // If the children filename already exists on the parent, rename it to a
       // temporal name and, at the end, rename all the temporal names in order to the final names
       let temporal_name: PathBuf = find_available_path(&to)?;
@@ -351,6 +343,14 @@ async fn move_folder_child(
 
       // save the change to the collisions vector
       collisions.push((temporal_name, to));
+    } else {
+      tokio::fs::rename(&from, &to).await.map_err(|e| {
+        format!(
+          "Couldn't move the item:\n  Source: \"{}\"\n  Destination: \"{}\"\n{e}",
+          from.to_string_lossy(),
+          to.to_string_lossy()
+        )
+      })?;
     }
   }
 
@@ -378,7 +378,7 @@ async fn move_folder_child(
   }
 
   // now move all of the filenames that have collided to their original name
-  for (src, dst) in collisions.iter() {
+  for (src, dst) in &collisions {
     tokio::fs::rename(&src, &dst).await.map_err(|e| {
       format!(
         "Couldn't move the item:\n  Source: \"{}\"\n  Destination: \"{}\"\n{e}",
@@ -435,7 +435,7 @@ pub async fn remove_root_folder(folder: impl AsRef<Path>) -> Result<(), String> 
       || first.path().is_file()
     {
       break;
-    };
+    }
 
     // At this point, we know that first is a wrapper dir,
     // so set last_root to that and loop again in case there are nested roots

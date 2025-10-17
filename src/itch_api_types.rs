@@ -9,9 +9,13 @@ const ITCH_API_V2_BASE_URL: &str = "https://api.itch.io";
 ///
 /// This is needed because of how the itch.io API works
 ///
-/// https://itchapi.ryhn.link/API/index.html
+/// <https://itchapi.ryhn.link/API/index.html>
 ///
-/// https://github.com/itchio/itch.io/issues/1301
+/// <https://github.com/itchio/itch.io/issues/1301>
+///
+/// # Errors
+///
+/// If deserializing the Vector fails
 pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
 where
   D: serde::de::Deserializer<'de>,
@@ -72,7 +76,7 @@ impl fmt::Display for ItchApiUrl<'_> {
       match self {
         ItchApiUrl::V1(u) => format!("{ITCH_API_V1_BASE_URL}/{u}"),
         ItchApiUrl::V2(u) => format!("{ITCH_API_V2_BASE_URL}/{u}"),
-        ItchApiUrl::Other(u) => u.to_string(),
+        ItchApiUrl::Other(u) => (*u).to_string(),
       }
     )
   }
@@ -110,6 +114,7 @@ pub struct User {
 }
 
 impl User {
+  #[must_use]
   pub fn get_name(&self) -> &str {
     self
       .display_name

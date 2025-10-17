@@ -33,6 +33,7 @@ pub enum GamePlatform {
 }
 
 impl Upload {
+  #[must_use]
   pub fn to_game_platforms(&self) -> Vec<GamePlatform> {
     let mut platforms: Vec<GamePlatform> = Vec::new();
 
@@ -44,13 +45,13 @@ impl Upload {
       _ => (),
     }
 
-    for t in self.traits.iter() {
+    for t in &self.traits {
       match t {
         UploadTrait::PLinux => platforms.push(GamePlatform::Linux),
         UploadTrait::PWindows => platforms.push(GamePlatform::Windows),
         UploadTrait::POSX => platforms.push(GamePlatform::OSX),
         UploadTrait::PAndroid => platforms.push(GamePlatform::Android),
-        _ => (),
+        UploadTrait::Demo => (),
       }
     }
 
@@ -118,7 +119,7 @@ impl InstalledUpload {
 ///
 /// # Arguments
 ///
-/// * `readable` - Anything that implements tokio::io::AsyncRead to read the data from, could be a File
+/// * `readable` - Anything that implements `tokio::io::AsyncRead` to read the data from, could be a File
 ///
 /// * `hasher` - A mutable reference to a MD5 hasher, which will be updated with the file data
 ///
@@ -163,7 +164,7 @@ async fn hash_readable_async(
 ///
 /// * `progress_callback` - A closure called with the number of downloaded bytes at the moment
 ///
-/// * `callback_interval` - The minimum time span between each progress_callback call
+/// * `callback_interval` - The minimum time span between each `progress_callback` call
 ///
 /// # Returns
 ///
@@ -228,7 +229,7 @@ async fn stream_response_into_file(
 ///
 /// * `progress_callback` - A closure called with the number of downloaded bytes at the moment
 ///
-/// * `callback_interval` - The minimum time span between each progress_callback call
+/// * `callback_interval` - The minimum time span between each `progress_callback` call
 ///
 /// # Returns
 ///
@@ -415,6 +416,7 @@ async fn download_file(
 /// # Returns
 ///
 /// A vector of tuples containing an upload ID and the `GamePlatform` in which it is available
+#[must_use]
 pub fn get_game_platforms(uploads: &[Upload]) -> Vec<(u64, GamePlatform)> {
   let mut platforms: Vec<(u64, GamePlatform)> = Vec::new();
 
@@ -447,7 +449,9 @@ pub fn get_game_platforms(uploads: &[Upload]) -> Vec<(u64, GamePlatform)> {
 ///
 /// The path of the downloaded image, or None if the game doesn't have one
 ///
-/// An error if something goes wrong
+/// # Errors
+///
+/// If something goes wrong
 pub async fn download_game_cover(
   client: &ItchClient,
   game_id: u64,
@@ -520,13 +524,15 @@ pub async fn download_game_cover(
 ///
 /// * `progress_callback` - A closure which reports the download progress
 ///
-/// * `callback_interval` - The minimum time span between each progress_callback call
+/// * `callback_interval` - The minimum time span between each `progress_callback` call
 ///
 /// # Returns
 ///
 /// The installation info about the upload
 ///
-/// An error if something goes wrong
+/// # Errors
+///
+/// If something goes wrong
 pub async fn download_upload(
   client: &ItchClient,
   upload_id: u64,
@@ -578,12 +584,12 @@ pub async fn download_upload(
     |bytes| {
       progress_callback(DownloadStatus::StartingDownload {
         bytes_to_download: bytes,
-      })
+      });
     },
     |bytes| {
       progress_callback(DownloadStatus::DownloadProgress {
         downloaded_bytes: bytes,
-      })
+      });
     },
     callback_interval,
   )
@@ -642,7 +648,9 @@ pub async fn download_upload(
 ///
 /// The installation info about the upload
 ///
-/// An error if something goes wrong
+/// # Errors
+///
+/// If something goes wrong
 pub async fn import(
   client: &ItchClient,
   upload_id: u64,
@@ -680,7 +688,9 @@ pub async fn import(
 ///
 /// True if something was actually deleted
 ///
-/// An error if something goes wrong
+/// # Errors
+///
+/// If something goes wrong
 pub async fn remove_partial_download(
   client: &ItchClient,
   upload_id: u64,
@@ -765,9 +775,9 @@ pub async fn remove_partial_download(
 ///
 /// * `game_folder` - The folder with the game files where the upload will be removed from
 ///
-/// # Returns
+/// # Errors
 ///
-/// An error if something goes wrong
+/// If something goes wrong
 pub async fn remove(upload_id: u64, game_folder: &Path) -> Result<(), String> {
   let upload_folder = get_upload_folder(game_folder, upload_id);
 
@@ -800,7 +810,9 @@ pub async fn remove(upload_id: u64, game_folder: &Path) -> Result<(), String> {
 ///
 /// The new game folder in its absolute (canonical) form
 ///
-/// An error if something goes wrong
+/// # Errors
+///
+/// If something goes wrong
 pub async fn r#move(
   upload_id: u64,
   src_game_folder: &Path,
@@ -847,14 +859,16 @@ pub async fn r#move(
 ///
 /// A `Manifest` struct with the manifest actions info, or None if the manifest isn't present
 ///
-/// An error if something goes wrong
+/// # Errors
+///
+/// If something goes wrong
 pub async fn get_upload_manifest(
   upload_id: u64,
   game_folder: &Path,
 ) -> Result<Option<itch_manifest::Manifest>, String> {
   let upload_folder = get_upload_folder(game_folder, upload_id);
 
-  itch_manifest::read_manifest(&upload_folder)
+  itch_manifest::read_manifest(&upload_folder).await
 }
 
 /// Launchs an installed upload
@@ -873,9 +887,9 @@ pub async fn get_upload_manifest(
 ///
 /// * `launch_start_callback` - A callback triggered just before the upload executable runs, providing information about what is about to be executed.
 ///
-/// # Returns
+/// # Errors
 ///
-/// An error if something goes wrong
+/// If something goes wrong
 pub async fn launch(
   upload_id: u64,
   game_folder: &Path,
@@ -892,32 +906,37 @@ pub async fn launch(
     LaunchMethod::AlternativeExecutable(p) => (p, Cow::Borrowed(game_arguments)),
     // 2. If the launch method is a manifest action, use its executable
     LaunchMethod::ManifestAction(a) => {
-      let ma = itch_manifest::launch_action(&upload_folder, Some(a))?
+      let ma = itch_manifest::launch_action(&upload_folder, Some(a))
+        .await?
         .ok_or_else(|| format!("The provided launch action doesn't exist in the manifest: {a}"))?;
       (
         &PathBuf::from(ma.path),
-        match game_arguments.is_empty() {
-          // a) If the function's game arguments aren't empty, use those.
-          false => Cow::Borrowed(game_arguments),
-          // b) Otherwise, use the arguments from the manifest.
-          true => Cow::Owned(ma.args.unwrap_or_default()),
+        // a) If the function's game arguments are empty, use the ones from the manifest
+        if game_arguments.is_empty() {
+          Cow::Owned(ma.args.unwrap_or_default())
+        }
+        // b) Otherwise, use the provided ones
+        else {
+          Cow::Borrowed(game_arguments)
         },
       )
     }
     // 3. Otherwise, if the launch method are the heuristics, use them to locate the executable
     LaunchMethod::Heuristics(gp, g) => {
       // But first, check if the game has a manifest with a "play" action, and use it if possible
-      let mao = itch_manifest::launch_action(&upload_folder, None)?;
+      let mao = itch_manifest::launch_action(&upload_folder, None).await?;
 
       match mao {
         // If the manifest has a "play" action, launch from it
         Some(ma) => (
           &PathBuf::from(ma.path),
-          match game_arguments.is_empty() {
-            // a) If the function's game arguments aren't empty, use those.
-            false => Cow::Borrowed(game_arguments),
-            // b) Otherwise, use the arguments from the manifest.
-            true => Cow::Owned(ma.args.unwrap_or_default()),
+          // a) If the function's game arguments are empty, use the ones from the manifest
+          if game_arguments.is_empty() {
+            Cow::Owned(ma.args.unwrap_or_default())
+          }
+          // b) Otherwise, use the provided ones
+          else {
+            Cow::Borrowed(game_arguments)
           },
         ),
         // Else, now use the heuristics to determine the executable, with the function's game arguments
@@ -986,6 +1005,7 @@ pub async fn launch(
 /// # Returns
 ///
 /// The web game URL
+#[must_use]
 pub fn get_web_game_url(upload_id: u64) -> String {
   format!("https://html-classic.itch.zone/html/{upload_id}/index.html")
 }

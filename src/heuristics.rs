@@ -1,5 +1,5 @@
 use crate::GamePlatform;
-use crate::itch_api_types::*;
+use crate::itch_api_types::Game;
 use std::path::{Path, PathBuf};
 
 const GOOD_LAUNCH_FILENAMES: &[&str] = &[
@@ -38,14 +38,14 @@ impl GamePlatform {
   fn get_best_filenames(&self) -> &'static [&'static str] {
     match self {
       // These must only be ascii alphanumeric lowercase
-      GamePlatform::Linux => &[],
-      GamePlatform::Windows => &[],
-      GamePlatform::OSX => &[],
-      GamePlatform::Android => &[],
+      GamePlatform::Linux
+      | GamePlatform::Windows
+      | GamePlatform::OSX
+      | GamePlatform::Android
+      | GamePlatform::Flash
+      | GamePlatform::Java
+      | GamePlatform::UnityWebPlayer => &[],
       GamePlatform::Web => &["index"],
-      GamePlatform::Flash => &[],
-      GamePlatform::Java => &[],
-      GamePlatform::UnityWebPlayer => &[],
     }
   }
 }
@@ -150,6 +150,7 @@ fn rate_executable(
   // 1st level: lower it by 1000
   // 2nd level: lower it by 4000
   // saturating_pow so it doesn't overflow
+  assert!(directory_levels <= MAX_DIRECTORY_LEVEL_DEPTH);
   rating -= (directory_levels as i64).saturating_pow(2) * 1000;
 
   // Most of the checks will be based on the filename
@@ -178,7 +179,7 @@ fn rate_executable(
     .iter()
     .any(|ext| extension.eq_ignore_ascii_case(ext))
   {
-    rating -= 10000000;
+    rating -= 10_000_000;
   }
 
   // If the file has an ideal filename (e.g: index.html for a web game), raise the rating

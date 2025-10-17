@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::fs;
 use std::path::{Path, PathBuf};
 
 const MANIFEST_FILENAME: &str = ".itch.toml";
@@ -29,14 +28,16 @@ pub struct Manifest {
 }
 
 /// Read the manifest from a folder and parse it (if any)
-pub fn read_manifest(upload_folder: &Path) -> Result<Option<Manifest>, String> {
+pub async fn read_manifest(upload_folder: &Path) -> Result<Option<Manifest>, String> {
   let manifest_path = upload_folder.join(MANIFEST_FILENAME);
 
   if !manifest_path.is_file() {
     return Ok(None);
   }
 
-  let manifest_text: String = fs::read_to_string(&manifest_path).map_err(|e| e.to_string())?;
+  let manifest_text: String = tokio::fs::read_to_string(&manifest_path)
+    .await
+    .map_err(|e| e.to_string())?;
 
   toml::from_str::<Manifest>(&manifest_text)
     .map(Some)
@@ -49,11 +50,11 @@ pub fn read_manifest(upload_folder: &Path) -> Result<Option<Manifest>, String> {
 }
 
 /// Returns a itch Manifest Action given its name and the folder where the game manifest is located
-pub fn launch_action(
+pub async fn launch_action(
   upload_folder: &Path,
   action_name: Option<&str>,
 ) -> Result<Option<Action>, String> {
-  let Some(manifest) = read_manifest(upload_folder)? else {
+  let Some(manifest) = read_manifest(upload_folder).await? else {
     return Ok(None);
   };
 

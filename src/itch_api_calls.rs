@@ -10,6 +10,7 @@ pub struct ItchClient {
 // This block defines the ItchClient API calls and helper functions
 impl ItchClient {
   /// Obtain the API key associated with this `ItchClient`
+  #[must_use]
   pub fn get_api_key(&self) -> &str {
     &self.api_key
   }
@@ -99,7 +100,7 @@ impl ItchClient {
       .map_err(|e| format!("Error while reading response body: {e}"))?;
 
     serde_json::from_str::<ApiResponse<T>>(&text)
-      .map_err(|e| format!("Error while parsing JSON body: {e}\n\n{}", text))?
+      .map_err(|e| format!("Error while parsing JSON body: {e}\n\n{text}"))?
       .into_result()
   }
 }
@@ -116,7 +117,9 @@ impl ItchClient {
   ///
   /// A `ItchClient` struct with the given key
   ///
-  /// An error if the API key is invalid or couldn't be verified
+  /// # Errors
+  ///
+  /// If the API key is invalid or couldn't be verified
   pub async fn auth(api_key: String) -> Result<Self, String> {
     let client = Self {
       client: reqwest::Client::new(),
@@ -166,7 +169,7 @@ impl ItchClient {
   ///
   /// * `password` - The password of the accout to log in with
   ///
-  /// * `recaptcha_response` - If required, the reCAPTCHA token from https://itch.io/captcha
+  /// * `recaptcha_response` - If required, the reCAPTCHA token from <https://itch.io/captcha>
   ///
   /// * `totp_code` - If required, The 6-digit code returned by the TOTP application
   ///
@@ -174,7 +177,9 @@ impl ItchClient {
   ///
   /// An `ItchClient` struct with the new API key
   ///
-  /// An error if something goes wrong
+  /// # Errors
+  ///
+  /// If something goes wrong
   pub async fn login(
     username: &str,
     password: &str,
@@ -218,8 +223,8 @@ impl ItchClient {
       LoginResponse::TOTPError(e) => {
         let Some(totp_code) = totp_code else {
           return Err(
-            r#"The accout has 2 step verification enabled via TOTP
-    Run the login command again with the --totp-code={{VERIFICATION_CODE}} option."#
+            r"The accout has 2 step verification enabled via TOTP
+    Run the login command again with the --totp-code={{VERIFICATION_CODE}} option."
               .to_string(),
           );
         };
@@ -250,7 +255,9 @@ impl ItchClient {
 ///
 /// A `User` struct with the info provided by the API
 ///
-/// An error if something goes wrong
+/// # Errors
+///
+/// If something goes wrong
 pub async fn get_profile(client: &ItchClient) -> Result<User, String> {
   client
     .itch_request_json::<ProfileResponse>(&ItchApiUrl::V2("profile"), Method::GET, |b| b)
@@ -269,7 +276,9 @@ pub async fn get_profile(client: &ItchClient) -> Result<User, String> {
 ///
 /// A vector of `CreatedGame` structs with the info provided by the API
 ///
-/// An error if something goes wrong
+/// # Errors
+///
+/// If something goes wrong
 pub async fn get_crated_games(client: &ItchClient) -> Result<Vec<CreatedGame>, String> {
   client
     .itch_request_json::<CreatedGamesResponse>(&ItchApiUrl::V2("profile/games"), Method::GET, |b| b)
@@ -292,7 +301,9 @@ pub async fn get_crated_games(client: &ItchClient) -> Result<Vec<CreatedGame>, S
 ///
 /// A vector of `OwnedKey` structs with the info provided by the API
 ///
-/// An error if something goes wrong
+/// # Errors
+///
+/// If something goes wrong
 pub async fn get_owned_keys(client: &ItchClient) -> Result<Vec<OwnedKey>, String> {
   let mut keys: Vec<OwnedKey> = Vec::new();
   let mut page: u64 = 1;
@@ -335,7 +346,9 @@ pub async fn get_owned_keys(client: &ItchClient) -> Result<Vec<OwnedKey>, String
 ///
 /// A vector of `Collection` structs with the info provided by the API
 ///
-/// An error if something goes wrong
+/// # Errors
+///
+/// If something goes wrong
 pub async fn get_collections(client: &ItchClient) -> Result<Vec<Collection>, String> {
   client
     .itch_request_json::<CollectionsResponse>(
@@ -364,7 +377,9 @@ pub async fn get_collections(client: &ItchClient) -> Result<Vec<Collection>, Str
 ///
 /// A vector of `CollectionGameItem` structs with the info provided by the API
 ///
-/// An error if something goes wrong
+/// # Errors
+///
+/// If something goes wrong
 pub async fn get_collection_games(
   client: &ItchClient,
   collection_id: u64,
@@ -412,7 +427,9 @@ pub async fn get_collection_games(
 ///
 /// A `Game` struct with the info provided by the API
 ///
-/// An error if something goes wrong
+/// # Errors
+///
+/// If something goes wrong
 pub async fn get_game_info(client: &ItchClient, game_id: u64) -> Result<Game, String> {
   client
     .itch_request_json::<GameInfoResponse>(
@@ -437,7 +454,9 @@ pub async fn get_game_info(client: &ItchClient, game_id: u64) -> Result<Game, St
 ///
 /// A vector of `Upload` structs with the info provided by the API
 ///
-/// An error if something goes wrong
+/// # Errors
+///
+/// If something goes wrong
 pub async fn get_game_uploads(client: &ItchClient, game_id: u64) -> Result<Vec<Upload>, String> {
   client
     .itch_request_json::<GameUploadsResponse>(
@@ -462,7 +481,9 @@ pub async fn get_game_uploads(client: &ItchClient, game_id: u64) -> Result<Vec<U
 ///
 /// A `Upload` struct with the info provided by the API
 ///
-/// An error if something goes wrong
+/// # Errors
+///
+/// If something goes wrong
 pub async fn get_upload_info(client: &ItchClient, upload_id: u64) -> Result<Upload, String> {
   client
     .itch_request_json::<UploadResponse>(
