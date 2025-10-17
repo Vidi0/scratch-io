@@ -1,24 +1,26 @@
-use serde::{Serialize, Deserialize};
-use time::{OffsetDateTime, serde::rfc3339};
+use serde::{Deserialize, Serialize};
 use std::fmt;
+use time::{OffsetDateTime, serde::rfc3339};
 
 const ITCH_API_V1_BASE_URL: &str = "https://itch.io/api/1";
 const ITCH_API_V2_BASE_URL: &str = "https://api.itch.io";
 
 /// Deserialize an empty object as an empty vector
-/// 
+///
 /// This is needed because of how the itch.io API works
-/// 
+///
 /// https://itchapi.ryhn.link/API/index.html
-/// 
+///
 /// https://github.com/itchio/itch.io/issues/1301
-pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error> where
+pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+where
   D: serde::de::Deserializer<'de>,
   T: Deserialize<'de>,
 {
   struct Helper<T>(std::marker::PhantomData<T>);
 
-  impl<'de, T> serde::de::Visitor<'de> for Helper<T> where
+  impl<'de, T> serde::de::Visitor<'de> for Helper<T>
+  where
     T: Deserialize<'de>,
   {
     type Value = Vec<T>;
@@ -27,7 +29,8 @@ pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Erro
       formatter.write_str("an array or an empty object")
     }
 
-    fn visit_seq<A>(self, mut seq: A) -> Result<Vec<T>, A::Error> where
+    fn visit_seq<A>(self, mut seq: A) -> Result<Vec<T>, A::Error>
+    where
       A: serde::de::SeqAccess<'de>,
     {
       let mut items = Vec::new();
@@ -37,7 +40,8 @@ pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Erro
       Ok(items)
     }
 
-    fn visit_map<A>(self, mut map: A) -> Result<Vec<T>, A::Error> where
+    fn visit_map<A>(self, mut map: A) -> Result<Vec<T>, A::Error>
+    where
       A: serde::de::MapAccess<'de>,
     {
       // Consume all keys without using them, returning empty Vec
@@ -52,7 +56,7 @@ pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Erro
 }
 
 /// A itch.io API address
-/// 
+///
 /// Use the Other variant with the full URL when it isn't a known API version
 pub enum ItchApiUrl<'a> {
   V1(&'a str),
@@ -62,7 +66,9 @@ pub enum ItchApiUrl<'a> {
 
 impl fmt::Display for ItchApiUrl<'_> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}", 
+    write!(
+      f,
+      "{}",
       match self {
         ItchApiUrl::V1(u) => format!("{ITCH_API_V1_BASE_URL}/{u}"),
         ItchApiUrl::V2(u) => format!("{ITCH_API_V2_BASE_URL}/{u}"),
@@ -187,7 +193,10 @@ pub struct User {
 
 impl User {
   pub fn get_name(&self) -> &str {
-    self.display_name.as_deref().unwrap_or(self.username.as_str())
+    self
+      .display_name
+      .as_deref()
+      .unwrap_or(self.username.as_str())
   }
 }
 
@@ -335,7 +344,10 @@ impl<T> ApiResponse<T> {
   pub fn into_result(self) -> Result<T, String> {
     match self {
       ApiResponse::Success(data) => Ok(data),
-      ApiResponse::Error { errors } => Err(format!("The server replied with an error:\n{}", errors.join("\n"))),
+      ApiResponse::Error { errors } => Err(format!(
+        "The server replied with an error:\n{}",
+        errors.join("\n")
+      )),
     }
   }
 }

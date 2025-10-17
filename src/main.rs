@@ -1,8 +1,8 @@
-use reqwest::Client;
 use clap::{Parser, Subcommand};
-use std::path::{Path, PathBuf};
+use reqwest::Client;
+use scratch_io::{DownloadStatus, InstalledUpload, itch_api_types::*};
 use std::collections::HashMap;
-use scratch_io::{itch_api_types::*, DownloadStatus, InstalledUpload};
+use std::path::{Path, PathBuf};
 
 mod config;
 use config::Config;
@@ -69,7 +69,7 @@ enum RequireApiCommands {
     /// The ID of the upload to download
     upload_id: u64,
     /// The path where the download folder will be placed
-    /// 
+    ///
     /// Defaults to ~/Games/{game_name}/
     #[arg(long, env = "SCRATCH_INSTALL_PATH")]
     install_path: Option<PathBuf>,
@@ -85,7 +85,7 @@ enum RequireApiCommands {
     #[arg(long, env = "SCRATCH_FOLDER")]
     folder: PathBuf,
     /// The filename of the downloaded cover image (without extension)
-    /// 
+    ///
     /// Defaults to "cover"
     #[arg(long, env = "SCRATCH_FILENAME")]
     filename: Option<String>,
@@ -98,7 +98,7 @@ enum RequireApiCommands {
     /// The ID of the upload which has been partially downloaded
     upload_id: u64,
     /// The path where the download folder has been placed
-    /// 
+    ///
     /// Defaults to ~/Games/{game_name}/
     #[arg(long, env = "SCRATCH_INSTALL_PATH")]
     install_path: Option<PathBuf>,
@@ -157,14 +157,14 @@ enum OptionalApiCommands {
     /// The ID of the upload to launch
     upload_id: u64,
     /// The itch manifest's action to call the game with
-    /// 
+    ///
     /// Returns an error if the action isn't present in the manifest, or the manifest is missing
     #[arg(long, env = "SCRATCH_LAUNCH_ACTION", group = "launch_method")]
     launch_action: Option<String>,
     /// The platform for which the game binary will be searched
-    /// 
+    ///
     /// The itch.io uploads don't specify a game binary, so which file to run will be decided by heuristics.
-    /// 
+    ///
     /// The heuristics need to know which platform is the executable they are searching.
     #[arg(long, env = "SCRATCH_PLATFORM", group = "launch_method")]
     platform: Option<scratch_io::GamePlatform>,
@@ -175,42 +175,68 @@ enum OptionalApiCommands {
     #[arg(long, env = "SCRATCH_WRAPPER")]
     wrapper: Option<String>,
     /// The arguments the game will be called with
-    /// 
+    ///
     /// There arguments will be split into a vector according to parsing rules of UNIX shell
     #[arg(long, env = "SCRATCH_GAME_ARGUMENTS")]
     game_arguments: Option<String>,
   },
 }
 
-async fn get_api_key(client: &Client, keys: Vec<Option<String>>, saved_key_index: usize) -> Result<(String, User), String> {
-  let (key_index, api_key) = keys.into_iter()
+async fn get_api_key(
+  client: &Client,
+  keys: Vec<Option<String>>,
+  saved_key_index: usize,
+) -> Result<(String, User), String> {
+  let (key_index, api_key) = keys
+    .into_iter()
     .enumerate()
     .find_map(|(index, key)| key.map(|k| (index, k)))
-    .ok_or_else(|| "Error: an itch.io API key is required, either via --api-key, auth, or the login command.".to_string())?;
+    .ok_or_else(|| {
+      "Error: an itch.io API key is required, either via --api-key, auth, or the login command."
+        .to_string()
+    })?;
 
   let is_saved_key = key_index == saved_key_index;
-  
+
   // Verify the key and get user info
-  let profile: User = verify_key(
-    client,
-    api_key.as_str(),
-    is_saved_key,
-  ).await?;
+  let profile: User = verify_key(client, api_key.as_str(), is_saved_key).await?;
 
   Ok((api_key, profile))
 }
 
-fn get_installed_upload_info(upload_id: u64, installed_uploads: &HashMap<u64, InstalledUpload>) -> &InstalledUpload {
-  installed_uploads.get(&upload_id).unwrap_or_else(|| eprintln_exit!("The given upload id is not installed!: {}", upload_id.to_string()))
+fn get_installed_upload_info(
+  upload_id: u64,
+  installed_uploads: &HashMap<u64, InstalledUpload>,
+) -> &InstalledUpload {
+  installed_uploads.get(&upload_id).unwrap_or_else(|| {
+    eprintln_exit!(
+      "The given upload id is not installed!: {}",
+      upload_id.to_string()
+    )
+  })
 }
 
-fn get_installed_upload_info_mut(upload_id: u64, installed_uploads: &mut HashMap<u64, InstalledUpload>) -> &mut InstalledUpload {
-  installed_uploads.get_mut(&upload_id).unwrap_or_else(|| eprintln_exit!("The given upload id is not installed!: {}", upload_id.to_string()))
+fn get_installed_upload_info_mut(
+  upload_id: u64,
+  installed_uploads: &mut HashMap<u64, InstalledUpload>,
+) -> &mut InstalledUpload {
+  installed_uploads.get_mut(&upload_id).unwrap_or_else(|| {
+    eprintln_exit!(
+      "The given upload id is not installed!: {}",
+      upload_id.to_string()
+    )
+  })
 }
 
 fn exit_if_already_installed(upload_id: u64, installed_uploads: &HashMap<u64, InstalledUpload>) {
   if let Some(info) = installed_uploads.get(&upload_id) {
-    eprintln_exit!("The game is already installed in: \"{}\"", info.game_folder.join(info.upload_id.to_string()).to_string_lossy());
+    eprintln_exit!(
+      "The game is already installed in: \"{}\"",
+      info
+        .game_folder
+        .join(info.upload_id.to_string())
+        .to_string_lossy()
+    );
   }
 }
 
@@ -219,15 +245,27 @@ fn auth(key: String, config_api_key: &mut Option<String>, profile: User) {
   // We already checked if the key was valid
   println!("Valid key!");
   *config_api_key = Some(key);
-          
+
   // Print user info
   println!("Logged in as: {}", profile.get_name());
 }
 
 // Login with an username and password, save to the config and print info
-async fn login(client: &Client, username: &str, password: &str, recaptcha_response: Option<&str>, totp_code: Option<u64>, config_api_key: &mut Option<String>) {
-  let ls = scratch_io::itch_api_calls::login(client, username, password, recaptcha_response, totp_code).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
-  let profile = scratch_io::itch_api_calls::get_profile(client, ls.key.key.as_str()).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
+async fn login(
+  client: &Client,
+  username: &str,
+  password: &str,
+  recaptcha_response: Option<&str>,
+  totp_code: Option<u64>,
+  config_api_key: &mut Option<String>,
+) {
+  let ls =
+    scratch_io::itch_api_calls::login(client, username, password, recaptcha_response, totp_code)
+      .await
+      .unwrap_or_else(|e| eprintln_exit!("{e}"));
+  let profile = scratch_io::itch_api_calls::get_profile(client, ls.key.key.as_str())
+    .await
+    .unwrap_or_else(|e| eprintln_exit!("{e}"));
 
   auth(ls.key.key, config_api_key, profile);
 }
@@ -245,49 +283,85 @@ fn logout(config_api_key: &mut Option<String>) {
 
 // Return the user profile
 async fn verify_key(client: &Client, api_key: &str, is_saved_key: bool) -> Result<User, String> {
-  scratch_io::itch_api_calls::get_profile(client, api_key).await.map_err(|e| {
-    if !e.contains("invalid key") {
-      e
-    } else if is_saved_key {
-      "The key is not longer valid. Try logging in again.".to_string()
-    } else {
-      "The key is invalid!".to_string()
-    }
-  })
+  scratch_io::itch_api_calls::get_profile(client, api_key)
+    .await
+    .map_err(|e| {
+      if !e.contains("invalid key") {
+        e
+      } else if is_saved_key {
+        "The key is not longer valid. Try logging in again.".to_string()
+      } else {
+        "The key is invalid!".to_string()
+      }
+    })
 }
 
 // List the owned game keys
 async fn print_owned_keys(client: &Client, api_key: &str) {
-  println!("{:#?}", scratch_io::itch_api_calls::get_owned_keys(client, api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}")));
+  println!(
+    "{:#?}",
+    scratch_io::itch_api_calls::get_owned_keys(client, api_key)
+      .await
+      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+  );
 }
 
 // List the games that the user created or is an admin of
 async fn print_created_games(client: &Client, api_key: &str) {
-  println!("{:#?}", scratch_io::itch_api_calls::get_crated_games(client, api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}")))
+  println!(
+    "{:#?}",
+    scratch_io::itch_api_calls::get_crated_games(client, api_key)
+      .await
+      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+  )
 }
 
 // Print information about a game, including its uploads and platforms
 async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
-  println!("{:#?}", scratch_io::itch_api_calls::get_game_info(client, api_key, game_id).await.unwrap_or_else(|e| eprintln_exit!("{e}")));
+  println!(
+    "{:#?}",
+    scratch_io::itch_api_calls::get_game_info(client, api_key, game_id)
+      .await
+      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+  );
 
-  let uploads = scratch_io::itch_api_calls::get_game_uploads(client, api_key, game_id).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
+  let uploads = scratch_io::itch_api_calls::get_game_uploads(client, api_key, game_id)
+    .await
+    .unwrap_or_else(|e| eprintln_exit!("{e}"));
   println!("{uploads:#?}");
-  
+
   println!("{:#?}", scratch_io::get_game_platforms(uploads.as_slice()));
 }
 
 // Print information about the user's collections
 async fn print_collections(client: &Client, api_key: &str) {
-  println!("{:#?}", scratch_io::itch_api_calls::get_collections(client, api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}")));
+  println!(
+    "{:#?}",
+    scratch_io::itch_api_calls::get_collections(client, api_key)
+      .await
+      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+  );
 }
 
 // Print the games listed in a collection
 async fn print_collection_games(client: &Client, api_key: &str, collection_id: u64) {
-  println!("{:#?}", scratch_io::itch_api_calls::get_collection_games(client, api_key, collection_id).await.unwrap_or_else(|e| eprintln_exit!("{e}")))
+  println!(
+    "{:#?}",
+    scratch_io::itch_api_calls::get_collection_games(client, api_key, collection_id)
+      .await
+      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+  )
 }
 
 // Download a game's upload
-async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&Path>, skip_hash_verification: bool, installed_uploads: &mut HashMap<u64, InstalledUpload>) {
+async fn download(
+  client: &Client,
+  api_key: &str,
+  upload_id: u64,
+  dest: Option<&Path>,
+  skip_hash_verification: bool,
+  installed_uploads: &mut HashMap<u64, InstalledUpload>,
+) {
   exit_if_already_installed(upload_id, installed_uploads);
 
   let progress_bar = indicatif::ProgressBar::hidden();
@@ -312,32 +386,60 @@ async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&
           progress_bar.set_length(bytes_to_download);
           progress_bar.set_draw_target(indicatif::ProgressDrawTarget::stderr());
         }
-        DownloadStatus::DownloadProgress { downloaded_bytes } => progress_bar.set_position(downloaded_bytes),
+        DownloadStatus::DownloadProgress { downloaded_bytes } => {
+          progress_bar.set_position(downloaded_bytes)
+        }
         DownloadStatus::Extract => println!("Extracting archive..."),
       };
     },
-    std::time::Duration::from_millis(100)
-  ).await
-    .unwrap_or_else(|e| eprintln_exit!("Error while downloading file!\n{}", e));
+    std::time::Duration::from_millis(100),
+  )
+  .await
+  .unwrap_or_else(|e| eprintln_exit!("Error while downloading file!\n{}", e));
 
-  println!("Game upload downloaded to: \"{}\"", iu.game_folder.join(iu.upload_id.to_string()).to_string_lossy());
+  println!(
+    "Game upload downloaded to: \"{}\"",
+    iu.game_folder
+      .join(iu.upload_id.to_string())
+      .to_string_lossy()
+  );
   installed_uploads.insert(upload_id, iu);
 }
 
 // Download a game's cover image
-async fn download_cover(client: &Client, api_key: &str, game_id: u64, folder: &Path, filename: Option<&str>, force_download: bool) {
-  let cover_path = scratch_io::download_game_cover(client, api_key, game_id, folder, filename, force_download).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
+async fn download_cover(
+  client: &Client,
+  api_key: &str,
+  game_id: u64,
+  folder: &Path,
+  filename: Option<&str>,
+  force_download: bool,
+) {
+  let cover_path =
+    scratch_io::download_game_cover(client, api_key, game_id, folder, filename, force_download)
+      .await
+      .unwrap_or_else(|e| eprintln_exit!("{e}"));
 
   match cover_path {
     None => eprintln_exit!("The provided game with id: \"{game_id}\" doesn't have a cover image!"),
-    Some(p) => println!("Game cover image downloaded to: \"{}\"", p.to_string_lossy()),
+    Some(p) => println!(
+      "Game cover image downloaded to: \"{}\"",
+      p.to_string_lossy()
+    ),
   }
 }
 
 // Remove partially downloaded game files
-async fn remove_partial_download(client: &Client, api_key: &str, upload_id: u64, game_folder: Option<&Path>) {
-  let was_something_deleted = scratch_io::remove_partial_download(client, api_key, upload_id, game_folder).await
-    .unwrap_or_else(|e| eprintln_exit!("Couldn't remove partial download: {e}"));
+async fn remove_partial_download(
+  client: &Client,
+  api_key: &str,
+  upload_id: u64,
+  game_folder: Option<&Path>,
+) {
+  let was_something_deleted =
+    scratch_io::remove_partial_download(client, api_key, upload_id, game_folder)
+      .await
+      .unwrap_or_else(|e| eprintln_exit!("Couldn't remove partial download: {e}"));
 
   if was_something_deleted {
     println!("Removed partially downloaded files from upload {upload_id}.");
@@ -347,7 +449,11 @@ async fn remove_partial_download(client: &Client, api_key: &str, upload_id: u64,
 }
 
 // Print a list of the currently installed games
-async fn print_installed_games(client: &Client, api_key: Option<&str>, installed_uploads: &mut HashMap<u64, InstalledUpload>) -> bool {
+async fn print_installed_games(
+  client: &Client,
+  api_key: Option<&str>,
+  installed_uploads: &mut HashMap<u64, InstalledUpload>,
+) -> bool {
   let mut updated = false;
   let mut warning: (bool, String) = (false, String::new());
 
@@ -355,10 +461,13 @@ async fn print_installed_games(client: &Client, api_key: Option<&str>, installed
     if let Some(key) = api_key {
       match iu.add_missing_info(client, key, false).await {
         Ok(u) => updated |= u,
-        Err(e) => warning = (true, e.to_string())
+        Err(e) => warning = (true, e.to_string()),
       }
     } else {
-      warning = (true, "Missing, invalid or couldn't verify the api key.".to_string())
+      warning = (
+        true,
+        "Missing, invalid or couldn't verify the api key.".to_string(),
+      )
     }
 
     println!("{iu:#?}");
@@ -372,8 +481,12 @@ async fn print_installed_games(client: &Client, api_key: Option<&str>, installed
 }
 
 // Print the installed info of an upload
-async fn print_installed_upload(client: &Client, api_key: Option<&str>, upload_id: u64, installed_uploads: &mut HashMap<u64, InstalledUpload>) -> bool {
-  
+async fn print_installed_upload(
+  client: &Client,
+  api_key: Option<&str>,
+  upload_id: u64,
+  installed_uploads: &mut HashMap<u64, InstalledUpload>,
+) -> bool {
   let iu = get_installed_upload_info_mut(upload_id, installed_uploads);
   let mut updated = false;
 
@@ -383,12 +496,15 @@ async fn print_installed_upload(client: &Client, api_key: Option<&str>, upload_i
       Err(e) => println!("Warning: Couldn't update the game info!: {e}"),
     }
   } else {
-    println!("Warning: Couldn't update the game info!: Missing, invalid or couldn't verify the api key.")
+    println!(
+      "Warning: Couldn't update the game info!: Missing, invalid or couldn't verify the api key."
+    )
   }
 
   println!("{iu:#?}");
 
-  let manifest = scratch_io::get_upload_manifest(upload_id, &iu.game_folder).await
+  let manifest = scratch_io::get_upload_manifest(upload_id, &iu.game_folder)
+    .await
     .unwrap_or_else(|e| eprintln_exit!("Couldn't get the itch manifest of the upload!: {e}"));
 
   if let Some(m) = manifest {
@@ -399,11 +515,25 @@ async fn print_installed_upload(client: &Client, api_key: Option<&str>, upload_i
 }
 
 // Import an already installed upload from a folder
-async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder: &Path, installed_uploads: &mut HashMap<u64, InstalledUpload>) {
+async fn import(
+  client: &Client,
+  api_key: &str,
+  upload_id: u64,
+  game_folder: &Path,
+  installed_uploads: &mut HashMap<u64, InstalledUpload>,
+) {
   exit_if_already_installed(upload_id, installed_uploads);
 
-  let iu = scratch_io::import(client, api_key, upload_id, game_folder).await
-    .inspect(|ui| println!("Game imported from: \"{}\"", ui.game_folder.join(ui.upload_id.to_string()).to_string_lossy()))
+  let iu = scratch_io::import(client, api_key, upload_id, game_folder)
+    .await
+    .inspect(|ui| {
+      println!(
+        "Game imported from: \"{}\"",
+        ui.game_folder
+          .join(ui.upload_id.to_string())
+          .to_string_lossy()
+      )
+    })
     .unwrap_or_else(|e| eprintln_exit!("Error while importing game!\n{}", e));
 
   installed_uploads.insert(upload_id, iu);
@@ -412,26 +542,41 @@ async fn import(client: &Client, api_key: &str, upload_id: u64, game_folder: &Pa
 // Remove an installed upload from the system
 async fn remove_upload(upload_id: u64, installed_uploads: &mut HashMap<u64, InstalledUpload>) {
   let upload_info = get_installed_upload_info(upload_id, installed_uploads);
-  
-  scratch_io::remove(upload_id, &upload_info.game_folder).await
+
+  scratch_io::remove(upload_id, &upload_info.game_folder)
+    .await
     .unwrap_or_else(|e| eprintln_exit!("Couldn't remove upload!\n{e}"));
 
-  println!("Removed upload {upload_id} from: \"{}\"", &upload_info.game_folder.to_string_lossy());
-  
-  installed_uploads.remove(&upload_id)
+  println!(
+    "Removed upload {upload_id} from: \"{}\"",
+    &upload_info.game_folder.to_string_lossy()
+  );
+
+  installed_uploads
+    .remove(&upload_id)
     .expect("We have just checked if the key existed, and it did...");
 }
 
 // Move an installed upload from a place to another
-async fn move_upload(upload_id: u64, dst_game_folder: &Path, installed_uploads: &mut HashMap<u64, InstalledUpload>) {
+async fn move_upload(
+  upload_id: u64,
+  dst_game_folder: &Path,
+  installed_uploads: &mut HashMap<u64, InstalledUpload>,
+) {
   let upload_info = get_installed_upload_info_mut(upload_id, installed_uploads);
 
   let src_game_folder = upload_info.game_folder.to_path_buf();
 
-  upload_info.game_folder = scratch_io::r#move(upload_id, src_game_folder.as_path(), dst_game_folder).await
-    .unwrap_or_else(|e| eprintln_exit!("Couldn't move upload!\n{e}"));
+  upload_info.game_folder =
+    scratch_io::r#move(upload_id, src_game_folder.as_path(), dst_game_folder)
+      .await
+      .unwrap_or_else(|e| eprintln_exit!("Couldn't move upload!\n{e}"));
 
-  println!("Moved upload {upload_id}\n  Source: \"{}\"\n  Destination: \"{}\"", src_game_folder.to_string_lossy(), upload_info.game_folder.to_string_lossy());
+  println!(
+    "Moved upload {upload_id}\n  Source: \"{}\"\n  Destination: \"{}\"",
+    src_game_folder.to_string_lossy(),
+    upload_info.game_folder.to_string_lossy()
+  );
 }
 
 // Launch an installed upload
@@ -442,27 +587,38 @@ async fn launch_upload(
   platform: Option<&scratch_io::GamePlatform>,
   wrapper: Option<&str>,
   game_arguments: Option<&str>,
-  installed_uploads: &HashMap<u64, InstalledUpload>
+  installed_uploads: &HashMap<u64, InstalledUpload>,
 ) {
   let upload_info = get_installed_upload_info(upload_id, installed_uploads);
   let game_folder = upload_info.game_folder.to_path_buf();
-  
-  let wrapper: Vec<String> = wrapper.map_or(Vec::new(), |w|
-    shell_words::split(w).unwrap_or_else(|e| eprintln_exit!("Couldn't split the wrapper arguments: {w}\n{e}"))
-  );
-  
-  let game_arguments: Vec<String> = game_arguments.map_or(Vec::new(), |a|
-    shell_words::split(a).unwrap_or_else(|e| eprintln_exit!("Couldn't split the game arguments: {a}\n{e}"))
-  );
+
+  let wrapper: Vec<String> = wrapper.map_or(Vec::new(), |w| {
+    shell_words::split(w)
+      .unwrap_or_else(|e| eprintln_exit!("Couldn't split the wrapper arguments: {w}\n{e}"))
+  });
+
+  let game_arguments: Vec<String> = game_arguments.map_or(Vec::new(), |a| {
+    shell_words::split(a)
+      .unwrap_or_else(|e| eprintln_exit!("Couldn't split the game arguments: {a}\n{e}"))
+  });
 
   let launch_method = if let Some(p) = upload_executable_path {
     scratch_io::LaunchMethod::AlternativeExecutable(p)
   } else if let Some(la) = launch_action {
     scratch_io::LaunchMethod::ManifestAction(la)
   } else if let Some(p) = platform {
-    scratch_io::LaunchMethod::Heuristics(p, upload_info.game.as_ref().unwrap_or_else(|| eprintln_exit!(r#"Missing game or upload info. Use the "installed" command to fill missing info"#)))
+    scratch_io::LaunchMethod::Heuristics(
+      p,
+      upload_info.game.as_ref().unwrap_or_else(|| {
+        eprintln_exit!(
+          r#"Missing game or upload info. Use the "installed" command to fill missing info"#
+        )
+      }),
+    )
   } else {
-    eprintln_exit!(r#"A launch method is required! One of: "launch_action", "platform" or "upload_executable_path" must exist!"#)
+    eprintln_exit!(
+      r#"A launch method is required! One of: "launch_action", "platform" or "upload_executable_path" must exist!"#
+    )
   };
 
   scratch_io::launch(
@@ -471,15 +627,19 @@ async fn launch_upload(
     launch_method,
     wrapper.as_slice(),
     game_arguments.as_slice(),
-    |up, command| println!("Launching game:\n  Executable path: \"{}\"\n  {command:?}", up.to_string_lossy())
-  ).await
-    .unwrap_or_else(|e| eprintln_exit!("Couldn't launch: {upload_id}\n{e}"));
+    |up, command| {
+      println!(
+        "Launching game:\n  Executable path: \"{}\"\n  {command:?}",
+        up.to_string_lossy()
+      )
+    },
+  )
+  .await
+  .unwrap_or_else(|e| eprintln_exit!("Couldn't launch: {upload_id}\n{e}"));
 }
-
 
 #[tokio::main]
 async fn main() {
-  
   // Read the user commands
   let cli: Cli = Cli::parse();
 
@@ -495,7 +655,11 @@ async fn main() {
     // The api key is:
     vec![
       // 1. If the command is auth, then the provided key
-      if let Commands::RequireApi(RequireApiCommands::Auth { api_key }) = &cli.command { Some(api_key.to_string()) } else { None },
+      if let Commands::RequireApi(RequireApiCommands::Auth { api_key }) = &cli.command {
+        Some(api_key.to_string())
+      } else {
+        None
+      },
       // 2. If --api-key is set, then that key
       cli.api_key,
       // 3. If not, then the saved config
@@ -504,7 +668,8 @@ async fn main() {
     ],
     // The index of the previously saved config, to print a different error message
     2,
-  ).await;
+  )
+  .await;
 
   /**** COMMANDS ****/
 
@@ -535,18 +700,62 @@ async fn main() {
         RequireApiCommands::CollectionGames { collection_id } => {
           print_collection_games(&client, api_key.as_str(), collection_id).await;
         }
-        RequireApiCommands::Download { upload_id, install_path, skip_hash_verification } => {
-          download(&client, api_key.as_str(), upload_id, install_path.as_deref(), skip_hash_verification, &mut config.installed_uploads).await;
+        RequireApiCommands::Download {
+          upload_id,
+          install_path,
+          skip_hash_verification,
+        } => {
+          download(
+            &client,
+            api_key.as_str(),
+            upload_id,
+            install_path.as_deref(),
+            skip_hash_verification,
+            &mut config.installed_uploads,
+          )
+          .await;
           config.save_unwrap(custom_config_file).await;
         }
-        RequireApiCommands::DownloadCover { game_id, folder, filename, force_download } => {
-          download_cover(&client, api_key.as_str(), game_id, folder.as_path(), filename.as_deref(), force_download).await;
+        RequireApiCommands::DownloadCover {
+          game_id,
+          folder,
+          filename,
+          force_download,
+        } => {
+          download_cover(
+            &client,
+            api_key.as_str(),
+            game_id,
+            folder.as_path(),
+            filename.as_deref(),
+            force_download,
+          )
+          .await;
         }
-        RequireApiCommands::RemovePartialDownload { upload_id, install_path } => {
-          remove_partial_download(&client, api_key.as_str(), upload_id, install_path.as_deref()).await;
+        RequireApiCommands::RemovePartialDownload {
+          upload_id,
+          install_path,
+        } => {
+          remove_partial_download(
+            &client,
+            api_key.as_str(),
+            upload_id,
+            install_path.as_deref(),
+          )
+          .await;
         }
-        RequireApiCommands::Import { upload_id, install_path } => {
-          import(&client, api_key.as_str(), upload_id, install_path.as_path(), &mut config.installed_uploads).await;
+        RequireApiCommands::Import {
+          upload_id,
+          install_path,
+        } => {
+          import(
+            &client,
+            api_key.as_str(),
+            upload_id,
+            install_path.as_path(),
+            &mut config.installed_uploads,
+          )
+          .await;
           config.save_unwrap(custom_config_file).await;
         }
       }
@@ -555,8 +764,21 @@ async fn main() {
       let (api_key, _profile) = api_key.ok().unzip();
 
       match command {
-        OptionalApiCommands::Login { username, password, recaptcha_response, totp_code } => {
-          login(&client, username.as_str(), password.as_str(), recaptcha_response.as_deref(), totp_code, &mut config.api_key).await;
+        OptionalApiCommands::Login {
+          username,
+          password,
+          recaptcha_response,
+          totp_code,
+        } => {
+          login(
+            &client,
+            username.as_str(),
+            password.as_str(),
+            recaptcha_response.as_deref(),
+            totp_code,
+            &mut config.api_key,
+          )
+          .await;
           config.save_unwrap(custom_config_file).await;
         }
         OptionalApiCommands::Logout => {
@@ -564,12 +786,20 @@ async fn main() {
           config.save_unwrap(custom_config_file).await;
         }
         OptionalApiCommands::Installed => {
-          if print_installed_games(&client, api_key.as_deref(), &mut config.installed_uploads).await {
+          if print_installed_games(&client, api_key.as_deref(), &mut config.installed_uploads).await
+          {
             config.save_unwrap(custom_config_file).await;
           }
         }
         OptionalApiCommands::InstalledUpload { upload_id } => {
-          if print_installed_upload(&client, api_key.as_deref(), upload_id, &mut config.installed_uploads).await {
+          if print_installed_upload(
+            &client,
+            api_key.as_deref(),
+            upload_id,
+            &mut config.installed_uploads,
+          )
+          .await
+          {
             config.save_unwrap(custom_config_file).await;
           }
         }
@@ -577,12 +807,36 @@ async fn main() {
           remove_upload(upload_id, &mut config.installed_uploads).await;
           config.save_unwrap(custom_config_file).await;
         }
-        OptionalApiCommands::Move { upload_id, game_path_dst } => {
-          move_upload(upload_id, game_path_dst.as_path(), &mut config.installed_uploads).await;
+        OptionalApiCommands::Move {
+          upload_id,
+          game_path_dst,
+        } => {
+          move_upload(
+            upload_id,
+            game_path_dst.as_path(),
+            &mut config.installed_uploads,
+          )
+          .await;
           config.save_unwrap(custom_config_file).await;
         }
-        OptionalApiCommands::Launch { upload_id, launch_action, platform, upload_executable_path, wrapper, game_arguments } => {
-          launch_upload(upload_id, upload_executable_path.as_deref(), launch_action.as_deref(), platform.as_ref(), wrapper.as_deref(), game_arguments.as_deref(), &config.installed_uploads).await;
+        OptionalApiCommands::Launch {
+          upload_id,
+          launch_action,
+          platform,
+          upload_executable_path,
+          wrapper,
+          game_arguments,
+        } => {
+          launch_upload(
+            upload_id,
+            upload_executable_path.as_deref(),
+            launch_action.as_deref(),
+            platform.as_ref(),
+            wrapper.as_deref(),
+            game_arguments.as_deref(),
+            &config.installed_uploads,
+          )
+          .await;
         }
       }
     }
