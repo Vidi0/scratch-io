@@ -281,6 +281,29 @@ pub struct OwnedKey {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CreatedGame {
+  pub id: u64,
+  pub url: String,
+  pub title: String,
+  pub short_text: Option<String>,
+  pub r#type: GameType,
+  pub classification: GameClassification,
+  pub cover_url: Option<String>,
+  #[serde(with = "rfc3339")]
+  pub created_at: OffsetDateTime,
+  #[serde(with = "rfc3339::option", default)]
+  pub published_at: Option<OffsetDateTime>,
+  pub min_price: u64,
+  pub user: User,
+  #[serde(deserialize_with = "empty_object_as_vec")]
+  pub traits: Vec<GameTrait>,
+  pub views_count: u64,
+  pub purchases_count: u64,
+  pub downloads_count: u64,
+  pub published: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ItchCookie {
   pub itchio: String,
 }
@@ -387,4 +410,10 @@ pub struct OwnedKeysResponse {
   pub per_page: u64,
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub owned_keys: Vec<OwnedKey>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CreatedGamesResponse {
+  #[serde(deserialize_with = "empty_object_as_vec")]
+  pub games: Vec<CreatedGame>,
 }

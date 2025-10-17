@@ -50,6 +50,8 @@ enum RequireApiCommands {
   Profile,
   /// List the game keys owned by the user
   Owned,
+  /// List the games that the user created or that the user is an admin of
+  Created,
   /// Retrieve information about a game given its ID
   Game {
     /// The ID of the game to retrieve information about
@@ -259,6 +261,10 @@ async fn print_owned_keys(client: &Client, api_key: &str) {
   println!("{:#?}", scratch_io::get_owned_keys(client, api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}")));
 }
 
+// List the games that the user created or is an admin of
+async fn print_created_games(client: &Client, api_key: &str) {
+  println!("{:#?}", scratch_io::get_crated_games(client, api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}")))
+}
 
 // Print information about a game, including its uploads and platforms
 async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
@@ -516,6 +522,9 @@ async fn main() {
         }
         RequireApiCommands::Owned => {
           print_owned_keys(&client, api_key.as_str()).await;
+        }
+        RequireApiCommands::Created => {
+          print_created_games(&client, api_key.as_str()).await;
         }
         RequireApiCommands::Game { game_id } => {
           print_game_info(&client, api_key.as_str(), game_id).await;

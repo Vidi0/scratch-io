@@ -582,7 +582,7 @@ pub async fn get_owned_keys(client: &Client, api_key: &str) -> Result<Vec<OwnedK
       api_key,
       |b| b.query(&[("page", page)]),
     ).await
-      .map_err(|e| format!("An error occurred while attempting to obtain the list of the user's game keys: {e}"))?;
+      .map_err(|e| format!("An error occurred while attempting to obtain the list of the user's game keys:\n{e}"))?;
 
     let num_keys: u64 = response.owned_keys.len() as u64;
     keys.append(&mut response.owned_keys);
@@ -597,6 +597,31 @@ pub async fn get_owned_keys(client: &Client, api_key: &str) -> Result<Vec<OwnedK
   }
 
   Ok(keys)
+}
+
+/// Get the games that the user created or that the user is an admin of
+///
+/// # Arguments
+///
+/// * `client` - An asynchronous reqwest Client
+///
+/// * `api_key` - A valid itch.io API key to make the request
+///
+/// # Returns
+///
+/// A vector of CreatedGame structs with the info provided by the API
+///
+/// An error if something goes wrong
+pub async fn get_crated_games(client: &Client, api_key: &str) -> Result<Vec<CreatedGame>, String> {
+  itch_request_json::<CreatedGamesResponse>(
+    client,
+    Method::GET,
+    &ItchApiUrl::V2("profile/games"),
+    api_key,
+    |b| b,
+  ).await
+    .map(|res| res.games)
+    .map_err(|e| format!("An error occurred while attempting to obtain the list of the user created games:\n{e}"))
 }
 
 /// Get the information about a game in itch.io
