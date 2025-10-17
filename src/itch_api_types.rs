@@ -66,7 +66,7 @@ impl fmt::Display for ItchApiUrl<'_> {
       match self {
         ItchApiUrl::V1(u) => format!("{ITCH_API_V1_BASE_URL}/{u}"),
         ItchApiUrl::V2(u) => format!("{ITCH_API_V2_BASE_URL}/{u}"),
-        ItchApiUrl::Other(u) => format!("{u}"),
+        ItchApiUrl::Other(u) => u.to_string(),
       }
     )
   }

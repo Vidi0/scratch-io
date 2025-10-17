@@ -123,7 +123,7 @@ fn extract_zip(file: &File, folder: &Path) -> Result<(), String> {
   #[cfg(feature = "zip")] 
   {
     let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
-    archive.extract(&folder).map_err(|e| format!("Error extracting ZIP archive: {e}"))
+    archive.extract(folder).map_err(|e| format!("Error extracting ZIP archive: {e}"))
   }
 
   #[cfg(not(feature = "zip"))]
@@ -137,7 +137,7 @@ fn extract_tar(file: &File, folder: &Path) -> Result<(), String> {
   #[cfg(feature = "tar")]
   {
     let mut tar_decoder = tar::Archive::new(file);
-    tar_decoder.unpack(&folder).map_err(|e| format!("Error extracting tar archive: {e}"))
+    tar_decoder.unpack(folder).map_err(|e| format!("Error extracting tar archive: {e}"))
   }
 
   #[cfg(not(feature = "tar"))]
@@ -152,7 +152,7 @@ fn extract_tar_gz(file: &File, folder: &Path) -> Result<(), String> {
   {
     let gz_decoder = flate2::read::GzDecoder::new(file);
     let mut tar_decoder = tar::Archive::new(gz_decoder);
-    tar_decoder.unpack(&folder).map_err(|e| format!("Error extracting tar.gz archive: {e}"))
+    tar_decoder.unpack(folder).map_err(|e| format!("Error extracting tar.gz archive: {e}"))
   }
 
   #[cfg(not(feature = "gzip"))]
@@ -167,7 +167,7 @@ fn extract_tar_bz2(file: &File, folder: &Path) -> Result<(), String> {
   {
     let bz2_decoder = bzip2::read::BzDecoder::new(file);
     let mut tar_decoder = tar::Archive::new(bz2_decoder);
-    tar_decoder.unpack(&folder).map_err(|e| format!("Error extracting tar.gz archive: {e}"))
+    tar_decoder.unpack(folder).map_err(|e| format!("Error extracting tar.gz archive: {e}"))
   }
 
   #[cfg(not(feature = "bzip2"))]
@@ -182,7 +182,7 @@ fn extract_tar_xz(file: &File, folder: &Path) -> Result<(), String> {
   {
     let xz_decoder = liblzma::read::XzDecoder::new(file);
     let mut tar_decoder = tar::Archive::new(xz_decoder);
-    tar_decoder.unpack(&folder).map_err(|e| format!("Error extracting tar.xz archive: {e}"))
+    tar_decoder.unpack(folder).map_err(|e| format!("Error extracting tar.xz archive: {e}"))
   }
   
   #[cfg(not(feature = "xz"))]
@@ -197,7 +197,7 @@ fn extract_tar_zst(file: &File, folder: &Path) -> Result<(), String> {
   {
     let zstd_decoder = zstd::Decoder::new(file).map_err(|e| format!("Error reading tar.zst archive: {e}"))?;
     let mut tar_decoder = tar::Archive::new(zstd_decoder);
-    tar_decoder.unpack(&folder).map_err(|e| format!("Error extracting tar.zst archive: {e}"))
+    tar_decoder.unpack(folder).map_err(|e| format!("Error extracting tar.zst archive: {e}"))
   }
   
   #[cfg(not(feature = "zstd"))]

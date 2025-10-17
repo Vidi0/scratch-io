@@ -184,13 +184,13 @@ async fn get_api_key(client: &Client, keys: Vec<Option<String>>, saved_key_index
   let (key_index, api_key) = keys.into_iter()
     .enumerate()
     .find_map(|(index, key)| key.map(|k| (index, k)))
-    .ok_or_else(|| String::from("Error: an itch.io API key is required, either via --api-key, auth, or the login command."))?;
+    .ok_or_else(|| "Error: an itch.io API key is required, either via --api-key, auth, or the login command.".to_string())?;
 
   let is_saved_key = key_index == saved_key_index;
   
   // Verify the key and get user info
   let profile: User = verify_key(
-    &client,
+    client,
     api_key.as_str(),
     is_saved_key,
   ).await?;
@@ -243,20 +243,20 @@ fn logout(config_api_key: &mut Option<String>) {
 
 // Return the user profile
 async fn verify_key(client: &Client, api_key: &str, is_saved_key: bool) -> Result<User, String> {
-  scratch_io::get_profile(&client, &api_key).await.map_err(|e| {
+  scratch_io::get_profile(client, api_key).await.map_err(|e| {
     if !e.contains("invalid key") {
       e
     } else if is_saved_key {
-      format!("The key is not longer valid. Try logging in again.")
+      "The key is not longer valid. Try logging in again.".to_string()
     } else {
-      format!("The key is invalid!")
+      "The key is invalid!".to_string()
     }
   })
 }
 
 // List the owned game keys
 async fn print_owned_keys(client: &Client, api_key: &str) {
-  let keys = scratch_io::get_owned_keys(&client, &api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
+  let keys = scratch_io::get_owned_keys(client, api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
 
   println!("{keys:#?}");
 }
@@ -264,9 +264,9 @@ async fn print_owned_keys(client: &Client, api_key: &str) {
 
 // Print information about a game, including its uploads and platforms
 async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
-  println!("{:#?}", scratch_io::get_game_info(&client, &api_key, game_id).await.unwrap_or_else(|e| eprintln_exit!("{e}")));
+  println!("{:#?}", scratch_io::get_game_info(client, api_key, game_id).await.unwrap_or_else(|e| eprintln_exit!("{e}")));
 
-  let uploads = scratch_io::get_game_uploads(&client, &api_key, game_id).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
+  let uploads = scratch_io::get_game_uploads(client, api_key, game_id).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
   println!("{uploads:#?}");
   
   println!("{:#?}", scratch_io::get_game_platforms(uploads.as_slice()));
@@ -274,12 +274,12 @@ async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
 
 // Print information about the user's collections
 async fn print_collections(client: &Client, api_key: &str) {
-  println!("{:#?}", scratch_io::get_collections(&client, &api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}")));
+  println!("{:#?}", scratch_io::get_collections(client, api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}")));
 }
 
 // Print the games listed in a collection
 async fn print_collection_games(client: &Client, api_key: &str, collection_id: u64) {
-  println!("{:#?}", scratch_io::get_collection_games(&client, &api_key, collection_id).await.unwrap_or_else(|e| eprintln_exit!("{e}")))
+  println!("{:#?}", scratch_io::get_collection_games(client, api_key, collection_id).await.unwrap_or_else(|e| eprintln_exit!("{e}")))
 }
 
 // Download a game's upload
@@ -294,8 +294,8 @@ async fn download(client: &Client, api_key: &str, upload_id: u64, dest: Option<&
   );
 
   let iu = scratch_io::download_upload(
-    &client,
-    &api_key,
+    client,
+    api_key,
     upload_id,
     dest,
     skip_hash_verification,
@@ -347,14 +347,14 @@ async fn print_installed_games(client: &Client, api_key: Option<&str>, installed
   let mut updated = false;
   let mut warning: (bool, String) = (false, String::new());
 
-  for (_, iu) in installed_uploads {
+  for iu in installed_uploads.values_mut() {
     if let Some(key) = api_key {
-      match iu.add_missing_info(&client, key, false).await {
+      match iu.add_missing_info(client, key, false).await {
         Ok(u) => updated |= u,
         Err(e) => warning = (true, e.to_string())
       }
     } else {
-      warning = (true, format!("Missing, invalid or couldn't verify the api key."))
+      warning = (true, "Missing, invalid or couldn't verify the api key.".to_string())
     }
 
     println!("{iu:#?}");
@@ -374,7 +374,7 @@ async fn print_installed_upload(client: &Client, api_key: Option<&str>, upload_i
   let mut updated = false;
 
   if let Some(key) = api_key {
-    match iu.add_missing_info(&client, key, false).await {
+    match iu.add_missing_info(client, key, false).await {
       Ok(u) => updated |= u,
       Err(e) => println!("Warning: Couldn't update the game info!: {e}"),
     }

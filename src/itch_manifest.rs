@@ -37,7 +37,7 @@ pub fn read_manifest(upload_folder: &Path) -> Result<Option<Manifest>, String> {
     .map_err(|e| e.to_string())?;
 
   toml::from_str::<Manifest>(&manifest_text)
-    .map(|m| Some(m))
+    .map(Some)
     .map_err(|e| format!("Couldn't parse itch manifest: {}\n{e}", manifest_path.as_path().to_string_lossy()))
 }
 

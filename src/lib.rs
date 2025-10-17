@@ -413,7 +413,7 @@ async fn download_file(
   if let Some((hasher, hash)) = md5_hash {
     let file_hash = format!("{:x}", hasher.finalize());
 
-    if !file_hash.eq_ignore_ascii_case(&hash) {
+    if !file_hash.eq_ignore_ascii_case(hash) {
       return Err(format!("File verification failed! The file hash and the hash provided by the server are different.\n
   File hash:   {file_hash}
   Server hash: {hash}"
@@ -517,10 +517,10 @@ pub async fn login(client: &Client, username: &str, password: &str, recaptcha_re
     }
     LoginResponse::TOTPError(e) => {
       let Some(totp_code) = totp_code else {
-        return Err(format!(
+        return Err(
   r#"The accout has 2 step verification enabled via TOTP
-  Run the login command again with the --totp-code={{VERIFICATION_CODE}} option."#
-        ));
+  Run the login command again with the --totp-code={{VERIFICATION_CODE}} option."#.to_string()
+        );
       };
 
       totp_verification(client, e.token.as_str(), totp_code).await?
@@ -1096,7 +1096,7 @@ pub async fn r#move(upload_id: u64, src_game_folder: &Path, dst_game_folder: &Pa
 
   // If there isn't a src_upload_folder, exit with error
   if !src_upload_folder.try_exists().map_err(|e| format!("Couldn't check if the upload folder exists: {e}"))? {
-    return Err(format!("The source game folder doesn't exsit!"));
+    return Err("The source game folder doesn't exsit!".to_string());
   }
   
   let dst_upload_folder = get_upload_folder(dst_game_folder, upload_id);
@@ -1243,8 +1243,8 @@ pub async fn launch(
     .map_err(|e| {
       // Error code 8: Exec format error
       if let Some(8) = e.raw_os_error() {
-        format!("Couldn't spawn the child process because it is not an executable format for this OS\n\
-          Maybe a wrapper is missing or the selected game executable isn't the correct one!")
+        "Couldn't spawn the child process because it is not an executable format for this OS\n\
+          Maybe a wrapper is missing or the selected game executable isn't the correct one!".to_string()
       } else {
         format!("Couldn't spawn the child process: {e}")
       }

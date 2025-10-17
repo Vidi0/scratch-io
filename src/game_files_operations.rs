@@ -29,7 +29,7 @@ pub fn add_part_extension(file: impl AsRef<Path>) -> Result<PathBuf, String> {
 /// It fais if dirs::home_dir is None
 pub fn get_game_folder(game_title: &str) -> Result<PathBuf, String> {
   let mut game_folder = directories::BaseDirs::new()
-    .ok_or_else(|| format!("Couldn't determine the home directory"))?
+    .ok_or_else(|| "Couldn't determine the home directory".to_string())?
     .home_dir()
     .join(GAME_FOLDER);
 
@@ -54,12 +54,10 @@ pub fn is_folder_empty(folder: impl AsRef<Path>) -> Result<bool, String> {
     } else {
       Ok(false)
     }
+  } else if folder.as_ref().exists() {
+    Err(format!("Error while cheching if folder is empty: \"{}\" is not a folder!", folder.as_ref().to_string_lossy()))
   } else {
-    if folder.as_ref().exists() {
-      Err(format!("Error while cheching if folder is empty: \"{}\" is not a folder!", folder.as_ref().to_string_lossy()))
-    } else {
-      Ok(true)
-    }
+    Ok(true)
   }
 }
 
@@ -86,13 +84,13 @@ pub async fn remove_folder_safely(path: impl AsRef<Path>) -> Result<(), String> 
     .map_err(|e| format!("Error getting the canonical form of the game folder! Maybe it doesn't exist: {}\n{e}", path.as_ref().to_string_lossy()))?;
 
   let home = directories::BaseDirs::new()
-    .ok_or_else(|| format!("Couldn't determine the home directory"))?
+    .ok_or_else(|| "Couldn't determine the home directory".to_string())?
     .home_dir()
     .canonicalize()
     .map_err(|e| format!("Error getting the canonical form of the system home folder! Why?\n{e}"))?;
 
   if canonical == home {
-    Err(format!("Refusing to remove home directory!"))?
+    Err("Refusing to remove home directory!".to_string())?
   }
 
   tokio::fs::remove_dir_all(&path).await

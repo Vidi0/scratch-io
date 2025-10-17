@@ -17,7 +17,7 @@ fn get_config_folder(custom_config_folder: Option<PathBuf>) -> Result<ProjectDir
   match custom_config_folder {
     None => ProjectDirs::from("", "", APP_CONFIGURATION_NAME),
     Some(p) => ProjectDirs::from_path(p)
-  }.ok_or_else(|| format!("Couldn't determine the project directory!"))
+  }.ok_or_else(|| "Couldn't determine the project directory!".to_string())
 }
 
 /// Gets the config file of this application
