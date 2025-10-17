@@ -256,9 +256,7 @@ async fn verify_key(client: &Client, api_key: &str, is_saved_key: bool) -> Resul
 
 // List the owned game keys
 async fn print_owned_keys(client: &Client, api_key: &str) {
-  let keys = scratch_io::get_owned_keys(client, api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}"));
-
-  println!("{keys:#?}");
+  println!("{:#?}", scratch_io::get_owned_keys(client, api_key).await.unwrap_or_else(|e| eprintln_exit!("{e}")));
 }
 
 
