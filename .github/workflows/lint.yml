@@ -1,0 +1,20 @@
+name: Lint and Format Check
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  check:
+    name: Rust Format & Clippy Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check code formatting
+        run: cargo fmt --all -- --check
+
+      - name: Check code lint
+        run: cargo clippy --all-targets --all-features -- -D warnings
