@@ -1,6 +1,6 @@
 use futures_util::StreamExt;
 use md5::{Digest, Md5, digest::core_api::CoreWrapper};
-use reqwest::{Client, Method, Response, header};
+use reqwest::{Method, Response, header};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
@@ -86,21 +86,19 @@ impl InstalledUpload {
   /// Returns true if the info has been updated
   pub async fn add_missing_info(
     &mut self,
-    client: &Client,
-    api_key: &str,
+    client: &ItchClient,
     force_update: bool,
   ) -> Result<bool, String> {
     let mut updated = false;
 
     if self.upload.is_none() || force_update {
-      self.upload = Some(get_upload_info(client, api_key, self.upload_id).await?);
+      self.upload = Some(get_upload_info(client, self.upload_id).await?);
       updated = true;
     }
     if self.game.is_none() || force_update {
       self.game = Some(
         get_game_info(
           client,
-          api_key,
           self
             .upload
             .as_ref()
@@ -240,9 +238,8 @@ async fn stream_response_into_file(
 ///
 /// An error if something goes wrong
 async fn download_file(
-  client: &Client,
+  client: &ItchClient,
   url: &ItchApiUrl<'_>,
-  api_key: &str,
   file_path: &Path,
   md5_hash: Option<&str>,
   file_size_callback: impl Fn(u64),
@@ -303,7 +300,7 @@ async fn download_file(
 
   let file_response: Option<Response> = 'r: {
     // Send a request for the whole file
-    let res = itch_request(client, Method::GET, url, api_key, |b| b).await?;
+    let res = client.itch_request(url, Method::GET, |b| b).await?;
 
     let download_size = res.content_length().ok_or_else(|| {
       format!("Couldn't get the Content Length of the file to download!\n{res:?}")
@@ -321,10 +318,11 @@ async fn download_file(
     }
     // If the file is not empty, and smaller than the whole file, download the remaining file range
     else if downloaded_bytes < download_size {
-      let part_res = itch_request(client, Method::GET, url, api_key, |b| {
-        b.header(header::RANGE, format!("bytes={downloaded_bytes}-"))
-      })
-      .await?;
+      let part_res = client
+        .itch_request(url, Method::GET, |b| {
+          b.header(header::RANGE, format!("bytes={downloaded_bytes}-"))
+        })
+        .await?;
 
       match part_res.status() {
         // 206 Partial Content code means the server will send the requested range
@@ -457,15 +455,14 @@ pub fn get_game_platforms(uploads: &[Upload]) -> Vec<(u64, GamePlatform)> {
 ///
 /// An error if something goes wrong
 pub async fn download_game_cover(
-  client: &Client,
-  api_key: &str,
+  client: &ItchClient,
   game_id: u64,
   folder: &Path,
   cover_filename: Option<&str>,
   force_download: bool,
 ) -> Result<Option<PathBuf>, String> {
   // Get the game info from the server
-  let game_info = get_game_info(client, api_key, game_id).await?;
+  let game_info = get_game_info(client, game_id).await?;
   // If the game doesn't have a cover, return
   let Some(cover_url) = game_info.cover_url else {
     return Ok(None);
@@ -502,7 +499,6 @@ pub async fn download_game_cover(
   download_file(
     client,
     &ItchApiUrl::Other(&cover_url),
-    "",
     &cover_path,
     None,
     |_| (),
@@ -538,8 +534,7 @@ pub async fn download_game_cover(
 ///
 /// An error if something goes wrong
 pub async fn download_upload(
-  client: &Client,
-  api_key: &str,
+  client: &ItchClient,
   upload_id: u64,
   game_folder: Option<&Path>,
   skip_hash_verification: bool,
@@ -550,8 +545,8 @@ pub async fn download_upload(
   // --- DOWNLOAD PREPARATION ---
 
   // Obtain information about the game and the upload that will be downloaeded
-  let upload: Upload = get_upload_info(client, api_key, upload_id).await?;
-  let game: Game = get_game_info(client, api_key, upload.game_id).await?;
+  let upload: Upload = get_upload_info(client, upload_id).await?;
+  let game: Game = get_game_info(client, upload.game_id).await?;
 
   // Send to the caller the game and the upload info
   upload_info(&upload, &game);
@@ -580,7 +575,6 @@ pub async fn download_upload(
   download_file(
     client,
     &ItchApiUrl::V2(&format!("uploads/{upload_id}/download")),
-    api_key,
     &upload_archive,
     // Only pass the hash if skip_hash_verification is false
     upload
@@ -658,14 +652,13 @@ pub async fn download_upload(
 ///
 /// An error if something goes wrong
 pub async fn import(
-  client: &Client,
-  api_key: &str,
+  client: &ItchClient,
   upload_id: u64,
   game_folder: &Path,
 ) -> Result<InstalledUpload, String> {
   // Obtain information about the game and the upload that will be downloaeded
-  let upload: Upload = get_upload_info(client, api_key, upload_id).await?;
-  let game: Game = get_game_info(client, api_key, upload.game_id).await?;
+  let upload: Upload = get_upload_info(client, upload_id).await?;
+  let game: Game = get_game_info(client, upload.game_id).await?;
 
   Ok(InstalledUpload {
     upload_id,
@@ -699,14 +692,13 @@ pub async fn import(
 ///
 /// An error if something goes wrong
 pub async fn remove_partial_download(
-  client: &Client,
-  api_key: &str,
+  client: &ItchClient,
   upload_id: u64,
   game_folder: Option<&Path>,
 ) -> Result<bool, String> {
   // Obtain information about the game and the upload
-  let upload: Upload = get_upload_info(client, api_key, upload_id).await?;
-  let game: Game = get_game_info(client, api_key, upload.game_id).await?;
+  let upload: Upload = get_upload_info(client, upload_id).await?;
+  let game: Game = get_game_info(client, upload.game_id).await?;
 
   // If the game_folder is unset, set it to ~/Games/{game_name}/
   let game_folder = match game_folder {

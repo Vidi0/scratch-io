@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
-use reqwest::Client;
-use scratch_io::{DownloadStatus, InstalledUpload, itch_api_types::*};
+use scratch_io::itch_api_calls::ItchClient;
+use scratch_io::{DownloadStatus, InstalledUpload};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -182,26 +182,32 @@ enum OptionalApiCommands {
   },
 }
 
-async fn get_api_key(
-  client: &Client,
+/// Returns a Itch client with the first API key of the vector that is not None
+async fn get_itch_client(
   keys: Vec<Option<String>>,
   saved_key_index: usize,
-) -> Result<(String, User), String> {
-  let (key_index, api_key) = keys
+) -> Result<ItchClient, String> {
+  let api_key = keys
     .into_iter()
     .enumerate()
     .find_map(|(index, key)| key.map(|k| (index, k)))
-    .ok_or_else(|| {
+    .map(|(key_index, api_key)| (api_key, key_index == saved_key_index));
+
+  match api_key {
+    None => Err(
       "Error: an itch.io API key is required, either via --api-key, auth, or the login command."
-        .to_string()
-    })?;
-
-  let is_saved_key = key_index == saved_key_index;
-
-  // Verify the key and get user info
-  let profile: User = verify_key(client, api_key.as_str(), is_saved_key).await?;
-
-  Ok((api_key, profile))
+        .to_string(),
+    ),
+    Some((api_key, is_saved_key)) => ItchClient::auth(api_key).await.map_err(|e| {
+      if !e.contains("invalid key") {
+        e
+      } else if is_saved_key {
+        "The key is not longer valid. Try logging in again.".to_string()
+      } else {
+        "The key is invalid!".to_string()
+      }
+    }),
+  }
 }
 
 fn get_installed_upload_info(
@@ -241,33 +247,37 @@ fn exit_if_already_installed(upload_id: u64, installed_uploads: &HashMap<u64, In
 }
 
 // Save a key to the config and print info
-fn auth(key: String, config_api_key: &mut Option<String>, profile: User) {
+async fn auth(client: ItchClient, config_api_key: &mut Option<String>) {
   // We already checked if the key was valid
   println!("Valid key!");
-  *config_api_key = Some(key);
+  *config_api_key = Some(client.get_api_key().to_string());
 
   // Print user info
+  let profile = scratch_io::itch_api_calls::get_profile(&client)
+    .await
+    .unwrap_or_else(|e| eprintln_exit!("{e}"));
   println!("Logged in as: {}", profile.get_name());
 }
 
 // Login with an username and password, save to the config and print info
+#[allow(dead_code)]
 async fn login(
-  client: &Client,
   username: &str,
   password: &str,
   recaptcha_response: Option<&str>,
   totp_code: Option<u64>,
   config_api_key: &mut Option<String>,
 ) {
-  let ls =
-    scratch_io::itch_api_calls::login(client, username, password, recaptcha_response, totp_code)
-      .await
-      .unwrap_or_else(|e| eprintln_exit!("{e}"));
-  let profile = scratch_io::itch_api_calls::get_profile(client, ls.key.key.as_str())
-    .await
-    .unwrap_or_else(|e| eprintln_exit!("{e}"));
+  let client = scratch_io::itch_api_calls::ItchClient::login(
+    username,
+    password,
+    recaptcha_response,
+    totp_code,
+  )
+  .await
+  .unwrap_or_else(|e| eprintln_exit!("{e}"));
 
-  auth(ls.key.key, config_api_key, profile);
+  auth(client, config_api_key).await;
 }
 
 // Remove the saved API key (if any)
@@ -281,51 +291,46 @@ fn logout(config_api_key: &mut Option<String>) {
   }
 }
 
-// Return the user profile
-async fn verify_key(client: &Client, api_key: &str, is_saved_key: bool) -> Result<User, String> {
-  scratch_io::itch_api_calls::get_profile(client, api_key)
-    .await
-    .map_err(|e| {
-      if !e.contains("invalid key") {
-        e
-      } else if is_saved_key {
-        "The key is not longer valid. Try logging in again.".to_string()
-      } else {
-        "The key is invalid!".to_string()
-      }
-    })
+/// Print the user info
+async fn print_profile(client: &ItchClient) {
+  println!(
+    "{:#?}",
+    scratch_io::itch_api_calls::get_profile(client)
+      .await
+      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+  );
 }
 
 // List the owned game keys
-async fn print_owned_keys(client: &Client, api_key: &str) {
+async fn print_owned_keys(client: &ItchClient) {
   println!(
     "{:#?}",
-    scratch_io::itch_api_calls::get_owned_keys(client, api_key)
+    scratch_io::itch_api_calls::get_owned_keys(client)
       .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
 }
 
 // List the games that the user created or is an admin of
-async fn print_created_games(client: &Client, api_key: &str) {
+async fn print_created_games(client: &ItchClient) {
   println!(
     "{:#?}",
-    scratch_io::itch_api_calls::get_crated_games(client, api_key)
+    scratch_io::itch_api_calls::get_crated_games(client)
       .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"))
   )
 }
 
 // Print information about a game, including its uploads and platforms
-async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
+async fn print_game_info(client: &ItchClient, game_id: u64) {
   println!(
     "{:#?}",
-    scratch_io::itch_api_calls::get_game_info(client, api_key, game_id)
+    scratch_io::itch_api_calls::get_game_info(client, game_id)
       .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
 
-  let uploads = scratch_io::itch_api_calls::get_game_uploads(client, api_key, game_id)
+  let uploads = scratch_io::itch_api_calls::get_game_uploads(client, game_id)
     .await
     .unwrap_or_else(|e| eprintln_exit!("{e}"));
   println!("{uploads:#?}");
@@ -334,20 +339,20 @@ async fn print_game_info(client: &Client, api_key: &str, game_id: u64) {
 }
 
 // Print information about the user's collections
-async fn print_collections(client: &Client, api_key: &str) {
+async fn print_collections(client: &ItchClient) {
   println!(
     "{:#?}",
-    scratch_io::itch_api_calls::get_collections(client, api_key)
+    scratch_io::itch_api_calls::get_collections(client)
       .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
 }
 
 // Print the games listed in a collection
-async fn print_collection_games(client: &Client, api_key: &str, collection_id: u64) {
+async fn print_collection_games(client: &ItchClient, collection_id: u64) {
   println!(
     "{:#?}",
-    scratch_io::itch_api_calls::get_collection_games(client, api_key, collection_id)
+    scratch_io::itch_api_calls::get_collection_games(client, collection_id)
       .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"))
   )
@@ -355,8 +360,7 @@ async fn print_collection_games(client: &Client, api_key: &str, collection_id: u
 
 // Download a game's upload
 async fn download(
-  client: &Client,
-  api_key: &str,
+  client: &ItchClient,
   upload_id: u64,
   dest: Option<&Path>,
   skip_hash_verification: bool,
@@ -373,7 +377,6 @@ async fn download(
 
   let iu = scratch_io::download_upload(
     client,
-    api_key,
     upload_id,
     dest,
     skip_hash_verification,
@@ -408,15 +411,14 @@ async fn download(
 
 // Download a game's cover image
 async fn download_cover(
-  client: &Client,
-  api_key: &str,
+  client: &ItchClient,
   game_id: u64,
   folder: &Path,
   filename: Option<&str>,
   force_download: bool,
 ) {
   let cover_path =
-    scratch_io::download_game_cover(client, api_key, game_id, folder, filename, force_download)
+    scratch_io::download_game_cover(client, game_id, folder, filename, force_download)
       .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"));
 
@@ -430,16 +432,10 @@ async fn download_cover(
 }
 
 // Remove partially downloaded game files
-async fn remove_partial_download(
-  client: &Client,
-  api_key: &str,
-  upload_id: u64,
-  game_folder: Option<&Path>,
-) {
-  let was_something_deleted =
-    scratch_io::remove_partial_download(client, api_key, upload_id, game_folder)
-      .await
-      .unwrap_or_else(|e| eprintln_exit!("Couldn't remove partial download: {e}"));
+async fn remove_partial_download(client: &ItchClient, upload_id: u64, game_folder: Option<&Path>) {
+  let was_something_deleted = scratch_io::remove_partial_download(client, upload_id, game_folder)
+    .await
+    .unwrap_or_else(|e| eprintln_exit!("Couldn't remove partial download: {e}"));
 
   if was_something_deleted {
     println!("Removed partially downloaded files from upload {upload_id}.");
@@ -450,16 +446,15 @@ async fn remove_partial_download(
 
 // Print a list of the currently installed games
 async fn print_installed_games(
-  client: &Client,
-  api_key: Option<&str>,
+  client: Option<&ItchClient>,
   installed_uploads: &mut HashMap<u64, InstalledUpload>,
 ) -> bool {
   let mut updated = false;
   let mut warning: (bool, String) = (false, String::new());
 
   for iu in installed_uploads.values_mut() {
-    if let Some(key) = api_key {
-      match iu.add_missing_info(client, key, false).await {
+    if let Some(c) = client {
+      match iu.add_missing_info(c, false).await {
         Ok(u) => updated |= u,
         Err(e) => warning = (true, e.to_string()),
       }
@@ -482,16 +477,15 @@ async fn print_installed_games(
 
 // Print the installed info of an upload
 async fn print_installed_upload(
-  client: &Client,
-  api_key: Option<&str>,
+  client: Option<&ItchClient>,
   upload_id: u64,
   installed_uploads: &mut HashMap<u64, InstalledUpload>,
 ) -> bool {
   let iu = get_installed_upload_info_mut(upload_id, installed_uploads);
   let mut updated = false;
 
-  if let Some(key) = api_key {
-    match iu.add_missing_info(client, key, false).await {
+  if let Some(c) = client {
+    match iu.add_missing_info(c, false).await {
       Ok(u) => updated |= u,
       Err(e) => println!("Warning: Couldn't update the game info!: {e}"),
     }
@@ -516,15 +510,14 @@ async fn print_installed_upload(
 
 // Import an already installed upload from a folder
 async fn import(
-  client: &Client,
-  api_key: &str,
+  client: &ItchClient,
   upload_id: u64,
   game_folder: &Path,
   installed_uploads: &mut HashMap<u64, InstalledUpload>,
 ) {
   exit_if_already_installed(upload_id, installed_uploads);
 
-  let iu = scratch_io::import(client, api_key, upload_id, game_folder)
+  let iu = scratch_io::import(client, upload_id, game_folder)
     .await
     .inspect(|ui| {
       println!(
@@ -648,10 +641,7 @@ async fn main() {
   let mut config: Config = Config::load_unwrap(custom_config_file.clone()).await;
 
   // Create reqwest client
-  let client: Client = Client::new();
-
-  let api_key = get_api_key(
-    &client,
+  let client = get_itch_client(
     // The api key is:
     vec![
       // 1. If the command is auth, then the provided key
@@ -675,30 +665,30 @@ async fn main() {
 
   match cli.command {
     Commands::RequireApi(command) => {
-      let (api_key, profile) = api_key.unwrap_or_else(|e| eprintln_exit!("{e}"));
+      let client = client.unwrap_or_else(|e| eprintln_exit!("{e}"));
 
       match command {
-        RequireApiCommands::Auth { api_key: k } => {
-          auth(k, &mut config.api_key, profile);
+        RequireApiCommands::Auth { .. } => {
+          auth(client, &mut config.api_key).await;
           config.save_unwrap(custom_config_file).await;
         }
         RequireApiCommands::Profile => {
-          println!("{profile:#?}");
+          print_profile(&client).await;
         }
         RequireApiCommands::Owned => {
-          print_owned_keys(&client, api_key.as_str()).await;
+          print_owned_keys(&client).await;
         }
         RequireApiCommands::Created => {
-          print_created_games(&client, api_key.as_str()).await;
+          print_created_games(&client).await;
         }
         RequireApiCommands::Game { game_id } => {
-          print_game_info(&client, api_key.as_str(), game_id).await;
+          print_game_info(&client, game_id).await;
         }
         RequireApiCommands::Collections => {
-          print_collections(&client, api_key.as_str()).await;
+          print_collections(&client).await;
         }
         RequireApiCommands::CollectionGames { collection_id } => {
-          print_collection_games(&client, api_key.as_str(), collection_id).await;
+          print_collection_games(&client, collection_id).await;
         }
         RequireApiCommands::Download {
           upload_id,
@@ -707,7 +697,6 @@ async fn main() {
         } => {
           download(
             &client,
-            api_key.as_str(),
             upload_id,
             install_path.as_deref(),
             skip_hash_verification,
@@ -724,7 +713,6 @@ async fn main() {
         } => {
           download_cover(
             &client,
-            api_key.as_str(),
             game_id,
             folder.as_path(),
             filename.as_deref(),
@@ -736,13 +724,7 @@ async fn main() {
           upload_id,
           install_path,
         } => {
-          remove_partial_download(
-            &client,
-            api_key.as_str(),
-            upload_id,
-            install_path.as_deref(),
-          )
-          .await;
+          remove_partial_download(&client, upload_id, install_path.as_deref()).await;
         }
         RequireApiCommands::Import {
           upload_id,
@@ -750,7 +732,6 @@ async fn main() {
         } => {
           import(
             &client,
-            api_key.as_str(),
             upload_id,
             install_path.as_path(),
             &mut config.installed_uploads,
@@ -761,7 +742,7 @@ async fn main() {
       }
     }
     Commands::OptionalApi(command) => {
-      let (api_key, _profile) = api_key.ok().unzip();
+      let client = client.ok();
 
       match command {
         OptionalApiCommands::Login {
@@ -771,7 +752,6 @@ async fn main() {
           totp_code,
         } => {
           login(
-            &client,
             username.as_str(),
             password.as_str(),
             recaptcha_response.as_deref(),
@@ -786,19 +766,12 @@ async fn main() {
           config.save_unwrap(custom_config_file).await;
         }
         OptionalApiCommands::Installed => {
-          if print_installed_games(&client, api_key.as_deref(), &mut config.installed_uploads).await
-          {
+          if print_installed_games(client.as_ref(), &mut config.installed_uploads).await {
             config.save_unwrap(custom_config_file).await;
           }
         }
         OptionalApiCommands::InstalledUpload { upload_id } => {
-          if print_installed_upload(
-            &client,
-            api_key.as_deref(),
-            upload_id,
-            &mut config.installed_uploads,
-          )
-          .await
+          if print_installed_upload(client.as_ref(), upload_id, &mut config.installed_uploads).await
           {
             config.save_unwrap(custom_config_file).await;
           }
