@@ -79,103 +79,21 @@ impl fmt::Display for ItchApiUrl<'_> {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum GameClassification {
-  #[serde(rename = "game")]
-  Game,
-  #[serde(rename = "assets")]
-  Assets,
-  #[serde(rename = "game_mod")]
-  GameMod,
-  #[serde(rename = "physical_game")]
-  PhysicalGame,
-  #[serde(rename = "soundtrack")]
-  Soundtrack,
-  #[serde(rename = "tool")]
-  Tool,
-  #[serde(rename = "comic")]
-  Comic,
-  #[serde(rename = "book")]
-  Book,
-  #[serde(rename = "other")]
-  Other,
+pub struct ItchCookie {
+  pub itchio: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum GameTrait {
-  #[serde(rename = "p_linux")]
-  PLinux,
-  #[serde(rename = "p_windows")]
-  PWindows,
-  #[serde(rename = "p_osx")]
-  POSX,
-  #[serde(rename = "p_android")]
-  PAndroid,
-  #[serde(rename = "can_be_bought")]
-  CanBeBought,
-  #[serde(rename = "has_demo")]
-  HasDemo,
-  #[serde(rename = "in_press_system")]
-  InPressSystem,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum UploadTrait {
-  #[serde(rename = "p_linux")]
-  PLinux,
-  #[serde(rename = "p_windows")]
-  PWindows,
-  #[serde(rename = "p_osx")]
-  POSX,
-  #[serde(rename = "p_android")]
-  PAndroid,
-  #[serde(rename = "demo")]
-  Demo,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum GameType {
-  #[serde(rename = "default")]
-  Default,
-  #[serde(rename = "html")]
-  HTML,
-  #[serde(rename = "flash")]
-  Flash,
-  #[serde(rename = "java")]
-  Java,
-  #[serde(rename = "unity")]
-  Unity,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum UploadType {
-  #[serde(rename = "default")]
-  Default,
-  #[serde(rename = "html")]
-  HTML,
-  #[serde(rename = "flash")]
-  Flash,
-  #[serde(rename = "java")]
-  Java,
-  #[serde(rename = "unity")]
-  Unity,
-  #[serde(rename = "soundtrack")]
-  Soundtrack,
-  #[serde(rename = "book")]
-  Book,
-  #[serde(rename = "video")]
-  Video,
-  #[serde(rename = "documentation")]
-  Documentation,
-  #[serde(rename = "mod")]
-  Mod,
-  #[serde(rename = "audio_assets")]
-  AudioAssets,
-  #[serde(rename = "graphical_assets")]
-  GraphicalAssets,
-  #[serde(rename = "sourcecode")]
-  Sourcecode,
-  #[serde(rename = "other")]
-  Other,
+pub struct ItchKey {
+  pub key: String,
+  pub id: u64,
+  pub user_id: u64,
+  pub source: String,
+  pub revoked: Option<bool>,
+  #[serde(with = "rfc3339")]
+  pub created_at: OffsetDateTime,
+  #[serde(with = "rfc3339")]
+  pub updated_at: OffsetDateTime,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -201,7 +119,7 @@ impl User {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Game {
+pub struct CreatedGame {
   pub id: u64,
   pub url: String,
   pub title: String,
@@ -217,26 +135,22 @@ pub struct Game {
   pub user: User,
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub traits: Vec<GameTrait>,
+  pub views_count: u64,
+  pub purchases_count: u64,
+  pub downloads_count: u64,
+  pub published: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Upload {
-  pub position: u64,
+pub struct OwnedKey {
   pub id: u64,
   pub game_id: u64,
-  pub size: Option<u64>,
-  pub r#type: UploadType,
-  #[serde(deserialize_with = "empty_object_as_vec")]
-  pub traits: Vec<UploadTrait>,
-  pub filename: String,
-  pub display_name: Option<String>,
-  pub storage: String,
-  pub host: Option<String>,
+  pub downloads: u64,
+  pub game: Game,
   #[serde(with = "rfc3339")]
   pub created_at: OffsetDateTime,
   #[serde(with = "rfc3339")]
   pub updated_at: OffsetDateTime,
-  pub md5_hash: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -278,19 +192,61 @@ pub struct CollectionGame {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct OwnedKey {
-  pub id: u64,
-  pub game_id: u64,
-  pub downloads: u64,
-  pub game: Game,
-  #[serde(with = "rfc3339")]
-  pub created_at: OffsetDateTime,
-  #[serde(with = "rfc3339")]
-  pub updated_at: OffsetDateTime,
+pub enum GameType {
+  #[serde(rename = "default")]
+  Default,
+  #[serde(rename = "html")]
+  HTML,
+  #[serde(rename = "flash")]
+  Flash,
+  #[serde(rename = "java")]
+  Java,
+  #[serde(rename = "unity")]
+  Unity,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CreatedGame {
+pub enum GameClassification {
+  #[serde(rename = "game")]
+  Game,
+  #[serde(rename = "assets")]
+  Assets,
+  #[serde(rename = "game_mod")]
+  GameMod,
+  #[serde(rename = "physical_game")]
+  PhysicalGame,
+  #[serde(rename = "soundtrack")]
+  Soundtrack,
+  #[serde(rename = "tool")]
+  Tool,
+  #[serde(rename = "comic")]
+  Comic,
+  #[serde(rename = "book")]
+  Book,
+  #[serde(rename = "other")]
+  Other,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum GameTrait {
+  #[serde(rename = "p_linux")]
+  PLinux,
+  #[serde(rename = "p_windows")]
+  PWindows,
+  #[serde(rename = "p_osx")]
+  POSX,
+  #[serde(rename = "p_android")]
+  PAndroid,
+  #[serde(rename = "can_be_bought")]
+  CanBeBought,
+  #[serde(rename = "has_demo")]
+  HasDemo,
+  #[serde(rename = "in_press_system")]
+  InPressSystem,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Game {
   pub id: u64,
   pub url: String,
   pub title: String,
@@ -306,28 +262,72 @@ pub struct CreatedGame {
   pub user: User,
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub traits: Vec<GameTrait>,
-  pub views_count: u64,
-  pub purchases_count: u64,
-  pub downloads_count: u64,
-  pub published: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ItchCookie {
-  pub itchio: String,
+pub enum UploadType {
+  #[serde(rename = "default")]
+  Default,
+  #[serde(rename = "html")]
+  HTML,
+  #[serde(rename = "flash")]
+  Flash,
+  #[serde(rename = "java")]
+  Java,
+  #[serde(rename = "unity")]
+  Unity,
+  #[serde(rename = "soundtrack")]
+  Soundtrack,
+  #[serde(rename = "book")]
+  Book,
+  #[serde(rename = "video")]
+  Video,
+  #[serde(rename = "documentation")]
+  Documentation,
+  #[serde(rename = "mod")]
+  Mod,
+  #[serde(rename = "audio_assets")]
+  AudioAssets,
+  #[serde(rename = "graphical_assets")]
+  GraphicalAssets,
+  #[serde(rename = "sourcecode")]
+  Sourcecode,
+  #[serde(rename = "other")]
+  Other,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ItchKey {
-  pub key: String,
+pub enum UploadTrait {
+  #[serde(rename = "p_linux")]
+  PLinux,
+  #[serde(rename = "p_windows")]
+  PWindows,
+  #[serde(rename = "p_osx")]
+  POSX,
+  #[serde(rename = "p_android")]
+  PAndroid,
+  #[serde(rename = "demo")]
+  Demo,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Upload {
+  pub position: u64,
   pub id: u64,
-  pub user_id: u64,
-  pub source: String,
-  pub revoked: Option<bool>,
+  pub game_id: u64,
+  pub size: Option<u64>,
+  pub r#type: UploadType,
+  #[serde(deserialize_with = "empty_object_as_vec")]
+  pub traits: Vec<UploadTrait>,
+  pub filename: String,
+  pub display_name: Option<String>,
+  pub storage: String,
+  pub host: Option<String>,
   #[serde(with = "rfc3339")]
   pub created_at: OffsetDateTime,
   #[serde(with = "rfc3339")]
   pub updated_at: OffsetDateTime,
+  pub md5_hash: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

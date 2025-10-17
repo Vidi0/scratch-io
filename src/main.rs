@@ -48,21 +48,21 @@ enum RequireApiCommands {
   },
   /// Retrieve information about the profile of the current user
   Profile,
-  /// List the game keys owned by the user
-  Owned,
   /// List the games that the user created or that the user is an admin of
   Created,
-  /// Retrieve information about a game given its ID
-  Game {
-    /// The ID of the game to retrieve information about
-    game_id: u64,
-  },
+  /// List the game keys owned by the user
+  Owned,
   /// List the profile's collections
   Collections,
   /// List the games in the given collection
   CollectionGames {
     /// The ID of the collection where the games are located.
     collection_id: u64,
+  },
+  /// Retrieve information about a game given its ID
+  Game {
+    /// The ID of the game to retrieve information about
+    game_id: u64,
   },
   /// Download the upload with the given ID
   Download {
@@ -301,16 +301,6 @@ async fn print_profile(client: &ItchClient) {
   );
 }
 
-// List the owned game keys
-async fn print_owned_keys(client: &ItchClient) {
-  println!(
-    "{:#?}",
-    scratch_io::itch_api_calls::get_owned_keys(client)
-      .await
-      .unwrap_or_else(|e| eprintln_exit!("{e}"))
-  );
-}
-
 // List the games that the user created or is an admin of
 async fn print_created_games(client: &ItchClient) {
   println!(
@@ -321,21 +311,14 @@ async fn print_created_games(client: &ItchClient) {
   )
 }
 
-// Print information about a game, including its uploads and platforms
-async fn print_game_info(client: &ItchClient, game_id: u64) {
+// List the owned game keys
+async fn print_owned_keys(client: &ItchClient) {
   println!(
     "{:#?}",
-    scratch_io::itch_api_calls::get_game_info(client, game_id)
+    scratch_io::itch_api_calls::get_owned_keys(client)
       .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
-
-  let uploads = scratch_io::itch_api_calls::get_game_uploads(client, game_id)
-    .await
-    .unwrap_or_else(|e| eprintln_exit!("{e}"));
-  println!("{uploads:#?}");
-
-  println!("{:#?}", scratch_io::get_game_platforms(uploads.as_slice()));
 }
 
 // Print information about the user's collections
@@ -356,6 +339,23 @@ async fn print_collection_games(client: &ItchClient, collection_id: u64) {
       .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"))
   )
+}
+
+// Print information about a game, including its uploads and platforms
+async fn print_game_info(client: &ItchClient, game_id: u64) {
+  println!(
+    "{:#?}",
+    scratch_io::itch_api_calls::get_game_info(client, game_id)
+      .await
+      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+  );
+
+  let uploads = scratch_io::itch_api_calls::get_game_uploads(client, game_id)
+    .await
+    .unwrap_or_else(|e| eprintln_exit!("{e}"));
+  println!("{uploads:#?}");
+
+  println!("{:#?}", scratch_io::get_game_platforms(uploads.as_slice()));
 }
 
 // Download a game's upload
@@ -675,20 +675,20 @@ async fn main() {
         RequireApiCommands::Profile => {
           print_profile(&client).await;
         }
-        RequireApiCommands::Owned => {
-          print_owned_keys(&client).await;
-        }
         RequireApiCommands::Created => {
           print_created_games(&client).await;
         }
-        RequireApiCommands::Game { game_id } => {
-          print_game_info(&client, game_id).await;
+        RequireApiCommands::Owned => {
+          print_owned_keys(&client).await;
         }
         RequireApiCommands::Collections => {
           print_collections(&client).await;
         }
         RequireApiCommands::CollectionGames { collection_id } => {
           print_collection_games(&client, collection_id).await;
+        }
+        RequireApiCommands::Game { game_id } => {
+          print_game_info(&client, game_id).await;
         }
         RequireApiCommands::Download {
           upload_id,

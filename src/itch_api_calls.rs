@@ -259,6 +259,29 @@ pub async fn get_profile(client: &ItchClient) -> Result<User, String> {
     .map_err(|e| format!("An error occurred while attempting to get the profile info:\n{e}"))
 }
 
+/// Get the games that the user created or that the user is an admin of
+///
+/// # Arguments
+///
+/// * `client` - An itch.io API client
+///
+/// # Returns
+///
+/// A vector of `CreatedGame` structs with the info provided by the API
+///
+/// An error if something goes wrong
+pub async fn get_crated_games(client: &ItchClient) -> Result<Vec<CreatedGame>, String> {
+  client
+    .itch_request_json::<CreatedGamesResponse>(&ItchApiUrl::V2("profile/games"), Method::GET, |b| b)
+    .await
+    .map(|res| res.games)
+    .map_err(|e| {
+      format!(
+        "An error occurred while attempting to obtain the list of the user created games:\n{e}"
+      )
+    })
+}
+
 /// Get the user's owned game keys
 ///
 /// # Arguments
@@ -290,7 +313,7 @@ pub async fn get_owned_keys(client: &ItchClient) -> Result<Vec<OwnedKey>, String
     let num_keys: u64 = response.owned_keys.len() as u64;
     keys.append(&mut response.owned_keys);
     // Warning!!!
-    // response.collection_games was merged into games, but it WAS NOT dropped!
+    // response.owned_keys was merged into games, but it WAS NOT dropped!
     // Its length is still accessible, but this doesn't make sense!
 
     if num_keys < response.per_page || num_keys == 0 {
@@ -302,7 +325,7 @@ pub async fn get_owned_keys(client: &ItchClient) -> Result<Vec<OwnedKey>, String
   Ok(keys)
 }
 
-/// Get the games that the user created or that the user is an admin of
+/// List the user's game collections
 ///
 /// # Arguments
 ///
@@ -310,19 +333,71 @@ pub async fn get_owned_keys(client: &ItchClient) -> Result<Vec<OwnedKey>, String
 ///
 /// # Returns
 ///
-/// A vector of `CreatedGame` structs with the info provided by the API
+/// A vector of `Collection` structs with the info provided by the API
 ///
 /// An error if something goes wrong
-pub async fn get_crated_games(client: &ItchClient) -> Result<Vec<CreatedGame>, String> {
+pub async fn get_collections(client: &ItchClient) -> Result<Vec<Collection>, String> {
   client
-    .itch_request_json::<CreatedGamesResponse>(&ItchApiUrl::V2("profile/games"), Method::GET, |b| b)
+    .itch_request_json::<CollectionsResponse>(
+      &ItchApiUrl::V2("profile/collections"),
+      Method::GET,
+      |b| b,
+    )
     .await
-    .map(|res| res.games)
+    .map(|res| res.collections)
     .map_err(|e| {
       format!(
-        "An error occurred while attempting to obtain the list of the user created games:\n{e}"
+        "An error occurred while attempting to obtain the list of the profile's collections:\n{e}"
       )
     })
+}
+
+/// List a collection's games
+///
+/// # Arguments
+///
+/// * `client` - An itch.io API client
+///
+/// * `collection_id` - The ID of the collection from which information will be obtained
+///
+/// # Returns
+///
+/// A vector of `CollectionGameItem` structs with the info provided by the API
+///
+/// An error if something goes wrong
+pub async fn get_collection_games(
+  client: &ItchClient,
+  collection_id: u64,
+) -> Result<Vec<CollectionGameItem>, String> {
+  let mut games: Vec<CollectionGameItem> = Vec::new();
+  let mut page: u64 = 1;
+  loop {
+    let mut response = client
+      .itch_request_json::<CollectionGamesResponse>(
+        &ItchApiUrl::V2(&format!("collections/{collection_id}/collection-games")),
+        Method::GET,
+        |b| b.query(&[("page", page)]),
+      )
+      .await
+      .map_err(|e| {
+        format!(
+          "An error occurred while attempting to obtain the list of the collection's games: {e}"
+        )
+      })?;
+
+    let num_games: u64 = response.collection_games.len() as u64;
+    games.append(&mut response.collection_games);
+    // Warning!!!
+    // response.collection_games was merged into games, but it WAS NOT dropped!
+    // Its length is still accessible, but this doesn't make sense!
+
+    if num_games < response.per_page || num_games == 0 {
+      break;
+    }
+    page += 1;
+  }
+
+  Ok(games)
 }
 
 /// Get the information about a game in itch.io
@@ -400,79 +475,4 @@ pub async fn get_upload_info(client: &ItchClient, upload_id: u64) -> Result<Uplo
     .map_err(|e| {
       format!("An error occurred while attempting to obtain the upload information:\n{e}")
     })
-}
-
-/// List the user's game collections
-///
-/// # Arguments
-///
-/// * `client` - An itch.io API client
-///
-/// # Returns
-///
-/// A vector of `Collection` structs with the info provided by the API
-///
-/// An error if something goes wrong
-pub async fn get_collections(client: &ItchClient) -> Result<Vec<Collection>, String> {
-  client
-    .itch_request_json::<CollectionsResponse>(
-      &ItchApiUrl::V2("profile/collections"),
-      Method::GET,
-      |b| b,
-    )
-    .await
-    .map(|res| res.collections)
-    .map_err(|e| {
-      format!(
-        "An error occurred while attempting to obtain the list of the profile's collections:\n{e}"
-      )
-    })
-}
-
-/// List a collection's games
-///
-/// # Arguments
-///
-/// * `client` - An itch.io API client
-///
-/// * `collection_id` - The ID of the collection from which information will be obtained
-///
-/// # Returns
-///
-/// A vector of `CollectionGameItem` structs with the info provided by the API
-///
-/// An error if something goes wrong
-pub async fn get_collection_games(
-  client: &ItchClient,
-  collection_id: u64,
-) -> Result<Vec<CollectionGameItem>, String> {
-  let mut games: Vec<CollectionGameItem> = Vec::new();
-  let mut page: u64 = 1;
-  loop {
-    let mut response = client
-      .itch_request_json::<CollectionGamesResponse>(
-        &ItchApiUrl::V2(&format!("collections/{collection_id}/collection-games")),
-        Method::GET,
-        |b| b.query(&[("page", page)]),
-      )
-      .await
-      .map_err(|e| {
-        format!(
-          "An error occurred while attempting to obtain the list of the collection's games: {e}"
-        )
-      })?;
-
-    let num_games: u64 = response.collection_games.len() as u64;
-    games.append(&mut response.collection_games);
-    // Warning!!!
-    // response.collection_games was merged into games, but it WAS NOT dropped!
-    // Its length is still accessible, but this doesn't make sense!
-
-    if num_games < response.per_page || num_games == 0 {
-      break;
-    }
-    page += 1;
-  }
-
-  Ok(games)
 }
