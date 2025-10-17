@@ -151,13 +151,13 @@ async fn hash_readable_async(
   }
 }
 
-/// Stream a reqwest Response into a File async
+/// Stream a reqwest `Response` into a `File` async
 ///
 /// # Arguments
 ///
 /// * `response` - A file download response
 ///
-/// * `file` - An opened File with write access
+/// * `file` - An opened `File` with write access
 ///
 /// * `md5_hash` - If provided, the hasher to update with the received data
 ///
@@ -216,11 +216,9 @@ async fn stream_response_into_file(
 ///
 /// # Arguments
 ///
-/// * `client` - An asynchronous reqwest Client
+/// * `client` - An itch.io API client
 ///
 /// * `url` - A itch.io API address to download the file from
-///
-/// * `api_key` - A valid (or invalid, if the endpoint doesn't require it) itch.io API key to make the request
 ///
 /// * `file_path` - The path where the file will be placed
 ///
@@ -233,8 +231,6 @@ async fn stream_response_into_file(
 /// * `callback_interval` - The minimum time span between each progress_callback call
 ///
 /// # Returns
-///
-/// A hasher, empty if update_md5_hash is false
 ///
 /// An error if something goes wrong
 async fn download_file(
@@ -418,7 +414,7 @@ async fn download_file(
 ///
 /// # Returns
 ///
-/// A vector of tuples containing an upload ID and the game platform in which it is available
+/// A vector of tuples containing an upload ID and the `GamePlatform` in which it is available
 pub fn get_game_platforms(uploads: &[Upload]) -> Vec<(u64, GamePlatform)> {
   let mut platforms: Vec<(u64, GamePlatform)> = Vec::new();
 
@@ -437,9 +433,7 @@ pub fn get_game_platforms(uploads: &[Upload]) -> Vec<(u64, GamePlatform)> {
 ///
 /// # Arguments
 ///
-/// * `client` - An asynchronous reqwest Client
-///
-/// * `api_key` - A valid itch.io API key to make the request
+/// * `client` - An itch.io API client
 ///
 /// * `game_id` - The ID of the game from which the cover will be downloaded
 ///
@@ -514,13 +508,13 @@ pub async fn download_game_cover(
 ///
 /// # Arguments
 ///
-/// * `client` - An asynchronous reqwest Client
-///
-/// * `api_key` - A valid itch.io API key to make the request
+/// * `client` - An itch.io API client
 ///
 /// * `upload_id` - The ID of the upload which will be downloaded
 ///
 /// * `game_folder` - The folder where the downloadeded game files will be placed
+///
+/// * `skip_hash_verification` - If true, don't check the downloaded upload integrity (insecure)
 ///
 /// * `upload_info` - A closure which reports the upload and the game info before the download starts
 ///
@@ -638,9 +632,7 @@ pub async fn download_upload(
 ///
 /// # Arguments
 ///
-/// * `client` - An asynchronous reqwest Client
-///
-/// * `api_key` - A valid itch.io API key to make the request
+/// * `client` - An itch.io API client
 ///
 /// * `upload_id` - The ID of the upload which will be imported
 ///
@@ -678,9 +670,7 @@ pub async fn import(
 ///
 /// # Arguments
 ///
-/// * `client` - An asynchronous reqwest Client
-///
-/// * `api_key` - A valid itch.io API key to get info about the game to remove
+/// * `client` - An itch.io API client
 ///
 /// * `upload_id` - The ID of the upload whose download was canceled
 ///
@@ -855,7 +845,7 @@ pub async fn r#move(
 ///
 /// # Returns
 ///
-/// A Manifest struct with the manifest actions info, or None if the manifest isn't present
+/// A `Manifest` struct with the manifest actions info, or None if the manifest isn't present
 ///
 /// An error if something goes wrong
 pub async fn get_upload_manifest(
@@ -875,11 +865,7 @@ pub async fn get_upload_manifest(
 ///
 /// * `game_folder` - The folder where the game uploads are placed
 ///
-/// * `launch_action` - The name of the launch action in the upload folder's itch manifest
-///
-/// * `heuristics_info` - Some info required to guess which file is the upload executable
-///
-/// * `upload_executable` - Instead of heuristics_info, provide the path to the upload executable file
+/// * `launch_method` - The launch method to use to determine the upload executable file
 ///
 /// * `wrapper` - A list of a wrapper and its options to run the game with
 ///

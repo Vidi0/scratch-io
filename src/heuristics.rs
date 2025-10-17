@@ -62,7 +62,7 @@ impl GamePlatform {
 ///
 /// # Returns
 ///
-/// A path with the possible game executable
+/// A path with the best guess for the game executable
 ///
 /// An error if something goes wrong
 pub async fn get_game_executable(
@@ -121,6 +121,23 @@ pub async fn get_game_executable(
   }
 }
 
+/// Rate the probability that a given path is the main executable file of a game.
+///
+/// # Arguments
+///
+/// * `file_path` - The path to rate
+///
+/// * `directory_levels` - The number of directory levels between the path and the root folder of the game
+///
+/// * `platform` - The platform the game executable will be run on
+///
+/// * `game_info` - Information about the game
+///
+/// # Returns
+///
+/// The rating
+///
+/// An error if something goes wrong
 fn rate_executable(
   file_path: &Path,
   directory_levels: usize,

@@ -1,7 +1,7 @@
 use crate::itch_api_types::*;
 use reqwest::{Method, Response, header};
 
-/// An ItchClient able to send requests to the itch.io API
+/// A client able to send requests to the itch.io API
 pub struct ItchClient {
   client: reqwest::Client,
   api_key: String,
@@ -18,19 +18,15 @@ impl ItchClient {
   ///
   /// # Arguments
   ///
-  /// * `client` - An asynchronous reqwest Client
-  ///
-  /// * `method` - The request method (GET, POST, etc.)
-  ///
   /// * `url` - A itch.io API address to make the request against
   ///
-  /// * `api_key` - A valid itch.io API key to make the request
+  /// * `method` - The request method (GET, POST, etc.)
   ///
   /// * `options` - A closure that modifies the request builder just before sending it
   ///
   /// # Returns
   ///
-  /// The reqwest response
+  /// The reqwest `Response`
   ///
   /// An error if sending the request fails
   pub(crate) async fn itch_request(
@@ -71,23 +67,19 @@ impl ItchClient {
       .map_err(|e| format!("Error while sending request: {e}"))
   }
 
-  /// Make a request to the itch.io API and parse the response as json
+  /// Make a request to the itch.io API and parse the response as JSON
   ///
   /// # Arguments
   ///
-  /// * `client` - An asynchronous reqwest Client
-  ///
-  /// * `method` - The request method (GET, POST, etc.)
-  ///
   /// * `url` - A itch.io API address to make the request against
   ///
-  /// * `api_key` - A valid itch.io API key to make the request
+  /// * `method` - The request method (GET, POST, etc.)
   ///
   /// * `options` - A closure that modifies the request builder just before sending it
   ///
   /// # Returns
   ///
-  /// The reqwest response parsed as JSON into the provided type
+  /// The JSON response parsed into the provided type
   ///
   /// An error if sending the request or parsing it fails
   async fn itch_request_json<T>(
@@ -142,15 +134,13 @@ impl ItchClient {
   ///
   /// # Arguments
   ///
-  /// * `client` - An asynchronous reqwest Client
-  ///
   /// * `totp_token` - The TOTP token returned by the previous login step
   ///
   /// * `totp_code` - The 6-digit code returned by the TOTP application
   ///
   /// # Returns
   ///
-  /// A LoginSuccess struct with the new API key
+  /// A `LoginSuccess` struct with the new API key
   ///
   /// An error if something goes wrong
   async fn totp_verification(
@@ -172,8 +162,6 @@ impl ItchClient {
   ///
   /// # Arguments
   ///
-  /// * `client` - An asynchronous reqwest Client
-  ///
   /// * `username` - The username OR email of the accout to log in with
   ///
   /// * `password` - The password of the accout to log in with
@@ -184,7 +172,7 @@ impl ItchClient {
   ///
   /// # Returns
   ///
-  /// A LoginSuccess struct with the new API key
+  /// An `ItchClient` struct with the new API key
   ///
   /// An error if something goes wrong
   pub async fn login(
@@ -256,13 +244,11 @@ impl ItchClient {
 ///
 /// # Arguments
 ///
-/// * `client` - An asynchronous reqwest Client
-///
-/// * `api_key` - A valid itch.io API key to make the request
+/// * `client` - An itch.io API client
 ///
 /// # Returns
 ///
-/// A User struct with the info provided by the API
+/// A `User` struct with the info provided by the API
 ///
 /// An error if something goes wrong
 pub async fn get_profile(client: &ItchClient) -> Result<User, String> {
@@ -277,13 +263,11 @@ pub async fn get_profile(client: &ItchClient) -> Result<User, String> {
 ///
 /// # Arguments
 ///
-/// * `client` - An asynchronous reqwest Client
-///
-/// * `api_key` - A valid itch.io API key to make the request
+/// * `client` - An itch.io API client
 ///
 /// # Returns
 ///
-/// A vector of OwnedKey structs with the info provided by the API
+/// A vector of `OwnedKey` structs with the info provided by the API
 ///
 /// An error if something goes wrong
 pub async fn get_owned_keys(client: &ItchClient) -> Result<Vec<OwnedKey>, String> {
@@ -322,13 +306,11 @@ pub async fn get_owned_keys(client: &ItchClient) -> Result<Vec<OwnedKey>, String
 ///
 /// # Arguments
 ///
-/// * `client` - An asynchronous reqwest Client
-///
-/// * `api_key` - A valid itch.io API key to make the request
+/// * `client` - An itch.io API client
 ///
 /// # Returns
 ///
-/// A vector of CreatedGame structs with the info provided by the API
+/// A vector of `CreatedGame` structs with the info provided by the API
 ///
 /// An error if something goes wrong
 pub async fn get_crated_games(client: &ItchClient) -> Result<Vec<CreatedGame>, String> {
@@ -347,15 +329,13 @@ pub async fn get_crated_games(client: &ItchClient) -> Result<Vec<CreatedGame>, S
 ///
 /// # Arguments
 ///
-/// * `client` - An asynchronous reqwest Client
-///
-/// * `api_key` - A valid itch.io API key to make the request
+/// * `client` - An itch.io API client
 ///
 /// * `game_id` - The ID of the game from which information will be obtained
 ///
 /// # Returns
 ///
-/// A Game struct with the info provided by the API
+/// A `Game` struct with the info provided by the API
 ///
 /// An error if something goes wrong
 pub async fn get_game_info(client: &ItchClient, game_id: u64) -> Result<Game, String> {
@@ -374,15 +354,13 @@ pub async fn get_game_info(client: &ItchClient, game_id: u64) -> Result<Game, St
 ///
 /// # Arguments
 ///
-/// * `client` - An asynchronous reqwest Client
-///
-/// * `api_key` - A valid itch.io API key to make the request
+/// * `client` - An itch.io API client
 ///
 /// * `game_id` - The ID of the game from which information will be obtained
 ///
 /// # Returns
 ///
-/// A vector of Upload structs with the info provided by the API
+/// A vector of `Upload` structs with the info provided by the API
 ///
 /// An error if something goes wrong
 pub async fn get_game_uploads(client: &ItchClient, game_id: u64) -> Result<Vec<Upload>, String> {
@@ -401,15 +379,13 @@ pub async fn get_game_uploads(client: &ItchClient, game_id: u64) -> Result<Vec<U
 ///
 /// # Arguments
 ///
-/// * `client` - An asynchronous reqwest Client
-///
-/// * `api_key` - A valid itch.io API key to make the request
+/// * `client` - An itch.io API client
 ///
 /// * `upload_id` - The ID of the upload from which information will be obtained
 ///
 /// # Returns
 ///
-/// A Upload struct with the info provided by the API
+/// A `Upload` struct with the info provided by the API
 ///
 /// An error if something goes wrong
 pub async fn get_upload_info(client: &ItchClient, upload_id: u64) -> Result<Upload, String> {
@@ -430,13 +406,11 @@ pub async fn get_upload_info(client: &ItchClient, upload_id: u64) -> Result<Uplo
 ///
 /// # Arguments
 ///
-/// * `client` - An asynchronous reqwest Client
-///
-/// * `api_key` - A valid itch.io API key to make the request
+/// * `client` - An itch.io API client
 ///
 /// # Returns
 ///
-/// A vector of Collection structs with the info provided by the API
+/// A vector of `Collection` structs with the info provided by the API
 ///
 /// An error if something goes wrong
 pub async fn get_collections(client: &ItchClient) -> Result<Vec<Collection>, String> {
@@ -459,15 +433,13 @@ pub async fn get_collections(client: &ItchClient) -> Result<Vec<Collection>, Str
 ///
 /// # Arguments
 ///
-/// * `client` - An asynchronous reqwest Client
-///
-/// * `api_key` - A valid itch.io API key to make the request
+/// * `client` - An itch.io API client
 ///
 /// * `collection_id` - The ID of the collection from which information will be obtained
 ///
 /// # Returns
 ///
-/// A vector of CollectionGameItem structs with the info provided by the API
+/// A vector of `CollectionGameItem` structs with the info provided by the API
 ///
 /// An error if something goes wrong
 pub async fn get_collection_games(
