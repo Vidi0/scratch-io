@@ -357,6 +357,24 @@ impl<T> ApiResponse<T> {
   }
 }
 
+/// This struct corresponds to the response to API calls that return
+/// a list of items split in pages.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ApiResponseList<T>
+where
+  T: ListResponse,
+{
+  pub page: u64,
+  pub per_page: u64,
+  #[serde(flatten)]
+  pub values: T,
+}
+
+pub trait ListResponse {
+  type Item;
+  fn items(self) -> Vec<Self::Item>;
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum LoginResponse {
@@ -399,10 +417,16 @@ pub struct CreatedGamesResponse {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OwnedKeysResponse {
-  pub page: u64,
-  pub per_page: u64,
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub owned_keys: Vec<OwnedKey>,
+}
+
+impl ListResponse for OwnedKeysResponse {
+  type Item = OwnedKey;
+
+  fn items(self) -> Vec<Self::Item> {
+    self.owned_keys
+  }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -413,10 +437,16 @@ pub struct CollectionsResponse {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CollectionGamesResponse {
-  pub page: u64,
-  pub per_page: u64,
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub collection_games: Vec<CollectionGameItem>,
+}
+
+impl ListResponse for CollectionGamesResponse {
+  type Item = CollectionGameItem;
+
+  fn items(self) -> Vec<Self::Item> {
+    self.collection_games
+  }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

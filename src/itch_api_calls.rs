@@ -19,7 +19,7 @@ impl ItchClient {
   ///
   /// # Arguments
   ///
-  /// * `url` - A itch.io API address to make the request against
+  /// * `url` - An itch.io API address to make the request against
   ///
   /// * `method` - The request method (GET, POST, etc.)
   ///
@@ -29,7 +29,9 @@ impl ItchClient {
   ///
   /// The reqwest `Response`
   ///
-  /// An error if sending the request fails
+  /// # Errors
+  ///
+  /// If sending the request fails
   pub(crate) async fn itch_request(
     &self,
     url: &ItchApiUrl<'_>,
@@ -72,7 +74,7 @@ impl ItchClient {
   ///
   /// # Arguments
   ///
-  /// * `url` - A itch.io API address to make the request against
+  /// * `url` - An itch.io API address to make the request against
   ///
   /// * `method` - The request method (GET, POST, etc.)
   ///
@@ -82,7 +84,9 @@ impl ItchClient {
   ///
   /// The JSON response parsed into the provided type
   ///
-  /// An error if sending the request or parsing it fails
+  /// # Errors
+  ///
+  /// If sending the request or parsing it fails
   async fn itch_request_json<T>(
     &self,
     url: &ItchApiUrl<'_>,
@@ -102,6 +106,60 @@ impl ItchClient {
     serde_json::from_str::<ApiResponse<T>>(&text)
       .map_err(|e| format!("Error while parsing JSON body: {e}\n\n{text}"))?
       .into_result()
+  }
+
+  /// Make requests to the itch.io API to get a list of items that are split into pages
+  ///
+  /// Takes any type that implements `ListResponse`
+  ///
+  /// # Arguments
+  ///
+  /// * `url` - An itch.io API address to make the requests against
+  ///
+  /// * `method` - The request method (GET, POST, etc.)
+  ///
+  /// # Returns
+  ///
+  /// A Vector of the corresponding `ListResponse::Item` structs
+  ///
+  /// # Errors
+  ///
+  /// If sending the request or parsing it fails
+  async fn itch_request_list<T>(
+    &self,
+    url: &ItchApiUrl<'_>,
+    method: Method,
+    mut options: impl FnMut(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
+  ) -> Result<Vec<T::Item>, String>
+  where
+    T: serde::de::DeserializeOwned + ListResponse,
+  {
+    let mut values: Vec<T::Item> = Vec::new();
+    let mut page: u64 = 1;
+    loop {
+      let response = self
+        .itch_request_json::<ApiResponseList<T>>(url, method.clone(), |b| {
+          options(b.query(&[("page", page)]))
+        })
+        .await
+        .map_err(|e| {
+          format!(
+            "An error occurred while attempting to obtain the a list of elements from the itch.io API:\n{e}"
+          )
+        })?;
+
+      let response_values = response.values.items();
+      let num_elements: u64 = response_values.len() as u64;
+      values.extend(response_values.into_iter());
+
+      if num_elements < response.per_page || num_elements == 0 {
+        break;
+      }
+
+      page += 1;
+    }
+
+    Ok(values)
   }
 }
 
@@ -305,35 +363,18 @@ pub async fn get_crated_games(client: &ItchClient) -> Result<Vec<CreatedGame>, S
 ///
 /// If something goes wrong
 pub async fn get_owned_keys(client: &ItchClient) -> Result<Vec<OwnedKey>, String> {
-  let mut keys: Vec<OwnedKey> = Vec::new();
-  let mut page: u64 = 1;
-  loop {
-    let mut response = client
-      .itch_request_json::<OwnedKeysResponse>(
-        &ItchApiUrl::V2("profile/owned-keys"),
-        Method::GET,
-        |b| b.query(&[("page", page)]),
+  client
+    .itch_request_list::<OwnedKeysResponse>(
+      &ItchApiUrl::V2("profile/owned-keys"),
+      Method::GET,
+      |b| b,
+    )
+    .await
+    .map_err(|e| {
+      format!(
+        "An error occurred while attempting to obtain the list of the user created games:\n{e}"
       )
-      .await
-      .map_err(|e| {
-        format!(
-          "An error occurred while attempting to obtain the list of the user's game keys:\n{e}"
-        )
-      })?;
-
-    let num_keys: u64 = response.owned_keys.len() as u64;
-    keys.append(&mut response.owned_keys);
-    // Warning!!!
-    // response.owned_keys was merged into games, but it WAS NOT dropped!
-    // Its length is still accessible, but this doesn't make sense!
-
-    if num_keys < response.per_page || num_keys == 0 {
-      break;
-    }
-    page += 1;
-  }
-
-  Ok(keys)
+    })
 }
 
 /// List the user's game collections
@@ -384,35 +425,18 @@ pub async fn get_collection_games(
   client: &ItchClient,
   collection_id: u64,
 ) -> Result<Vec<CollectionGameItem>, String> {
-  let mut games: Vec<CollectionGameItem> = Vec::new();
-  let mut page: u64 = 1;
-  loop {
-    let mut response = client
-      .itch_request_json::<CollectionGamesResponse>(
-        &ItchApiUrl::V2(&format!("collections/{collection_id}/collection-games")),
-        Method::GET,
-        |b| b.query(&[("page", page)]),
+  client
+    .itch_request_list::<CollectionGamesResponse>(
+      &ItchApiUrl::V2(&format!("collections/{collection_id}/collection-games")),
+      Method::GET,
+      |b| b,
+    )
+    .await
+    .map_err(|e| {
+      format!(
+        "An error occurred while attempting to obtain the list of the collection's games: {e}"
       )
-      .await
-      .map_err(|e| {
-        format!(
-          "An error occurred while attempting to obtain the list of the collection's games: {e}"
-        )
-      })?;
-
-    let num_games: u64 = response.collection_games.len() as u64;
-    games.append(&mut response.collection_games);
-    // Warning!!!
-    // response.collection_games was merged into games, but it WAS NOT dropped!
-    // Its length is still accessible, but this doesn't make sense!
-
-    if num_games < response.per_page || num_games == 0 {
-      break;
-    }
-    page += 1;
-  }
-
-  Ok(games)
+    })
 }
 
 /// Get the information about a game in itch.io
