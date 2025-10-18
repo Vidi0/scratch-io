@@ -405,7 +405,7 @@ pub struct LoginTOTPError {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ProfileResponse {
+pub struct ProfileInfoResponse {
   pub user: User,
 }
 
@@ -436,7 +436,7 @@ pub struct ProfileCollectionsResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CollectionResponse {
+pub struct CollectionInfoResponse {
   pub collection: Collection,
 }
 
@@ -466,6 +466,6 @@ pub struct GameUploadsResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct UploadResponse {
+pub struct UploadInfoResponse {
   pub upload: Upload,
 }

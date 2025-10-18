@@ -318,7 +318,7 @@ impl ItchClient {
 /// If something goes wrong
 pub async fn get_profile(client: &ItchClient) -> Result<User, String> {
   client
-    .itch_request_json::<ProfileResponse>(&ItchApiUrl::V2("profile"), Method::GET, |b| b)
+    .itch_request_json::<ProfileInfoResponse>(&ItchApiUrl::V2("profile"), Method::GET, |b| b)
     .await
     .map(|res| res.user)
     .map_err(|e| format!("An error occurred while attempting to get the profile info:\n{e}"))
@@ -426,7 +426,7 @@ pub async fn get_collection_info(
   collection_id: u64,
 ) -> Result<Collection, String> {
   client
-    .itch_request_json::<CollectionResponse>(
+    .itch_request_json::<CollectionInfoResponse>(
       &ItchApiUrl::V2(&format!("collections/{collection_id}")),
       Method::GET,
       |b| b,
@@ -540,7 +540,7 @@ pub async fn get_game_uploads(client: &ItchClient, game_id: u64) -> Result<Vec<U
 /// If something goes wrong
 pub async fn get_upload_info(client: &ItchClient, upload_id: u64) -> Result<Upload, String> {
   client
-    .itch_request_json::<UploadResponse>(
+    .itch_request_json::<UploadInfoResponse>(
       &ItchApiUrl::V2(&format!("uploads/{upload_id}")),
       Method::GET,
       |b| b,
