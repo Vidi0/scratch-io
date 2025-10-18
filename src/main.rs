@@ -1,11 +1,11 @@
+mod config;
+use config::Config;
+
 use clap::{Parser, Subcommand};
 use scratch_io::itch_api_calls::ItchClient;
 use scratch_io::{DownloadStatus, InstalledUpload};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-
-mod config;
-use config::Config;
 
 #[macro_export]
 macro_rules! eprintln_exit {

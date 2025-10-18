@@ -1,12 +1,3 @@
-use futures_util::StreamExt;
-use md5::{Digest, Md5, digest::core_api::CoreWrapper};
-use reqwest::{Method, Response, header};
-use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
-use std::path::{Path, PathBuf};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
-use tokio::time::{Duration, Instant};
-
 mod extract;
 mod game_files_operations;
 mod heuristics;
@@ -16,6 +7,15 @@ pub mod itch_manifest;
 use crate::game_files_operations::*;
 use crate::itch_api_calls::*;
 use crate::itch_api_types::*;
+
+use futures_util::StreamExt;
+use md5::{Digest, Md5, digest::core_api::CoreWrapper};
+use reqwest::{Method, Response, header};
+use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
+use std::path::{Path, PathBuf};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+use tokio::time::{Duration, Instant};
 
 // This isn't inside itch_types because it is not something that the itch API returns
 // These platforms are *interpreted* from the data provided by the API
