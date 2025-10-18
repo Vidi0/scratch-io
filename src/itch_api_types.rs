@@ -392,19 +392,17 @@ pub struct ProfileResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct GameInfoResponse {
-  pub game: Game,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct GameUploadsResponse {
+pub struct CreatedGamesResponse {
   #[serde(deserialize_with = "empty_object_as_vec")]
-  pub uploads: Vec<Upload>,
+  pub games: Vec<CreatedGame>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct UploadResponse {
-  pub upload: Upload,
+pub struct OwnedKeysResponse {
+  pub page: u64,
+  pub per_page: u64,
+  #[serde(deserialize_with = "empty_object_as_vec")]
+  pub owned_keys: Vec<OwnedKey>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -422,15 +420,17 @@ pub struct CollectionGamesResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct OwnedKeysResponse {
-  pub page: u64,
-  pub per_page: u64,
-  #[serde(deserialize_with = "empty_object_as_vec")]
-  pub owned_keys: Vec<OwnedKey>,
+pub struct GameInfoResponse {
+  pub game: Game,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CreatedGamesResponse {
+pub struct GameUploadsResponse {
   #[serde(deserialize_with = "empty_object_as_vec")]
-  pub games: Vec<CreatedGame>,
+  pub uploads: Vec<Upload>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UploadResponse {
+  pub upload: Upload,
 }
