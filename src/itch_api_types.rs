@@ -430,9 +430,14 @@ impl ListResponse for OwnedKeysResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CollectionsResponse {
+pub struct ProfileCollectionsResponse {
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub collections: Vec<Collection>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CollectionResponse {
+  pub collection: Collection,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

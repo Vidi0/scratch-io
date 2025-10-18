@@ -325,7 +325,7 @@ async fn print_owned_keys(client: &ItchClient) {
 async fn print_collections(client: &ItchClient) {
   println!(
     "{:#?}",
-    scratch_io::itch_api_calls::get_collections(client)
+    scratch_io::itch_api_calls::get_profile_collections(client)
       .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"))
   );

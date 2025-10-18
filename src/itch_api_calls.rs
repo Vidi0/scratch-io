@@ -390,9 +390,9 @@ pub async fn get_owned_keys(client: &ItchClient) -> Result<Vec<OwnedKey>, String
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn get_collections(client: &ItchClient) -> Result<Vec<Collection>, String> {
+pub async fn get_profile_collections(client: &ItchClient) -> Result<Vec<Collection>, String> {
   client
-    .itch_request_json::<CollectionsResponse>(
+    .itch_request_json::<ProfileCollectionsResponse>(
       &ItchApiUrl::V2("profile/collections"),
       Method::GET,
       |b| b,
@@ -404,6 +404,36 @@ pub async fn get_collections(client: &ItchClient) -> Result<Vec<Collection>, Str
         "An error occurred while attempting to obtain the list of the profile's collections:\n{e}"
       )
     })
+}
+
+/// Get a collection's info
+///
+/// # Arguments
+///
+/// * `client` - An itch.io API client
+///
+/// * `collection_id` - The ID of the collection from which information will be obtained
+///
+/// # Returns
+///
+/// A `Collection` struct with the info provided by the API
+///
+/// # Errors
+///
+/// If something goes wrong
+pub async fn get_collection_info(
+  client: &ItchClient,
+  collection_id: u64,
+) -> Result<Collection, String> {
+  client
+    .itch_request_json::<CollectionResponse>(
+      &ItchApiUrl::V2(&format!("collections/{collection_id}")),
+      Method::GET,
+      |b| b,
+    )
+    .await
+    .map(|res| res.collection)
+    .map_err(|e| format!("An error occurred while attempting to obtain the collection info:\n{e}"))
 }
 
 /// List a collection's games
