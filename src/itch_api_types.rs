@@ -373,6 +373,22 @@ pub struct BuildFile {
   pub state: BuildFileState,
 }
 
+#[serde_as]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UpgradePathBuild {
+  pub id: u64,
+  pub upload_id: u64,
+  #[serde_as(deserialize_as = "DefaultOnError<Option<_>>")]
+  pub parent_build_id: Option<u64>,
+  pub version: u64,
+  pub user_version: String,
+  #[serde(with = "rfc3339")]
+  pub created_at: OffsetDateTime,
+  #[serde(with = "rfc3339")]
+  pub updated_at: OffsetDateTime,
+  pub files: Vec<BuildFile>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ApiResponse<T> {
@@ -517,4 +533,15 @@ pub struct UploadBuildsResponse {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BuildInfoResponse {
   pub build: Build,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BuildUpgradePathResponse {
+  pub upgrade_path: BuildUpgradePathResponseBuilds,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BuildUpgradePathResponseBuilds {
+  #[serde(deserialize_with = "empty_object_as_vec")]
+  pub builds: Vec<UpgradePathBuild>,
 }

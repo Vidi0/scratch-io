@@ -610,3 +610,40 @@ pub async fn get_build_info(client: &ItchClient, build_id: u64) -> Result<Build,
       format!("An error occurred while attempting to obtain the build information:\n{e}")
     })
 }
+
+/// Get the upgrade path between two upload builds
+///
+/// # Arguments
+///
+/// * `client` - An itch.io API client
+///
+/// * `current_build_id` - The ID of the current build
+///
+/// * `target_build_id` - The ID of the target build
+///
+/// # Returns
+///
+/// A vector of `UpgradePathBuild` structs with the info provided by the API
+///
+/// # Errors
+///
+/// If something goes wrong
+pub async fn get_upgrade_path(
+  client: &ItchClient,
+  current_build_id: u64,
+  target_build_id: u64,
+) -> Result<Vec<UpgradePathBuild>, String> {
+  client
+    .itch_request_json::<BuildUpgradePathResponse>(
+      &ItchApiUrl::V2(&format!(
+        "builds/{current_build_id}/upgrade-paths/{target_build_id}"
+      )),
+      Method::GET,
+      |b| b,
+    )
+    .await
+    .map(|res| res.upgrade_path.builds)
+    .map_err(|e| {
+      format!("An error occurred while attempting to obtain the build upgrade path:\n{e}")
+    })
+}
