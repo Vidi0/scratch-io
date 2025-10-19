@@ -1,4 +1,8 @@
-use crate::itch_api_types::*;
+mod responses;
+pub mod types;
+use responses::*;
+use types::*;
+
 use reqwest::{Method, Response, header};
 
 /// A client able to send requests to the itch.io API

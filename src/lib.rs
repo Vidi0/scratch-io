@@ -1,12 +1,10 @@
 mod extract;
 mod game_files_operations;
 mod heuristics;
-pub mod itch_api_calls;
-pub mod itch_api_types;
+pub mod itch_api;
 pub mod itch_manifest;
 use crate::game_files_operations::*;
-use crate::itch_api_calls::*;
-use crate::itch_api_types::*;
+use crate::itch_api::{types::*, *};
 
 use futures_util::StreamExt;
 use md5::{Digest, Md5, digest::core_api::CoreWrapper};

@@ -1,5 +1,5 @@
 use crate::GamePlatform;
-use crate::itch_api_types::Game;
+use crate::itch_api::types::Game;
 use std::path::{Path, PathBuf};
 
 const GOOD_LAUNCH_FILENAMES: &[&str] = &[
