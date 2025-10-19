@@ -126,21 +126,9 @@ impl User {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CreatedGame {
-  pub id: u64,
-  pub url: String,
-  pub title: String,
-  pub short_text: Option<String>,
-  pub r#type: GameType,
-  pub classification: GameClassification,
-  pub cover_url: Option<String>,
-  #[serde(with = "rfc3339")]
-  pub created_at: OffsetDateTime,
-  #[serde(with = "rfc3339::option", default)]
-  pub published_at: Option<OffsetDateTime>,
-  pub min_price: u64,
+  #[serde(flatten)]
+  pub game_info: GameCommon,
   pub user: User,
-  #[serde(deserialize_with = "empty_object_as_vec")]
-  pub traits: Vec<GameTrait>,
   pub views_count: u64,
   pub purchases_count: u64,
   pub downloads_count: u64,
@@ -181,20 +169,8 @@ pub struct CollectionGameItem {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CollectionGame {
-  pub id: u64,
-  pub url: String,
-  pub title: String,
-  pub short_text: Option<String>,
-  pub r#type: GameType,
-  pub classification: GameClassification,
-  pub cover_url: Option<String>,
-  #[serde(with = "rfc3339")]
-  pub created_at: OffsetDateTime,
-  #[serde(with = "rfc3339::option", default)]
-  pub published_at: Option<OffsetDateTime>,
-  pub min_price: u64,
-  #[serde(deserialize_with = "empty_object_as_vec")]
-  pub traits: Vec<GameTrait>,
+  #[serde(flatten)]
+  pub game_info: GameCommon,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -233,8 +209,11 @@ pub enum GameTrait {
   InPressSystem,
 }
 
+/// This struct represents all the shared fields among the different Game structs
+///
+/// It should always be used alongside serde flattten
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Game {
+pub struct GameCommon {
   pub id: u64,
   pub url: String,
   pub title: String,
@@ -247,9 +226,15 @@ pub struct Game {
   #[serde(with = "rfc3339::option", default)]
   pub published_at: Option<OffsetDateTime>,
   pub min_price: u64,
-  pub user: User,
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub traits: Vec<GameTrait>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Game {
+  #[serde(flatten)]
+  pub game_info: GameCommon,
+  pub user: User,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -301,31 +286,25 @@ pub struct Upload {
   pub md5_hash: Option<String>,
 }
 
-#[serde_as]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct UploadBuild {
-  pub id: u64,
-  #[serde_as(deserialize_as = "DefaultOnError<Option<_>>")]
-  pub parent_build_id: Option<u64>,
-  pub version: u64,
-  pub user_version: String,
-  #[serde(with = "rfc3339")]
-  pub created_at: OffsetDateTime,
-  #[serde(with = "rfc3339")]
-  pub updated_at: OffsetDateTime,
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BuildState {
   Completed,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UploadBuild {
+  #[serde(flatten)]
+  pub build_info: BuildCommon,
+}
+
+/// This struct represents all the shared fields among the different Build structs
+///
+/// It should always be used alongside serde flattten
 #[serde_as]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Build {
+pub struct BuildCommon {
   pub id: u64,
-  pub upload_id: u64,
   #[serde_as(deserialize_as = "DefaultOnError<Option<_>>")]
   pub parent_build_id: Option<u64>,
   pub version: u64,
@@ -334,6 +313,14 @@ pub struct Build {
   pub created_at: OffsetDateTime,
   #[serde(with = "rfc3339")]
   pub updated_at: OffsetDateTime,
+}
+
+#[serde_as]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Build {
+  #[serde(flatten)]
+  pub build_info: BuildCommon,
+  pub upload_id: u64,
   pub user: User,
   pub state: BuildState,
   #[serde(deserialize_with = "empty_object_as_vec")]

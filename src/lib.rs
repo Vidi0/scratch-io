@@ -460,9 +460,9 @@ pub async fn download_game_cover(
   force_download: bool,
 ) -> Result<Option<PathBuf>, String> {
   // Get the game info from the server
-  let game_info = get_game_info(client, game_id).await?;
+  let game = get_game_info(client, game_id).await?;
   // If the game doesn't have a cover, return
-  let Some(cover_url) = game_info.cover_url else {
+  let Some(cover_url) = game.game_info.cover_url else {
     return Ok(None);
   };
 
@@ -555,7 +555,7 @@ pub async fn download_upload(
   // If the game_folder is unset, set it to ~/Games/{game_name}/
   let game_folder = match game_folder {
     Some(f) => f,
-    None => &get_game_folder(&game.title)?,
+    None => &get_game_folder(&game.game_info.title)?,
   };
 
   // upload_archive is the location where the upload will be downloaded
@@ -703,7 +703,7 @@ pub async fn remove_partial_download(
   // If the game_folder is unset, set it to ~/Games/{game_name}/
   let game_folder = match game_folder {
     Some(f) => f,
-    None => &get_game_folder(&game.title)?,
+    None => &get_game_folder(&game.game_info.title)?,
   };
 
   // Vector of files and folders to be removed

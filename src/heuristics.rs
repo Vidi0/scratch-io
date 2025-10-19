@@ -191,7 +191,7 @@ fn rate_executable(
     rating += 2300;
   }
 
-  let game_title = make_alphanumeric_lowercase(game_info.title.clone());
+  let game_title = make_alphanumeric_lowercase(game_info.game_info.title.clone());
   // Check if the filename is similar to the game name or the game name with cerating suffixes
   rating += proximity_rating_with_suffixes(
     game_title.as_str(),
