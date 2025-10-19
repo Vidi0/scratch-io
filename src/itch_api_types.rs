@@ -125,55 +125,6 @@ impl User {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CreatedGame {
-  #[serde(flatten)]
-  pub game_info: GameCommon,
-  pub user: User,
-  pub views_count: u64,
-  pub purchases_count: u64,
-  pub downloads_count: u64,
-  pub published: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct OwnedKey {
-  pub id: u64,
-  pub game_id: u64,
-  pub downloads: u64,
-  pub game: Game,
-  #[serde(with = "rfc3339")]
-  pub created_at: OffsetDateTime,
-  #[serde(with = "rfc3339")]
-  pub updated_at: OffsetDateTime,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Collection {
-  pub id: u64,
-  pub title: String,
-  pub games_count: u64,
-  #[serde(with = "rfc3339")]
-  pub created_at: OffsetDateTime,
-  #[serde(with = "rfc3339")]
-  pub updated_at: OffsetDateTime,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CollectionGameItem {
-  pub game: CollectionGame,
-  pub position: u64,
-  pub user_id: u64,
-  #[serde(with = "rfc3339")]
-  pub created_at: OffsetDateTime,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CollectionGame {
-  #[serde(flatten)]
-  pub game_info: GameCommon,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GameType {
   Default,
@@ -238,6 +189,55 @@ pub struct Game {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Collection {
+  pub id: u64,
+  pub title: String,
+  pub games_count: u64,
+  #[serde(with = "rfc3339")]
+  pub created_at: OffsetDateTime,
+  #[serde(with = "rfc3339")]
+  pub updated_at: OffsetDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CollectionGame {
+  #[serde(flatten)]
+  pub game_info: GameCommon,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CollectionGameItem {
+  pub game: CollectionGame,
+  pub position: u64,
+  pub user_id: u64,
+  #[serde(with = "rfc3339")]
+  pub created_at: OffsetDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CreatedGame {
+  #[serde(flatten)]
+  pub game_info: GameCommon,
+  pub user: User,
+  pub views_count: u64,
+  pub purchases_count: u64,
+  pub downloads_count: u64,
+  pub published: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OwnedKey {
+  pub id: u64,
+  pub game_id: u64,
+  pub downloads: u64,
+  pub game: Game,
+  #[serde(with = "rfc3339")]
+  pub created_at: OffsetDateTime,
+  #[serde(with = "rfc3339")]
+  pub updated_at: OffsetDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UploadType {
   Default,
@@ -286,18 +286,6 @@ pub struct Upload {
   pub md5_hash: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum BuildState {
-  Completed,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct UploadBuild {
-  #[serde(flatten)]
-  pub build_info: BuildCommon,
-}
-
 /// This struct represents all the shared fields among the different Build structs
 ///
 /// It should always be used alongside serde flattten
@@ -315,6 +303,12 @@ pub struct BuildCommon {
   pub updated_at: OffsetDateTime,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BuildState {
+  Completed,
+}
+
 #[serde_as]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Build {
@@ -325,6 +319,12 @@ pub struct Build {
   pub state: BuildState,
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub files: Vec<BuildFile>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UploadBuild {
+  #[serde(flatten)]
+  pub build_info: BuildCommon,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
