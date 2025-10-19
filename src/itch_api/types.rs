@@ -102,6 +102,27 @@ pub struct ItchKey {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LoginSuccess {
+  pub success: bool,
+  pub cookie: ItchCookie,
+  pub key: ItchKey,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LoginCaptchaError {
+  pub success: bool,
+  pub recaptcha_needed: bool,
+  pub recaptcha_url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LoginTOTPError {
+  pub success: bool,
+  pub totp_needed: bool,
+  pub token: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct User {
   pub id: u64,
   pub username: String,
