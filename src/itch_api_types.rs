@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_with::{DefaultOnError, serde_as};
 use std::fmt;
 use time::{OffsetDateTime, serde::rfc3339};
 
@@ -16,7 +17,7 @@ const ITCH_API_V2_BASE_URL: &str = "https://api.itch.io";
 /// # Errors
 ///
 /// If deserializing the Vector fails
-pub fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
+fn empty_object_as_vec<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
 where
   D: serde::de::Deserializer<'de>,
   T: Deserialize<'de>,
@@ -335,6 +336,73 @@ pub struct Upload {
   pub md5_hash: Option<String>,
 }
 
+#[serde_as]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UploadBuild {
+  pub id: u64,
+  #[serde_as(deserialize_as = "DefaultOnError<Option<_>>")]
+  pub parent_build_id: Option<u64>,
+  pub version: u64,
+  pub user_version: String,
+  #[serde(with = "rfc3339")]
+  pub created_at: OffsetDateTime,
+  #[serde(with = "rfc3339")]
+  pub updated_at: OffsetDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum BuildState {
+  #[serde(rename = "completed")]
+  Completed,
+}
+
+#[serde_as]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Build {
+  pub id: u64,
+  pub upload_id: u64,
+  #[serde_as(deserialize_as = "DefaultOnError<Option<_>>")]
+  pub parent_build_id: Option<u64>,
+  pub version: u64,
+  pub user_version: String,
+  #[serde(with = "rfc3339")]
+  pub created_at: OffsetDateTime,
+  #[serde(with = "rfc3339")]
+  pub updated_at: OffsetDateTime,
+  pub user: User,
+  pub state: BuildState,
+  #[serde(deserialize_with = "empty_object_as_vec")]
+  pub files: Vec<BuildFile>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum BuildFileType {
+  #[serde(rename = "archive")]
+  Archive,
+  #[serde(rename = "patch")]
+  Patch,
+  #[serde(rename = "signature")]
+  Signature,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum BuildFileSubtype {
+  #[serde(rename = "default")]
+  Default,
+  #[serde(rename = "optimized")]
+  Optimized,
+  #[serde(rename = "uploaded")]
+  Uploaded,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BuildFile {
+  pub size: u64,
+  pub r#type: BuildFileType,
+  pub sub_type: BuildFileSubtype,
+  pub state: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ApiResponse<T> {
@@ -468,4 +536,15 @@ pub struct GameUploadsResponse {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UploadInfoResponse {
   pub upload: Upload,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UploadBuildsResponse {
+  #[serde(deserialize_with = "empty_object_as_vec")]
+  pub builds: Vec<UploadBuild>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BuildInfoResponse {
+  pub build: Build,
 }

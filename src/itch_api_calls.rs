@@ -551,3 +551,62 @@ pub async fn get_upload_info(client: &ItchClient, upload_id: u64) -> Result<Uplo
       format!("An error occurred while attempting to obtain the upload information:\n{e}")
     })
 }
+
+/// Get the upload's builds (downloadable versions)
+///
+/// # Arguments
+///
+/// * `client` - An itch.io API client
+///
+/// * `upload_id` - The ID of the upload from which information will be obtained
+///
+/// # Returns
+///
+/// A vector of `UploadBuild` structs with the info provided by the API
+///
+/// # Errors
+///
+/// If something goes wrong
+pub async fn get_upload_builds(
+  client: &ItchClient,
+  upload_id: u64,
+) -> Result<Vec<UploadBuild>, String> {
+  client
+    .itch_request_json::<UploadBuildsResponse>(
+      &ItchApiUrl::V2(&format!("uploads/{upload_id}/builds")),
+      Method::GET,
+      |b| b,
+    )
+    .await
+    .map(|res| res.builds)
+    .map_err(|e| format!("An error occurred while attempting to obtain the upload builds:\n{e}"))
+}
+
+/// Get a build's info
+///
+/// # Arguments
+///
+/// * `client` - An itch.io API client
+///
+/// * `build_id` - The ID of the build from which information will be obtained
+///
+/// # Returns
+///
+/// A `Build` struct with the info provided by the API
+///
+/// # Errors
+///
+/// If something goes wrong
+pub async fn get_build_info(client: &ItchClient, build_id: u64) -> Result<Build, String> {
+  client
+    .itch_request_json::<BuildInfoResponse>(
+      &ItchApiUrl::V2(&format!("builds/{build_id}")),
+      Method::GET,
+      |b| b,
+    )
+    .await
+    .map(|res| res.build)
+    .map_err(|e| {
+      format!("An error occurred while attempting to obtain the build information:\n{e}")
+    })
+}
