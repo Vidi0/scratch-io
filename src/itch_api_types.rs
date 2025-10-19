@@ -363,16 +363,9 @@ pub struct UploadBuild {
 #[serde_as]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UpgradePathBuild {
-  pub id: u64,
+  #[serde(flatten)]
+  pub build_info: BuildCommon,
   pub upload_id: u64,
-  #[serde_as(deserialize_as = "DefaultOnError<Option<_>>")]
-  pub parent_build_id: Option<u64>,
-  pub version: u64,
-  pub user_version: String,
-  #[serde(with = "rfc3339")]
-  pub created_at: OffsetDateTime,
-  #[serde(with = "rfc3339")]
-  pub updated_at: OffsetDateTime,
   pub files: Vec<BuildFile>,
 }
 
