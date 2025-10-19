@@ -90,6 +90,7 @@ scratch-io help
 
 ## 📝 TODO
 
+- [ ] Add tests
 - [ ] Read and use the [itch.io manifest](https://docs.itch.ovh/itch/master/integrating/manifest.html)
   - [X] Detect game executable from manifest actions
   - [ ] Handle game prerequisites from manifest
