@@ -78,6 +78,8 @@ pub async fn get_game_executable(
     ));
   }
 
+  let game_title = make_alphanumeric_lowercase(game_info.game_info.title.clone());
+
   // This variable will store the best executable found at the moment and its rating
   let mut best_executable: (Option<PathBuf>, i64) = (None, i64::MIN);
 
@@ -103,7 +105,7 @@ pub async fn get_game_executable(
           queue.push_back((entry_path, depth + 1));
         }
       } else {
-        let rating = rate_executable(entry_path.as_path(), depth, platform, game_info)?;
+        let rating = rate_executable(entry_path.as_path(), depth, platform, game_title.as_str())?;
         if rating > best_executable.1 {
           best_executable = (Some(entry_path), rating);
         }
@@ -131,7 +133,7 @@ pub async fn get_game_executable(
 ///
 /// * `platform` - The platform the game executable will be run on
 ///
-/// * `game_info` - Information about the game
+/// * `game_title` - Information about the game
 ///
 /// # Returns
 ///
@@ -142,7 +144,7 @@ fn rate_executable(
   file_path: &Path,
   directory_levels: usize,
   platform: &GamePlatform,
-  game_info: &Game,
+  game_title: &str,
 ) -> Result<i64, String> {
   let mut rating: i64 = 0;
 
@@ -191,10 +193,9 @@ fn rate_executable(
     rating += 2300;
   }
 
-  let game_title = make_alphanumeric_lowercase(game_info.game_info.title.clone());
   // Check if the filename is similar to the game name or the game name with cerating suffixes
   rating += proximity_rating_with_suffixes(
-    game_title.as_str(),
+    game_title,
     filename.as_str(),
     ARCHITECTURE_SUFFIXES,
     2,
