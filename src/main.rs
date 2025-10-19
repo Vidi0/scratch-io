@@ -2,7 +2,7 @@ mod config;
 use config::Config;
 
 use clap::{Parser, Subcommand};
-use scratch_io::itch_api::ItchClient;
+use scratch_io::ItchClient;
 use scratch_io::{DownloadStatus, InstalledUpload};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -269,7 +269,7 @@ async fn login(
   config_api_key: &mut Option<String>,
 ) {
   let client =
-    scratch_io::itch_api::ItchClient::login(username, password, recaptcha_response, totp_code)
+    scratch_io::ItchClient::login(username, password, recaptcha_response, totp_code)
       .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"));
 

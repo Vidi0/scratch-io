@@ -5,6 +5,7 @@ pub mod itch_api;
 pub mod itch_manifest;
 use crate::game_files_operations::*;
 use crate::itch_api::{types::*, *};
+pub use crate::itch_api::ItchClient;
 
 use futures_util::StreamExt;
 use md5::{Digest, Md5, digest::core_api::CoreWrapper};
