@@ -198,56 +198,38 @@ pub struct CollectionGame {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum GameType {
-  #[serde(rename = "default")]
   Default,
-  #[serde(rename = "html")]
-  HTML,
-  #[serde(rename = "flash")]
+  Html,
   Flash,
-  #[serde(rename = "java")]
   Java,
-  #[serde(rename = "unity")]
   Unity,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum GameClassification {
-  #[serde(rename = "game")]
   Game,
-  #[serde(rename = "assets")]
   Assets,
-  #[serde(rename = "game_mod")]
   GameMod,
-  #[serde(rename = "physical_game")]
   PhysicalGame,
-  #[serde(rename = "soundtrack")]
   Soundtrack,
-  #[serde(rename = "tool")]
   Tool,
-  #[serde(rename = "comic")]
   Comic,
-  #[serde(rename = "book")]
   Book,
-  #[serde(rename = "other")]
   Other,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum GameTrait {
-  #[serde(rename = "p_linux")]
   PLinux,
-  #[serde(rename = "p_windows")]
   PWindows,
-  #[serde(rename = "p_osx")]
-  POSX,
-  #[serde(rename = "p_android")]
+  POsx,
   PAndroid,
-  #[serde(rename = "can_be_bought")]
   CanBeBought,
-  #[serde(rename = "has_demo")]
   HasDemo,
-  #[serde(rename = "in_press_system")]
   InPressSystem,
 }
 
@@ -271,48 +253,31 @@ pub struct Game {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum UploadType {
-  #[serde(rename = "default")]
   Default,
-  #[serde(rename = "html")]
-  HTML,
-  #[serde(rename = "flash")]
+  Html,
   Flash,
-  #[serde(rename = "java")]
   Java,
-  #[serde(rename = "unity")]
   Unity,
-  #[serde(rename = "soundtrack")]
   Soundtrack,
-  #[serde(rename = "book")]
   Book,
-  #[serde(rename = "video")]
   Video,
-  #[serde(rename = "documentation")]
   Documentation,
-  #[serde(rename = "mod")]
   Mod,
-  #[serde(rename = "audio_assets")]
   AudioAssets,
-  #[serde(rename = "graphical_assets")]
   GraphicalAssets,
-  #[serde(rename = "sourcecode")]
   Sourcecode,
-  #[serde(rename = "other")]
   Other,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum UploadTrait {
-  #[serde(rename = "p_linux")]
   PLinux,
-  #[serde(rename = "p_windows")]
   PWindows,
-  #[serde(rename = "p_osx")]
-  POSX,
-  #[serde(rename = "p_android")]
+  POsx,
   PAndroid,
-  #[serde(rename = "demo")]
   Demo,
 }
 
@@ -351,8 +316,8 @@ pub struct UploadBuild {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum BuildState {
-  #[serde(rename = "completed")]
   Completed,
 }
 
@@ -376,22 +341,18 @@ pub struct Build {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum BuildFileType {
-  #[serde(rename = "archive")]
   Archive,
-  #[serde(rename = "patch")]
   Patch,
-  #[serde(rename = "signature")]
   Signature,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum BuildFileSubtype {
-  #[serde(rename = "default")]
   Default,
-  #[serde(rename = "optimized")]
   Optimized,
-  #[serde(rename = "uploaded")]
   Uploaded,
 }
 

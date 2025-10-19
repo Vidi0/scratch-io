@@ -38,7 +38,7 @@ impl Upload {
     let mut platforms: Vec<GamePlatform> = Vec::new();
 
     match self.r#type {
-      UploadType::HTML => platforms.push(GamePlatform::Web),
+      UploadType::Html => platforms.push(GamePlatform::Web),
       UploadType::Flash => platforms.push(GamePlatform::Flash),
       UploadType::Java => platforms.push(GamePlatform::Java),
       UploadType::Unity => platforms.push(GamePlatform::UnityWebPlayer),
@@ -49,7 +49,7 @@ impl Upload {
       match t {
         UploadTrait::PLinux => platforms.push(GamePlatform::Linux),
         UploadTrait::PWindows => platforms.push(GamePlatform::Windows),
-        UploadTrait::POSX => platforms.push(GamePlatform::OSX),
+        UploadTrait::POsx => platforms.push(GamePlatform::OSX),
         UploadTrait::PAndroid => platforms.push(GamePlatform::Android),
         UploadTrait::Demo => (),
       }
