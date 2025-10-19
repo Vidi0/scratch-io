@@ -305,30 +305,6 @@ pub struct BuildCommon {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum BuildState {
-  Completed,
-}
-
-#[serde_as]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Build {
-  #[serde(flatten)]
-  pub build_info: BuildCommon,
-  pub upload_id: u64,
-  pub user: User,
-  pub state: BuildState,
-  #[serde(deserialize_with = "empty_object_as_vec")]
-  pub files: Vec<BuildFile>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct UploadBuild {
-  #[serde(flatten)]
-  pub build_info: BuildCommon,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum BuildFileType {
   Archive,
   Patch,
@@ -358,6 +334,30 @@ pub struct BuildFile {
   pub r#type: BuildFileType,
   pub sub_type: BuildFileSubtype,
   pub state: BuildFileState,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BuildState {
+  Completed,
+}
+
+#[serde_as]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Build {
+  #[serde(flatten)]
+  pub build_info: BuildCommon,
+  pub upload_id: u64,
+  pub user: User,
+  pub state: BuildState,
+  #[serde(deserialize_with = "empty_object_as_vec")]
+  pub files: Vec<BuildFile>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UploadBuild {
+  #[serde(flatten)]
+  pub build_info: BuildCommon,
 }
 
 #[serde_as]
