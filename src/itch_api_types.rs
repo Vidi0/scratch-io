@@ -346,6 +346,8 @@ pub enum BuildFileType {
   Archive,
   Patch,
   Signature,
+  Manifest,
+  Unpacked,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -353,6 +355,13 @@ pub enum BuildFileType {
 pub enum BuildFileSubtype {
   Default,
   Optimized,
+  Accelerated,
+  Gzip,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BuildFileState {
   Uploaded,
 }
 
@@ -361,7 +370,7 @@ pub struct BuildFile {
   pub size: u64,
   pub r#type: BuildFileType,
   pub sub_type: BuildFileSubtype,
-  pub state: String,
+  pub state: BuildFileState,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
