@@ -2,8 +2,8 @@ mod config;
 use config::Config;
 
 use clap::{Parser, Subcommand};
-use scratch_io::ItchClient;
 use scratch_io::{DownloadStatus, InstalledUpload};
+use scratch_io::{ItchClient, itch_api};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -253,7 +253,7 @@ async fn auth(client: ItchClient, config_api_key: &mut Option<String>) {
   *config_api_key = Some(client.get_api_key().to_string());
 
   // Print user info
-  let profile = scratch_io::itch_api::get_profile(&client)
+  let profile = itch_api::get_profile(&client)
     .await
     .unwrap_or_else(|e| eprintln_exit!("{e}"));
   println!("Logged in as: {}", profile.get_name());
@@ -268,10 +268,9 @@ async fn login(
   totp_code: Option<u64>,
   config_api_key: &mut Option<String>,
 ) {
-  let client =
-    scratch_io::ItchClient::login(username, password, recaptcha_response, totp_code)
-      .await
-      .unwrap_or_else(|e| eprintln_exit!("{e}"));
+  let client = scratch_io::ItchClient::login(username, password, recaptcha_response, totp_code)
+    .await
+    .unwrap_or_else(|e| eprintln_exit!("{e}"));
 
   auth(client, config_api_key).await;
 }
@@ -291,7 +290,7 @@ fn logout(config_api_key: &mut Option<String>) {
 async fn print_profile(client: &ItchClient) {
   println!(
     "{:#?}",
-    scratch_io::itch_api::get_profile(client)
+    itch_api::get_profile(client)
       .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
@@ -301,7 +300,7 @@ async fn print_profile(client: &ItchClient) {
 async fn print_created_games(client: &ItchClient) {
   println!(
     "{:#?}",
-    scratch_io::itch_api::get_crated_games(client)
+    itch_api::get_crated_games(client)
       .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"))
   )
@@ -311,7 +310,7 @@ async fn print_created_games(client: &ItchClient) {
 async fn print_owned_keys(client: &ItchClient) {
   println!(
     "{:#?}",
-    scratch_io::itch_api::get_owned_keys(client)
+    itch_api::get_owned_keys(client)
       .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
@@ -321,7 +320,7 @@ async fn print_owned_keys(client: &ItchClient) {
 async fn print_collections(client: &ItchClient) {
   println!(
     "{:#?}",
-    scratch_io::itch_api::get_profile_collections(client)
+    itch_api::get_profile_collections(client)
       .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
@@ -331,7 +330,7 @@ async fn print_collections(client: &ItchClient) {
 async fn print_collection_games(client: &ItchClient, collection_id: u64) {
   println!(
     "{:#?}",
-    scratch_io::itch_api::get_collection_games(client, collection_id)
+    itch_api::get_collection_games(client, collection_id)
       .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"))
   )
@@ -341,12 +340,12 @@ async fn print_collection_games(client: &ItchClient, collection_id: u64) {
 async fn print_game_info(client: &ItchClient, game_id: u64) {
   println!(
     "{:#?}",
-    scratch_io::itch_api::get_game_info(client, game_id)
+    itch_api::get_game_info(client, game_id)
       .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
 
-  let uploads = scratch_io::itch_api::get_game_uploads(client, game_id)
+  let uploads = itch_api::get_game_uploads(client, game_id)
     .await
     .unwrap_or_else(|e| eprintln_exit!("{e}"));
   println!("{uploads:#?}");
