@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use serde_with::{DefaultOnError, serde_as};
-use std::fmt;
 use time::{OffsetDateTime, serde::rfc3339};
 
 const ITCH_API_V1_BASE_URL: &str = "https://itch.io/api/1";
@@ -30,7 +29,7 @@ where
   {
     type Value = Vec<T>;
 
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
       formatter.write_str("an array or an empty object")
     }
 
@@ -69,8 +68,8 @@ pub enum ItchApiUrl<'a> {
   Other(&'a str),
 }
 
-impl fmt::Display for ItchApiUrl<'_> {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for ItchApiUrl<'_> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(
       f,
       "{}",
