@@ -11,14 +11,17 @@ pub struct ItchClient {
   api_key: String,
 }
 
-// This block defines the ItchClient API calls and helper functions
+// This block defines the ItchClient helper functions
 impl ItchClient {
   /// Obtain the API key associated with this `ItchClient`
   #[must_use]
   pub fn get_api_key(&self) -> &str {
     &self.api_key
   }
+}
 
+// This block defiles the ItchClient API calls
+impl ItchClient {
   /// Make a request to the itch.io API
   ///
   /// # Arguments
