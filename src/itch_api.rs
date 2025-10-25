@@ -344,7 +344,7 @@ pub async fn get_profile(
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn get_crated_games(
+pub async fn get_created_games(
   client: &ItchClient,
 ) -> Result<Vec<CreatedGame>, ItchRequestJSONError<ApiResponseCommonErrors>> {
   client

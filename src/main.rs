@@ -304,7 +304,7 @@ async fn print_profile(client: &ItchClient) {
 async fn print_created_games(client: &ItchClient) {
   println!(
     "{:#?}",
-    itch_api::get_crated_games(client)
+    itch_api::get_created_games(client)
       .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"))
   )
