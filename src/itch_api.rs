@@ -280,7 +280,7 @@ impl ItchClient {
       .await?;
 
     let ls = match response {
-      LoginResponse::CaptchaError(e) => return Err(LoginError::CaptchaNeeded(e).into()),
+      LoginResponse::CaptchaError(e) => return Err(LoginError::CaptchaNeeded(e)),
       LoginResponse::TOTPError(e) => {
         let Some(totp_code) = totp_code else {
           return Err(LoginError::TOTPNeeded(e));
