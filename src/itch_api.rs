@@ -48,7 +48,7 @@ impl ItchClient {
     url: &ItchApiUrl<'_>,
     method: Method,
     options: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
-  ) -> Result<Response, ItchRequestError> {
+  ) -> Result<Response, reqwest::Error> {
     // Create the base request
     let mut request: reqwest::RequestBuilder = self.client.request(method, url.to_string());
 
@@ -75,10 +75,7 @@ impl ItchClient {
     // it needs to be able to modify anything
     request = options(request);
 
-    request.send().await.map_err(|error| ItchRequestError {
-      url: url.to_string(),
-      error,
-    })
+    request.send().await
   }
 
   /// Make a request to the itch.io API and parse the response as JSON
@@ -110,18 +107,27 @@ impl ItchClient {
     let text = self
       .itch_request(url, method, options)
       .await
-      .map_err(ItchRequestJSONError::CouldntSend)?
+      .map_err(|e| ItchRequestJSONError {
+        url: url.to_string(),
+        kind: ItchRequestJSONErrorKind::CouldntSend(e),
+      })?
       .text()
       .await
-      .map_err(|error| ItchRequestJSONError::CouldntGetText {
+      .map_err(|e| ItchRequestJSONError {
         url: url.to_string(),
-        error,
+        kind: ItchRequestJSONErrorKind::CouldntGetText(e),
       })?;
 
     serde_json::from_str::<ApiResponse<T>>(&text)
-      .map_err(|error| ItchRequestJSONError::InvalidJSON { body: text, error })?
+      .map_err(|error| ItchRequestJSONError {
+        url: url.to_string(),
+        kind: ItchRequestJSONErrorKind::InvalidJSON { body: text, error },
+      })?
       .into_result()
-      .map_err(ItchRequestJSONError::ServerRepliedWithError)
+      .map_err(|e| ItchRequestJSONError {
+        url: url.to_string(),
+        kind: ItchRequestJSONErrorKind::ServerRepliedWithError(e),
+      })
   }
 
   /// Make requests to the itch.io API to get a list of items that are split into pages

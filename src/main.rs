@@ -199,8 +199,8 @@ async fn get_itch_client(
       "Error: an itch.io API key is required, either via --api-key, auth, or the login command."
         .to_string(),
     ),
-    Some((api_key, is_saved_key)) => ItchClient::auth(api_key).await.map_err(|e| match e {
-      itch_api::errors::ItchRequestJSONError::ServerRepliedWithError(
+    Some((api_key, is_saved_key)) => ItchClient::auth(api_key).await.map_err(|e| match e.kind {
+      itch_api::errors::ItchRequestJSONErrorKind::ServerRepliedWithError(
         scratch_io::itch_api::errors::ApiResponseCommonErrors::InvalidApiKey(_),
       ) => {
         if is_saved_key {

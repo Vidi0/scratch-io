@@ -11,38 +11,34 @@ const ERROR_INVALID_UPLOAD: &str = "invalid upload";
 const ERROR_INVALID_BUILD: &str = "invalid build";
 const ERROR_NO_UPGRADE_PATH: &str = "no upgrade path";
 
-/// Error returned from itch_request
-#[derive(Error, Debug)]
-#[error(
-  "Error while sending request, redirect loop was detected or redirect limit was exhausted:\n{url}\n{error}"
-)]
-pub struct ItchRequestError {
-  pub url: String,
-  #[source]
-  pub error: reqwest::Error,
-}
-
 /// Error returned from itch_request_json
 #[derive(Error, Debug)]
-pub enum ItchRequestJSONError<T>
+#[error("An API call to \"{url}\" failed:\n{kind}")]
+pub struct ItchRequestJSONError<T>
 where
   T: std::error::Error + std::fmt::Debug,
 {
-  #[error(transparent)]
-  CouldntSend(#[from] ItchRequestError),
+  pub url: String,
+  #[source]
+  pub kind: ItchRequestJSONErrorKind<T>,
+}
 
-  #[error("Couldn't get the network request response body:\n{url}\n{error}")]
-  CouldntGetText {
-    url: String,
+#[derive(Error, Debug)]
+pub enum ItchRequestJSONErrorKind<T>
+where
+  T: std::error::Error + std::fmt::Debug,
+{
+  #[error(
+    "Error while sending request, redirect loop was detected or redirect limit was exhausted:\n{0}"
+  )]
+  CouldntSend(#[source] reqwest::Error),
 
-    #[source]
-    error: reqwest::Error,
-  },
+  #[error("Couldn't get the network request response body:\n{0}")]
+  CouldntGetText(#[source] reqwest::Error),
 
   #[error("Couldn't parse the request response body into JSON:\n{body}\n\n{error}")]
   InvalidJSON {
     body: String,
-
     #[source]
     error: serde_json::Error,
   },
