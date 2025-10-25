@@ -24,9 +24,6 @@ pub struct ItchRequestError {
 
 /// Error returned from itch_request_json
 #[derive(Error, Debug)]
-#[error(
-  "Error while sending request, redirect loop was detected or redirect limit was exhausted:\n{url}\n{error}"
-)]
 pub enum ItchRequestJSONError<T>
 where
   T: std::error::Error + std::fmt::Debug,
