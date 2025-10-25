@@ -639,3 +639,27 @@ pub async fn get_upgrade_path(
     .await
     .map(|res| res.upgrade_path.builds)
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  /// Read the `SCRATCH_API_KEY` environment variable and create a `ItchClient` based on it
+  ///
+  /// # Panics
+  ///
+  /// If the `SCRATCH_API_KEY` environment variable isn't set, the API key is invalid or unable to connect to the Itch.io API.
+  async fn get_client() -> ItchClient {
+    let api_key = std::env::var("SCRATCH_API_KEY").expect("SCRATCH_API_KEY must be set for tests");
+    match ItchClient::auth(api_key).await {
+      Ok(c) => c,
+      Err(e) => panic!("Couldn't create the ItchClient!\n{e}"),
+    }
+  }
+
+  #[tokio::test]
+  async fn test_profile() {
+    let client = get_client().await;
+    get_profile(&client).await.unwrap();
+  }
+}
