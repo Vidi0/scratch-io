@@ -4,6 +4,7 @@ mod game_files_operations;
 mod heuristics;
 pub mod itch_api;
 pub mod itch_manifest;
+
 use crate::game_files_operations::*;
 pub use crate::itch_api::ItchClient;
 use crate::itch_api::{types::*, *};

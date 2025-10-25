@@ -1,4 +1,5 @@
 mod config;
+
 use config::Config;
 
 use clap::{Parser, Subcommand};
