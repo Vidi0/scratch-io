@@ -198,14 +198,17 @@ async fn get_itch_client(
       "Error: an itch.io API key is required, either via --api-key, auth, or the login command."
         .to_string(),
     ),
-    Some((api_key, is_saved_key)) => ItchClient::auth(api_key).await.map_err(|e| {
-      if !e.contains("invalid key") {
-        e
-      } else if is_saved_key {
-        "The key is not longer valid. Try logging in again.".to_string()
-      } else {
-        "The key is invalid!".to_string()
+    Some((api_key, is_saved_key)) => ItchClient::auth(api_key).await.map_err(|e| match e {
+      itch_api::errors::ItchRequestJSONError::ServerRepliedWithError(
+        scratch_io::itch_api::errors::ApiResponseCommonErrors::InvalidApiKey(_),
+      ) => {
+        if is_saved_key {
+          "The key is not longer valid. Try logging in again.".to_string()
+        } else {
+          "The key is invalid!".to_string()
+        }
       }
+      _ => e.to_string(),
     }),
   }
 }

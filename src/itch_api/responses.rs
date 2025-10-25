@@ -1,6 +1,9 @@
+use super::errors::*;
 use super::types::*;
+
 use serde::{Deserialize, Serialize};
 
+/// The itch.io API can respond with either the requested structure or a list of errors
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ApiResponse<T> {
@@ -11,14 +14,15 @@ pub enum ApiResponse<T> {
   },
 }
 
-impl<T> ApiResponse<T> {
-  pub fn into_result(self) -> Result<T, String> {
+pub trait IntoResponseResult {
+  type Err: From<ApiResponseError> + std::error::Error + std::fmt::Debug;
+}
+
+impl<T: IntoResponseResult> ApiResponse<T> {
+  pub fn into_result(self) -> Result<T, <T as IntoResponseResult>::Err> {
     match self {
-      ApiResponse::Success(data) => Ok(data),
-      ApiResponse::Error { errors } => Err(format!(
-        "The server replied with an error:\n{}",
-        errors.join("\n")
-      )),
+      Self::Success(v) => Ok(v),
+      Self::Error { errors } => Err(ApiResponseError::from(errors).into()),
     }
   }
 }
@@ -41,6 +45,18 @@ pub trait ListResponse {
   fn items(self) -> Vec<Self::Item>;
 }
 
+/// Response struct for: <https://api.itch.io/totp/verify>
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TOTPResponse {
+  #[serde(flatten)]
+  pub success: LoginSuccess,
+}
+
+impl IntoResponseResult for TOTPResponse {
+  type Err = TOTPResponseError;
+}
+
+/// Response struct for: <https://api.itch.io/login>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum LoginResponse {
@@ -49,17 +65,32 @@ pub enum LoginResponse {
   TOTPError(LoginTOTPError),
 }
 
+impl IntoResponseResult for LoginResponse {
+  type Err = LoginResponseError;
+}
+
+/// Response struct for: <https://api.itch.io/profile>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProfileInfoResponse {
   pub user: User,
 }
 
+impl IntoResponseResult for ProfileInfoResponse {
+  type Err = ApiResponseCommonErrors;
+}
+
+/// Response struct for: <https://api.itch.io/profile/games>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CreatedGamesResponse {
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub games: Vec<CreatedGame>,
 }
 
+impl IntoResponseResult for CreatedGamesResponse {
+  type Err = ApiResponseCommonErrors;
+}
+
+/// Response struct for: <https://api.itch.io/profile/owned-keys>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OwnedKeysResponse {
   #[serde(deserialize_with = "empty_object_as_vec")]
@@ -74,17 +105,32 @@ impl ListResponse for OwnedKeysResponse {
   }
 }
 
+impl IntoResponseResult for ApiResponseList<OwnedKeysResponse> {
+  type Err = ApiResponseCommonErrors;
+}
+
+/// Response struct for: <https://api.itch.io/profile/collections>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProfileCollectionsResponse {
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub collections: Vec<Collection>,
 }
 
+impl IntoResponseResult for ProfileCollectionsResponse {
+  type Err = ApiResponseCommonErrors;
+}
+
+/// Response struct for: <https://api.itch.io/collections/{collection_id}>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CollectionInfoResponse {
   pub collection: Collection,
 }
 
+impl IntoResponseResult for CollectionInfoResponse {
+  type Err = CollectionResponseError;
+}
+
+/// Response struct for: <https://api.itch.io/collections/{collection_id}/collection-games>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CollectionGamesResponse {
   #[serde(deserialize_with = "empty_object_as_vec")]
@@ -99,40 +145,74 @@ impl ListResponse for CollectionGamesResponse {
   }
 }
 
+impl IntoResponseResult for ApiResponseList<CollectionGamesResponse> {
+  type Err = CollectionResponseError;
+}
+
+/// Response struct for: <https://api.itch.io/games/{game_id}>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GameInfoResponse {
   pub game: Game,
 }
 
+impl IntoResponseResult for GameInfoResponse {
+  type Err = GameResponseError;
+}
+
+/// Response struct for: <https://api.itch.io/games/{game_id}/uploads>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GameUploadsResponse {
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub uploads: Vec<Upload>,
 }
 
+impl IntoResponseResult for GameUploadsResponse {
+  type Err = GameResponseError;
+}
+
+/// Response struct for: <https://api.itch.io/uploads/{upload_id}>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UploadInfoResponse {
   pub upload: Upload,
 }
 
+impl IntoResponseResult for UploadInfoResponse {
+  type Err = UploadResponseError;
+}
+
+/// Response struct for: <https://api.itch.io/uploads/{upload_id}/builds>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UploadBuildsResponse {
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub builds: Vec<UploadBuild>,
 }
 
+impl IntoResponseResult for UploadBuildsResponse {
+  type Err = UploadResponseError;
+}
+
+/// Response struct for: <https://api.itch.io/builds/{build_id}>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BuildInfoResponse {
   pub build: Build,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct BuildUpgradePathResponse {
-  pub upgrade_path: BuildUpgradePathResponseBuilds,
+impl IntoResponseResult for BuildInfoResponse {
+  type Err = BuildResponseError;
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BuildUpgradePathResponseBuilds {
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub builds: Vec<UpgradePathBuild>,
+}
+
+/// Response struct for: <https://api.itch.io/builds/{current_build_id}/upgrade-paths/{target_build_id}>
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BuildUpgradePathResponse {
+  pub upgrade_path: BuildUpgradePathResponseBuilds,
+}
+
+impl IntoResponseResult for BuildUpgradePathResponse {
+  type Err = UpgradePathResponseError;
 }

@@ -1,3 +1,4 @@
+pub mod errors;
 mod extract;
 mod game_files_operations;
 mod heuristics;
@@ -92,7 +93,11 @@ impl InstalledUpload {
     let mut updated = false;
 
     if self.upload.is_none() || force_update {
-      self.upload = Some(get_upload_info(client, self.upload_id).await?);
+      self.upload = Some(
+        get_upload_info(client, self.upload_id)
+          .await
+          .map_err(|e| e.to_string())?,
+      );
       updated = true;
     }
     if self.game.is_none() || force_update {
@@ -105,7 +110,8 @@ impl InstalledUpload {
             .expect("The upload info has just been received. Why isn't it there?")
             .game_id,
         )
-        .await?,
+        .await
+        .map_err(|e| e.to_string())?,
       );
       updated = true;
     }
@@ -296,7 +302,10 @@ async fn download_file(
 
   let file_response: Option<Response> = 'r: {
     // Send a request for the whole file
-    let res = client.itch_request(url, Method::GET, |b| b).await?;
+    let res = client
+      .itch_request(url, Method::GET, |b| b)
+      .await
+      .map_err(|e| e.to_string())?;
 
     let download_size = res.content_length().ok_or_else(|| {
       format!("Couldn't get the Content Length of the file to download!\n{res:?}")
@@ -318,7 +327,8 @@ async fn download_file(
         .itch_request(url, Method::GET, |b| {
           b.header(header::RANGE, format!("bytes={downloaded_bytes}-"))
         })
-        .await?;
+        .await
+        .map_err(|e| e.to_string())?;
 
       match part_res.status() {
         // 206 Partial Content code means the server will send the requested range
@@ -459,7 +469,9 @@ pub async fn download_game_cover(
   force_download: bool,
 ) -> Result<Option<PathBuf>, String> {
   // Get the game info from the server
-  let game = get_game_info(client, game_id).await?;
+  let game = get_game_info(client, game_id)
+    .await
+    .map_err(|e| e.to_string())?;
   // If the game doesn't have a cover, return
   let Some(cover_url) = game.game_info.cover_url else {
     return Ok(None);
@@ -544,8 +556,12 @@ pub async fn download_upload(
   // --- DOWNLOAD PREPARATION ---
 
   // Obtain information about the game and the upload that will be downloaeded
-  let upload: Upload = get_upload_info(client, upload_id).await?;
-  let game: Game = get_game_info(client, upload.game_id).await?;
+  let upload: Upload = get_upload_info(client, upload_id)
+    .await
+    .map_err(|e| e.to_string())?;
+  let game: Game = get_game_info(client, upload.game_id)
+    .await
+    .map_err(|e| e.to_string())?;
 
   // Send to the caller the game and the upload info
   upload_info(&upload, &game);
@@ -656,8 +672,12 @@ pub async fn import(
   game_folder: &Path,
 ) -> Result<InstalledUpload, String> {
   // Obtain information about the game and the upload that will be downloaeded
-  let upload: Upload = get_upload_info(client, upload_id).await?;
-  let game: Game = get_game_info(client, upload.game_id).await?;
+  let upload: Upload = get_upload_info(client, upload_id)
+    .await
+    .map_err(|e| e.to_string())?;
+  let game: Game = get_game_info(client, upload.game_id)
+    .await
+    .map_err(|e| e.to_string())?;
 
   Ok(InstalledUpload {
     upload_id,
@@ -696,8 +716,12 @@ pub async fn remove_partial_download(
   game_folder: Option<&Path>,
 ) -> Result<bool, String> {
   // Obtain information about the game and the upload
-  let upload: Upload = get_upload_info(client, upload_id).await?;
-  let game: Game = get_game_info(client, upload.game_id).await?;
+  let upload: Upload = get_upload_info(client, upload_id)
+    .await
+    .map_err(|e| e.to_string())?;
+  let game: Game = get_game_info(client, upload.game_id)
+    .await
+    .map_err(|e| e.to_string())?;
 
   // If the game_folder is unset, set it to ~/Games/{game_name}/
   let game_folder = match game_folder {

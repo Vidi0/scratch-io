@@ -1,6 +1,9 @@
+pub mod errors;
 mod responses;
 pub mod types;
+use errors::*;
 use responses::*;
+pub use responses::{ApiResponse, IntoResponseResult};
 use types::*;
 
 use reqwest::{Method, Response, header};
@@ -44,7 +47,7 @@ impl ItchClient {
     url: &ItchApiUrl<'_>,
     method: Method,
     options: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
-  ) -> Result<Response, String> {
+  ) -> Result<Response, ItchRequestError> {
     // Create the base request
     let mut request: reqwest::RequestBuilder = self.client.request(method, url.to_string());
 
@@ -71,10 +74,10 @@ impl ItchClient {
     // it needs to be able to modify anything
     request = options(request);
 
-    request
-      .send()
-      .await
-      .map_err(|e| format!("Error while sending request: {e}"))
+    request.send().await.map_err(|error| ItchRequestError {
+      url: url.to_string(),
+      error,
+    })
   }
 
   /// Make a request to the itch.io API and parse the response as JSON
@@ -99,20 +102,25 @@ impl ItchClient {
     url: &ItchApiUrl<'_>,
     method: Method,
     options: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
-  ) -> Result<T, String>
+  ) -> Result<T, ItchRequestJSONError<<T as IntoResponseResult>::Err>>
   where
-    T: serde::de::DeserializeOwned,
+    T: serde::de::DeserializeOwned + IntoResponseResult,
   {
     let text = self
       .itch_request(url, method, options)
-      .await?
+      .await
+      .map_err(ItchRequestJSONError::CouldntSend)?
       .text()
       .await
-      .map_err(|e| format!("Error while reading response body: {e}"))?;
+      .map_err(|error| ItchRequestJSONError::CouldntGetText {
+        url: url.to_string(),
+        error,
+      })?;
 
     serde_json::from_str::<ApiResponse<T>>(&text)
-      .map_err(|e| format!("Error while parsing JSON body: {e}\n\n{text}"))?
+      .map_err(|error| ItchRequestJSONError::InvalidJSON { body: text, error })?
       .into_result()
+      .map_err(ItchRequestJSONError::ServerRepliedWithError)
   }
 
   /// Make requests to the itch.io API to get a list of items that are split into pages
@@ -137,9 +145,10 @@ impl ItchClient {
     url: &ItchApiUrl<'_>,
     method: Method,
     mut options: impl FnMut(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
-  ) -> Result<Vec<T::Item>, String>
+  ) -> Result<Vec<T::Item>, ItchRequestJSONError<<ApiResponseList<T> as IntoResponseResult>::Err>>
   where
     T: serde::de::DeserializeOwned + ListResponse,
+    ApiResponseList<T>: IntoResponseResult,
   {
     let mut values: Vec<T::Item> = Vec::new();
     let mut page: u64 = 1;
@@ -148,12 +157,7 @@ impl ItchClient {
         .itch_request_json::<ApiResponseList<T>>(url, method.clone(), |b| {
           options(b.query(&[("page", page)]))
         })
-        .await
-        .map_err(|e| {
-          format!(
-            "An error occurred while attempting to obtain the a list of elements from the itch.io API:\n{e}"
-          )
-        })?;
+        .await?;
 
       let response_values = response.values.items();
       let num_elements: u64 = response_values.len() as u64;
@@ -185,7 +189,9 @@ impl ItchClient {
   /// # Errors
   ///
   /// If the API key is invalid or couldn't be verified
-  pub async fn auth(api_key: String) -> Result<Self, String> {
+  pub async fn auth(
+    api_key: String,
+  ) -> Result<Self, ItchRequestJSONError<ApiResponseCommonErrors>> {
     let client = Self {
       client: reqwest::Client::new(),
       api_key,
@@ -215,13 +221,12 @@ impl ItchClient {
     &self,
     totp_token: &str,
     totp_code: u64,
-  ) -> Result<LoginSuccess, String> {
+  ) -> Result<TOTPResponse, ItchRequestJSONError<TOTPResponseError>> {
     self
-      .itch_request_json::<LoginSuccess>(&ItchApiUrl::V2("totp/verify"), Method::POST, |b| {
+      .itch_request_json::<TOTPResponse>(&ItchApiUrl::V2("totp/verify"), Method::POST, |b| {
         b.form(&[("token", totp_token), ("code", &totp_code.to_string())])
       })
       .await
-      .map_err(|e| format!("An error occurred while attempting log in:\n{e}"))
   }
 
   /// Login to itch.io
@@ -250,7 +255,7 @@ impl ItchClient {
     password: &str,
     recaptcha_response: Option<&str>,
     totp_code: Option<u64>,
-  ) -> Result<Self, String> {
+  ) -> Result<Self, LoginError> {
     let mut client = Self {
       client: reqwest::Client::new(),
       api_key: String::new(),
@@ -271,32 +276,19 @@ impl ItchClient {
       .itch_request_json::<LoginResponse>(&ItchApiUrl::V2("login"), Method::POST, |b| {
         b.form(&params)
       })
-      .await
-      .map_err(|e| format!("An error occurred while attempting log in:\n{e}"))?;
+      .await?;
 
     let ls = match response {
-      LoginResponse::CaptchaError(e) => {
-        return Err(format!(
-          r#"A reCAPTCHA verification is required to continue!
-    Go to "{}" and solve the reCAPTCHA.
-    To obtain the token, paste the following command on the developer console:
-      console.log(grecaptcha.getResponse())
-    Then run the login command again with the --recaptcha-response option."#,
-          e.recaptcha_url.as_str()
-        ));
-      }
+      LoginResponse::CaptchaError(e) => return Err(LoginError::CaptchaNeeded(e).into()),
       LoginResponse::TOTPError(e) => {
         let Some(totp_code) = totp_code else {
-          return Err(
-            r"The accout has 2 step verification enabled via TOTP
-    Run the login command again with the --totp-code={{VERIFICATION_CODE}} option."
-              .to_string(),
-          );
+          return Err(LoginError::TOTPNeeded(e));
         };
 
         client
           .totp_verification(e.token.as_str(), totp_code)
-          .await?
+          .await
+          .map(|res| res.success)?
       }
       LoginResponse::Success(ls) => ls,
     };
@@ -323,12 +315,13 @@ impl ItchClient {
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn get_profile(client: &ItchClient) -> Result<User, String> {
+pub async fn get_profile(
+  client: &ItchClient,
+) -> Result<User, ItchRequestJSONError<ApiResponseCommonErrors>> {
   client
     .itch_request_json::<ProfileInfoResponse>(&ItchApiUrl::V2("profile"), Method::GET, |b| b)
     .await
     .map(|res| res.user)
-    .map_err(|e| format!("An error occurred while attempting to get the profile info:\n{e}"))
 }
 
 /// Get the games that the user created or that the user is an admin of
@@ -344,16 +337,13 @@ pub async fn get_profile(client: &ItchClient) -> Result<User, String> {
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn get_crated_games(client: &ItchClient) -> Result<Vec<CreatedGame>, String> {
+pub async fn get_crated_games(
+  client: &ItchClient,
+) -> Result<Vec<CreatedGame>, ItchRequestJSONError<ApiResponseCommonErrors>> {
   client
     .itch_request_json::<CreatedGamesResponse>(&ItchApiUrl::V2("profile/games"), Method::GET, |b| b)
     .await
     .map(|res| res.games)
-    .map_err(|e| {
-      format!(
-        "An error occurred while attempting to obtain the list of the user created games:\n{e}"
-      )
-    })
 }
 
 /// Get the user's owned game keys
@@ -369,7 +359,9 @@ pub async fn get_crated_games(client: &ItchClient) -> Result<Vec<CreatedGame>, S
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn get_owned_keys(client: &ItchClient) -> Result<Vec<OwnedKey>, String> {
+pub async fn get_owned_keys(
+  client: &ItchClient,
+) -> Result<Vec<OwnedKey>, ItchRequestJSONError<ApiResponseCommonErrors>> {
   client
     .itch_request_list::<OwnedKeysResponse>(
       &ItchApiUrl::V2("profile/owned-keys"),
@@ -377,11 +369,6 @@ pub async fn get_owned_keys(client: &ItchClient) -> Result<Vec<OwnedKey>, String
       |b| b,
     )
     .await
-    .map_err(|e| {
-      format!(
-        "An error occurred while attempting to obtain the list of the user created games:\n{e}"
-      )
-    })
 }
 
 /// List the user's game collections
@@ -397,7 +384,9 @@ pub async fn get_owned_keys(client: &ItchClient) -> Result<Vec<OwnedKey>, String
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn get_profile_collections(client: &ItchClient) -> Result<Vec<Collection>, String> {
+pub async fn get_profile_collections(
+  client: &ItchClient,
+) -> Result<Vec<Collection>, ItchRequestJSONError<ApiResponseCommonErrors>> {
   client
     .itch_request_json::<ProfileCollectionsResponse>(
       &ItchApiUrl::V2("profile/collections"),
@@ -406,11 +395,6 @@ pub async fn get_profile_collections(client: &ItchClient) -> Result<Vec<Collecti
     )
     .await
     .map(|res| res.collections)
-    .map_err(|e| {
-      format!(
-        "An error occurred while attempting to obtain the list of the profile's collections:\n{e}"
-      )
-    })
 }
 
 /// Get a collection's info
@@ -431,7 +415,7 @@ pub async fn get_profile_collections(client: &ItchClient) -> Result<Vec<Collecti
 pub async fn get_collection_info(
   client: &ItchClient,
   collection_id: u64,
-) -> Result<Collection, String> {
+) -> Result<Collection, ItchRequestJSONError<CollectionResponseError>> {
   client
     .itch_request_json::<CollectionInfoResponse>(
       &ItchApiUrl::V2(&format!("collections/{collection_id}")),
@@ -440,7 +424,6 @@ pub async fn get_collection_info(
     )
     .await
     .map(|res| res.collection)
-    .map_err(|e| format!("An error occurred while attempting to obtain the collection info:\n{e}"))
 }
 
 /// List a collection's games
@@ -461,7 +444,7 @@ pub async fn get_collection_info(
 pub async fn get_collection_games(
   client: &ItchClient,
   collection_id: u64,
-) -> Result<Vec<CollectionGameItem>, String> {
+) -> Result<Vec<CollectionGameItem>, ItchRequestJSONError<CollectionResponseError>> {
   client
     .itch_request_list::<CollectionGamesResponse>(
       &ItchApiUrl::V2(&format!("collections/{collection_id}/collection-games")),
@@ -469,11 +452,6 @@ pub async fn get_collection_games(
       |b| b,
     )
     .await
-    .map_err(|e| {
-      format!(
-        "An error occurred while attempting to obtain the list of the collection's games: {e}"
-      )
-    })
 }
 
 /// Get the information about a game in itch.io
@@ -491,7 +469,10 @@ pub async fn get_collection_games(
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn get_game_info(client: &ItchClient, game_id: u64) -> Result<Game, String> {
+pub async fn get_game_info(
+  client: &ItchClient,
+  game_id: u64,
+) -> Result<Game, ItchRequestJSONError<GameResponseError>> {
   client
     .itch_request_json::<GameInfoResponse>(
       &ItchApiUrl::V2(&format!("games/{game_id}")),
@@ -500,7 +481,6 @@ pub async fn get_game_info(client: &ItchClient, game_id: u64) -> Result<Game, St
     )
     .await
     .map(|res| res.game)
-    .map_err(|e| format!("An error occurred while attempting to obtain the game info:\n{e}"))
 }
 
 /// Get the game's uploads (downloadable files)
@@ -518,7 +498,10 @@ pub async fn get_game_info(client: &ItchClient, game_id: u64) -> Result<Game, St
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn get_game_uploads(client: &ItchClient, game_id: u64) -> Result<Vec<Upload>, String> {
+pub async fn get_game_uploads(
+  client: &ItchClient,
+  game_id: u64,
+) -> Result<Vec<Upload>, ItchRequestJSONError<GameResponseError>> {
   client
     .itch_request_json::<GameUploadsResponse>(
       &ItchApiUrl::V2(&format!("games/{game_id}/uploads")),
@@ -527,7 +510,6 @@ pub async fn get_game_uploads(client: &ItchClient, game_id: u64) -> Result<Vec<U
     )
     .await
     .map(|res| res.uploads)
-    .map_err(|e| format!("An error occurred while attempting to obtain the game uploads:\n{e}"))
 }
 
 /// Get an upload's info
@@ -545,7 +527,10 @@ pub async fn get_game_uploads(client: &ItchClient, game_id: u64) -> Result<Vec<U
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn get_upload_info(client: &ItchClient, upload_id: u64) -> Result<Upload, String> {
+pub async fn get_upload_info(
+  client: &ItchClient,
+  upload_id: u64,
+) -> Result<Upload, ItchRequestJSONError<UploadResponseError>> {
   client
     .itch_request_json::<UploadInfoResponse>(
       &ItchApiUrl::V2(&format!("uploads/{upload_id}")),
@@ -554,9 +539,6 @@ pub async fn get_upload_info(client: &ItchClient, upload_id: u64) -> Result<Uplo
     )
     .await
     .map(|res| res.upload)
-    .map_err(|e| {
-      format!("An error occurred while attempting to obtain the upload information:\n{e}")
-    })
 }
 
 /// Get the upload's builds (downloadable versions)
@@ -577,7 +559,7 @@ pub async fn get_upload_info(client: &ItchClient, upload_id: u64) -> Result<Uplo
 pub async fn get_upload_builds(
   client: &ItchClient,
   upload_id: u64,
-) -> Result<Vec<UploadBuild>, String> {
+) -> Result<Vec<UploadBuild>, ItchRequestJSONError<UploadResponseError>> {
   client
     .itch_request_json::<UploadBuildsResponse>(
       &ItchApiUrl::V2(&format!("uploads/{upload_id}/builds")),
@@ -586,7 +568,6 @@ pub async fn get_upload_builds(
     )
     .await
     .map(|res| res.builds)
-    .map_err(|e| format!("An error occurred while attempting to obtain the upload builds:\n{e}"))
 }
 
 /// Get a build's info
@@ -604,7 +585,10 @@ pub async fn get_upload_builds(
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn get_build_info(client: &ItchClient, build_id: u64) -> Result<Build, String> {
+pub async fn get_build_info(
+  client: &ItchClient,
+  build_id: u64,
+) -> Result<Build, ItchRequestJSONError<BuildResponseError>> {
   client
     .itch_request_json::<BuildInfoResponse>(
       &ItchApiUrl::V2(&format!("builds/{build_id}")),
@@ -613,9 +597,6 @@ pub async fn get_build_info(client: &ItchClient, build_id: u64) -> Result<Build,
     )
     .await
     .map(|res| res.build)
-    .map_err(|e| {
-      format!("An error occurred while attempting to obtain the build information:\n{e}")
-    })
 }
 
 /// Get the upgrade path between two upload builds
@@ -639,7 +620,7 @@ pub async fn get_upgrade_path(
   client: &ItchClient,
   current_build_id: u64,
   target_build_id: u64,
-) -> Result<Vec<UpgradePathBuild>, String> {
+) -> Result<Vec<UpgradePathBuild>, ItchRequestJSONError<UpgradePathResponseError>> {
   client
     .itch_request_json::<BuildUpgradePathResponse>(
       &ItchApiUrl::V2(&format!(
@@ -650,7 +631,4 @@ pub async fn get_upgrade_path(
     )
     .await
     .map(|res| res.upgrade_path.builds)
-    .map_err(|e| {
-      format!("An error occurred while attempting to obtain the build upgrade path:\n{e}")
-    })
 }
