@@ -10,6 +10,7 @@ use types::*;
 use reqwest::{Method, Response, header};
 
 /// A client able to send requests to the itch.io API
+#[derive(Debug, Clone)]
 pub struct ItchClient {
   client: reqwest::Client,
   api_key: String,
@@ -652,6 +653,16 @@ pub async fn get_upgrade_path(
 mod tests {
   use super::*;
 
+  const INVALID_KEY: String = String::new();
+  const VALID_COLLECTION_ID: u64 = 4;
+  const INVALID_COLLECTION_ID: u64 = 0;
+  const VALID_GAME_ID: u64 = 3;
+  const INVALID_GAME_ID: u64 = 0;
+  const VALID_UPLOAD_ID: u64 = 3;
+  const INVALID_UPLOAD_ID: u64 = 0;
+  const VALID_BUILD_ID: u64 = 117;
+  const INVALID_BUILD_ID: u64 = 0;
+
   /// Read the `SCRATCH_API_KEY` environment variable and create a `ItchClient` based on it
   ///
   /// # Panics
@@ -663,8 +674,203 @@ mod tests {
   }
 
   #[tokio::test]
+  async fn test_invalid_key() {
+    // This client has an empty API key
+    // For that reason, it should fail with InvalidApiKey
+    let client = ItchClient::auth(INVALID_KEY).await;
+
+    assert!(matches!(
+      client.unwrap_err().kind,
+      ItchRequestJSONErrorKind::ServerRepliedWithError(ApiResponseCommonErrors::InvalidApiKey(_)),
+    ));
+  }
+
+  #[tokio::test]
   async fn test_profile() {
     let client = get_client().await;
+
+    // Verify that retrieving the profile works
     get_profile(&client).await.unwrap();
+  }
+
+  #[tokio::test]
+  async fn test_created_games() {
+    let client = get_client().await;
+
+    // Verify that retrieving the created games works
+    get_created_games(&client).await.unwrap();
+  }
+
+  #[tokio::test]
+  async fn test_owned_keys() {
+    let client = get_client().await;
+
+    // Verify that retrieving the owned keys works
+    get_owned_keys(&client).await.unwrap();
+  }
+
+  #[tokio::test]
+  async fn test_profile_collections() {
+    let client = get_client().await;
+
+    // Verify that retrieving the profile collections works
+    get_profile_collections(&client).await.unwrap();
+  }
+
+  #[tokio::test]
+  async fn test_collection_info() {
+    let client = get_client().await;
+
+    // Verify that retrieving the collection info works
+    assert!(matches!(
+      get_collection_info(&client, VALID_COLLECTION_ID)
+        .await
+        .unwrap(),
+      Collection {
+        id: VALID_COLLECTION_ID,
+        ..
+      }
+    ));
+
+    // Verify that retrieving the collection info for an invalid collection fails
+    assert!(matches!(
+      get_collection_info(&client, INVALID_COLLECTION_ID)
+        .await
+        .unwrap_err()
+        .kind,
+      ItchRequestJSONErrorKind::ServerRepliedWithError(
+        CollectionResponseError::InvalidCollectionID(_)
+      )
+    ));
+  }
+
+  #[tokio::test]
+  async fn test_collection_games() {
+    let client = get_client().await;
+
+    // Verify that retrieving the collection info works
+    get_collection_games(&client, VALID_COLLECTION_ID)
+      .await
+      .unwrap();
+
+    // Verify that retrieving the collection games for an invalid collection fails
+    assert!(matches!(
+      get_collection_games(&client, INVALID_COLLECTION_ID)
+        .await
+        .unwrap_err()
+        .kind,
+      ItchRequestJSONErrorKind::ServerRepliedWithError(
+        CollectionResponseError::InvalidCollectionID(_)
+      )
+    ));
+  }
+
+  #[tokio::test]
+  async fn test_game_info() {
+    let client = get_client().await;
+
+    // Verify that retrieving the game info works
+    assert!(matches!(
+      get_game_info(&client, VALID_GAME_ID)
+        .await
+        .unwrap()
+        .game_info,
+      GameCommon {
+        id: VALID_GAME_ID,
+        ..
+      }
+    ));
+
+    // Verify that retrieving the game info for an invalid game fails
+    assert!(matches!(
+      get_game_info(&client, INVALID_GAME_ID)
+        .await
+        .unwrap_err()
+        .kind,
+      ItchRequestJSONErrorKind::ServerRepliedWithError(GameResponseError::InvalidGameID(_))
+    ));
+  }
+
+  #[tokio::test]
+  async fn test_game_uploads() {
+    let client = get_client().await;
+
+    // Verify that retrieving the game uploads works
+    get_game_uploads(&client, VALID_GAME_ID).await.unwrap();
+
+    // Verify that retrieving the game uploads for an invalid game fails
+    assert!(matches!(
+      get_game_uploads(&client, INVALID_GAME_ID)
+        .await
+        .unwrap_err()
+        .kind,
+      ItchRequestJSONErrorKind::ServerRepliedWithError(GameResponseError::InvalidGameID(_))
+    ));
+  }
+
+  #[tokio::test]
+  async fn test_upload_info() {
+    let client = get_client().await;
+
+    // Verify that retrieving the upload info works
+    assert!(matches!(
+      get_upload_info(&client, VALID_UPLOAD_ID).await.unwrap(),
+      Upload {
+        id: VALID_UPLOAD_ID,
+        ..
+      }
+    ));
+
+    // Verify that retrieving the upload info for an invalid upload fails
+    assert!(matches!(
+      get_upload_info(&client, INVALID_UPLOAD_ID)
+        .await
+        .unwrap_err()
+        .kind,
+      ItchRequestJSONErrorKind::ServerRepliedWithError(UploadResponseError::InvalidUploadID(_))
+    ));
+  }
+
+  #[tokio::test]
+  async fn test_upload_builds() {
+    let client = get_client().await;
+
+    // Verify that retrieving the upload builds works
+    get_upload_builds(&client, VALID_UPLOAD_ID).await.unwrap();
+
+    // Verify that retrieving the upload builds for an invalid upload fails
+    assert!(matches!(
+      get_upload_builds(&client, INVALID_UPLOAD_ID)
+        .await
+        .unwrap_err()
+        .kind,
+      ItchRequestJSONErrorKind::ServerRepliedWithError(UploadResponseError::InvalidUploadID(_))
+    ));
+  }
+
+  #[tokio::test]
+  async fn test_build_info() {
+    let client = get_client().await;
+
+    // Verify that retrieving the build info works
+    assert!(matches!(
+      get_build_info(&client, VALID_BUILD_ID)
+        .await
+        .unwrap()
+        .build_info,
+      BuildCommon {
+        id: VALID_BUILD_ID,
+        ..
+      }
+    ));
+
+    // Verify that retrieving the build info for an invalid build fails
+    assert!(matches!(
+      get_build_info(&client, INVALID_BUILD_ID)
+        .await
+        .unwrap_err()
+        .kind,
+      ItchRequestJSONErrorKind::ServerRepliedWithError(BuildResponseError::InvalidBuildID(_))
+    ));
   }
 }
