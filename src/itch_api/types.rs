@@ -304,6 +304,9 @@ pub struct Upload {
   #[serde(with = "rfc3339")]
   pub updated_at: OffsetDateTime,
   pub md5_hash: Option<String>,
+  pub build: Option<UploadBuild>,
+  pub build_id: Option<u64>,
+  pub channel_name: Option<String>,
 }
 
 /// This struct represents all the shared fields among the different Build structs
