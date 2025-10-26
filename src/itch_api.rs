@@ -15,16 +15,7 @@ pub struct ItchClient {
   api_key: String,
 }
 
-// This block defines the ItchClient helper functions
-impl ItchClient {
-  /// Obtain the API key associated with this `ItchClient`
-  #[must_use]
-  pub fn get_api_key(&self) -> &str {
-    &self.api_key
-  }
-}
-
-// This block defiles the ItchClient API calls
+/// This block defiles the ItchClient API calls
 impl ItchClient {
   /// Make a request to the itch.io API
   ///
@@ -181,9 +172,32 @@ impl ItchClient {
   }
 }
 
-// This block defines the ItchClient constructors
+/// This block defines the ItchClient constructors and other functions
 impl ItchClient {
-  /// Create a new client with the given itch.io API key, and verifies that it is valid
+  /// Obtain the API key associated with this `ItchClient`
+  #[must_use]
+  pub fn get_api_key(&self) -> &str {
+    &self.api_key
+  }
+
+  /// Create a new client using the provided itch.io API key, without verifying its validity
+  ///
+  /// # Arguments
+  ///
+  /// * `api_key` - A valid itch.io API key to store in the client
+  ///
+  /// # Returns
+  ///
+  /// A `ItchClient` struct with the given key
+  #[must_use]
+  pub fn new(api_key: String) -> Self {
+    Self {
+      client: reqwest::Client::new(),
+      api_key,
+    }
+  }
+
+  /// Create a new client using the provided itch.io API key and verify its validity
   ///
   /// # Arguments
   ///
@@ -199,10 +213,7 @@ impl ItchClient {
   pub async fn auth(
     api_key: String,
   ) -> Result<Self, ItchRequestJSONError<ApiResponseCommonErrors>> {
-    let client = Self {
-      client: reqwest::Client::new(),
-      api_key,
-    };
+    let client = ItchClient::new(api_key);
 
     // Verify that the API key is valid
     // Calling get_profile will fail if the given API key is invalid
@@ -263,10 +274,7 @@ impl ItchClient {
     recaptcha_response: Option<&str>,
     totp_code: Option<u64>,
   ) -> Result<Self, LoginError> {
-    let mut client = Self {
-      client: reqwest::Client::new(),
-      api_key: String::new(),
-    };
+    let mut client = ItchClient::new(String::new());
 
     let mut params: Vec<(&'static str, &str)> = vec![
       ("username", username),
@@ -648,13 +656,10 @@ mod tests {
   ///
   /// # Panics
   ///
-  /// If the `SCRATCH_API_KEY` environment variable isn't set, the API key is invalid or unable to connect to the Itch.io API.
+  /// If the `SCRATCH_API_KEY` environment variable isn't set
   async fn get_client() -> ItchClient {
     let api_key = std::env::var("SCRATCH_API_KEY").expect("SCRATCH_API_KEY must be set for tests");
-    match ItchClient::auth(api_key).await {
-      Ok(c) => c,
-      Err(e) => panic!("Couldn't create the ItchClient!\n{e}"),
-    }
+    ItchClient::new(api_key)
   }
 
   #[tokio::test]

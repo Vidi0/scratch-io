@@ -184,33 +184,15 @@ enum OptionalApiCommands {
 }
 
 /// Returns a Itch client with the first API key of the vector that is not None
-async fn get_itch_client(
-  keys: Vec<Option<String>>,
-  saved_key_index: usize,
-) -> Result<ItchClient, String> {
-  let api_key = keys
-    .into_iter()
-    .enumerate()
-    .find_map(|(index, key)| key.map(|k| (index, k)))
-    .map(|(key_index, api_key)| (api_key, key_index == saved_key_index));
+async fn get_itch_client(keys: Vec<Option<String>>) -> Result<ItchClient, String> {
+  let api_key = keys.into_iter().find_map(|key| key);
 
   match api_key {
     None => Err(
       "Error: an itch.io API key is required, either via --api-key, auth, or the login command."
         .to_string(),
     ),
-    Some((api_key, is_saved_key)) => ItchClient::auth(api_key).await.map_err(|e| match e.kind {
-      itch_api::errors::ItchRequestJSONErrorKind::ServerRepliedWithError(
-        scratch_io::itch_api::errors::ApiResponseCommonErrors::InvalidApiKey(_),
-      ) => {
-        if is_saved_key {
-          "The key is not longer valid. Try logging in again.".to_string()
-        } else {
-          "The key is invalid!".to_string()
-        }
-      }
-      _ => e.to_string(),
-    }),
+    Some(api_key) => Ok(ItchClient::new(api_key)),
   }
 }
 
@@ -655,8 +637,6 @@ async fn main() {
       config.api_key.to_owned(),
       // 4. If there isn't a saved config, throw an error
     ],
-    // The index of the previously saved config, to print a different error message
-    2,
   )
   .await;
 
