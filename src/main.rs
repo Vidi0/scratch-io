@@ -33,9 +33,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-  #[clap[flatten]]
+  #[clap(flatten)]
   RequireApi(RequireApiCommands),
-  #[clap[flatten]]
+  #[clap(flatten)]
   OptionalApi(OptionalApiCommands),
 }
 
