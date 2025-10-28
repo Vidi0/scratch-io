@@ -10,7 +10,7 @@ pub use crate::itch_api::ItchClient;
 use crate::itch_api::{types::*, *};
 
 use futures_util::StreamExt;
-use md5::{Digest, Md5, digest::core_api::CoreWrapper};
+use md5::{Digest, Md5};
 use reqwest::{Method, Response, header};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -134,7 +134,7 @@ impl InstalledUpload {
 /// An error if something goes wrong
 async fn hash_readable_async(
   readable: impl tokio::io::AsyncRead + Unpin,
-  hasher: &mut CoreWrapper<md5::Md5Core>,
+  hasher: &mut Md5,
 ) -> Result<(), String> {
   let mut br = tokio::io::BufReader::new(readable);
 
@@ -180,7 +180,7 @@ async fn hash_readable_async(
 async fn stream_response_into_file(
   response: Response,
   file: &mut tokio::fs::File,
-  mut md5_hash: Option<&mut CoreWrapper<md5::Md5Core>>,
+  mut md5_hash: Option<&mut Md5>,
   progress_callback: impl Fn(u64),
   callback_interval: Duration,
 ) -> Result<u64, String> {
@@ -250,7 +250,7 @@ async fn download_file(
   callback_interval: Duration,
 ) -> Result<(), String> {
   // Create the hasher variable
-  let mut md5_hash: Option<(CoreWrapper<md5::Md5Core>, &str)> = md5_hash.map(|s| (Md5::new(), s));
+  let mut md5_hash: Option<(Md5, &str)> = md5_hash.map(|s| (Md5::new(), s));
 
   // The file will be downloaded to this file with the .part extension,
   // and then the extension will be removed when the download ends
