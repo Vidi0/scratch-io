@@ -296,8 +296,11 @@ pub enum UploadTrait {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "storage", rename_all = "snake_case")]
 pub enum UploadStorage {
-  Hosted,
+  Hosted {
+    size: u64,
+  },
   Build {
+    size: u64,
     build: UploadBuild,
     build_id: u64,
     channel_name: String,
@@ -312,7 +315,6 @@ pub struct Upload {
   pub position: u64,
   pub id: u64,
   pub game_id: u64,
-  pub size: Option<u64>,
   pub r#type: UploadType,
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub traits: Vec<UploadTrait>,
