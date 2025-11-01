@@ -5,6 +5,7 @@ const ERROR_INVALID_API_KEY: &str = "invalid key";
 const ERROR_INVALID_USER_OR_PASSWORD: &str = "Incorrect username or password";
 const ERROR_INVALID_CAPTCHA_CODE: &str = "Please correctly complete reCAPTCHA";
 const ERROR_INVALID_TOTP_CODE: &str = "invalid code";
+const ERROR_INVALID_USER: &str = "invalid user";
 const ERROR_INVALID_COLLECTION: &str = "invalid collection";
 const ERROR_INVALID_GAME: &str = "invalid game";
 const ERROR_INVALID_UPLOAD: &str = "invalid upload";
@@ -68,6 +69,10 @@ pub struct IncorrectCaptchaCode;
 pub struct IncorrectTOTPCode;
 
 #[derive(Error, Debug)]
+#[error("The provided user ID is invalid.")]
+pub struct InvalidUserID;
+
+#[derive(Error, Debug)]
 #[error("The provided collection ID is invalid.")]
 pub struct InvalidCollectionID;
 
@@ -106,6 +111,9 @@ pub enum ApiResponseErrorKind {
   IncorrectTOTPCode(#[from] IncorrectTOTPCode),
 
   #[error(transparent)]
+  InvalidUserID(#[from] InvalidUserID),
+
+  #[error(transparent)]
   InvalidCollectionID(#[from] InvalidCollectionID),
 
   #[error(transparent)]
@@ -136,6 +144,7 @@ impl From<&[String]> for ApiResponseErrorKind {
       }
       [v] if v == ERROR_INVALID_CAPTCHA_CODE => Self::IncorrectCaptchaCode(IncorrectCaptchaCode),
       [v] if v == ERROR_INVALID_TOTP_CODE => Self::IncorrectTOTPCode(IncorrectTOTPCode),
+      [v] if v == ERROR_INVALID_USER => Self::InvalidUserID(InvalidUserID),
       [v] if v == ERROR_INVALID_COLLECTION => Self::InvalidCollectionID(InvalidCollectionID),
       [v] if v == ERROR_INVALID_GAME => Self::InvalidGameID(InvalidGameID),
       [v] if v == ERROR_INVALID_UPLOAD => Self::InvalidUploadID(InvalidUploadID),
@@ -255,6 +264,25 @@ r#"A reCAPTCHA verification is required to continue!
 
   #[error(transparent)]
   TOTPError(#[from] ItchRequestJSONError<TOTPResponseError>),
+}
+
+/// Errors returned from all the API calls that require a user ID as a parameter
+#[derive(Error, Debug)]
+pub enum UserResponseError {
+  #[error(transparent)]
+  InvalidUserID(#[from] InvalidUserID),
+
+  #[error(transparent)]
+  Other(#[from] ApiResponseCommonErrors),
+}
+
+impl From<ApiResponseError> for UserResponseError {
+  fn from(value: ApiResponseError) -> Self {
+    match value.kind {
+      ApiResponseErrorKind::InvalidUserID(v) => Self::InvalidUserID(v),
+      _ => Self::Other(value.into()),
+    }
+  }
 }
 
 /// Errors returned from all the API calls that require a collection ID as a parameter

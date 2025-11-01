@@ -69,10 +69,20 @@ impl IntoResponseResult for LoginResponse {
   type Err = LoginResponseError;
 }
 
+/// Response struct for: <https://api.itch.io/users/{user_id}>
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UserInfoResponse {
+  pub user: User,
+}
+
+impl IntoResponseResult for UserInfoResponse {
+  type Err = UserResponseError;
+}
+
 /// Response struct for: <https://api.itch.io/profile>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProfileInfoResponse {
-  pub user: User,
+  pub user: Profile,
 }
 
 impl IntoResponseResult for ProfileInfoResponse {

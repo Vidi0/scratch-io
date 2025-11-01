@@ -316,9 +316,7 @@ impl ItchClient {
   }
 }
 
-/// Get the API key's profile
-///
-/// This can be used to verify that a given itch.io API key is valid
+/// Get a user's info
 ///
 /// # Arguments
 ///
@@ -331,9 +329,38 @@ impl ItchClient {
 /// # Errors
 ///
 /// If something goes wrong
+pub async fn get_user_info(
+  client: &ItchClient,
+  user_id: u64,
+) -> Result<User, ItchRequestJSONError<UserResponseError>> {
+  client
+    .itch_request_json::<UserInfoResponse>(
+      &ItchApiUrl::V2(&format!("users/{user_id}")),
+      Method::GET,
+      |b| b,
+    )
+    .await
+    .map(|res| res.user)
+}
+
+/// Get the API key's profile
+///
+/// This can be used to verify that a given itch.io API key is valid
+///
+/// # Arguments
+///
+/// * `client` - An itch.io API client
+///
+/// # Returns
+///
+/// A `Profile` struct with the info provided by the API
+///
+/// # Errors
+///
+/// If something goes wrong
 pub async fn get_profile(
   client: &ItchClient,
-) -> Result<User, ItchRequestJSONError<ApiResponseCommonErrors>> {
+) -> Result<Profile, ItchRequestJSONError<ApiResponseCommonErrors>> {
   client
     .itch_request_json::<ProfileInfoResponse>(&ItchApiUrl::V2("profile"), Method::GET, |b| b)
     .await
@@ -654,6 +681,8 @@ mod tests {
   use super::*;
 
   const INVALID_KEY: String = String::new();
+  const VALID_USER_ID: u64 = 1;
+  const INVALID_USER_ID: u64 = 0;
   const VALID_COLLECTION_ID: u64 = 4;
   const INVALID_COLLECTION_ID: u64 = 0;
   const VALID_GAME_ID: u64 = 3;
@@ -682,6 +711,29 @@ mod tests {
     assert!(matches!(
       client.unwrap_err().kind,
       ItchRequestJSONErrorKind::ServerRepliedWithError(ApiResponseCommonErrors::InvalidApiKey(_)),
+    ));
+  }
+
+  #[tokio::test]
+  async fn test_user_info() {
+    let client = get_client().await;
+
+    // Verify that retrieving the user info works
+    assert!(matches!(
+      get_user_info(&client, VALID_USER_ID).await.unwrap(),
+      User {
+        id: VALID_USER_ID,
+        ..
+      }
+    ));
+
+    // Verify that retrieving ther user info for an invalid user fails
+    assert!(matches!(
+      get_user_info(&client, INVALID_USER_ID)
+        .await
+        .unwrap_err()
+        .kind,
+      ItchRequestJSONErrorKind::ServerRepliedWithError(UserResponseError::InvalidUserID(_))
     ));
   }
 

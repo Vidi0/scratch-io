@@ -128,10 +128,8 @@ pub struct User {
   pub display_name: Option<String>,
   pub url: String,
   pub cover_url: Option<String>,
+  /// Only present if cover_url is animated. URL to the first frame of the cover.
   pub still_cover_url: Option<String>,
-  pub press_user: Option<bool>,
-  pub developer: Option<bool>,
-  pub gamer: Option<bool>,
 }
 
 impl User {
@@ -142,6 +140,15 @@ impl User {
       .as_deref()
       .unwrap_or(self.username.as_str())
   }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Profile {
+  #[serde(flatten)]
+  pub user: User,
+  pub gamer: bool,
+  pub developer: bool,
+  pub press_user: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -242,10 +242,10 @@ async fn auth(client: ItchClient, config_api_key: &mut Option<String>) {
   let profile = itch_api::get_profile(&client)
     .await
     .unwrap_or_else(|e| eprintln_exit!("{e}"));
-  println!("Logged in as: {}", profile.get_name());
+  println!("Logged in as: {}", profile.user.get_name());
 }
 
-// Login with an username and password, save to the config and print info
+// Login with a username and password, save to the config and print info
 #[allow(dead_code)]
 async fn login(
   username: &str,
