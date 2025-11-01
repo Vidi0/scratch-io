@@ -320,7 +320,6 @@ pub enum BuildState {
   Completed,
 }
 
-#[serde_as]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Build {
   #[serde(flatten)]
@@ -332,7 +331,6 @@ pub struct Build {
   pub files: Vec<BuildFile>,
 }
 
-#[serde_as]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UpgradePathBuild {
   #[serde(flatten)]
