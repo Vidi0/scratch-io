@@ -287,6 +287,13 @@ pub enum UploadTrait {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UploadBuildInfo {
+  pub build: UploadBuild,
+  pub build_id: u64,
+  pub channel_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Upload {
   pub position: u64,
   pub id: u64,
@@ -304,9 +311,8 @@ pub struct Upload {
   #[serde(with = "rfc3339")]
   pub updated_at: OffsetDateTime,
   pub md5_hash: Option<String>,
-  pub build: Option<UploadBuild>,
-  pub build_id: Option<u64>,
-  pub channel_name: Option<String>,
+  #[serde(flatten)]
+  pub build_info: Option<UploadBuildInfo>,
 }
 
 /// This struct represents all the shared fields among the different Build structs
