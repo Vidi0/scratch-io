@@ -585,6 +585,12 @@ pub async fn download_upload(
     )
   })?;
 
+  // Set the hash variable
+  let hash: Option<&str> = match upload.storage {
+    UploadStorage::Hosted { ref md5_hash, .. } => md5_hash.as_deref(),
+    _ => None,
+  };
+
   // --- DOWNLOAD ---
 
   // Download the file
@@ -593,10 +599,7 @@ pub async fn download_upload(
     &ItchApiUrl::V2(&format!("uploads/{upload_id}/download")),
     &upload_archive,
     // Only pass the hash if skip_hash_verification is false
-    upload
-      .md5_hash
-      .as_deref()
-      .filter(|_| !skip_hash_verification),
+    hash.filter(|_| !skip_hash_verification),
     |bytes| {
       progress_callback(DownloadStatus::StartingDownload {
         bytes_to_download: bytes,
@@ -617,7 +620,7 @@ pub async fn download_upload(
     progress_callback(DownloadStatus::Warning(
       "Skipping hash verification! The file integrity won't be checked!".to_string(),
     ));
-  } else if upload.md5_hash.is_none() {
+  } else if hash.is_none() {
     progress_callback(DownloadStatus::Warning(
       "Missing md5 hash. Couldn't verify the file integrity!".to_string(),
     ));

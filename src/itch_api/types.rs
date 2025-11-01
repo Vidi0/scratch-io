@@ -298,6 +298,7 @@ pub enum UploadTrait {
 pub enum UploadStorage {
   Hosted {
     size: u64,
+    md5_hash: Option<String>,
   },
   Build {
     size: u64,
@@ -326,7 +327,6 @@ pub struct Upload {
   pub created_at: OffsetDateTime,
   #[serde(with = "rfc3339")]
   pub updated_at: OffsetDateTime,
-  pub md5_hash: Option<String>,
 }
 
 /// This struct represents all the shared fields among the different Build structs
