@@ -133,6 +133,7 @@ pub struct User {
 }
 
 impl User {
+  /// Get the display name of the user, or the username if it is missing
   #[must_use]
   pub fn get_name(&self) -> &str {
     self
@@ -411,6 +412,7 @@ pub struct Upload {
 }
 
 impl Upload {
+  /// Get the display name of the upload, or the filename if it is missing
   #[must_use]
   pub fn get_name(&self) -> &str {
     self
@@ -419,6 +421,7 @@ impl Upload {
       .unwrap_or(self.filename.as_str())
   }
 
+  /// Get the hash of the upload, or None if it is missing
   #[must_use]
   pub fn get_hash(&self) -> Option<&str> {
     match &self.storage {
