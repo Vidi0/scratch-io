@@ -697,7 +697,7 @@ mod tests {
   /// # Panics
   ///
   /// If the `SCRATCH_API_KEY` environment variable isn't set
-  async fn get_client() -> ItchClient {
+  fn get_client() -> ItchClient {
     let api_key = std::env::var("SCRATCH_API_KEY").expect("SCRATCH_API_KEY must be set for tests");
     ItchClient::new(api_key)
   }
@@ -716,7 +716,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_user_info() {
-    let client = get_client().await;
+    let client = get_client();
 
     // Verify that retrieving the user info works
     assert!(matches!(
@@ -739,7 +739,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_profile() {
-    let client = get_client().await;
+    let client = get_client();
 
     // Verify that retrieving the profile works
     get_profile(&client).await.unwrap();
@@ -747,7 +747,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_created_games() {
-    let client = get_client().await;
+    let client = get_client();
 
     // Verify that retrieving the created games works
     get_created_games(&client).await.unwrap();
@@ -755,7 +755,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_owned_keys() {
-    let client = get_client().await;
+    let client = get_client();
 
     // Verify that retrieving the owned keys works
     get_owned_keys(&client).await.unwrap();
@@ -763,7 +763,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_profile_collections() {
-    let client = get_client().await;
+    let client = get_client();
 
     // Verify that retrieving the profile collections works
     get_profile_collections(&client).await.unwrap();
@@ -771,7 +771,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_collection_info() {
-    let client = get_client().await;
+    let client = get_client();
 
     // Verify that retrieving the collection info works
     assert!(matches!(
@@ -798,7 +798,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_collection_games() {
-    let client = get_client().await;
+    let client = get_client();
 
     // Verify that retrieving the collection info works
     get_collection_games(&client, VALID_COLLECTION_ID)
@@ -819,7 +819,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_game_info() {
-    let client = get_client().await;
+    let client = get_client();
 
     // Verify that retrieving the game info works
     assert!(matches!(
@@ -845,7 +845,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_game_uploads() {
-    let client = get_client().await;
+    let client = get_client();
 
     // Verify that retrieving the game uploads works
     get_game_uploads(&client, VALID_GAME_ID).await.unwrap();
@@ -862,7 +862,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_upload_info() {
-    let client = get_client().await;
+    let client = get_client();
 
     // Verify that retrieving the upload info works
     assert!(matches!(
@@ -885,7 +885,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_upload_builds() {
-    let client = get_client().await;
+    let client = get_client();
 
     // Verify that retrieving the upload builds works
     get_upload_builds(&client, VALID_UPLOAD_ID).await.unwrap();
@@ -902,7 +902,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_build_info() {
-    let client = get_client().await;
+    let client = get_client();
 
     // Verify that retrieving the build info works
     assert!(matches!(
