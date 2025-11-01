@@ -329,6 +329,16 @@ pub struct Upload {
   pub updated_at: OffsetDateTime,
 }
 
+impl Upload {
+  #[must_use]
+  pub fn get_name(&self) -> &str {
+    self
+      .display_name
+      .as_deref()
+      .unwrap_or(self.filename.as_str())
+  }
+}
+
 /// This struct represents all the shared fields among the different Build structs
 ///
 /// It should always be used alongside serde flattten
