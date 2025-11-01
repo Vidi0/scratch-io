@@ -264,6 +264,89 @@ pub struct OwnedKey {
   pub updated_at: OffsetDateTime,
 }
 
+/// This struct represents all the shared fields among the different Build structs
+///
+/// It should always be used alongside serde flattten
+#[serde_as]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BuildCommon {
+  pub id: u64,
+  #[serde_as(deserialize_as = "DefaultOnError<Option<_>>")]
+  pub parent_build_id: Option<u64>,
+  pub version: u64,
+  pub user_version: String,
+  #[serde(with = "rfc3339")]
+  pub created_at: OffsetDateTime,
+  #[serde(with = "rfc3339")]
+  pub updated_at: OffsetDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BuildFileType {
+  Archive,
+  Patch,
+  Signature,
+  Manifest,
+  Unpacked,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BuildFileSubtype {
+  Default,
+  Optimized,
+  Accelerated,
+  Gzip,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BuildFileState {
+  Uploaded,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BuildFile {
+  pub size: u64,
+  pub r#type: BuildFileType,
+  pub sub_type: BuildFileSubtype,
+  pub state: BuildFileState,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BuildState {
+  Completed,
+}
+
+#[serde_as]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Build {
+  #[serde(flatten)]
+  pub build_info: BuildCommon,
+  pub upload_id: u64,
+  pub user: User,
+  pub state: BuildState,
+  #[serde(deserialize_with = "empty_object_as_vec")]
+  pub files: Vec<BuildFile>,
+}
+
+#[serde_as]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UpgradePathBuild {
+  #[serde(flatten)]
+  pub build_info: BuildCommon,
+  pub upload_id: u64,
+  pub files: Vec<BuildFile>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UploadBuild {
+  #[serde(flatten)]
+  pub build_info: BuildCommon,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UploadType {
@@ -337,87 +420,4 @@ impl Upload {
       .as_deref()
       .unwrap_or(self.filename.as_str())
   }
-}
-
-/// This struct represents all the shared fields among the different Build structs
-///
-/// It should always be used alongside serde flattten
-#[serde_as]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct BuildCommon {
-  pub id: u64,
-  #[serde_as(deserialize_as = "DefaultOnError<Option<_>>")]
-  pub parent_build_id: Option<u64>,
-  pub version: u64,
-  pub user_version: String,
-  #[serde(with = "rfc3339")]
-  pub created_at: OffsetDateTime,
-  #[serde(with = "rfc3339")]
-  pub updated_at: OffsetDateTime,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum BuildFileType {
-  Archive,
-  Patch,
-  Signature,
-  Manifest,
-  Unpacked,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum BuildFileSubtype {
-  Default,
-  Optimized,
-  Accelerated,
-  Gzip,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum BuildFileState {
-  Uploaded,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct BuildFile {
-  pub size: u64,
-  pub r#type: BuildFileType,
-  pub sub_type: BuildFileSubtype,
-  pub state: BuildFileState,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum BuildState {
-  Completed,
-}
-
-#[serde_as]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Build {
-  #[serde(flatten)]
-  pub build_info: BuildCommon,
-  pub upload_id: u64,
-  pub user: User,
-  pub state: BuildState,
-  #[serde(deserialize_with = "empty_object_as_vec")]
-  pub files: Vec<BuildFile>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct UploadBuild {
-  #[serde(flatten)]
-  pub build_info: BuildCommon,
-}
-
-#[serde_as]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct UpgradePathBuild {
-  #[serde(flatten)]
-  pub build_info: BuildCommon,
-  pub upload_id: u64,
-  pub files: Vec<BuildFile>,
 }
