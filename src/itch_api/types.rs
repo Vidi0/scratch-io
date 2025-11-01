@@ -418,4 +418,12 @@ impl Upload {
       .as_deref()
       .unwrap_or(self.filename.as_str())
   }
+
+  #[must_use]
+  pub fn get_hash(&self) -> Option<&str> {
+    match &self.storage {
+      UploadStorage::Hosted { md5_hash, .. } => md5_hash.as_deref(),
+      _ => None,
+    }
+  }
 }

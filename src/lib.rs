@@ -585,11 +585,8 @@ pub async fn download_upload(
     )
   })?;
 
-  // Set the hash variable
-  let hash: Option<&str> = match upload.storage {
-    UploadStorage::Hosted { ref md5_hash, .. } => md5_hash.as_deref(),
-    _ => None,
-  };
+  // Get the upload's hash
+  let hash: Option<&str> = upload.get_hash();
 
   // --- DOWNLOAD ---
 
