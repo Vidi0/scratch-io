@@ -287,10 +287,17 @@ pub enum UploadTrait {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct UploadBuildInfo {
-  pub build: UploadBuild,
-  pub build_id: u64,
-  pub channel_name: String,
+#[serde(tag = "storage", rename_all = "snake_case")]
+pub enum UploadStorage {
+  Hosted,
+  Build {
+    build: UploadBuild,
+    build_id: u64,
+    channel_name: String,
+  },
+  External {
+    host: String,
+  },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -304,15 +311,13 @@ pub struct Upload {
   pub traits: Vec<UploadTrait>,
   pub filename: String,
   pub display_name: Option<String>,
-  pub storage: String,
-  pub host: Option<String>,
+  #[serde(flatten)]
+  pub storage: UploadStorage,
   #[serde(with = "rfc3339")]
   pub created_at: OffsetDateTime,
   #[serde(with = "rfc3339")]
   pub updated_at: OffsetDateTime,
   pub md5_hash: Option<String>,
-  #[serde(flatten)]
-  pub build_info: Option<UploadBuildInfo>,
 }
 
 /// This struct represents all the shared fields among the different Build structs
