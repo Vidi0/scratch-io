@@ -128,7 +128,7 @@ pub struct User {
   pub display_name: Option<String>,
   pub url: String,
   pub cover_url: Option<String>,
-  /// Only present if cover_url is animated. URL to the first frame of the cover.
+  /// Only present if `cover_url` is animated. URL to the first frame of the cover.
   pub still_cover_url: Option<String>,
 }
 

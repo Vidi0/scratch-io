@@ -12,7 +12,7 @@ const ERROR_INVALID_UPLOAD: &str = "invalid upload";
 const ERROR_INVALID_BUILD: &str = "invalid build";
 const ERROR_NO_UPGRADE_PATH: &str = "no upgrade path";
 
-/// Error returned from itch_request_json
+/// Error returned from `itch_request_json`
 #[derive(Error, Debug)]
 #[error("An API call to \"{url}\" failed:\n{kind}")]
 pub struct ItchRequestJSONError<T>
@@ -254,8 +254,8 @@ r#"A reCAPTCHA verification is required to continue!
   CaptchaNeeded(crate::itch_api::types::LoginCaptchaError),
 
   #[error(
-    r#"The accout has 2 step verification enabled via TOTP
-  Run the login command again with the --totp-code={{VERIFICATION_CODE}} option."#
+    r"The accout has 2 step verification enabled via TOTP
+  Run the login command again with the --totp-code={{VERIFICATION_CODE}} option."
   )]
   TOTPNeeded(crate::itch_api::types::LoginTOTPError),
 

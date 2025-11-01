@@ -16,7 +16,7 @@ pub struct ItchClient {
   api_key: String,
 }
 
-/// This block defiles the ItchClient API calls
+/// This block defiles the `ItchClient` API calls
 impl ItchClient {
   /// Make a request to the itch.io API
   ///
@@ -173,7 +173,7 @@ impl ItchClient {
   }
 }
 
-/// This block defines the ItchClient constructors and other functions
+/// This block defines the `ItchClient` constructors and other functions
 impl ItchClient {
   /// Obtain the API key associated with this `ItchClient`
   #[must_use]
