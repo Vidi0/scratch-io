@@ -45,17 +45,6 @@ pub trait ListResponse {
   fn items(self) -> Vec<Self::Item>;
 }
 
-/// Response struct for: <https://api.itch.io/totp/verify>
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct TOTPResponse {
-  #[serde(flatten)]
-  pub success: LoginSuccess,
-}
-
-impl IntoResponseResult for TOTPResponse {
-  type Err = TOTPResponseError;
-}
-
 /// Response struct for: <https://api.itch.io/login>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -67,6 +56,17 @@ pub enum LoginResponse {
 
 impl IntoResponseResult for LoginResponse {
   type Err = LoginResponseError;
+}
+
+/// Response struct for: <https://api.itch.io/totp/verify>
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TOTPResponse {
+  #[serde(flatten)]
+  pub success: LoginSuccess,
+}
+
+impl IntoResponseResult for TOTPResponse {
+  type Err = TOTPResponseError;
 }
 
 /// Response struct for: <https://api.itch.io/users/{user_id}>

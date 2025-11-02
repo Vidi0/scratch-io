@@ -223,31 +223,6 @@ impl ItchClient {
     Ok(client)
   }
 
-  /// Complete the login with the TOTP 2nd factor verification
-  ///
-  /// # Arguments
-  ///
-  /// * `totp_token` - The TOTP token returned by the previous login step
-  ///
-  /// * `totp_code` - The 6-digit code returned by the TOTP application
-  ///
-  /// # Returns
-  ///
-  /// A `LoginSuccess` struct with the new API key
-  ///
-  /// An error if something goes wrong
-  async fn totp_verification(
-    &self,
-    totp_token: &str,
-    totp_code: u64,
-  ) -> Result<TOTPResponse, ItchRequestJSONError<TOTPResponseError>> {
-    self
-      .itch_request_json::<TOTPResponse>(&ItchApiUrl::V2("totp/verify"), Method::POST, |b| {
-        b.form(&[("token", totp_token), ("code", &totp_code.to_string())])
-      })
-      .await
-  }
-
   /// Login to itch.io
   ///
   /// Retrieve a API key from a username and password authentication
@@ -313,6 +288,31 @@ impl ItchClient {
     client.api_key = ls.key.key;
 
     Ok(client)
+  }
+
+  /// Complete the login with the TOTP 2nd factor verification
+  ///
+  /// # Arguments
+  ///
+  /// * `totp_token` - The TOTP token returned by the previous login step
+  ///
+  /// * `totp_code` - The 6-digit code returned by the TOTP application
+  ///
+  /// # Returns
+  ///
+  /// A `LoginSuccess` struct with the new API key
+  ///
+  /// An error if something goes wrong
+  async fn totp_verification(
+    &self,
+    totp_token: &str,
+    totp_code: u64,
+  ) -> Result<TOTPResponse, ItchRequestJSONError<TOTPResponseError>> {
+    self
+      .itch_request_json::<TOTPResponse>(&ItchApiUrl::V2("totp/verify"), Method::POST, |b| {
+        b.form(&[("token", totp_token), ("code", &totp_code.to_string())])
+      })
+      .await
   }
 }
 
