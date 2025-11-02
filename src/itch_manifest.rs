@@ -44,7 +44,7 @@ pub async fn read_manifest(upload_folder: &Path) -> Result<Option<Manifest>, Str
     .map_err(|e| {
       format!(
         "Couldn't parse itch manifest: {}\n{e}",
-        manifest_path.as_path().to_string_lossy()
+        manifest_path.to_string_lossy()
       )
     })
 }

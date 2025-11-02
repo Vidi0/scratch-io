@@ -88,12 +88,9 @@ pub async fn get_game_executable(
   queue.push_back((upload_folder.to_path_buf(), 0));
 
   while let Some((folder, depth)) = queue.pop_front() {
-    let mut entries = tokio::fs::read_dir(&folder).await.map_err(|e| {
-      format!(
-        "Couldn't read dir \"{}\": {e}",
-        folder.as_path().to_string_lossy()
-      )
-    })?;
+    let mut entries = tokio::fs::read_dir(&folder)
+      .await
+      .map_err(|e| format!("Couldn't read dir \"{}\": {e}", folder.to_string_lossy()))?;
 
     while let Some(entry) = entries.next_entry().await.map_err(|e| e.to_string())? {
       let entry_path = entry.path();
@@ -105,7 +102,7 @@ pub async fn get_game_executable(
           queue.push_back((entry_path, depth + 1));
         }
       } else {
-        let rating = rate_executable(entry_path.as_path(), depth, platform, game_title.as_str())?;
+        let rating = rate_executable(&entry_path, depth, platform, &game_title)?;
         if rating > best_executable.1 {
           best_executable = (Some(entry_path), rating);
         }
@@ -196,7 +193,7 @@ fn rate_executable(
   // Check if the filename is similar to the game name or the game name with cerating suffixes
   rating += proximity_rating_with_suffixes(
     game_title,
-    filename.as_str(),
+    &filename,
     ARCHITECTURE_SUFFIXES,
     2,
     700,
@@ -206,14 +203,7 @@ fn rate_executable(
 
   // If the filename has a good name (e.g: start, launch, etc.), raise the rating
   for n in GOOD_LAUNCH_FILENAMES {
-    rating += proximity_rating(
-      n,
-      filename.as_str(),
-      1,
-      1200,
-      500,
-      BEST_PROXIMITY_MULTIPLIER,
-    );
+    rating += proximity_rating(n, &filename, 1, 1200, 500, BEST_PROXIMITY_MULTIPLIER);
   }
 
   Ok(rating)
@@ -262,7 +252,7 @@ fn proximity_rating_with_suffixes(
     // Only the best rating will be kept, not all of them, for that reason max() is used
     rating = rating.max(proximity_rating(
       a,
-      format!("{b}{e}").as_str(),
+      &format!("{b}{e}"),
       max_distance,
       base_points,
       extra_points,

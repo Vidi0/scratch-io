@@ -862,7 +862,7 @@ pub async fn r#move(
   }
 
   // Move the upload folder
-  move_folder(src_upload_folder.as_path(), dst_upload_folder.as_path()).await?;
+  move_folder(&src_upload_folder, &dst_upload_folder).await?;
 
   // If src_game_folder is empty, remove it
   remove_folder_if_empty(src_game_folder).await?;
@@ -965,7 +965,7 @@ pub async fn launch(
         ),
         // Else, now use the heuristics to determine the executable, with the function's game arguments
         None => (
-          &heuristics::get_game_executable(upload_folder.as_path(), gp, g).await?,
+          &heuristics::get_game_executable(&upload_folder, gp, g).await?,
           Cow::Borrowed(game_arguments),
         ),
       }
@@ -988,7 +988,7 @@ pub async fn launch(
         // If the game has a wrapper, then run the wrapper with its
         // arguments and add the game executable as the last argument
         let mut gp = tokio::process::Command::new(w);
-        gp.args(wrapper_iter.as_slice()).arg(&upload_executable);
+        gp.args(wrapper_iter).arg(&upload_executable);
         gp
       }
     }
@@ -997,9 +997,9 @@ pub async fn launch(
   // Add the working directory and the game arguments
   game_process
     .current_dir(&upload_folder)
-    .args(game_arguments.as_ref());
+    .args(&*game_arguments);
 
-  launch_start_callback(upload_executable.as_path(), &game_process);
+  launch_start_callback(&upload_executable, &game_process);
 
   let mut child = game_process.spawn().map_err(|e| {
     // Error code 8: Exec format error

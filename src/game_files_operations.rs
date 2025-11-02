@@ -188,19 +188,13 @@ async fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()
   queue.push_back((src.as_ref().to_path_buf(), dst.as_ref().to_path_buf()));
 
   while let Some((src, dst)) = queue.pop_front() {
-    tokio::fs::create_dir_all(&dst).await.map_err(|e| {
-      format!(
-        "Couldn't create folder \"{}\": {e}",
-        dst.as_path().to_string_lossy()
-      )
-    })?;
+    tokio::fs::create_dir_all(&dst)
+      .await
+      .map_err(|e| format!("Couldn't create folder \"{}\": {e}", dst.to_string_lossy()))?;
 
-    let mut entries = tokio::fs::read_dir(&src).await.map_err(|e| {
-      format!(
-        "Couldn't read dir \"{}\": {e}",
-        src.as_path().to_string_lossy()
-      )
-    })?;
+    let mut entries = tokio::fs::read_dir(&src)
+      .await
+      .map_err(|e| format!("Couldn't read dir \"{}\": {e}", src.to_string_lossy()))?;
 
     while let Some(entry) = entries.next_entry().await.map_err(|e| e.to_string())? {
       let src_path = entry.path();

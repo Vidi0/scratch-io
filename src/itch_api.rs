@@ -278,7 +278,7 @@ impl ItchClient {
         };
 
         client
-          .totp_verification(e.token.as_str(), totp_code)
+          .totp_verification(&e.token, totp_code)
           .await
           .map(|res| res.success)?
       }

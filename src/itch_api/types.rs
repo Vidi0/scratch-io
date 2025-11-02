@@ -145,10 +145,7 @@ impl User {
   /// Get the display name of the user, or the username if it is missing
   #[must_use]
   pub fn get_name(&self) -> &str {
-    self
-      .display_name
-      .as_deref()
-      .unwrap_or(self.username.as_str())
+    self.display_name.as_deref().unwrap_or(&self.username)
   }
 }
 
@@ -424,10 +421,7 @@ impl Upload {
   /// Get the display name of the upload, or the filename if it is missing
   #[must_use]
   pub fn get_name(&self) -> &str {
-    self
-      .display_name
-      .as_deref()
-      .unwrap_or(self.filename.as_str())
+    self.display_name.as_deref().unwrap_or(&self.filename)
   }
 
   /// Get the hash of the upload, or None if it is missing

@@ -335,7 +335,7 @@ async fn print_game_info(client: &ItchClient, game_id: u64) {
     .unwrap_or_else(|e| eprintln_exit!("{e}"));
   println!("{uploads:#?}");
 
-  println!("{:#?}", scratch_io::get_game_platforms(uploads.as_slice()));
+  println!("{:#?}", scratch_io::get_game_platforms(&uploads));
 }
 
 // Download a game's upload
@@ -540,10 +540,9 @@ async fn move_upload(
 
   let src_game_folder = upload_info.game_folder.to_path_buf();
 
-  upload_info.game_folder =
-    scratch_io::r#move(upload_id, src_game_folder.as_path(), dst_game_folder)
-      .await
-      .unwrap_or_else(|e| eprintln_exit!("Couldn't move upload!\n{e}"));
+  upload_info.game_folder = scratch_io::r#move(upload_id, &src_game_folder, dst_game_folder)
+    .await
+    .unwrap_or_else(|e| eprintln_exit!("Couldn't move upload!\n{e}"));
 
   println!(
     "Moved upload {upload_id}\n  Source: \"{}\"\n  Destination: \"{}\"",
@@ -596,10 +595,10 @@ async fn launch_upload(
 
   scratch_io::launch(
     upload_id,
-    game_folder.as_path(),
+    &game_folder,
     launch_method,
-    wrapper.as_slice(),
-    game_arguments.as_slice(),
+    &wrapper,
+    &game_arguments,
     |up, command| {
       println!(
         "Launching game:\n  Executable path: \"{}\"\n  {command:?}",
@@ -692,7 +691,7 @@ async fn main() {
           download_cover(
             &client,
             game_id,
-            folder.as_path(),
+            &folder,
             filename.as_deref(),
             force_download,
           )
@@ -711,7 +710,7 @@ async fn main() {
           import(
             &client,
             upload_id,
-            install_path.as_path(),
+            &install_path,
             &mut config.installed_uploads,
           )
           .await;
@@ -730,8 +729,8 @@ async fn main() {
           totp_code,
         } => {
           login(
-            username.as_str(),
-            password.as_str(),
+            &username,
+            &password,
             recaptcha_response.as_deref(),
             totp_code,
             &mut config.api_key,
@@ -762,12 +761,7 @@ async fn main() {
           upload_id,
           game_path_dst,
         } => {
-          move_upload(
-            upload_id,
-            game_path_dst.as_path(),
-            &mut config.installed_uploads,
-          )
-          .await;
+          move_upload(upload_id, &game_path_dst, &mut config.installed_uploads).await;
           config.save_unwrap(custom_config_file).await;
         }
         OptionalApiCommands::Launch {

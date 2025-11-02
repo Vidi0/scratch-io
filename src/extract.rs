@@ -31,7 +31,7 @@ fn get_archive_format(file: &Path) -> Result<ArchiveFormat, String> {
     .to_lowercase()
     .ends_with(".tar");
 
-  Ok(match extension.as_str() {
+  Ok(match &*extension {
     "zip" => ArchiveFormat::Zip,
 
     "tar" => ArchiveFormat::Tar,
