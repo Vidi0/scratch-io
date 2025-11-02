@@ -98,6 +98,8 @@ pub struct ItchKey {
   pub created_at: OffsetDateTime,
   #[serde(with = "rfc3339")]
   pub updated_at: OffsetDateTime,
+  #[serde(with = "rfc3339::option", default)]
+  pub last_used_at: Option<OffsetDateTime>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
