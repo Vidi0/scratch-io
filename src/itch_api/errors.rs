@@ -1,6 +1,5 @@
 use thiserror::Error;
 
-const ERROR_AUTHENTICATION_REQUIRED: &str = "authentication required";
 const ERROR_INVALID_API_KEY: &str = "invalid key";
 const ERROR_INVALID_USER_OR_PASSWORD: &str = "Incorrect username or password";
 const ERROR_INVALID_CAPTCHA_CODE: &str = "Please correctly complete reCAPTCHA";
@@ -49,10 +48,6 @@ where
 }
 
 #[derive(Error, Debug)]
-#[error("An API key is required in order to send any API request.")]
-pub struct AuthenticationRequired;
-
-#[derive(Error, Debug)]
 #[error("The provided API key is invalid!")]
 pub struct InvalidApiKey;
 
@@ -96,9 +91,6 @@ pub struct NoUpgradePath;
 #[derive(Error, Debug)]
 pub enum ApiResponseErrorKind {
   #[error(transparent)]
-  AuthenticationRequired(#[from] AuthenticationRequired),
-
-  #[error(transparent)]
   InvalidApiKey(#[from] InvalidApiKey),
 
   #[error(transparent)]
@@ -135,9 +127,6 @@ pub enum ApiResponseErrorKind {
 impl From<&[String]> for ApiResponseErrorKind {
   fn from(value: &[String]) -> Self {
     match value {
-      [v] if v == ERROR_AUTHENTICATION_REQUIRED => {
-        Self::AuthenticationRequired(AuthenticationRequired)
-      }
       [v] if v == ERROR_INVALID_API_KEY => Self::InvalidApiKey(InvalidApiKey),
       [v] if v == ERROR_INVALID_USER_OR_PASSWORD => {
         Self::IncorrectUsernameOrPassword(IncorrectUsernameOrPassword)
@@ -176,9 +165,6 @@ impl From<Vec<String>> for ApiResponseError {
 #[derive(Error, Debug)]
 pub enum ApiResponseCommonErrors {
   #[error(transparent)]
-  AuthenticationRequired(#[from] AuthenticationRequired),
-
-  #[error(transparent)]
   InvalidApiKey(#[from] InvalidApiKey),
 
   #[error("An unknown error occurred:\n{0:#?}")]
@@ -188,7 +174,6 @@ pub enum ApiResponseCommonErrors {
 impl From<ApiResponseError> for ApiResponseCommonErrors {
   fn from(value: ApiResponseError) -> Self {
     match value.kind {
-      ApiResponseErrorKind::AuthenticationRequired(v) => Self::AuthenticationRequired(v),
       ApiResponseErrorKind::InvalidApiKey(v) => Self::InvalidApiKey(v),
       _ => Self::Other(value.errors),
     }
