@@ -256,6 +256,7 @@ impl ItchClient {
       ("username", username),
       ("password", password),
       ("force_recaptcha", "false"),
+      // source can be any of types::ItchKeySource
       ("source", "desktop"),
     ];
 

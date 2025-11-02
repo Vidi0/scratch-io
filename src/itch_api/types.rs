@@ -88,11 +88,18 @@ pub struct ItchCookie {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ItchKeySource {
+  Desktop,
+  Android,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ItchKey {
   pub key: String,
   pub id: u64,
   pub user_id: u64,
-  pub source: String,
+  pub source: ItchKeySource,
   pub revoked: Option<bool>,
   #[serde(with = "rfc3339")]
   pub created_at: OffsetDateTime,
