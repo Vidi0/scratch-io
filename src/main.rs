@@ -246,7 +246,6 @@ async fn auth(client: ItchClient, config_api_key: &mut Option<String>) {
 }
 
 // Login with a username and password, save to the config and print info
-#[allow(dead_code)]
 async fn login(
   username: &str,
   password: &str,
