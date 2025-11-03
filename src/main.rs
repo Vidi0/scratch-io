@@ -557,6 +557,7 @@ async fn move_upload(
 }
 
 // Launch an installed upload
+#[allow(clippy::too_many_arguments)]
 async fn launch_upload(
   upload_id: u64,
   upload_executable_path: Option<&Path>,
