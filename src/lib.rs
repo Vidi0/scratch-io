@@ -639,7 +639,7 @@ pub async fn download_upload(
   Ok(InstalledUpload {
     upload_id,
     // Get the absolute (canonical) form of the path
-    game_folder: game_folder.canonicalize().map_err(|e| {
+    game_folder: tokio::fs::canonicalize(game_folder).await.map_err(|e| {
       format!(
         "Error getting the canonical form of the game folder! Maybe it doesn't exist: {}\n{e}",
         game_folder.to_string_lossy()
@@ -683,7 +683,7 @@ pub async fn import(
   Ok(InstalledUpload {
     upload_id,
     // Get the absolute (canonical) form of the path
-    game_folder: game_folder.canonicalize().map_err(|e| {
+    game_folder: tokio::fs::canonicalize(game_folder).await.map_err(|e| {
       format!(
         "Error getting the canonical form of the game folder! Maybe it doesn't exist: {}\n{e}",
         game_folder.to_string_lossy()
@@ -867,7 +867,7 @@ pub async fn r#move(
   // If src_game_folder is empty, remove it
   remove_folder_if_empty(src_game_folder).await?;
 
-  dst_game_folder.canonicalize()
+  tokio::fs::canonicalize(dst_game_folder).await
     .map_err(|e| format!("Error getting the canonical form of the destination game folder! Maybe it doesn't exist: {}\n{e}", dst_game_folder.to_string_lossy()))
 }
 
@@ -937,7 +937,7 @@ pub async fn launch(
         .await?
         .ok_or_else(|| format!("The provided launch action doesn't exist in the manifest: {a}"))?;
       (
-        &ma.get_canonical_path(&upload_folder)?,
+        &ma.get_canonical_path(&upload_folder).await?,
         // a) If the function's game arguments are empty, use the ones from the manifest
         if game_arguments.is_empty() {
           Cow::Owned(ma.args.unwrap_or_default())
@@ -956,7 +956,7 @@ pub async fn launch(
       match mao {
         // If the manifest has a "play" action, launch from it
         Some(ma) => (
-          &ma.get_canonical_path(&upload_folder)?,
+          &ma.get_canonical_path(&upload_folder).await?,
           // a) If the function's game arguments are empty, use the ones from the manifest
           if game_arguments.is_empty() {
             Cow::Owned(ma.args.unwrap_or_default())
@@ -975,7 +975,7 @@ pub async fn launch(
     }
   };
 
-  let upload_executable = upload_executable.canonicalize()
+  let upload_executable = tokio::fs::canonicalize(upload_executable).await
     .map_err(|e| format!("Error getting the canonical form of the upload executable path! Maybe it doesn't exist: {}\n{e}", upload_executable.to_string_lossy()))?;
 
   // Make the file executable

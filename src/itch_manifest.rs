@@ -26,13 +26,15 @@ pub struct Action {
 }
 
 impl Action {
-  pub fn get_canonical_path(&self, folder: &Path) -> Result<PathBuf, String> {
-    folder.join(&self.path).canonicalize().map_err(|e| {
-      format!(
-        "Error getting the canonical form of the action path! Maybe it doesn't exist: {}\n{e}",
-        self.path
-      )
-    })
+  pub async fn get_canonical_path(&self, folder: &Path) -> Result<PathBuf, String> {
+    tokio::fs::canonicalize(folder.join(&self.path))
+      .await
+      .map_err(|e| {
+        format!(
+          "Error getting the canonical form of the action path! Maybe it doesn't exist: {}\n{e}",
+          self.path
+        )
+      })
   }
 }
 

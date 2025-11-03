@@ -119,13 +119,13 @@ pub async fn remove_folder_safely(path: impl AsRef<Path>) -> Result<(), String> 
     )
   })?;
 
-  let home = directories::BaseDirs::new()
-    .ok_or_else(|| "Couldn't determine the home directory".to_string())?
-    .home_dir()
-    .canonicalize()
-    .map_err(|e| {
-      format!("Error getting the canonical form of the system home folder! Why?\n{e}")
-    })?;
+  let home = tokio::fs::canonicalize(
+    directories::BaseDirs::new()
+      .ok_or_else(|| "Couldn't determine the home directory".to_string())?
+      .home_dir(),
+  )
+  .await
+  .map_err(|e| format!("Error getting the canonical form of the system home folder! Why?\n{e}"))?;
 
   if canonical == home {
     return Err("Refusing to remove home directory!".to_string());
