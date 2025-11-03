@@ -5,10 +5,22 @@ const MANIFEST_FILENAME: &str = ".itch.toml";
 const MANIFEST_PLAY_ACTION: &str = "play";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ActionPlatform {
+  Linux,
+  Windows,
+  Osx,
+  Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Action {
   pub name: String,
   pub path: String,
+  pub platform: Option<ActionPlatform>,
   pub args: Option<Vec<String>>,
+  pub sandbox: Option<bool>,
+  pub console: Option<bool>,
 }
 
 impl Action {
@@ -23,8 +35,51 @@ impl Action {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum PrerequisiteName {
+  #[serde(rename = "vcredist-2010-x64")]
+  Vcredist2010x64,
+  #[serde(rename = "vcredist-2010-x86")]
+  Vcredist2010x86,
+  #[serde(rename = "vcredist-2013-x64")]
+  Vcredist2013x64,
+  #[serde(rename = "vcredist-2013-x86")]
+  Vcredist2013x86,
+  #[serde(rename = "vcredist-2015-x64")]
+  Vcredist2015x64,
+  #[serde(rename = "vcredist-2015-x86")]
+  Vcredist2015x86,
+  #[serde(rename = "vcredist-2017-x64")]
+  Vcredist2017x64,
+  #[serde(rename = "vcredist-2017-x86")]
+  Vcredist2017x86,
+  #[serde(rename = "vcredist-2019-x64")]
+  Vcredist2019x64,
+  #[serde(rename = "vcredist-2019-x86")]
+  Vcredist2019x86,
+
+  #[serde(rename = "net-4.5.2")]
+  Net452,
+  #[serde(rename = "net-4.6")]
+  Net46,
+  #[serde(rename = "net-4.6.2")]
+  Net462,
+
+  #[serde(rename = "xna-4.0")]
+  Xna40,
+
+  #[serde(rename = "dx-june-2010")]
+  DxJune2010,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Prerequisite {
+  pub name: PrerequisiteName,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Manifest {
   pub actions: Vec<Action>,
+  pub prereqs: Option<Vec<Prerequisite>>,
 }
 
 /// Read the manifest from a folder and parse it (if any)

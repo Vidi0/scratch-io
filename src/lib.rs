@@ -934,7 +934,7 @@ pub async fn launch(
         .await?
         .ok_or_else(|| format!("The provided launch action doesn't exist in the manifest: {a}"))?;
       (
-        &PathBuf::from(ma.path),
+        &ma.get_canonical_path(&upload_folder)?,
         // a) If the function's game arguments are empty, use the ones from the manifest
         if game_arguments.is_empty() {
           Cow::Owned(ma.args.unwrap_or_default())
@@ -953,7 +953,7 @@ pub async fn launch(
       match mao {
         // If the manifest has a "play" action, launch from it
         Some(ma) => (
-          &PathBuf::from(ma.path),
+          &ma.get_canonical_path(&upload_folder)?,
           // a) If the function's game arguments are empty, use the ones from the manifest
           if game_arguments.is_empty() {
             Cow::Owned(ma.args.unwrap_or_default())

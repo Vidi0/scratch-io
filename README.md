@@ -91,9 +91,10 @@ scratch-io help
 ## 📝 TODO
 
 - [ ] Add tests
-- [ ] Read and use the [itch.io manifest](https://docs.itch.ovh/itch/master/integrating/manifest.html)
-  - [X] Detect game executable from manifest actions
-  - [ ] Handle game prerequisites from manifest
+- [X] Read and use the [itch.io manifest](https://docs.itch.ovh/itch/master/integrating/manifest.html)
+  - [X] Detect game executable from manifest actions  
+  - [X] Handle game prerequisites from manifest  
+    > **Note:** Prerequisites are read from the manifest, but they must be handled and installed by the user
 - [ ] Report game playtime to the itch.io servers
 - [ ] Support updating and verifying games packed with [butler](https://itch.io/docs/butler/)
 
