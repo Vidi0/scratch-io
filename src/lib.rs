@@ -905,11 +905,13 @@ pub async fn get_upload_manifest(
 ///
 /// * `launch_method` - The launch method to use to determine the upload executable file
 ///
-/// * `wrapper` - A list of a wrapper and its options to run the game with
+/// * `wrapper` - A list of a wrapper and its options to run the upload executable with
 ///
 /// * `game_arguments` - A list of arguments to launch the upload executable with
 ///
-/// * `launch_start_callback` - A callback triggered just before the upload executable runs, providing information about what is about to be executed.
+/// * `environment_variables` - A list of environment variables to be added to the upload executable process's environment
+///
+/// * `launch_start_callback` - A callback triggered just before the upload executable runs, providing information about what is about to be executed
 ///
 /// # Errors
 ///
@@ -920,6 +922,7 @@ pub async fn launch(
   launch_method: LaunchMethod<'_>,
   wrapper: &[String],
   game_arguments: &[String],
+  environment_variables: &[(String, String)],
   launch_start_callback: impl FnOnce(&Path, &tokio::process::Command),
 ) -> Result<(), String> {
   let upload_folder: PathBuf = get_upload_folder(game_folder, upload_id);
@@ -994,10 +997,11 @@ pub async fn launch(
     }
   };
 
-  // Add the working directory and the game arguments
+  // Add the working directory, the game arguments and the environment variables
   game_process
     .current_dir(&upload_folder)
-    .args(&*game_arguments);
+    .args(&*game_arguments)
+    .envs(environment_variables.iter().map(|(k, v)| (k, v)));
 
   launch_start_callback(&upload_executable, &game_process);
 

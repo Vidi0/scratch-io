@@ -177,9 +177,14 @@ enum OptionalApiCommands {
     wrapper: Option<String>,
     /// The arguments the game will be called with
     ///
-    /// There arguments will be split into a vector according to parsing rules of UNIX shell
+    /// The arguments will be split into a vector according to parsing rules of UNIX shell
     #[arg(long, env = "SCRATCH_GAME_ARGUMENTS")]
     game_arguments: Option<String>,
+    /// The environment variables that will be added to the game process's environment
+    ///
+    /// The arguments will be split into key-value pairs using the "=" separator
+    #[arg(long, env = "SCRATCH_ENVIRONMENT_VARIABLES")]
+    environment_variables: Option<String>,
   },
 }
 
@@ -559,6 +564,7 @@ async fn launch_upload(
   platform: Option<&scratch_io::GamePlatform>,
   wrapper: Option<&str>,
   game_arguments: Option<&str>,
+  environment_variables: Option<&str>,
   installed_uploads: &HashMap<u64, InstalledUpload>,
 ) {
   let upload_info = get_installed_upload_info(upload_id, installed_uploads);
@@ -573,6 +579,23 @@ async fn launch_upload(
     shell_words::split(a)
       .unwrap_or_else(|e| eprintln_exit!("Couldn't split the game arguments: {a}\n{e}"))
   });
+
+  let environment_variables: Vec<(String, String)> =
+    environment_variables.map_or(Vec::new(), |v| {
+      shell_words::split(v)
+        .unwrap_or_else(|e| eprintln_exit!("Couldn't split the environment variables: {v}\n{e}"))
+        .into_iter()
+        .map(|variable| {
+          variable.split_once("=")
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .unwrap_or_else(|| {
+              eprintln_exit!(
+                "Couldn't split the environment variable because it doesn't contain a \"=\": {variable}"
+              )
+            })
+        })
+        .collect()
+    });
 
   let launch_method = if let Some(p) = upload_executable_path {
     scratch_io::LaunchMethod::AlternativeExecutable(p)
@@ -599,6 +622,7 @@ async fn launch_upload(
     launch_method,
     &wrapper,
     &game_arguments,
+    &environment_variables,
     |up, command| {
       println!(
         "Launching game:\n  Executable path: \"{}\"\n  {command:?}",
@@ -771,6 +795,7 @@ async fn main() {
           upload_executable_path,
           wrapper,
           game_arguments,
+          environment_variables,
         } => {
           launch_upload(
             upload_id,
@@ -779,6 +804,7 @@ async fn main() {
             platform.as_ref(),
             wrapper.as_deref(),
             game_arguments.as_deref(),
+            environment_variables.as_deref(),
             &config.installed_uploads,
           )
           .await;
