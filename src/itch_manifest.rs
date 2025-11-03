@@ -21,6 +21,8 @@ pub struct Action {
   pub args: Option<Vec<String>>,
   pub sandbox: Option<bool>,
   pub console: Option<bool>,
+  /// Games can ask for an itch.io API key by setting the `scope` parameter
+  pub scope: Option<String>,
 }
 
 impl Action {
