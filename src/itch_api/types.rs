@@ -70,6 +70,7 @@ where
 /// A itch.io API address
 ///
 /// Use the Other variant with the full URL when it isn't a known API version
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ItchApiUrl<'a> {
   V1(&'a str),
   V2(&'a str),
@@ -95,7 +96,7 @@ pub struct ItchCookie {
   pub itchio: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ItchKeySource {
   Desktop,
@@ -166,7 +167,7 @@ pub struct Profile {
   pub press_user: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GameType {
   Default,
@@ -176,7 +177,7 @@ pub enum GameType {
   Unity,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GameClassification {
   Game,
@@ -190,7 +191,7 @@ pub enum GameClassification {
   Other,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GameTrait {
   PLinux,
@@ -296,7 +297,7 @@ pub struct BuildCommon {
   pub updated_at: OffsetDateTime,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BuildFileType {
   Archive,
@@ -306,7 +307,7 @@ pub enum BuildFileType {
   Unpacked,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BuildFileSubtype {
   Default,
@@ -315,7 +316,7 @@ pub enum BuildFileSubtype {
   Gzip,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BuildFileState {
   Uploaded,
@@ -329,7 +330,7 @@ pub struct BuildFile {
   pub state: BuildFileState,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BuildState {
   Completed,
@@ -360,7 +361,7 @@ pub struct UploadBuild {
   pub build_info: BuildCommon,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UploadType {
   Default,
@@ -379,7 +380,7 @@ pub enum UploadType {
   Other,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UploadTrait {
   PLinux,
