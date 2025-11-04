@@ -3,8 +3,11 @@ mod config;
 use config::Config;
 
 use clap::{Parser, Subcommand};
+use scratch_io::itch_api::{
+  self, ItchClient,
+  types::{CollectionID, GameID, UploadID},
+};
 use scratch_io::{DownloadStatus, InstalledUpload};
-use scratch_io::{ItchClient, itch_api};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -58,17 +61,17 @@ enum RequireApiCommands {
   /// List the games in the given collection
   CollectionGames {
     /// The ID of the collection where the games are located.
-    collection_id: u64,
+    collection_id: CollectionID,
   },
   /// Retrieve information about a game given its ID
   Game {
     /// The ID of the game to retrieve information about
-    game_id: u64,
+    game_id: GameID,
   },
   /// Download the upload with the given ID
   Download {
     /// The ID of the upload to download
-    upload_id: u64,
+    upload_id: UploadID,
     /// The path where the download folder will be placed
     ///
     /// Defaults to ~/Games/{game_name}/
@@ -81,7 +84,7 @@ enum RequireApiCommands {
   /// Download a game cover gives its game ID
   DownloadCover {
     /// The ID of the game from which the cover will be downloaded
-    game_id: u64,
+    game_id: GameID,
     /// The path where the downloaded file will be placed
     #[arg(long, env = "SCRATCH_FOLDER")]
     folder: PathBuf,
@@ -97,7 +100,7 @@ enum RequireApiCommands {
   /// Remove partially downloaded upload files
   RemovePartialDownload {
     /// The ID of the upload which has been partially downloaded
-    upload_id: u64,
+    upload_id: UploadID,
     /// The path where the download folder has been placed
     ///
     /// Defaults to ~/Games/{game_name}/
@@ -107,7 +110,7 @@ enum RequireApiCommands {
   /// Imports an already installed game given its upload ID and the game folder
   Import {
     /// The ID of the upload to import
-    upload_id: u64,
+    upload_id: UploadID,
     /// The path where the game folder is located
     install_path: PathBuf,
   },
@@ -138,17 +141,17 @@ enum OptionalApiCommands {
   /// Get the installed information about an upload given its ID
   InstalledUpload {
     /// The ID of the upload to retrieve information about
-    upload_id: u64,
+    upload_id: UploadID,
   },
   /// Remove a installed upload given its ID
   Remove {
     /// The ID of the upload to remove
-    upload_id: u64,
+    upload_id: UploadID,
   },
   /// Move a installed upload to another game folder
   Move {
     /// The ID of the upload to import
-    upload_id: u64,
+    upload_id: UploadID,
     /// The path where the game folder will be placed
     game_path_dst: PathBuf,
   },
@@ -156,7 +159,7 @@ enum OptionalApiCommands {
   #[command(group(clap::ArgGroup::new("launch_method").required(true).multiple(true)))]
   Launch {
     /// The ID of the upload to launch
-    upload_id: u64,
+    upload_id: UploadID,
     /// The itch manifest's action to call the game with
     ///
     /// Returns an error if the action isn't present in the manifest, or the manifest is missing
@@ -202,8 +205,8 @@ async fn get_itch_client(keys: Vec<Option<String>>) -> Result<ItchClient, String
 }
 
 fn get_installed_upload_info(
-  upload_id: u64,
-  installed_uploads: &HashMap<u64, InstalledUpload>,
+  upload_id: UploadID,
+  installed_uploads: &HashMap<UploadID, InstalledUpload>,
 ) -> &InstalledUpload {
   installed_uploads.get(&upload_id).unwrap_or_else(|| {
     eprintln_exit!(
@@ -214,8 +217,8 @@ fn get_installed_upload_info(
 }
 
 fn get_installed_upload_info_mut(
-  upload_id: u64,
-  installed_uploads: &mut HashMap<u64, InstalledUpload>,
+  upload_id: UploadID,
+  installed_uploads: &mut HashMap<UploadID, InstalledUpload>,
 ) -> &mut InstalledUpload {
   installed_uploads.get_mut(&upload_id).unwrap_or_else(|| {
     eprintln_exit!(
@@ -225,7 +228,10 @@ fn get_installed_upload_info_mut(
   })
 }
 
-fn exit_if_already_installed(upload_id: u64, installed_uploads: &HashMap<u64, InstalledUpload>) {
+fn exit_if_already_installed(
+  upload_id: UploadID,
+  installed_uploads: &HashMap<UploadID, InstalledUpload>,
+) {
   if let Some(info) = installed_uploads.get(&upload_id) {
     eprintln_exit!(
       "The game is already installed in: \"{}\"",
@@ -317,7 +323,7 @@ async fn print_collections(client: &ItchClient) {
 }
 
 // Print the games listed in a collection
-async fn print_collection_games(client: &ItchClient, collection_id: u64) {
+async fn print_collection_games(client: &ItchClient, collection_id: CollectionID) {
   println!(
     "{:#?}",
     itch_api::get_collection_games(client, collection_id)
@@ -327,7 +333,7 @@ async fn print_collection_games(client: &ItchClient, collection_id: u64) {
 }
 
 // Print information about a game, including its uploads and platforms
-async fn print_game_info(client: &ItchClient, game_id: u64) {
+async fn print_game_info(client: &ItchClient, game_id: GameID) {
   println!(
     "{:#?}",
     itch_api::get_game_info(client, game_id)
@@ -346,10 +352,10 @@ async fn print_game_info(client: &ItchClient, game_id: u64) {
 // Download a game's upload
 async fn download(
   client: &ItchClient,
-  upload_id: u64,
+  upload_id: UploadID,
   dest: Option<&Path>,
   skip_hash_verification: bool,
-  installed_uploads: &mut HashMap<u64, InstalledUpload>,
+  installed_uploads: &mut HashMap<UploadID, InstalledUpload>,
 ) {
   exit_if_already_installed(upload_id, installed_uploads);
 
@@ -397,7 +403,7 @@ async fn download(
 // Download a game's cover image
 async fn download_cover(
   client: &ItchClient,
-  game_id: u64,
+  game_id: GameID,
   folder: &Path,
   filename: Option<&str>,
   force_download: bool,
@@ -417,7 +423,11 @@ async fn download_cover(
 }
 
 // Remove partially downloaded game files
-async fn remove_partial_download(client: &ItchClient, upload_id: u64, game_folder: Option<&Path>) {
+async fn remove_partial_download(
+  client: &ItchClient,
+  upload_id: UploadID,
+  game_folder: Option<&Path>,
+) {
   let was_something_deleted = scratch_io::remove_partial_download(client, upload_id, game_folder)
     .await
     .unwrap_or_else(|e| eprintln_exit!("Couldn't remove partial download: {e}"));
@@ -432,7 +442,7 @@ async fn remove_partial_download(client: &ItchClient, upload_id: u64, game_folde
 // Print a list of the currently installed games
 async fn print_installed_games(
   client: Option<&ItchClient>,
-  installed_uploads: &mut HashMap<u64, InstalledUpload>,
+  installed_uploads: &mut HashMap<UploadID, InstalledUpload>,
 ) -> bool {
   let mut updated = false;
   let mut warning: (bool, String) = (false, String::new());
@@ -463,8 +473,8 @@ async fn print_installed_games(
 // Print the installed info of an upload
 async fn print_installed_upload(
   client: Option<&ItchClient>,
-  upload_id: u64,
-  installed_uploads: &mut HashMap<u64, InstalledUpload>,
+  upload_id: UploadID,
+  installed_uploads: &mut HashMap<UploadID, InstalledUpload>,
 ) -> bool {
   let iu = get_installed_upload_info_mut(upload_id, installed_uploads);
   let mut updated = false;
@@ -496,9 +506,9 @@ async fn print_installed_upload(
 // Import an already installed upload from a folder
 async fn import(
   client: &ItchClient,
-  upload_id: u64,
+  upload_id: UploadID,
   game_folder: &Path,
-  installed_uploads: &mut HashMap<u64, InstalledUpload>,
+  installed_uploads: &mut HashMap<UploadID, InstalledUpload>,
 ) {
   exit_if_already_installed(upload_id, installed_uploads);
 
@@ -518,7 +528,10 @@ async fn import(
 }
 
 // Remove an installed upload from the system
-async fn remove_upload(upload_id: u64, installed_uploads: &mut HashMap<u64, InstalledUpload>) {
+async fn remove_upload(
+  upload_id: UploadID,
+  installed_uploads: &mut HashMap<UploadID, InstalledUpload>,
+) {
   let upload_info = get_installed_upload_info(upload_id, installed_uploads);
 
   scratch_io::remove(upload_id, &upload_info.game_folder)
@@ -537,9 +550,9 @@ async fn remove_upload(upload_id: u64, installed_uploads: &mut HashMap<u64, Inst
 
 // Move an installed upload from a place to another
 async fn move_upload(
-  upload_id: u64,
+  upload_id: UploadID,
   dst_game_folder: &Path,
-  installed_uploads: &mut HashMap<u64, InstalledUpload>,
+  installed_uploads: &mut HashMap<UploadID, InstalledUpload>,
 ) {
   let upload_info = get_installed_upload_info_mut(upload_id, installed_uploads);
 
@@ -559,14 +572,14 @@ async fn move_upload(
 // Launch an installed upload
 #[allow(clippy::too_many_arguments)]
 async fn launch_upload(
-  upload_id: u64,
+  upload_id: UploadID,
   upload_executable_path: Option<&Path>,
   launch_action: Option<&str>,
   platform: Option<&scratch_io::GamePlatform>,
   wrapper: Option<&str>,
   game_arguments: Option<&str>,
   environment_variables: Option<&str>,
-  installed_uploads: &HashMap<u64, InstalledUpload>,
+  installed_uploads: &HashMap<UploadID, InstalledUpload>,
 ) {
   let upload_info = get_installed_upload_info(upload_id, installed_uploads);
   let game_folder = upload_info.game_folder.to_path_buf();

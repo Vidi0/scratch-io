@@ -1,3 +1,4 @@
+use crate::itch_api::types::UploadID;
 use std::path::{Path, PathBuf};
 
 pub const UPLOAD_ARCHIVE_NAME: &str = "download";
@@ -5,14 +6,14 @@ pub const COVER_IMAGE_DEFAULT_FILENAME: &str = "cover.png";
 pub const GAME_FOLDER: &str = "Games";
 
 /// Get the upload folder based on its game folder
-pub fn get_upload_folder(game_folder: impl AsRef<Path>, upload_id: u64) -> PathBuf {
+pub fn get_upload_folder(game_folder: impl AsRef<Path>, upload_id: UploadID) -> PathBuf {
   game_folder.as_ref().join(format!("{upload_id}"))
 }
 
 /// Get the upload archive path based on its game folder and `upload_id`
 pub fn get_upload_archive_path(
   game_folder: impl AsRef<Path>,
-  upload_id: u64,
+  upload_id: UploadID,
   upload_filename: &str,
 ) -> PathBuf {
   game_folder.as_ref().join(format!(

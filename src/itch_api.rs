@@ -332,7 +332,7 @@ impl ItchClient {
 /// If something goes wrong
 pub async fn get_user_info(
   client: &ItchClient,
-  user_id: u64,
+  user_id: UserID,
 ) -> Result<User, ItchRequestJSONError<UserResponseError>> {
   client
     .itch_request_json::<UserInfoResponse>(
@@ -458,7 +458,7 @@ pub async fn get_profile_collections(
 /// If something goes wrong
 pub async fn get_collection_info(
   client: &ItchClient,
-  collection_id: u64,
+  collection_id: CollectionID,
 ) -> Result<Collection, ItchRequestJSONError<CollectionResponseError>> {
   client
     .itch_request_json::<CollectionInfoResponse>(
@@ -487,7 +487,7 @@ pub async fn get_collection_info(
 /// If something goes wrong
 pub async fn get_collection_games(
   client: &ItchClient,
-  collection_id: u64,
+  collection_id: CollectionID,
 ) -> Result<Vec<CollectionGameItem>, ItchRequestJSONError<CollectionResponseError>> {
   client
     .itch_request_list::<CollectionGamesResponse>(
@@ -515,7 +515,7 @@ pub async fn get_collection_games(
 /// If something goes wrong
 pub async fn get_game_info(
   client: &ItchClient,
-  game_id: u64,
+  game_id: GameID,
 ) -> Result<Game, ItchRequestJSONError<GameResponseError>> {
   client
     .itch_request_json::<GameInfoResponse>(
@@ -544,7 +544,7 @@ pub async fn get_game_info(
 /// If something goes wrong
 pub async fn get_game_uploads(
   client: &ItchClient,
-  game_id: u64,
+  game_id: GameID,
 ) -> Result<Vec<Upload>, ItchRequestJSONError<GameResponseError>> {
   client
     .itch_request_json::<GameUploadsResponse>(
@@ -573,7 +573,7 @@ pub async fn get_game_uploads(
 /// If something goes wrong
 pub async fn get_upload_info(
   client: &ItchClient,
-  upload_id: u64,
+  upload_id: UploadID,
 ) -> Result<Upload, ItchRequestJSONError<UploadResponseError>> {
   client
     .itch_request_json::<UploadInfoResponse>(
@@ -602,7 +602,7 @@ pub async fn get_upload_info(
 /// If something goes wrong
 pub async fn get_upload_builds(
   client: &ItchClient,
-  upload_id: u64,
+  upload_id: UploadID,
 ) -> Result<Vec<UploadBuild>, ItchRequestJSONError<UploadResponseError>> {
   client
     .itch_request_json::<UploadBuildsResponse>(
@@ -631,7 +631,7 @@ pub async fn get_upload_builds(
 /// If something goes wrong
 pub async fn get_build_info(
   client: &ItchClient,
-  build_id: u64,
+  build_id: BuildID,
 ) -> Result<Build, ItchRequestJSONError<BuildResponseError>> {
   client
     .itch_request_json::<BuildInfoResponse>(
@@ -662,8 +662,8 @@ pub async fn get_build_info(
 /// If something goes wrong
 pub async fn get_upgrade_path(
   client: &ItchClient,
-  current_build_id: u64,
-  target_build_id: u64,
+  current_build_id: BuildID,
+  target_build_id: BuildID,
 ) -> Result<Vec<UpgradePathBuild>, ItchRequestJSONError<UpgradePathResponseError>> {
   client
     .itch_request_json::<BuildUpgradePathResponse>(
@@ -682,16 +682,16 @@ mod tests {
   use super::*;
 
   const INVALID_KEY: String = String::new();
-  const VALID_USER_ID: u64 = 1;
-  const INVALID_USER_ID: u64 = 0;
-  const VALID_COLLECTION_ID: u64 = 4;
-  const INVALID_COLLECTION_ID: u64 = 0;
-  const VALID_GAME_ID: u64 = 3;
-  const INVALID_GAME_ID: u64 = 0;
-  const VALID_UPLOAD_ID: u64 = 3;
-  const INVALID_UPLOAD_ID: u64 = 0;
-  const VALID_BUILD_ID: u64 = 117;
-  const INVALID_BUILD_ID: u64 = 0;
+  const VALID_USER_ID: UserID = 1;
+  const INVALID_USER_ID: UserID = 0;
+  const VALID_COLLECTION_ID: CollectionID = 4;
+  const INVALID_COLLECTION_ID: CollectionID = 0;
+  const VALID_GAME_ID: GameID = 3;
+  const INVALID_GAME_ID: GameID = 0;
+  const VALID_UPLOAD_ID: UploadID = 3;
+  const INVALID_UPLOAD_ID: UploadID = 0;
+  const VALID_BUILD_ID: BuildID = 117;
+  const INVALID_BUILD_ID: BuildID = 0;
 
   /// Read the `SCRATCH_API_KEY` environment variable and create a `ItchClient` based on it
   ///

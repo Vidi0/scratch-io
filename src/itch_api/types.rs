@@ -5,6 +5,14 @@ use time::{OffsetDateTime, serde::rfc3339};
 const ITCH_API_V1_BASE_URL: &str = "https://itch.io/api/1";
 const ITCH_API_V2_BASE_URL: &str = "https://api.itch.io";
 
+pub type UserID = u64;
+pub type CollectionID = u64;
+pub type GameID = u64;
+pub type UploadID = u64;
+pub type BuildID = u64;
+pub type ItchKeyID = u64;
+pub type OwnedKeyID = u64;
+
 /// Deserialize an empty object as an empty vector
 ///
 /// This is needed because of how the itch.io API works
@@ -97,8 +105,8 @@ pub enum ItchKeySource {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ItchKey {
   pub key: String,
-  pub id: u64,
-  pub user_id: u64,
+  pub id: ItchKeyID,
+  pub user_id: UserID,
   pub source: ItchKeySource,
   pub revoked: Option<bool>,
   #[serde(with = "rfc3339")]
@@ -132,7 +140,7 @@ pub struct LoginTOTPError {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct User {
-  pub id: u64,
+  pub id: UserID,
   pub username: String,
   pub display_name: Option<String>,
   pub url: String,
@@ -199,7 +207,7 @@ pub enum GameTrait {
 /// It should always be used alongside serde flattten
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GameCommon {
-  pub id: u64,
+  pub id: GameID,
   pub url: String,
   pub title: String,
   pub short_text: Option<String>,
@@ -224,7 +232,7 @@ pub struct Game {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Collection {
-  pub id: u64,
+  pub id: CollectionID,
   pub title: String,
   pub games_count: u64,
   #[serde(with = "rfc3339")]
@@ -243,7 +251,7 @@ pub struct CollectionGame {
 pub struct CollectionGameItem {
   pub game: CollectionGame,
   pub position: u64,
-  pub user_id: u64,
+  pub user_id: UserID,
   #[serde(with = "rfc3339")]
   pub created_at: OffsetDateTime,
 }
@@ -261,8 +269,8 @@ pub struct CreatedGame {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OwnedKey {
-  pub id: u64,
-  pub game_id: u64,
+  pub id: OwnedKeyID,
+  pub game_id: GameID,
   pub downloads: u64,
   pub game: Game,
   #[serde(with = "rfc3339")]
@@ -277,9 +285,9 @@ pub struct OwnedKey {
 #[serde_as]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BuildCommon {
-  pub id: u64,
+  pub id: BuildID,
   #[serde_as(deserialize_as = "DefaultOnError<Option<_>>")]
-  pub parent_build_id: Option<u64>,
+  pub parent_build_id: Option<BuildID>,
   pub version: u64,
   pub user_version: String,
   #[serde(with = "rfc3339")]
@@ -331,7 +339,7 @@ pub enum BuildState {
 pub struct Build {
   #[serde(flatten)]
   pub build_info: BuildCommon,
-  pub upload_id: u64,
+  pub upload_id: UploadID,
   pub user: User,
   pub state: BuildState,
   #[serde(deserialize_with = "empty_object_as_vec")]
@@ -342,7 +350,7 @@ pub struct Build {
 pub struct UpgradePathBuild {
   #[serde(flatten)]
   pub build_info: BuildCommon,
-  pub upload_id: u64,
+  pub upload_id: UploadID,
   pub files: Vec<BuildFile>,
 }
 
@@ -391,7 +399,7 @@ pub enum UploadStorage {
   Build {
     size: u64,
     build: UploadBuild,
-    build_id: u64,
+    build_id: BuildID,
     channel_name: String,
   },
   External {
@@ -402,8 +410,8 @@ pub enum UploadStorage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Upload {
   pub position: u64,
-  pub id: u64,
-  pub game_id: u64,
+  pub id: UploadID,
+  pub game_id: GameID,
   pub r#type: UploadType,
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub traits: Vec<UploadTrait>,

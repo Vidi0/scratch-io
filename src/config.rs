@@ -1,6 +1,6 @@
 use crate::eprintln_exit;
 use directories::ProjectDirs;
-use scratch_io::InstalledUpload;
+use scratch_io::{InstalledUpload, itch_api::types::UploadID};
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
 use std::collections::HashMap;
@@ -44,7 +44,7 @@ pub struct Config {
   pub config_version: u64,
   pub api_key: Option<String>,
   #[serde_as(as = "HashMap<DisplayFromStr, _>")]
-  pub installed_uploads: HashMap<u64, InstalledUpload>,
+  pub installed_uploads: HashMap<UploadID, InstalledUpload>,
 }
 
 impl std::default::Default for Config {

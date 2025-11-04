@@ -76,7 +76,7 @@ pub enum LaunchMethod<'a> {
 /// Some information about a installed upload
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InstalledUpload {
-  pub upload_id: u64,
+  pub upload_id: UploadID,
   pub game_folder: PathBuf,
   // upload and game are optional because this way, if the Game or Upload structs change
   // in the itch's API, they can be obtained again without invalidating all previous configs
@@ -427,8 +427,8 @@ async fn download_file(
 ///
 /// A vector of tuples containing an upload ID and the `GamePlatform` in which it is available
 #[must_use]
-pub fn get_game_platforms(uploads: &[Upload]) -> Vec<(u64, GamePlatform)> {
-  let mut platforms: Vec<(u64, GamePlatform)> = Vec::new();
+pub fn get_game_platforms(uploads: &[Upload]) -> Vec<(UploadID, GamePlatform)> {
+  let mut platforms: Vec<(UploadID, GamePlatform)> = Vec::new();
 
   for u in uploads {
     for p in u.to_game_platforms() {
@@ -464,7 +464,7 @@ pub fn get_game_platforms(uploads: &[Upload]) -> Vec<(u64, GamePlatform)> {
 /// If something goes wrong
 pub async fn download_game_cover(
   client: &ItchClient,
-  game_id: u64,
+  game_id: GameID,
   folder: &Path,
   cover_filename: Option<&str>,
   force_download: bool,
@@ -547,7 +547,7 @@ pub async fn download_game_cover(
 /// If something goes wrong
 pub async fn download_upload(
   client: &ItchClient,
-  upload_id: u64,
+  upload_id: UploadID,
   game_folder: Option<&Path>,
   skip_hash_verification: bool,
   upload_info: impl FnOnce(&Upload, &Game),
@@ -669,7 +669,7 @@ pub async fn download_upload(
 /// If something goes wrong
 pub async fn import(
   client: &ItchClient,
-  upload_id: u64,
+  upload_id: UploadID,
   game_folder: &Path,
 ) -> Result<InstalledUpload, String> {
   // Obtain information about the game and the upload that will be downloaeded
@@ -713,7 +713,7 @@ pub async fn import(
 /// If something goes wrong
 pub async fn remove_partial_download(
   client: &ItchClient,
-  upload_id: u64,
+  upload_id: UploadID,
   game_folder: Option<&Path>,
 ) -> Result<bool, String> {
   // Obtain information about the game and the upload
@@ -802,7 +802,7 @@ pub async fn remove_partial_download(
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn remove(upload_id: u64, game_folder: &Path) -> Result<(), String> {
+pub async fn remove(upload_id: UploadID, game_folder: &Path) -> Result<(), String> {
   let upload_folder = get_upload_folder(game_folder, upload_id);
 
   // If there isn't a upload_folder, or it is empty, that means the game
@@ -838,7 +838,7 @@ pub async fn remove(upload_id: u64, game_folder: &Path) -> Result<(), String> {
 ///
 /// If something goes wrong
 pub async fn r#move(
-  upload_id: u64,
+  upload_id: UploadID,
   src_game_folder: &Path,
   dst_game_folder: &Path,
 ) -> Result<PathBuf, String> {
@@ -887,7 +887,7 @@ pub async fn r#move(
 ///
 /// If something goes wrong
 pub async fn get_upload_manifest(
-  upload_id: u64,
+  upload_id: UploadID,
   game_folder: &Path,
 ) -> Result<Option<itch_manifest::Manifest>, String> {
   let upload_folder = get_upload_folder(game_folder, upload_id);
@@ -917,7 +917,7 @@ pub async fn get_upload_manifest(
 ///
 /// If something goes wrong
 pub async fn launch(
-  upload_id: u64,
+  upload_id: UploadID,
   game_folder: &Path,
   launch_method: LaunchMethod<'_>,
   wrapper: &[String],
@@ -1034,6 +1034,6 @@ pub async fn launch(
 ///
 /// The web game URL
 #[must_use]
-pub fn get_web_game_url(upload_id: u64) -> String {
+pub fn get_web_game_url(upload_id: UploadID) -> String {
   format!("https://html-classic.itch.zone/html/{upload_id}/index.html")
 }
