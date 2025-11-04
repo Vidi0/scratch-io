@@ -21,7 +21,7 @@ use tokio::time::{Duration, Instant};
 // This isn't inside itch_types because it is not something that the itch API returns
 // These platforms are *interpreted* from the data provided by the API
 /// The different platforms a upload can be made for
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, clap::ValueEnum)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize, clap::ValueEnum)]
 pub enum GamePlatform {
   Linux,
   Windows,
@@ -67,10 +67,17 @@ pub enum DownloadStatus {
   Extract,
 }
 
-pub enum LaunchMethod<'a> {
-  AlternativeExecutable(&'a Path),
-  ManifestAction(&'a str),
-  Heuristics(&'a GamePlatform, &'a Game),
+pub enum LaunchMethod {
+  AlternativeExecutable {
+    executable_path: PathBuf,
+  },
+  ManifestAction {
+    manifest_action_name: String,
+  },
+  Heuristics {
+    game_platform: GamePlatform,
+    game_title: String,
+  },
 }
 
 /// Some information about a installed upload
@@ -78,47 +85,8 @@ pub enum LaunchMethod<'a> {
 pub struct InstalledUpload {
   pub upload_id: UploadID,
   pub game_folder: PathBuf,
-  // upload and game are optional because this way, if the Game or Upload structs change
-  // in the itch's API, they can be obtained again without invalidating all previous configs
-  pub upload: Option<Upload>,
-  pub game: Option<Game>,
-}
-
-impl InstalledUpload {
-  /// Returns true if the info has been updated
-  pub async fn add_missing_info(
-    &mut self,
-    client: &ItchClient,
-    force_update: bool,
-  ) -> Result<bool, String> {
-    let mut updated = false;
-
-    if self.upload.is_none() || force_update {
-      self.upload = Some(
-        get_upload_info(client, self.upload_id)
-          .await
-          .map_err(|e| e.to_string())?,
-      );
-      updated = true;
-    }
-    if self.game.is_none() || force_update {
-      self.game = Some(
-        get_game_info(
-          client,
-          self
-            .upload
-            .as_ref()
-            .expect("The upload info has just been received. Why isn't it there?")
-            .game_id,
-        )
-        .await
-        .map_err(|e| e.to_string())?,
-      );
-      updated = true;
-    }
-
-    Ok(updated)
-  }
+  pub game_id: GameID,
+  pub game_title: String,
 }
 
 /// Hash a file into a MD5 hasher
@@ -645,8 +613,8 @@ pub async fn download_upload(
         game_folder.to_string_lossy()
       )
     })?,
-    upload: Some(upload),
-    game: Some(game),
+    game_id: game.game_info.id,
+    game_title: game.game_info.title,
   })
 }
 
@@ -689,8 +657,8 @@ pub async fn import(
         game_folder.to_string_lossy()
       )
     })?,
-    upload: Some(upload),
-    game: Some(game),
+    game_id: game.game_info.id,
+    game_title: game.game_info.title,
   })
 }
 
@@ -919,7 +887,7 @@ pub async fn get_upload_manifest(
 pub async fn launch(
   upload_id: UploadID,
   game_folder: &Path,
-  launch_method: LaunchMethod<'_>,
+  launch_method: LaunchMethod,
   wrapper: &[String],
   game_arguments: &[String],
   environment_variables: &[(String, String)],
@@ -928,16 +896,24 @@ pub async fn launch(
   let upload_folder: PathBuf = get_upload_folder(game_folder, upload_id);
 
   // Determine the upload executable and its launch arguments from the function arguments, manifest, or heuristics.
-  let (upload_executable, game_arguments): (&Path, Cow<[String]>) = match launch_method {
+  let (upload_executable, game_arguments): (PathBuf, Cow<[String]>) = match launch_method {
     // 1. If the launch method is an alternative executable, then that executable with the arguments provided to the function
-    LaunchMethod::AlternativeExecutable(p) => (p, Cow::Borrowed(game_arguments)),
+    LaunchMethod::AlternativeExecutable { executable_path } => {
+      (executable_path, Cow::Borrowed(game_arguments))
+    }
     // 2. If the launch method is a manifest action, use its executable
-    LaunchMethod::ManifestAction(a) => {
-      let ma = itch_manifest::launch_action(&upload_folder, Some(a))
+    LaunchMethod::ManifestAction {
+      manifest_action_name,
+    } => {
+      let ma = itch_manifest::launch_action(&upload_folder, Some(&manifest_action_name))
         .await?
-        .ok_or_else(|| format!("The provided launch action doesn't exist in the manifest: {a}"))?;
+        .ok_or_else(|| {
+          format!(
+            "The provided launch action doesn't exist in the manifest: {manifest_action_name}"
+          )
+        })?;
       (
-        &ma.get_canonical_path(&upload_folder).await?,
+        ma.get_canonical_path(&upload_folder).await?,
         // a) If the function's game arguments are empty, use the ones from the manifest
         if game_arguments.is_empty() {
           Cow::Owned(ma.args.unwrap_or_default())
@@ -949,14 +925,17 @@ pub async fn launch(
       )
     }
     // 3. Otherwise, if the launch method are the heuristics, use them to locate the executable
-    LaunchMethod::Heuristics(gp, g) => {
+    LaunchMethod::Heuristics {
+      game_platform,
+      game_title,
+    } => {
       // But first, check if the game has a manifest with a "play" action, and use it if possible
       let mao = itch_manifest::launch_action(&upload_folder, None).await?;
 
       match mao {
         // If the manifest has a "play" action, launch from it
         Some(ma) => (
-          &ma.get_canonical_path(&upload_folder).await?,
+          ma.get_canonical_path(&upload_folder).await?,
           // a) If the function's game arguments are empty, use the ones from the manifest
           if game_arguments.is_empty() {
             Cow::Owned(ma.args.unwrap_or_default())
@@ -968,14 +947,14 @@ pub async fn launch(
         ),
         // Else, now use the heuristics to determine the executable, with the function's game arguments
         None => (
-          &heuristics::get_game_executable(&upload_folder, gp, g).await?,
+          heuristics::get_game_executable(&upload_folder, game_platform, game_title).await?,
           Cow::Borrowed(game_arguments),
         ),
       }
     }
   };
 
-  let upload_executable = tokio::fs::canonicalize(upload_executable).await
+  let upload_executable = tokio::fs::canonicalize(&upload_executable).await
     .map_err(|e| format!("Error getting the canonical form of the upload executable path! Maybe it doesn't exist: {}\n{e}", upload_executable.to_string_lossy()))?;
 
   // Make the file executable

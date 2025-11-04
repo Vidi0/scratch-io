@@ -1,5 +1,4 @@
 use crate::GamePlatform;
-use crate::itch_api::types::Game;
 use std::path::{Path, PathBuf};
 
 const GOOD_LAUNCH_FILENAMES: &[&str] = &[
@@ -67,8 +66,8 @@ impl GamePlatform {
 /// An error if something goes wrong
 pub async fn get_game_executable(
   upload_folder: &Path,
-  platform: &GamePlatform,
-  game_info: &Game,
+  platform: GamePlatform,
+  game_title: String,
 ) -> Result<PathBuf, String> {
   // If the folder is not a directory, return
   if !upload_folder.is_dir() {
@@ -77,8 +76,6 @@ pub async fn get_game_executable(
       upload_folder.to_string_lossy()
     ));
   }
-
-  let game_title = make_alphanumeric_lowercase(game_info.game_info.title.clone());
 
   // This variable will store the best executable found at the moment and its rating
   let mut best_executable: (Option<PathBuf>, i64) = (None, i64::MIN);
@@ -140,7 +137,7 @@ pub async fn get_game_executable(
 fn rate_executable(
   file_path: &Path,
   directory_levels: usize,
-  platform: &GamePlatform,
+  platform: GamePlatform,
   game_title: &str,
 ) -> Result<i64, String> {
   let mut rating: i64 = 0;

@@ -37,14 +37,14 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
   #[clap(flatten)]
-  RequireApi(RequireApiCommands),
+  WithApi(WithApiCommands),
   #[clap(flatten)]
-  OptionalApi(OptionalApiCommands),
+  WithoutApi(WithoutApiCommands),
 }
 
 // These commands will receive a valid API key and its profile
 #[derive(Subcommand)]
-enum RequireApiCommands {
+enum WithApiCommands {
   /// Log in with an API key to use in the other commands
   Auth {
     /// The API key to save
@@ -118,7 +118,7 @@ enum RequireApiCommands {
 
 // These commands may receive a valid API key, or may not
 #[derive(Subcommand)]
-enum OptionalApiCommands {
+enum WithoutApiCommands {
   /// Login with a username and password
   Login {
     /// The username of the user who logs in
@@ -205,6 +205,18 @@ async fn get_itch_client(keys: Vec<Option<String>>) -> Result<ItchClient, String
 }
 
 fn get_installed_upload_info(
+  upload_id: UploadID,
+  mut installed_uploads: HashMap<UploadID, InstalledUpload>,
+) -> InstalledUpload {
+  installed_uploads.remove(&upload_id).unwrap_or_else(|| {
+    eprintln_exit!(
+      "The given upload id is not installed!: {}",
+      upload_id.to_string()
+    )
+  })
+}
+
+fn get_installed_upload_info_ref(
   upload_id: UploadID,
   installed_uploads: &HashMap<UploadID, InstalledUpload>,
 ) -> &InstalledUpload {
@@ -440,55 +452,18 @@ async fn remove_partial_download(
 }
 
 // Print a list of the currently installed games
-async fn print_installed_games(
-  client: Option<&ItchClient>,
-  installed_uploads: &mut HashMap<UploadID, InstalledUpload>,
-) -> bool {
-  let mut updated = false;
-  let mut warning: (bool, String) = (false, String::new());
-
+fn print_installed_games(installed_uploads: &mut HashMap<UploadID, InstalledUpload>) {
   for iu in installed_uploads.values_mut() {
-    if let Some(c) = client {
-      match iu.add_missing_info(c, false).await {
-        Ok(u) => updated |= u,
-        Err(e) => warning = (true, e.to_string()),
-      }
-    } else {
-      warning = (
-        true,
-        "Missing, invalid or couldn't verify the api key.".to_string(),
-      )
-    }
-
     println!("{iu:#?}");
   }
-
-  if warning.0 {
-    println!("Warning: Couldn't update the game info!: {}", warning.1);
-  }
-
-  updated
 }
 
 // Print the installed info of an upload
 async fn print_installed_upload(
-  client: Option<&ItchClient>,
   upload_id: UploadID,
   installed_uploads: &mut HashMap<UploadID, InstalledUpload>,
-) -> bool {
+) {
   let iu = get_installed_upload_info_mut(upload_id, installed_uploads);
-  let mut updated = false;
-
-  if let Some(c) = client {
-    match iu.add_missing_info(c, false).await {
-      Ok(u) => updated |= u,
-      Err(e) => println!("Warning: Couldn't update the game info!: {e}"),
-    }
-  } else {
-    println!(
-      "Warning: Couldn't update the game info!: Missing, invalid or couldn't verify the api key."
-    )
-  }
 
   println!("{iu:#?}");
 
@@ -499,8 +474,6 @@ async fn print_installed_upload(
   if let Some(m) = manifest {
     println!("{m:#?}");
   }
-
-  updated
 }
 
 // Import an already installed upload from a folder
@@ -532,7 +505,7 @@ async fn remove_upload(
   upload_id: UploadID,
   installed_uploads: &mut HashMap<UploadID, InstalledUpload>,
 ) {
-  let upload_info = get_installed_upload_info(upload_id, installed_uploads);
+  let upload_info = get_installed_upload_info_ref(upload_id, installed_uploads);
 
   scratch_io::remove(upload_id, &upload_info.game_folder)
     .await
@@ -573,13 +546,13 @@ async fn move_upload(
 #[allow(clippy::too_many_arguments)]
 async fn launch_upload(
   upload_id: UploadID,
-  upload_executable_path: Option<&Path>,
-  launch_action: Option<&str>,
-  platform: Option<&scratch_io::GamePlatform>,
+  upload_executable_path: Option<PathBuf>,
+  launch_action: Option<String>,
+  platform: Option<scratch_io::GamePlatform>,
   wrapper: Option<&str>,
   game_arguments: Option<&str>,
   environment_variables: Option<&str>,
-  installed_uploads: &HashMap<UploadID, InstalledUpload>,
+  installed_uploads: HashMap<UploadID, InstalledUpload>,
 ) {
   let upload_info = get_installed_upload_info(upload_id, installed_uploads);
   let game_folder = upload_info.game_folder.to_path_buf();
@@ -612,18 +585,16 @@ async fn launch_upload(
     });
 
   let launch_method = if let Some(p) = upload_executable_path {
-    scratch_io::LaunchMethod::AlternativeExecutable(p)
-  } else if let Some(la) = launch_action {
-    scratch_io::LaunchMethod::ManifestAction(la)
-  } else if let Some(p) = platform {
-    scratch_io::LaunchMethod::Heuristics(
-      p,
-      upload_info.game.as_ref().unwrap_or_else(|| {
-        eprintln_exit!(
-          r#"Missing game or upload info. Use the "installed" command to fill missing info"#
-        )
-      }),
-    )
+    scratch_io::LaunchMethod::AlternativeExecutable { executable_path: p }
+  } else if let Some(action) = launch_action {
+    scratch_io::LaunchMethod::ManifestAction {
+      manifest_action_name: action,
+    }
+  } else if let Some(platform) = platform {
+    scratch_io::LaunchMethod::Heuristics {
+      game_platform: platform,
+      game_title: upload_info.game_title.to_string(),
+    }
   } else {
     eprintln_exit!(
       r#"A launch method is required! One of: "launch_action", "platform" or "upload_executable_path" must exist!"#
@@ -662,7 +633,7 @@ async fn main() {
     // The api key is:
     vec![
       // 1. If the command is auth, then the provided key
-      if let Commands::RequireApi(RequireApiCommands::Auth { api_key }) = &cli.command {
+      if let Commands::WithApi(WithApiCommands::Auth { api_key }) = &cli.command {
         Some(api_key.to_string())
       } else {
         None
@@ -679,33 +650,33 @@ async fn main() {
   /**** COMMANDS ****/
 
   match cli.command {
-    Commands::RequireApi(command) => {
+    Commands::WithApi(command) => {
       let client = client.unwrap_or_else(|e| eprintln_exit!("{e}"));
 
       match command {
-        RequireApiCommands::Auth { .. } => {
+        WithApiCommands::Auth { .. } => {
           auth(client, &mut config.api_key).await;
           config.save_unwrap(custom_config_file).await;
         }
-        RequireApiCommands::Profile => {
+        WithApiCommands::Profile => {
           print_profile(&client).await;
         }
-        RequireApiCommands::Created => {
+        WithApiCommands::Created => {
           print_created_games(&client).await;
         }
-        RequireApiCommands::Owned => {
+        WithApiCommands::Owned => {
           print_owned_keys(&client).await;
         }
-        RequireApiCommands::Collections => {
+        WithApiCommands::Collections => {
           print_collections(&client).await;
         }
-        RequireApiCommands::CollectionGames { collection_id } => {
+        WithApiCommands::CollectionGames { collection_id } => {
           print_collection_games(&client, collection_id).await;
         }
-        RequireApiCommands::Game { game_id } => {
+        WithApiCommands::Game { game_id } => {
           print_game_info(&client, game_id).await;
         }
-        RequireApiCommands::Download {
+        WithApiCommands::Download {
           upload_id,
           install_path,
           skip_hash_verification,
@@ -720,7 +691,7 @@ async fn main() {
           .await;
           config.save_unwrap(custom_config_file).await;
         }
-        RequireApiCommands::DownloadCover {
+        WithApiCommands::DownloadCover {
           game_id,
           folder,
           filename,
@@ -735,13 +706,13 @@ async fn main() {
           )
           .await;
         }
-        RequireApiCommands::RemovePartialDownload {
+        WithApiCommands::RemovePartialDownload {
           upload_id,
           install_path,
         } => {
           remove_partial_download(&client, upload_id, install_path.as_deref()).await;
         }
-        RequireApiCommands::Import {
+        WithApiCommands::Import {
           upload_id,
           install_path,
         } => {
@@ -756,74 +727,65 @@ async fn main() {
         }
       }
     }
-    Commands::OptionalApi(command) => {
-      let client = client.ok();
-
-      match command {
-        OptionalApiCommands::Login {
-          username,
-          password,
-          recaptcha_response,
+    Commands::WithoutApi(command) => match command {
+      WithoutApiCommands::Login {
+        username,
+        password,
+        recaptcha_response,
+        totp_code,
+      } => {
+        login(
+          &username,
+          &password,
+          recaptcha_response.as_deref(),
           totp_code,
-        } => {
-          login(
-            &username,
-            &password,
-            recaptcha_response.as_deref(),
-            totp_code,
-            &mut config.api_key,
-          )
-          .await;
-          config.save_unwrap(custom_config_file).await;
-        }
-        OptionalApiCommands::Logout => {
-          logout(&mut config.api_key);
-          config.save_unwrap(custom_config_file).await;
-        }
-        OptionalApiCommands::Installed => {
-          if print_installed_games(client.as_ref(), &mut config.installed_uploads).await {
-            config.save_unwrap(custom_config_file).await;
-          }
-        }
-        OptionalApiCommands::InstalledUpload { upload_id } => {
-          if print_installed_upload(client.as_ref(), upload_id, &mut config.installed_uploads).await
-          {
-            config.save_unwrap(custom_config_file).await;
-          }
-        }
-        OptionalApiCommands::Remove { upload_id } => {
-          remove_upload(upload_id, &mut config.installed_uploads).await;
-          config.save_unwrap(custom_config_file).await;
-        }
-        OptionalApiCommands::Move {
+          &mut config.api_key,
+        )
+        .await;
+        config.save_unwrap(custom_config_file).await;
+      }
+      WithoutApiCommands::Logout => {
+        logout(&mut config.api_key);
+        config.save_unwrap(custom_config_file).await;
+      }
+      WithoutApiCommands::Installed => {
+        print_installed_games(&mut config.installed_uploads);
+      }
+      WithoutApiCommands::InstalledUpload { upload_id } => {
+        print_installed_upload(upload_id, &mut config.installed_uploads).await;
+      }
+      WithoutApiCommands::Remove { upload_id } => {
+        remove_upload(upload_id, &mut config.installed_uploads).await;
+        config.save_unwrap(custom_config_file).await;
+      }
+      WithoutApiCommands::Move {
+        upload_id,
+        game_path_dst,
+      } => {
+        move_upload(upload_id, &game_path_dst, &mut config.installed_uploads).await;
+        config.save_unwrap(custom_config_file).await;
+      }
+      WithoutApiCommands::Launch {
+        upload_id,
+        launch_action,
+        platform,
+        upload_executable_path,
+        wrapper,
+        game_arguments,
+        environment_variables,
+      } => {
+        launch_upload(
           upload_id,
-          game_path_dst,
-        } => {
-          move_upload(upload_id, &game_path_dst, &mut config.installed_uploads).await;
-          config.save_unwrap(custom_config_file).await;
-        }
-        OptionalApiCommands::Launch {
-          upload_id,
+          upload_executable_path,
           launch_action,
           platform,
-          upload_executable_path,
-          wrapper,
-          game_arguments,
-          environment_variables,
-        } => {
-          launch_upload(
-            upload_id,
-            upload_executable_path.as_deref(),
-            launch_action.as_deref(),
-            platform.as_ref(),
-            wrapper.as_deref(),
-            game_arguments.as_deref(),
-            environment_variables.as_deref(),
-            &config.installed_uploads,
-          )
-          .await;
-        }
+          wrapper.as_deref(),
+          game_arguments.as_deref(),
+          environment_variables.as_deref(),
+          config.installed_uploads,
+        )
+        .await;
       }
-    }
+    },
   }
 }
