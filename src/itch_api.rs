@@ -34,7 +34,7 @@ impl ItchClient {
   ///
   /// # Errors
   ///
-  /// If sending the request fails
+  /// If the request fails to send
   pub(crate) async fn itch_request(
     &self,
     url: ItchApiUrl<'_>,
@@ -86,7 +86,7 @@ impl ItchClient {
   ///
   /// # Errors
   ///
-  /// If sending the request or parsing it fails
+  /// If the request, retrieving its text, or parsing fails, or if the server returned an error
   async fn itch_request_json<T>(
     &self,
     url: ItchApiUrl<'_>,
@@ -160,7 +160,7 @@ impl ItchClient {
   ///
   /// # Errors
   ///
-  /// If the API key is invalid or couldn't be verified
+  /// If the request, retrieving its text, or parsing fails, or if the server returned an error
   pub async fn auth(
     api_key: String,
   ) -> Result<Self, ItchRequestJSONError<ApiResponseCommonErrors>> {
@@ -193,7 +193,7 @@ impl ItchClient {
   ///
   /// # Errors
   ///
-  /// If something goes wrong
+  /// If the requests fail, or an additional step is required to log in.
   pub async fn login(
     username: &str,
     password: &str,
@@ -279,7 +279,7 @@ impl ItchClient {
 ///
 /// # Errors
 ///
-/// If something goes wrong
+/// If the request, retrieving its text, or parsing fails, or if the server returned an error
 pub async fn get_user_info(
   client: &ItchClient,
   user_id: UserID,
@@ -308,7 +308,7 @@ pub async fn get_user_info(
 ///
 /// # Errors
 ///
-/// If something goes wrong
+/// If the request, retrieving its text, or parsing fails, or if the server returned an error
 pub async fn get_profile(
   client: &ItchClient,
 ) -> Result<Profile, ItchRequestJSONError<ApiResponseCommonErrors>> {
@@ -330,7 +330,7 @@ pub async fn get_profile(
 ///
 /// # Errors
 ///
-/// If something goes wrong
+/// If the request, retrieving its text, or parsing fails, or if the server returned an error
 pub async fn get_created_games(
   client: &ItchClient,
 ) -> Result<Vec<CreatedGame>, ItchRequestJSONError<ApiResponseCommonErrors>> {
@@ -352,7 +352,7 @@ pub async fn get_created_games(
 ///
 /// # Errors
 ///
-/// If something goes wrong
+/// If the request, retrieving its text, or parsing fails, or if the server returned an error
 pub async fn get_owned_keys(
   client: &ItchClient,
 ) -> Result<Vec<OwnedKey>, ItchRequestJSONError<ApiResponseCommonErrors>> {
@@ -393,7 +393,7 @@ pub async fn get_owned_keys(
 ///
 /// # Errors
 ///
-/// If something goes wrong
+/// If the request, retrieving its text, or parsing fails, or if the server returned an error
 pub async fn get_profile_collections(
   client: &ItchClient,
 ) -> Result<Vec<Collection>, ItchRequestJSONError<ApiResponseCommonErrors>> {
@@ -421,7 +421,7 @@ pub async fn get_profile_collections(
 ///
 /// # Errors
 ///
-/// If something goes wrong
+/// If the request, retrieving its text, or parsing fails, or if the server returned an error
 pub async fn get_collection_info(
   client: &ItchClient,
   collection_id: CollectionID,
@@ -450,7 +450,7 @@ pub async fn get_collection_info(
 ///
 /// # Errors
 ///
-/// If something goes wrong
+/// If the request, retrieving its text, or parsing fails, or if the server returned an error
 pub async fn get_collection_games(
   client: &ItchClient,
   collection_id: CollectionID,
@@ -494,7 +494,7 @@ pub async fn get_collection_games(
 ///
 /// # Errors
 ///
-/// If something goes wrong
+/// If the request, retrieving its text, or parsing fails, or if the server returned an error
 pub async fn get_game_info(
   client: &ItchClient,
   game_id: GameID,
@@ -523,7 +523,7 @@ pub async fn get_game_info(
 ///
 /// # Errors
 ///
-/// If something goes wrong
+/// If the request, retrieving its text, or parsing fails, or if the server returned an error
 pub async fn get_game_uploads(
   client: &ItchClient,
   game_id: GameID,
@@ -552,7 +552,7 @@ pub async fn get_game_uploads(
 ///
 /// # Errors
 ///
-/// If something goes wrong
+/// If the request, retrieving its text, or parsing fails, or if the server returned an error
 pub async fn get_upload_info(
   client: &ItchClient,
   upload_id: UploadID,
@@ -581,7 +581,7 @@ pub async fn get_upload_info(
 ///
 /// # Errors
 ///
-/// If something goes wrong
+/// If the request, retrieving its text, or parsing fails, or if the server returned an error
 pub async fn get_upload_builds(
   client: &ItchClient,
   upload_id: UploadID,
@@ -610,7 +610,7 @@ pub async fn get_upload_builds(
 ///
 /// # Errors
 ///
-/// If something goes wrong
+/// If the request, retrieving its text, or parsing fails, or if the server returned an error
 pub async fn get_build_info(
   client: &ItchClient,
   build_id: BuildID,
@@ -641,7 +641,7 @@ pub async fn get_build_info(
 ///
 /// # Errors
 ///
-/// If something goes wrong
+/// If the request, retrieving its text, or parsing fails, or if the server returned an error
 pub async fn get_upgrade_path(
   client: &ItchClient,
   current_build_id: BuildID,
