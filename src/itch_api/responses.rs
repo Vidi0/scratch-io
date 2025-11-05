@@ -27,24 +27,6 @@ impl<T: IntoResponseResult> ApiResponse<T> {
   }
 }
 
-/// This struct corresponds to the response to API calls that return
-/// a list of items split in pages.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ApiResponseList<T>
-where
-  T: ListResponse,
-{
-  pub page: u64,
-  pub per_page: u64,
-  #[serde(flatten)]
-  pub values: T,
-}
-
-pub trait ListResponse {
-  type Item;
-  fn items(self) -> Vec<Self::Item>;
-}
-
 /// Response struct for: <https://api.itch.io/login>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -103,19 +85,13 @@ impl IntoResponseResult for CreatedGamesResponse {
 /// Response struct for: <https://api.itch.io/profile/owned-keys>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OwnedKeysResponse {
+  pub page: u64,
+  pub per_page: u64,
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub owned_keys: Vec<OwnedKey>,
 }
 
-impl ListResponse for OwnedKeysResponse {
-  type Item = OwnedKey;
-
-  fn items(self) -> Vec<Self::Item> {
-    self.owned_keys
-  }
-}
-
-impl IntoResponseResult for ApiResponseList<OwnedKeysResponse> {
+impl IntoResponseResult for OwnedKeysResponse {
   type Err = ApiResponseCommonErrors;
 }
 
@@ -143,19 +119,13 @@ impl IntoResponseResult for CollectionInfoResponse {
 /// Response struct for: <https://api.itch.io/collections/{collection_id}/collection-games>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CollectionGamesResponse {
+  pub page: u64,
+  pub per_page: u64,
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub collection_games: Vec<CollectionGameItem>,
 }
 
-impl ListResponse for CollectionGamesResponse {
-  type Item = CollectionGameItem;
-
-  fn items(self) -> Vec<Self::Item> {
-    self.collection_games
-  }
-}
-
-impl IntoResponseResult for ApiResponseList<CollectionGamesResponse> {
+impl IntoResponseResult for CollectionGamesResponse {
   type Err = CollectionResponseError;
 }
 

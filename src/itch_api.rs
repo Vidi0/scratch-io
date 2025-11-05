@@ -121,56 +121,6 @@ impl ItchClient {
         kind: ItchRequestJSONErrorKind::ServerRepliedWithError(e),
       })
   }
-
-  /// Make requests to the itch.io API to get a list of items that are split into pages
-  ///
-  /// Takes any type that implements `ListResponse`
-  ///
-  /// # Arguments
-  ///
-  /// * `url` - An itch.io API address to make the requests against
-  ///
-  /// * `method` - The request method (GET, POST, etc.)
-  ///
-  /// # Returns
-  ///
-  /// A Vector of the corresponding `ListResponse::Item` structs
-  ///
-  /// # Errors
-  ///
-  /// If sending the request or parsing it fails
-  async fn itch_request_list<T>(
-    &self,
-    url: ItchApiUrl<'_>,
-    method: Method,
-    mut options: impl FnMut(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
-  ) -> Result<Vec<T::Item>, ItchRequestJSONError<<ApiResponseList<T> as IntoResponseResult>::Err>>
-  where
-    T: serde::de::DeserializeOwned + ListResponse,
-    ApiResponseList<T>: IntoResponseResult,
-  {
-    let mut values: Vec<T::Item> = Vec::new();
-    let mut page: u64 = 1;
-    loop {
-      let response = self
-        .itch_request_json::<ApiResponseList<T>>(url, method.clone(), |b| {
-          options(b.query(&[("page", page)]))
-        })
-        .await?;
-
-      let response_values = response.values.items();
-      let num_elements: u64 = response_values.len() as u64;
-      values.extend(response_values.into_iter());
-
-      if num_elements < response.per_page || num_elements == 0 {
-        break;
-      }
-
-      page += 1;
-    }
-
-    Ok(values)
-  }
 }
 
 /// This block defines the `ItchClient` constructors and other functions
@@ -406,13 +356,29 @@ pub async fn get_created_games(
 pub async fn get_owned_keys(
   client: &ItchClient,
 ) -> Result<Vec<OwnedKey>, ItchRequestJSONError<ApiResponseCommonErrors>> {
-  client
-    .itch_request_list::<OwnedKeysResponse>(
-      ItchApiUrl::V2("profile/owned-keys"),
-      Method::GET,
-      |b| b,
-    )
-    .await
+  let mut values: Vec<OwnedKey> = Vec::new();
+  let mut page: u64 = 1;
+  loop {
+    let response = client
+      .itch_request_json::<OwnedKeysResponse>(
+        ItchApiUrl::V2("profile/owned-keys"),
+        Method::GET,
+        |b| b.query(&[("page", page)]),
+      )
+      .await?;
+
+    let response_values = response.owned_keys;
+    let num_elements: u64 = response_values.len() as u64;
+    values.extend(response_values.into_iter());
+
+    if num_elements == 0 || num_elements < response.per_page {
+      break;
+    }
+
+    page += 1;
+  }
+
+  Ok(values)
 }
 
 /// List the user's game collections
@@ -489,13 +455,29 @@ pub async fn get_collection_games(
   client: &ItchClient,
   collection_id: CollectionID,
 ) -> Result<Vec<CollectionGameItem>, ItchRequestJSONError<CollectionResponseError>> {
-  client
-    .itch_request_list::<CollectionGamesResponse>(
-      ItchApiUrl::V2(&format!("collections/{collection_id}/collection-games")),
-      Method::GET,
-      |b| b,
-    )
-    .await
+  let mut values: Vec<CollectionGameItem> = Vec::new();
+  let mut page: u64 = 1;
+  loop {
+    let response = client
+      .itch_request_json::<CollectionGamesResponse>(
+        ItchApiUrl::V2(&format!("collections/{collection_id}/collection-games")),
+        Method::GET,
+        |b| b.query(&[("page", page)]),
+      )
+      .await?;
+
+    let response_values = response.collection_games;
+    let num_elements: u64 = response_values.len() as u64;
+    values.extend(response_values.into_iter());
+
+    if num_elements == 0 || num_elements < response.per_page {
+      break;
+    }
+
+    page += 1;
+  }
+
+  Ok(values)
 }
 
 /// Get the information about a game in itch.io
