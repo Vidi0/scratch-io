@@ -23,6 +23,20 @@ cargo build --release
 
 The binary will be placed in `target/release/scratch-io`.
 
+## 🔍 Getting a game's ID
+
+You can find an itch.io game's ID in two ways:
+
+1. Append `/data.json` to the itch.io game page's URL in your browser. The ID will be in the `id` field of the JSON response.
+2. Look for a `<meta>` tag inside the `<head>` section of the game page's HTML source:
+   ```html
+   <head>
+     <meta name="itch:path" content="games/123456">
+     ...
+   </head>
+   ```
+   The number after `games/` is the game ID.
+
 ## 🚀 Usage
 
 Authenticate with your itch.io API key:
