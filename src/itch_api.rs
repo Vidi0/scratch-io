@@ -37,7 +37,7 @@ impl ItchClient {
   /// If the request fails to send
   pub(crate) async fn itch_request(
     &self,
-    url: ItchApiUrl<'_>,
+    url: &ItchApiUrl,
     method: Method,
     options: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
   ) -> Result<Response, reqwest::Error> {
@@ -45,21 +45,21 @@ impl ItchClient {
     let mut request: reqwest::RequestBuilder = self.client.request(method, url.to_string());
 
     // Add authentication based on the API's version.
-    request = match url {
+    request = match url.get_version() {
       // https://itchapi.ryhn.link/API/V1/index.html#authentication
-      ItchApiUrl::V1(..) => {
+      ItchApiVersion::V1 => {
         request.header(header::AUTHORIZATION, format!("Bearer {}", &self.api_key))
       }
       // https://itchapi.ryhn.link/API/V2/index.html#authentication
-      ItchApiUrl::V2(..) => request.header(header::AUTHORIZATION, &self.api_key),
+      ItchApiVersion::V2 => request.header(header::AUTHORIZATION, &self.api_key),
       // If it isn't a known API version, just leave it without authentication
       // Giving any authentication to an untrusted site is insecure because the API key could be stolen
-      ItchApiUrl::Other(..) => request,
+      ItchApiVersion::Other => request,
     };
 
     // This header is set to ensure the use of the v2 version
     // https://itchapi.ryhn.link/API/V2/index.html
-    if let ItchApiUrl::V2(_) = url {
+    if let ItchApiVersion::V2 = url.get_version() {
       request = request.header(header::ACCEPT, "application/vnd.itch.v2");
     }
 
@@ -89,7 +89,7 @@ impl ItchClient {
   /// If the request, retrieving its text, or parsing fails, or if the server returned an error
   async fn itch_request_json<T>(
     &self,
-    url: ItchApiUrl<'_>,
+    url: &ItchApiUrl,
     method: Method,
     options: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
   ) -> Result<T, ItchRequestJSONError<<T as IntoResponseResult>::Err>>
@@ -215,9 +215,11 @@ impl ItchClient {
     }
 
     let response = client
-      .itch_request_json::<LoginResponse>(ItchApiUrl::V2("login"), Method::POST, |b| {
-        b.form(&params)
-      })
+      .itch_request_json::<LoginResponse>(
+        &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "login"),
+        Method::POST,
+        |b| b.form(&params),
+      )
       .await?;
 
     let ls = match response {
@@ -260,9 +262,11 @@ impl ItchClient {
     totp_code: u64,
   ) -> Result<TOTPResponse, ItchRequestJSONError<TOTPResponseError>> {
     self
-      .itch_request_json::<TOTPResponse>(ItchApiUrl::V2("totp/verify"), Method::POST, |b| {
-        b.form(&[("token", totp_token), ("code", &totp_code.to_string())])
-      })
+      .itch_request_json::<TOTPResponse>(
+        &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "totp/verify"),
+        Method::POST,
+        |b| b.form(&[("token", totp_token), ("code", &totp_code.to_string())]),
+      )
       .await
   }
 }
@@ -286,7 +290,7 @@ pub async fn get_user_info(
 ) -> Result<User, ItchRequestJSONError<UserResponseError>> {
   client
     .itch_request_json::<UserInfoResponse>(
-      ItchApiUrl::V2(&format!("users/{user_id}")),
+      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, format!("users/{user_id}")),
       Method::GET,
       |b| b,
     )
@@ -313,7 +317,11 @@ pub async fn get_profile(
   client: &ItchClient,
 ) -> Result<Profile, ItchRequestJSONError<ApiResponseCommonErrors>> {
   client
-    .itch_request_json::<ProfileInfoResponse>(ItchApiUrl::V2("profile"), Method::GET, |b| b)
+    .itch_request_json::<ProfileInfoResponse>(
+      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "profile"),
+      Method::GET,
+      |b| b,
+    )
     .await
     .map(|res| res.user)
 }
@@ -335,7 +343,11 @@ pub async fn get_created_games(
   client: &ItchClient,
 ) -> Result<Vec<CreatedGame>, ItchRequestJSONError<ApiResponseCommonErrors>> {
   client
-    .itch_request_json::<CreatedGamesResponse>(ItchApiUrl::V2("profile/games"), Method::GET, |b| b)
+    .itch_request_json::<CreatedGamesResponse>(
+      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "profile/games"),
+      Method::GET,
+      |b| b,
+    )
     .await
     .map(|res| res.games)
 }
@@ -361,7 +373,7 @@ pub async fn get_owned_keys(
   loop {
     let response = client
       .itch_request_json::<OwnedKeysResponse>(
-        ItchApiUrl::V2("profile/owned-keys"),
+        &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "profile/owned-keys"),
         Method::GET,
         |b| b.query(&[("page", page)]),
       )
@@ -399,7 +411,7 @@ pub async fn get_profile_collections(
 ) -> Result<Vec<Collection>, ItchRequestJSONError<ApiResponseCommonErrors>> {
   client
     .itch_request_json::<ProfileCollectionsResponse>(
-      ItchApiUrl::V2("profile/collections"),
+      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "profile/collections"),
       Method::GET,
       |b| b,
     )
@@ -428,7 +440,7 @@ pub async fn get_collection_info(
 ) -> Result<Collection, ItchRequestJSONError<CollectionResponseError>> {
   client
     .itch_request_json::<CollectionInfoResponse>(
-      ItchApiUrl::V2(&format!("collections/{collection_id}")),
+      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, format!("collections/{collection_id}")),
       Method::GET,
       |b| b,
     )
@@ -460,7 +472,10 @@ pub async fn get_collection_games(
   loop {
     let response = client
       .itch_request_json::<CollectionGamesResponse>(
-        ItchApiUrl::V2(&format!("collections/{collection_id}/collection-games")),
+        &ItchApiUrl::from_api_endpoint(
+          ItchApiVersion::V2,
+          format!("collections/{collection_id}/collection-games"),
+        ),
         Method::GET,
         |b| b.query(&[("page", page)]),
       )
@@ -501,7 +516,7 @@ pub async fn get_game_info(
 ) -> Result<Game, ItchRequestJSONError<GameResponseError>> {
   client
     .itch_request_json::<GameInfoResponse>(
-      ItchApiUrl::V2(&format!("games/{game_id}")),
+      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, format!("games/{game_id}")),
       Method::GET,
       |b| b,
     )
@@ -530,7 +545,7 @@ pub async fn get_game_uploads(
 ) -> Result<Vec<Upload>, ItchRequestJSONError<GameResponseError>> {
   client
     .itch_request_json::<GameUploadsResponse>(
-      ItchApiUrl::V2(&format!("games/{game_id}/uploads")),
+      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, format!("games/{game_id}/uploads")),
       Method::GET,
       |b| b,
     )
@@ -548,7 +563,7 @@ pub async fn get_game_uploads(
 ///
 /// # Returns
 ///
-/// A `Upload` struct with the info provided by the API
+/// An `Upload` struct with the info provided by the API
 ///
 /// # Errors
 ///
@@ -559,7 +574,7 @@ pub async fn get_upload_info(
 ) -> Result<Upload, ItchRequestJSONError<UploadResponseError>> {
   client
     .itch_request_json::<UploadInfoResponse>(
-      ItchApiUrl::V2(&format!("uploads/{upload_id}")),
+      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, format!("uploads/{upload_id}")),
       Method::GET,
       |b| b,
     )
@@ -588,7 +603,7 @@ pub async fn get_upload_builds(
 ) -> Result<Vec<UploadBuild>, ItchRequestJSONError<UploadResponseError>> {
   client
     .itch_request_json::<UploadBuildsResponse>(
-      ItchApiUrl::V2(&format!("uploads/{upload_id}/builds")),
+      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, format!("uploads/{upload_id}/builds")),
       Method::GET,
       |b| b,
     )
@@ -617,7 +632,7 @@ pub async fn get_build_info(
 ) -> Result<Build, ItchRequestJSONError<BuildResponseError>> {
   client
     .itch_request_json::<BuildInfoResponse>(
-      ItchApiUrl::V2(&format!("builds/{build_id}")),
+      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, format!("builds/{build_id}")),
       Method::GET,
       |b| b,
     )
@@ -649,9 +664,10 @@ pub async fn get_upgrade_path(
 ) -> Result<Vec<UpgradePathBuild>, ItchRequestJSONError<UpgradePathResponseError>> {
   client
     .itch_request_json::<BuildUpgradePathResponse>(
-      ItchApiUrl::V2(&format!(
-        "builds/{current_build_id}/upgrade-paths/{target_build_id}"
-      )),
+      &ItchApiUrl::from_api_endpoint(
+        ItchApiVersion::V2,
+        format!("builds/{current_build_id}/upgrade-paths/{target_build_id}"),
+      ),
       Method::GET,
       |b| b,
     )

@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use serde_with::{DefaultOnError, serde_as};
 use time::{OffsetDateTime, serde::rfc3339};
 
-const ITCH_API_V1_BASE_URL: &str = "https://itch.io/api/1";
-const ITCH_API_V2_BASE_URL: &str = "https://api.itch.io";
+const ITCH_API_V1_BASE_URL: &str = "https://itch.io/api/1/";
+const ITCH_API_V2_BASE_URL: &str = "https://api.itch.io/";
 
 pub type UserID = u64;
 pub type CollectionID = u64;
@@ -67,27 +67,59 @@ where
   deserializer.deserialize_any(Helper(std::marker::PhantomData))
 }
 
-/// A itch.io API address
+/// An itch.io API version
 ///
-/// Use the Other variant with the full URL when it isn't a known API version
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
-pub enum ItchApiUrl<'a> {
-  V1(&'a str),
-  V2(&'a str),
-  Other(&'a str),
+/// Its possible values are:
+///
+/// * `V1` - itch.io JSON API V1 <https://itch.io/api/1/>
+///
+/// * `V2` - itch.io JSON API V2 <https://api.itch.io/>
+///
+/// * `Other` - Any other URL
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub enum ItchApiVersion {
+  V1,
+  V2,
+  Other,
 }
 
-impl std::fmt::Display for ItchApiUrl<'_> {
+/// An itch.io API address
+///
+/// Use the Other variant with the full URL when it isn't a known API version
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ItchApiUrl {
+  version: ItchApiVersion,
+  url: String,
+}
+
+impl<'a> ItchApiUrl {
+  /// Creates an `ItchApiUrl` by combining the API version with an endpoint path
+  /// V1 and V2 prepend their base URLs; Other uses the endpoint as-is
+  pub fn from_api_endpoint(
+    version: ItchApiVersion,
+    endpoint: impl Into<std::borrow::Cow<'a, str>>,
+  ) -> Self {
+    let endpoint = endpoint.into();
+    Self {
+      version,
+      url: match version {
+        ItchApiVersion::V1 => format!("{ITCH_API_V1_BASE_URL}{endpoint}"),
+        ItchApiVersion::V2 => format!("{ITCH_API_V2_BASE_URL}{endpoint}"),
+        ItchApiVersion::Other => endpoint.into_owned(),
+      },
+    }
+  }
+
+  /// Returns the API version of this `ItchApiUrl`
+  pub fn get_version(&self) -> ItchApiVersion {
+    self.version
+  }
+}
+
+/// Formats the `ItchApiUrl` as a string, returning the full URL
+impl std::fmt::Display for ItchApiUrl {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(
-      f,
-      "{}",
-      match self {
-        ItchApiUrl::V1(u) => format!("{ITCH_API_V1_BASE_URL}/{u}"),
-        ItchApiUrl::V2(u) => format!("{ITCH_API_V2_BASE_URL}/{u}"),
-        ItchApiUrl::Other(u) => (*u).to_string(),
-      }
-    )
+    write!(f, "{}", self.url)
   }
 }
 

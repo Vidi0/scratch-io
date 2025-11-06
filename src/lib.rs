@@ -210,7 +210,7 @@ async fn stream_response_into_file(
 /// An error if something goes wrong
 async fn download_file(
   client: &ItchClient,
-  url: ItchApiUrl<'_>,
+  url: &ItchApiUrl,
   file_path: &Path,
   md5_hash: Option<&str>,
   file_size_callback: impl Fn(u64),
@@ -476,7 +476,7 @@ pub async fn download_game_cover(
 
   download_file(
     client,
-    ItchApiUrl::Other(&cover_url),
+    &ItchApiUrl::from_api_endpoint(ItchApiVersion::Other, cover_url),
     &cover_path,
     None,
     |_| (),
@@ -561,7 +561,7 @@ pub async fn download_upload(
   // Download the file
   download_file(
     client,
-    ItchApiUrl::V2(&format!("uploads/{upload_id}/download")),
+    &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, format!("uploads/{upload_id}/download")),
     &upload_archive,
     // Only pass the hash if skip_hash_verification is false
     hash.filter(|_| !skip_hash_verification),
