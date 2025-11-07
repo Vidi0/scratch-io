@@ -185,8 +185,10 @@ pub struct LoginCaptchaError {
 // the same way the other errors, but in its own separate struct
 #[derive(Error, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[error(
-  r"The accout has 2 step verification enabled via TOTP
-  Run the login command again with the --totp-code={{VERIFICATION_CODE}} option."
+  r#"The account has two-step verification enabled via TOTP.
+  To complete the login, run the totp verification command with the following options:
+    --totp-token="{token}"
+    --totp-code={{VERIFICATION_CODE}}"#
 )]
 pub struct LoginTOTPError {
   pub success: bool,
