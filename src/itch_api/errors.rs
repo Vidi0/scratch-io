@@ -5,6 +5,7 @@ const ERROR_INVALID_USER_OR_PASSWORD: &str = "Incorrect username or password";
 const ERROR_INVALID_CAPTCHA_CODE: &str = "Please correctly complete reCAPTCHA";
 const ERROR_INVALID_TOTP_CODE: &str = "invalid code";
 const ERROR_TOTP_TOKEN_TIMED_OUT: &str = "two-factor login attempt timed out";
+const ERROR_INVALID_TOTP_TOKEN: &str = "invalid token";
 const ERROR_INVALID_USER: &str = "invalid user";
 const ERROR_INVALID_COLLECTION: &str = "invalid collection";
 const ERROR_INVALID_GAME: &str = "invalid game";
@@ -72,6 +73,10 @@ Login again with a username and password to get another TOTP token."
 pub struct TOTPTokenTimedOut;
 
 #[derive(Error, Debug)]
+#[error("The TOTP token is invalid!")]
+pub struct InvalidTOTPToken;
+
+#[derive(Error, Debug)]
 #[error("The provided user ID is invalid.")]
 pub struct InvalidUserID;
 
@@ -114,6 +119,9 @@ pub enum ApiResponseErrorKind {
   TOTPTokenTimedOut(#[from] TOTPTokenTimedOut),
 
   #[error(transparent)]
+  InvalidTOTPToken(#[from] InvalidTOTPToken),
+
+  #[error(transparent)]
   InvalidUserID(#[from] InvalidUserID),
 
   #[error(transparent)]
@@ -145,6 +153,7 @@ impl From<&[String]> for ApiResponseErrorKind {
       [v] if v == ERROR_INVALID_CAPTCHA_CODE => Self::IncorrectCaptchaCode(IncorrectCaptchaCode),
       [v] if v == ERROR_INVALID_TOTP_CODE => Self::IncorrectTOTPCode(IncorrectTOTPCode),
       [v] if v == ERROR_TOTP_TOKEN_TIMED_OUT => Self::TOTPTokenTimedOut(TOTPTokenTimedOut),
+      [v] if v == ERROR_INVALID_TOTP_TOKEN => Self::InvalidTOTPToken(InvalidTOTPToken),
       [v] if v == ERROR_INVALID_USER => Self::InvalidUserID(InvalidUserID),
       [v] if v == ERROR_INVALID_COLLECTION => Self::InvalidCollectionID(InvalidCollectionID),
       [v] if v == ERROR_INVALID_GAME => Self::InvalidGameID(InvalidGameID),
@@ -225,6 +234,9 @@ pub enum TOTPResponseError {
   TOTPTokenTimedOut(#[from] TOTPTokenTimedOut),
 
   #[error(transparent)]
+  InvalidTOTPToken(#[from] InvalidTOTPToken),
+
+  #[error(transparent)]
   Other(#[from] ApiResponseCommonErrors),
 }
 
@@ -233,6 +245,7 @@ impl From<ApiResponseError> for TOTPResponseError {
     match value.kind {
       ApiResponseErrorKind::IncorrectTOTPCode(v) => Self::IncorrectTOTPCode(v),
       ApiResponseErrorKind::TOTPTokenTimedOut(v) => Self::TOTPTokenTimedOut(v),
+      ApiResponseErrorKind::InvalidTOTPToken(v) => Self::InvalidTOTPToken(v),
       _ => Self::Other(value.into()),
     }
   }
