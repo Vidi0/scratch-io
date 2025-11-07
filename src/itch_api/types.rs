@@ -116,8 +116,15 @@ impl<'a> ItchApiUrl {
   }
 }
 
-/// Formats the `ItchApiUrl` as a string, returning the full URL
+impl ItchApiUrl {
+  /// Get a reference to the full URL string
+  pub fn as_str(&self) -> &str {
+    &self.url
+  }
+}
+
 impl std::fmt::Display for ItchApiUrl {
+  /// Format the `ItchApiUrl` as a string, returning the full URL
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "{}", self.url)
   }

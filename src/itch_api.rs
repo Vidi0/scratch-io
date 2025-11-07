@@ -42,7 +42,7 @@ impl ItchClient {
     options: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
   ) -> Result<Response, reqwest::Error> {
     // Create the base request
-    let mut request: reqwest::RequestBuilder = self.client.request(method, url.to_string());
+    let mut request: reqwest::RequestBuilder = self.client.request(method, url.as_str());
 
     // Add authentication based on the API's version.
     request = match url.get_version() {
@@ -96,6 +96,7 @@ impl ItchClient {
   where
     T: serde::de::DeserializeOwned + IntoResponseResult,
   {
+    // Get the response text
     let text = self
       .itch_request(url, method, options)
       .await
@@ -110,6 +111,7 @@ impl ItchClient {
         kind: ItchRequestJSONErrorKind::CouldntGetText(e),
       })?;
 
+    // Parse the response into JSON
     serde_json::from_str::<ApiResponse<T>>(&text)
       .map_err(|error| ItchRequestJSONError {
         url: url.to_string(),
