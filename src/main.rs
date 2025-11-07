@@ -299,13 +299,13 @@ fn exit_if_already_installed(
 }
 
 // Save a key to the config and print info
-async fn auth(client: ItchClient, config_api_key: &mut Option<String>) {
+async fn auth(client: &ItchClient, config_api_key: &mut Option<String>) {
   // We already checked if the key was valid
   println!("Valid key!");
   *config_api_key = Some(client.get_api_key().to_string());
 
   // Print user info
-  let profile = itch_api::get_profile(&client)
+  let profile = itch_api::get_profile(client)
     .await
     .unwrap_or_else(|e| eprintln_exit!("{e}"));
   println!("Logged in as: {}", profile.user.get_name());
@@ -333,7 +333,7 @@ async fn login(
 
   // Save the new key to the config
   let new_client = ItchClient::new(login_success.key.key);
-  auth(new_client, config_api_key).await;
+  auth(&new_client, config_api_key).await;
 }
 
 // Finish login by using two-step verifitaion
@@ -346,7 +346,7 @@ async fn totp_verification(totp_token: &str, totp_code: u64, config_api_key: &mu
 
   // Save the new key to the config
   let new_client = ItchClient::new(login_success.key.key);
-  auth(new_client, config_api_key).await;
+  auth(&new_client, config_api_key).await;
 }
 
 // Remove the saved API key (if any)
@@ -788,7 +788,7 @@ async fn main() {
 
       match command {
         WithApiCommands::Auth { .. } => {
-          auth(client, &mut config.api_key).await;
+          auth(&client, &mut config.api_key).await;
           config.save_unwrap(custom_config_file).await;
         }
         WithApiCommands::UserInfo { user_id } => {
