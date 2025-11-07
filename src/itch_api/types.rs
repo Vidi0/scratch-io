@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_with::{DefaultOnError, serde_as};
+use thiserror::Error;
 use time::{OffsetDateTime, serde::rfc3339};
 
 const ITCH_API_V1_BASE_URL: &str = "https://itch.io/api/1/";
@@ -164,14 +165,29 @@ pub struct LoginSuccess {
   pub key: ItchKey,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+// LoginCaptchaError is defined here because it's not returned by the API
+// the same way the other errors, but in its own separate struct
+#[derive(Error, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[error(
+  r#"A reCAPTCHA verification is required to continue!
+  Go to "{recaptcha_url}" and solve the reCAPTCHA.
+  To obtain the token, paste the following command on the developer console:
+    console.log(grecaptcha.getResponse())
+  Then run the login command again with the --recaptcha-response option."#
+)]
 pub struct LoginCaptchaError {
   pub success: bool,
   pub recaptcha_needed: bool,
   pub recaptcha_url: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+// LoginTOTPError is defined here because it's not returned by the API
+// the same way the other errors, but in its own separate struct
+#[derive(Error, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[error(
+  r"The accout has 2 step verification enabled via TOTP
+  Run the login command again with the --totp-code={{VERIFICATION_CODE}} option."
+)]
 pub struct LoginTOTPError {
   pub success: bool,
   pub totp_needed: bool,

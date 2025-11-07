@@ -167,9 +167,15 @@ enum WithoutApiCommands {
     /// The response of the reCAPTCHA (if required)
     #[arg(long, env = "SCRATCH_RECAPTCHA_RESPONSE")]
     recaptcha_response: Option<String>,
-    /// The TOTP 2nd factor authentication
+  },
+  /// Finish logging in with TOTP two-factor authentication
+  TOTPVerification {
+    /// The two-factor authentication token returned by the login command
+    #[arg(long, env = "SCRATCH_TOTP_TOKEN")]
+    totp_token: String,
+    /// The TOTP two-factor authentication
     #[arg(long, env = "SCRATCH_TOTP_CODE")]
-    totp_code: Option<u64>,
+    totp_code: u64,
   },
   /// Remove the saved API key
   Logout,
@@ -310,14 +316,37 @@ async fn login(
   username: &str,
   password: &str,
   recaptcha_response: Option<&str>,
-  totp_code: Option<u64>,
   config_api_key: &mut Option<String>,
 ) {
-  let client = scratch_io::ItchClient::login(username, password, recaptcha_response, totp_code)
+  // Create a temporary client and call the login function
+  let client = ItchClient::new(String::new());
+  let response = itch_api::login(&client, username, password, recaptcha_response)
     .await
     .unwrap_or_else(|e| eprintln_exit!("{e}"));
 
-  auth(client, config_api_key).await;
+  // If the login failed, return the corresponding error
+  let login_success = match response {
+    itch_api::LoginResponse::Success(v) => v,
+    itch_api::LoginResponse::CaptchaError(e) => eprintln_exit!("{e}"),
+    itch_api::LoginResponse::TOTPError(e) => eprintln_exit!("{e}"),
+  };
+
+  // Save the new key to the config
+  let new_client = ItchClient::new(login_success.key.key);
+  auth(new_client, config_api_key).await;
+}
+
+// Finish login by using two-step verifitaion
+async fn totp_verification(totp_token: &str, totp_code: u64, config_api_key: &mut Option<String>) {
+  // Create a temporary client and call the totp verification function
+  let client = ItchClient::new(String::new());
+  let login_success = itch_api::totp_verification(&client, totp_token, totp_code)
+    .await
+    .unwrap_or_else(|e| eprintln_exit!("{e}"));
+
+  // Save the new key to the config
+  let new_client = ItchClient::new(login_success.key.key);
+  auth(new_client, config_api_key).await;
 }
 
 // Remove the saved API key (if any)
@@ -860,16 +889,21 @@ async fn main() {
         username,
         password,
         recaptcha_response,
-        totp_code,
       } => {
         login(
           &username,
           &password,
           recaptcha_response.as_deref(),
-          totp_code,
           &mut config.api_key,
         )
         .await;
+        config.save_unwrap(custom_config_file).await;
+      }
+      WithoutApiCommands::TOTPVerification {
+        totp_token,
+        totp_code,
+      } => {
+        totp_verification(&totp_token, totp_code, &mut config.api_key).await;
         config.save_unwrap(custom_config_file).await;
       }
       WithoutApiCommands::Logout => {

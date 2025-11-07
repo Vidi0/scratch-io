@@ -4,7 +4,7 @@ pub mod types;
 
 use errors::*;
 use responses::*;
-pub use responses::{ApiResponse, IntoResponseResult};
+pub use responses::{ApiResponse, IntoResponseResult, LoginResponse};
 use types::*;
 
 use reqwest::{Method, Response, header};
@@ -174,103 +174,82 @@ impl ItchClient {
 
     Ok(client)
   }
+}
 
-  /// Login to itch.io
-  ///
-  /// Retrieve a API key from a username and password authentication
-  ///
-  /// # Arguments
-  ///
-  /// * `username` - The username OR email of the accout to log in with
-  ///
-  /// * `password` - The password of the accout to log in with
-  ///
-  /// * `recaptcha_response` - If required, the reCAPTCHA token from <https://itch.io/captcha>
-  ///
-  /// * `totp_code` - If required, The 6-digit code returned by the TOTP application
-  ///
-  /// # Returns
-  ///
-  /// An `ItchClient` struct with the new API key
-  ///
-  /// # Errors
-  ///
-  /// If the requests fail, or an additional step is required to log in.
-  pub async fn login(
-    username: &str,
-    password: &str,
-    recaptcha_response: Option<&str>,
-    totp_code: Option<u64>,
-  ) -> Result<Self, LoginError> {
-    let mut client = ItchClient::new(String::new());
+/// Login to itch.io
+///
+/// Retrieve a API key from a username and password authentication
+///
+/// # Arguments
+///
+/// * `username` - The username OR email of the accout to log in with
+///
+/// * `password` - The password of the accout to log in with
+///
+/// * `recaptcha_response` - If required, the reCAPTCHA token from <https://itch.io/captcha>
+///
+/// * `totp_code` - If required, The 6-digit code returned by the TOTP application
+///
+/// # Returns
+///
+/// A `LoginResponse` enum with the response from the API, which can be either the API key or an error
+///
+/// # Errors
+///
+/// If the requests fail
+pub async fn login(
+  client: &ItchClient,
+  username: &str,
+  password: &str,
+  recaptcha_response: Option<&str>,
+) -> Result<LoginResponse, ItchRequestJSONError<LoginResponseError>> {
+  let mut params: Vec<(&'static str, &str)> = vec![
+    ("username", username),
+    ("password", password),
+    ("force_recaptcha", "false"),
+    // source can be any of types::ItchKeySource
+    ("source", "desktop"),
+  ];
 
-    let mut params: Vec<(&'static str, &str)> = vec![
-      ("username", username),
-      ("password", password),
-      ("force_recaptcha", "false"),
-      // source can be any of types::ItchKeySource
-      ("source", "desktop"),
-    ];
-
-    if let Some(rr) = recaptcha_response {
-      params.push(("recaptcha_response", rr));
-    }
-
-    let response = client
-      .itch_request_json::<LoginResponse>(
-        &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "login"),
-        Method::POST,
-        |b| b.form(&params),
-      )
-      .await?;
-
-    let ls = match response {
-      LoginResponse::CaptchaError(e) => return Err(LoginError::CaptchaNeeded(e)),
-      LoginResponse::TOTPError(e) => {
-        let Some(totp_code) = totp_code else {
-          return Err(LoginError::TOTPNeeded(e));
-        };
-
-        client
-          .totp_verification(&e.token, totp_code)
-          .await
-          .map(|res| res.success)?
-      }
-      LoginResponse::Success(ls) => ls,
-    };
-
-    // Save the new API key into the client for future API calls
-    client.api_key = ls.key.key;
-
-    Ok(client)
+  if let Some(rr) = recaptcha_response {
+    params.push(("recaptcha_response", rr));
   }
 
-  /// Complete the login with the TOTP 2nd factor verification
-  ///
-  /// # Arguments
-  ///
-  /// * `totp_token` - The TOTP token returned by the previous login step
-  ///
-  /// * `totp_code` - The 6-digit code returned by the TOTP application
-  ///
-  /// # Returns
-  ///
-  /// A `LoginSuccess` struct with the new API key
-  ///
-  /// An error if something goes wrong
-  async fn totp_verification(
-    &self,
-    totp_token: &str,
-    totp_code: u64,
-  ) -> Result<TOTPResponse, ItchRequestJSONError<TOTPResponseError>> {
-    self
-      .itch_request_json::<TOTPResponse>(
-        &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "totp/verify"),
-        Method::POST,
-        |b| b.form(&[("token", totp_token), ("code", &totp_code.to_string())]),
-      )
-      .await
-  }
+  client
+    .itch_request_json::<LoginResponse>(
+      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "login"),
+      Method::POST,
+      |b| b.form(&params),
+    )
+    .await
+}
+
+/// Complete the login with the TOTP two-factor verification
+///
+/// # Arguments
+///
+/// * `totp_token` - The TOTP token returned by the previous login step
+///
+/// * `totp_code` - The 6-digit code returned by the TOTP application
+///
+/// # Returns
+///
+/// A `LoginSuccess` struct with the new API key
+///
+/// An error if something goes wrong
+pub async fn totp_verification(
+  client: &ItchClient,
+  totp_token: &str,
+  totp_code: u64,
+) -> Result<LoginSuccess, ItchRequestJSONError<TOTPResponseError>> {
+  client
+    .itch_request_json::<TOTPResponse>(
+      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "totp/verify"),
+      Method::POST,
+      |b| b.form(&[("token", totp_token), ("code", &totp_code.to_string())]),
+    )
+    .await
+    .map(|res| res.success)
 }
 
 /// Get a user's info

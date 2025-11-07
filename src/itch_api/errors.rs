@@ -222,35 +222,6 @@ impl From<ApiResponseError> for TOTPResponseError {
   }
 }
 
-/// The login API call can fail even when it doesn't return an error directly.
-///
-/// For example, when it returns that a reCAPTCHA is needed, it doesn't return an error list.
-///
-/// For that reason, this enum wraps all the possible errors that can happen.
-#[derive(Error, Debug)]
-pub enum LoginError {
-  #[error(
-r#"A reCAPTCHA verification is required to continue!
-  Go to "{}" and solve the reCAPTCHA.
-  To obtain the token, paste the following command on the developer console:
-    console.log(grecaptcha.getResponse())
-  Then run the login command again with the --recaptcha-response option."#, .0.recaptcha_url,
-)]
-  CaptchaNeeded(crate::itch_api::types::LoginCaptchaError),
-
-  #[error(
-    r"The accout has 2 step verification enabled via TOTP
-  Run the login command again with the --totp-code={{VERIFICATION_CODE}} option."
-  )]
-  TOTPNeeded(crate::itch_api::types::LoginTOTPError),
-
-  #[error(transparent)]
-  LoginError(#[from] ItchRequestJSONError<LoginResponseError>),
-
-  #[error(transparent)]
-  TOTPError(#[from] ItchRequestJSONError<TOTPResponseError>),
-}
-
 /// Errors returned from all the API calls that require a user ID as a parameter
 #[derive(Error, Debug)]
 pub enum UserResponseError {
