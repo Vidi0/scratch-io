@@ -5,7 +5,7 @@ use config::Config;
 use clap::{Parser, Subcommand};
 use scratch_io::itch_api::{
   self, ItchClient,
-  types::{CollectionID, GameID, UploadID},
+  types::{BuildID, CollectionID, GameID, UploadID, UserID},
 };
 use scratch_io::{DownloadStatus, InstalledUpload};
 use std::collections::HashMap;
@@ -50,23 +50,60 @@ enum WithApiCommands {
     /// The API key to save
     api_key: String,
   },
+  /// Retrieve information about a user
+  UserInfo {
+    /// The ID of the user to retrieve information about
+    user_id: UserID,
+  },
   /// Retrieve information about the profile of the current user
-  Profile,
+  ProfileInfo,
   /// List the games that the user created or that the user is an admin of
-  Created,
+  CreatedGames,
   /// List the game keys owned by the user
-  Owned,
+  OwnedKeys,
   /// List the profile's collections
-  Collections,
+  ProfileCollections,
+  /// Retrieve information about a collection
+  CollectionInfo {
+    /// The ID of the collection to retrieve information about
+    collection_id: CollectionID,
+  },
   /// List the games in the given collection
   CollectionGames {
-    /// The ID of the collection where the games are located.
+    /// The ID of the collection where the games are located
     collection_id: CollectionID,
   },
   /// Retrieve information about a game given its ID
-  Game {
+  GameInfo {
     /// The ID of the game to retrieve information about
     game_id: GameID,
+  },
+  /// List the uploads available for download for the given game
+  GameUploads {
+    /// The ID of the game to retrieve information about
+    game_id: GameID,
+  },
+  /// Retrieve information about an upload given its ID
+  UploadInfo {
+    /// The ID of the upload to retrieve information about
+    upload_id: UploadID,
+  },
+  /// List the builds available for the given upload
+  UploadBuilds {
+    /// The ID of the upload to retrieve information about
+    upload_id: UploadID,
+  },
+  /// Retrieve information about a build given its ID
+  BuildInfo {
+    /// The ID of the build to retrieve information about
+    build_id: BuildID,
+  },
+  /// Search for an upgrade path between two builds
+  UpgradePath {
+    /// The ID of the current build
+    current_build_id: BuildID,
+    /// The ID of the target build
+    target_build_id: BuildID,
   },
   /// Download the upload with the given ID
   Download {
@@ -294,8 +331,18 @@ fn logout(config_api_key: &mut Option<String>) {
   }
 }
 
-/// Print the user info
-async fn print_profile(client: &ItchClient) {
+/// Print a user info
+async fn print_user_info(client: &ItchClient, user_id: UserID) {
+  println!(
+    "{:#?}",
+    itch_api::get_user_info(client, user_id)
+      .await
+      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+  );
+}
+
+/// Print the current user info
+async fn print_profile_info(client: &ItchClient) {
   println!(
     "{:#?}",
     itch_api::get_profile(client)
@@ -325,10 +372,20 @@ async fn print_owned_keys(client: &ItchClient) {
 }
 
 // Print information about the user's collections
-async fn print_collections(client: &ItchClient) {
+async fn print_profile_collections(client: &ItchClient) {
   println!(
     "{:#?}",
     itch_api::get_profile_collections(client)
+      .await
+      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+  );
+}
+
+// Print information about a collection
+async fn print_collection_info(client: &ItchClient, collection_id: CollectionID) {
+  println!(
+    "{:#?}",
+    itch_api::get_collection_info(client, collection_id)
       .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
@@ -344,7 +401,7 @@ async fn print_collection_games(client: &ItchClient, collection_id: CollectionID
   )
 }
 
-// Print information about a game, including its uploads and platforms
+// Print information about a game
 async fn print_game_info(client: &ItchClient, game_id: GameID) {
   println!(
     "{:#?}",
@@ -352,13 +409,60 @@ async fn print_game_info(client: &ItchClient, game_id: GameID) {
       .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
+}
 
+// Print a game's uploads and platforms information
+async fn print_game_uploads(client: &ItchClient, game_id: GameID) {
   let uploads = itch_api::get_game_uploads(client, game_id)
     .await
     .unwrap_or_else(|e| eprintln_exit!("{e}"));
   println!("{uploads:#?}");
 
   println!("{:#?}", scratch_io::get_game_platforms(&uploads));
+}
+
+// Print information about an upload
+async fn print_upload_info(client: &ItchClient, upload_id: UploadID) {
+  println!(
+    "{:#?}",
+    itch_api::get_upload_info(client, upload_id)
+      .await
+      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+  );
+}
+
+// Print an upload's builds information
+async fn print_upload_builds(client: &ItchClient, upload_id: UploadID) {
+  println!(
+    "{:#?}",
+    itch_api::get_upload_builds(client, upload_id)
+      .await
+      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+  );
+}
+
+// Print information about a build
+async fn print_build_info(client: &ItchClient, build_id: BuildID) {
+  println!(
+    "{:#?}",
+    itch_api::get_build_info(client, build_id)
+      .await
+      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+  );
+}
+
+// Print the upgrade path between two builds
+async fn print_upgrade_path(
+  client: &ItchClient,
+  current_build_id: BuildID,
+  target_build_id: BuildID,
+) {
+  println!(
+    "{:#?}",
+    itch_api::get_upgrade_path(client, current_build_id, target_build_id)
+      .await
+      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+  );
 }
 
 // Download a game's upload
@@ -658,23 +762,47 @@ async fn main() {
           auth(client, &mut config.api_key).await;
           config.save_unwrap(custom_config_file).await;
         }
-        WithApiCommands::Profile => {
-          print_profile(&client).await;
+        WithApiCommands::UserInfo { user_id } => {
+          print_user_info(&client, user_id).await;
         }
-        WithApiCommands::Created => {
+        WithApiCommands::ProfileInfo => {
+          print_profile_info(&client).await;
+        }
+        WithApiCommands::CreatedGames => {
           print_created_games(&client).await;
         }
-        WithApiCommands::Owned => {
+        WithApiCommands::OwnedKeys => {
           print_owned_keys(&client).await;
         }
-        WithApiCommands::Collections => {
-          print_collections(&client).await;
+        WithApiCommands::ProfileCollections => {
+          print_profile_collections(&client).await;
+        }
+        WithApiCommands::CollectionInfo { collection_id } => {
+          print_collection_info(&client, collection_id).await;
         }
         WithApiCommands::CollectionGames { collection_id } => {
           print_collection_games(&client, collection_id).await;
         }
-        WithApiCommands::Game { game_id } => {
+        WithApiCommands::GameInfo { game_id } => {
           print_game_info(&client, game_id).await;
+        }
+        WithApiCommands::GameUploads { game_id } => {
+          print_game_uploads(&client, game_id).await;
+        }
+        WithApiCommands::UploadInfo { upload_id } => {
+          print_upload_info(&client, upload_id).await;
+        }
+        WithApiCommands::UploadBuilds { upload_id } => {
+          print_upload_builds(&client, upload_id).await;
+        }
+        WithApiCommands::BuildInfo { build_id } => {
+          print_build_info(&client, build_id).await;
+        }
+        WithApiCommands::UpgradePath {
+          current_build_id,
+          target_build_id,
+        } => {
+          print_upgrade_path(&client, current_build_id, target_build_id).await;
         }
         WithApiCommands::Download {
           upload_id,
