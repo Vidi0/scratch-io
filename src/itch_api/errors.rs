@@ -356,6 +356,9 @@ pub enum UpgradePathResponseError {
   NoUpgradePath(#[from] NoUpgradePath),
 
   #[error(transparent)]
+  InvalidBuildID(#[from] InvalidBuildID),
+
+  #[error(transparent)]
   Other(#[from] ApiResponseCommonErrors),
 }
 
@@ -363,6 +366,10 @@ impl From<ApiResponseError> for UpgradePathResponseError {
   fn from(value: ApiResponseError) -> Self {
     match value.kind {
       ApiResponseErrorKind::NoUpgradePath(v) => Self::NoUpgradePath(v),
+      ApiResponseErrorKind::InvalidBuildID(v) => Self::InvalidBuildID(v),
+      ApiResponseErrorKind::InvalidUploadID(_) | ApiResponseErrorKind::InvalidGameID(_) => {
+        Self::InvalidBuildID(InvalidBuildID)
+      }
       _ => Self::Other(value.into()),
     }
   }
