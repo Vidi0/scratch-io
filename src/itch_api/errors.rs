@@ -13,11 +13,7 @@ const ERROR_INVALID_CAPTCHA_CODE: &[&str] = &[
 const ERROR_INVALID_TOTP_CODE: &str = "invalid code";
 const ERROR_TOTP_TOKEN_TIMED_OUT: &str = "two-factor login attempt timed out";
 const ERROR_INVALID_TOTP_TOKEN: &str = "invalid token";
-const ERROR_INVALID_USER: &[&str] = &[
-  "invalid user",
-  "user_id: expected database ID integer",
-  "user_id: expected integer",
-];
+const ERROR_INVALID_USER: &[&str] = &["invalid user", "user_id: expected database ID integer"];
 const ERROR_INVALID_COLLECTION: &[&str] = &[
   "invalid collection",
   "collection_id: expected database id",
