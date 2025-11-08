@@ -347,7 +347,7 @@ pub struct BuildCommon {
   #[serde_as(deserialize_as = "DefaultOnError<Option<_>>")]
   pub parent_build_id: Option<BuildID>,
   pub version: u64,
-  pub user_version: String,
+  pub user_version: Option<String>,
   #[serde(with = "rfc3339")]
   pub created_at: OffsetDateTime,
   #[serde(with = "rfc3339")]
