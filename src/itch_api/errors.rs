@@ -1,16 +1,43 @@
 use thiserror::Error;
 
 const ERROR_INVALID_API_KEY: &str = "invalid key";
-const ERROR_INVALID_USER_OR_PASSWORD: &str = "Incorrect username or password";
-const ERROR_INVALID_CAPTCHA_CODE: &str = "Please correctly complete reCAPTCHA";
+const ERROR_INVALID_USER_OR_PASSWORD: &[&str] = &[
+  "Incorrect username or password",
+  "username must be provided",
+  "password must be provided",
+];
+const ERROR_INVALID_CAPTCHA_CODE: &[&str] = &[
+  "Please correctly complete reCAPTCHA",
+  "Please complete reCAPTCHA to continue",
+];
 const ERROR_INVALID_TOTP_CODE: &str = "invalid code";
 const ERROR_TOTP_TOKEN_TIMED_OUT: &str = "two-factor login attempt timed out";
 const ERROR_INVALID_TOTP_TOKEN: &str = "invalid token";
-const ERROR_INVALID_USER: &str = "invalid user";
-const ERROR_INVALID_COLLECTION: &str = "invalid collection";
-const ERROR_INVALID_GAME: &str = "invalid game";
-const ERROR_INVALID_UPLOAD: &str = "invalid upload";
-const ERROR_INVALID_BUILD: &str = "invalid build";
+const ERROR_INVALID_USER: &[&str] = &[
+  "invalid user",
+  "user_id: expected database ID integer",
+  "user_id: expected integer",
+];
+const ERROR_INVALID_COLLECTION: &[&str] = &[
+  "invalid collection",
+  "collection_id: expected database id",
+  "collection_id: expected integer",
+];
+const ERROR_INVALID_GAME: &[&str] = &[
+  "invalid game",
+  "game_id: expected database id",
+  "game_id: expected integer",
+];
+const ERROR_INVALID_UPLOAD: &[&str] = &[
+  "invalid upload",
+  "upload_id: expected database id",
+  "upload_id: expected integer",
+];
+const ERROR_INVALID_BUILD: &[&str] = &[
+  "invalid build",
+  "build_id: expected database id",
+  "build_id: expected integer",
+];
 const ERROR_NO_UPGRADE_PATH: &str = "no upgrade path";
 
 /// Error returned from `itch_request_json`
@@ -147,18 +174,22 @@ impl From<&[String]> for ApiResponseErrorKind {
   fn from(value: &[String]) -> Self {
     match value {
       [v] if v == ERROR_INVALID_API_KEY => Self::InvalidApiKey(InvalidApiKey),
-      [v] if v == ERROR_INVALID_USER_OR_PASSWORD => {
+      [v, ..] if ERROR_INVALID_USER_OR_PASSWORD.contains(&&**v) => {
         Self::IncorrectUsernameOrPassword(IncorrectUsernameOrPassword)
       }
-      [v] if v == ERROR_INVALID_CAPTCHA_CODE => Self::IncorrectCaptchaCode(IncorrectCaptchaCode),
+      [v] if ERROR_INVALID_CAPTCHA_CODE.contains(&&**v) => {
+        Self::IncorrectCaptchaCode(IncorrectCaptchaCode)
+      }
       [v] if v == ERROR_INVALID_TOTP_CODE => Self::IncorrectTOTPCode(IncorrectTOTPCode),
       [v] if v == ERROR_TOTP_TOKEN_TIMED_OUT => Self::TOTPTokenTimedOut(TOTPTokenTimedOut),
       [v] if v == ERROR_INVALID_TOTP_TOKEN => Self::InvalidTOTPToken(InvalidTOTPToken),
-      [v] if v == ERROR_INVALID_USER => Self::InvalidUserID(InvalidUserID),
-      [v] if v == ERROR_INVALID_COLLECTION => Self::InvalidCollectionID(InvalidCollectionID),
-      [v] if v == ERROR_INVALID_GAME => Self::InvalidGameID(InvalidGameID),
-      [v] if v == ERROR_INVALID_UPLOAD => Self::InvalidUploadID(InvalidUploadID),
-      [v] if v == ERROR_INVALID_BUILD => Self::InvalidBuildID(InvalidBuildID),
+      [v] if ERROR_INVALID_USER.contains(&&**v) => Self::InvalidUserID(InvalidUserID),
+      [v] if ERROR_INVALID_COLLECTION.contains(&&**v) => {
+        Self::InvalidCollectionID(InvalidCollectionID)
+      }
+      [v] if ERROR_INVALID_GAME.contains(&&**v) => Self::InvalidGameID(InvalidGameID),
+      [v] if ERROR_INVALID_UPLOAD.contains(&&**v) => Self::InvalidUploadID(InvalidUploadID),
+      [v] if ERROR_INVALID_BUILD.contains(&&**v) => Self::InvalidBuildID(InvalidBuildID),
       [v] if v == ERROR_NO_UPGRADE_PATH => Self::NoUpgradePath(NoUpgradePath),
       _ => Self::Other,
     }
