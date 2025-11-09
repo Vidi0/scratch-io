@@ -232,7 +232,7 @@ pub enum ApiResponseCommonErrors {
 impl From<ApiResponseError> for ApiResponseCommonErrors {
   fn from(value: ApiResponseError) -> Self {
     match value.kind {
-      ApiResponseErrorKind::InvalidApiKey(v) => Self::InvalidApiKey(v),
+      ApiResponseErrorKind::InvalidApiKey(v) => v.into(),
       _ => Self::Other(value.errors),
     }
   }
@@ -254,8 +254,8 @@ pub enum LoginResponseError {
 impl From<ApiResponseError> for LoginResponseError {
   fn from(value: ApiResponseError) -> Self {
     match value.kind {
-      ApiResponseErrorKind::IncorrectUsernameOrPassword(v) => Self::IncorrectUsernameOrPassword(v),
-      ApiResponseErrorKind::IncorrectCaptchaCode(v) => Self::IncorrectCaptchaCode(v),
+      ApiResponseErrorKind::IncorrectUsernameOrPassword(v) => v.into(),
+      ApiResponseErrorKind::IncorrectCaptchaCode(v) => v.into(),
       _ => Self::Other(value.into()),
     }
   }
@@ -280,9 +280,9 @@ pub enum TOTPResponseError {
 impl From<ApiResponseError> for TOTPResponseError {
   fn from(value: ApiResponseError) -> Self {
     match value.kind {
-      ApiResponseErrorKind::IncorrectTOTPCode(v) => Self::IncorrectTOTPCode(v),
-      ApiResponseErrorKind::TOTPTokenTimedOut(v) => Self::TOTPTokenTimedOut(v),
-      ApiResponseErrorKind::InvalidTOTPToken(v) => Self::InvalidTOTPToken(v),
+      ApiResponseErrorKind::IncorrectTOTPCode(v) => v.into(),
+      ApiResponseErrorKind::TOTPTokenTimedOut(v) => v.into(),
+      ApiResponseErrorKind::InvalidTOTPToken(v) => v.into(),
       _ => Self::Other(value.into()),
     }
   }
@@ -301,7 +301,7 @@ pub enum UserResponseError {
 impl From<ApiResponseError> for UserResponseError {
   fn from(value: ApiResponseError) -> Self {
     match value.kind {
-      ApiResponseErrorKind::InvalidUserID(v) => Self::InvalidUserID(v),
+      ApiResponseErrorKind::InvalidUserID(v) => v.into(),
       _ => Self::Other(value.into()),
     }
   }
@@ -320,7 +320,7 @@ pub enum CollectionResponseError {
 impl From<ApiResponseError> for CollectionResponseError {
   fn from(value: ApiResponseError) -> Self {
     match value.kind {
-      ApiResponseErrorKind::InvalidCollectionID(v) => Self::InvalidCollectionID(v),
+      ApiResponseErrorKind::InvalidCollectionID(v) => v.into(),
       _ => Self::Other(value.into()),
     }
   }
@@ -339,7 +339,7 @@ pub enum GameResponseError {
 impl From<ApiResponseError> for GameResponseError {
   fn from(value: ApiResponseError) -> Self {
     match value.kind {
-      ApiResponseErrorKind::InvalidGameID(v) => Self::InvalidGameID(v),
+      ApiResponseErrorKind::InvalidGameID(v) => v.into(),
       _ => Self::Other(value.into()),
     }
   }
@@ -358,7 +358,7 @@ pub enum UploadResponseError {
 impl From<ApiResponseError> for UploadResponseError {
   fn from(value: ApiResponseError) -> Self {
     match value.kind {
-      ApiResponseErrorKind::InvalidUploadID(v) => Self::InvalidUploadID(v),
+      ApiResponseErrorKind::InvalidUploadID(v) => v.into(),
       _ => Self::Other(value.into()),
     }
   }
@@ -377,7 +377,7 @@ pub enum BuildResponseError {
 impl From<ApiResponseError> for BuildResponseError {
   fn from(value: ApiResponseError) -> Self {
     match value.kind {
-      ApiResponseErrorKind::InvalidBuildID(v) => Self::InvalidBuildID(v),
+      ApiResponseErrorKind::InvalidBuildID(v) => v.into(),
       ApiResponseErrorKind::InvalidUploadID(_) | ApiResponseErrorKind::InvalidGameID(_) => {
         Self::InvalidBuildID(InvalidBuildID)
       }
@@ -405,12 +405,12 @@ pub enum UpgradePathResponseError {
 impl From<ApiResponseError> for UpgradePathResponseError {
   fn from(value: ApiResponseError) -> Self {
     match value.kind {
-      ApiResponseErrorKind::NoUpgradePath(v) => Self::NoUpgradePath(v),
-      ApiResponseErrorKind::InvalidBuildID(v) => Self::InvalidBuildID(v),
+      ApiResponseErrorKind::NoUpgradePath(v) => v.into(),
+      ApiResponseErrorKind::InvalidBuildID(v) => v.into(),
       ApiResponseErrorKind::InvalidUploadID(_) | ApiResponseErrorKind::InvalidGameID(_) => {
         Self::InvalidBuildID(InvalidBuildID)
       }
-      ApiResponseErrorKind::InvalidTargetBuildID(v) => Self::InvalidTargetBuildID(v),
+      ApiResponseErrorKind::InvalidTargetBuildID(v) => v.into(),
       _ => Self::Other(value.into()),
     }
   }
