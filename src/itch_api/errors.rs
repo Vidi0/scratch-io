@@ -34,6 +34,8 @@ const ERROR_INVALID_BUILD: &[&str] = &[
   "build_id: expected database id",
   "build_id: expected integer",
 ];
+const ERROR_INVALID_TARGET_BUILD: &str =
+  "target_build_id: expected empty, or integer then database id";
 const ERROR_NO_UPGRADE_PATH: &str = "no upgrade path";
 
 /// Error returned from `itch_request_json`
@@ -120,6 +122,10 @@ pub struct InvalidUploadID;
 pub struct InvalidBuildID;
 
 #[derive(Error, Debug)]
+#[error("The provided target build ID is invalid.")]
+pub struct InvalidTargetBuildID;
+
+#[derive(Error, Debug)]
 #[error("No upgrade path was found.")]
 pub struct NoUpgradePath;
 
@@ -160,6 +166,9 @@ pub enum ApiResponseErrorKind {
   InvalidBuildID(#[from] InvalidBuildID),
 
   #[error(transparent)]
+  InvalidTargetBuildID(#[from] InvalidTargetBuildID),
+
+  #[error(transparent)]
   NoUpgradePath(#[from] NoUpgradePath),
 
   #[error("An unknown error occurred!")]
@@ -186,6 +195,7 @@ impl From<&[String]> for ApiResponseErrorKind {
       [v] if ERROR_INVALID_GAME.contains(&&**v) => Self::InvalidGameID(InvalidGameID),
       [v] if ERROR_INVALID_UPLOAD.contains(&&**v) => Self::InvalidUploadID(InvalidUploadID),
       [v] if ERROR_INVALID_BUILD.contains(&&**v) => Self::InvalidBuildID(InvalidBuildID),
+      [v] if ERROR_INVALID_TARGET_BUILD == v => Self::InvalidTargetBuildID(InvalidTargetBuildID),
       [v] if v == ERROR_NO_UPGRADE_PATH => Self::NoUpgradePath(NoUpgradePath),
       _ => Self::Other,
     }
@@ -386,6 +396,9 @@ pub enum UpgradePathResponseError {
   InvalidBuildID(#[from] InvalidBuildID),
 
   #[error(transparent)]
+  InvalidTargetBuildID(#[from] InvalidTargetBuildID),
+
+  #[error(transparent)]
   Other(#[from] ApiResponseCommonErrors),
 }
 
@@ -397,6 +410,7 @@ impl From<ApiResponseError> for UpgradePathResponseError {
       ApiResponseErrorKind::InvalidUploadID(_) | ApiResponseErrorKind::InvalidGameID(_) => {
         Self::InvalidBuildID(InvalidBuildID)
       }
+      ApiResponseErrorKind::InvalidTargetBuildID(v) => Self::InvalidTargetBuildID(v),
       _ => Self::Other(value.into()),
     }
   }
