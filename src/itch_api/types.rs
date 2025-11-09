@@ -13,6 +13,7 @@ pub type UploadID = u64;
 pub type BuildID = u64;
 pub type ItchKeyID = u64;
 pub type OwnedKeyID = u64;
+pub type SaleID = u64;
 
 /// Deserialize an empty object as an empty vector
 ///
@@ -224,6 +225,18 @@ pub struct Profile {
   pub press_user: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GameSale {
+  pub id: SaleID,
+  /// Rate must be an integger between -100 and 100
+  /// A negative number means the game is more expensive than it was before the sale
+  pub rate: i8,
+  #[serde(with = "rfc3339")]
+  pub start_date: OffsetDateTime,
+  #[serde(with = "rfc3339")]
+  pub end_date: OffsetDateTime,
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GameType {
@@ -277,6 +290,7 @@ pub struct GameCommon {
   #[serde(with = "rfc3339::option", default)]
   pub published_at: Option<OffsetDateTime>,
   pub min_price: u64,
+  pub sale: Option<GameSale>,
   #[serde(deserialize_with = "empty_object_as_vec")]
   pub traits: Vec<GameTrait>,
 }
