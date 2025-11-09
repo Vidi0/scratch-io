@@ -409,6 +409,7 @@ pub struct UpgradePathBuild {
   #[serde(flatten)]
   pub build_info: BuildCommon,
   pub upload_id: UploadID,
+  #[serde(deserialize_with = "empty_object_as_vec")]
   pub files: Vec<BuildFile>,
 }
 
