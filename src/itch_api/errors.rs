@@ -359,6 +359,7 @@ impl From<ApiResponseError> for UploadResponseError {
   fn from(value: ApiResponseError) -> Self {
     match value.kind {
       ApiResponseErrorKind::InvalidUploadID(v) => v.into(),
+      ApiResponseErrorKind::InvalidGameID(_) => Self::InvalidUploadID(InvalidUploadID),
       _ => Self::Other(value.into()),
     }
   }
