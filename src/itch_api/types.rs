@@ -344,7 +344,7 @@ pub struct OwnedKey {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BuildCommon {
   pub id: BuildID,
-  #[serde_as(deserialize_as = "DefaultOnError<Option<_>>")]
+  #[serde_as(deserialize_as = "DefaultOnError")]
   pub parent_build_id: Option<BuildID>,
   pub version: u64,
   pub user_version: Option<String>,
