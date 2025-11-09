@@ -857,7 +857,7 @@ pub async fn r#move(
 pub async fn get_upload_manifest(
   upload_id: UploadID,
   game_folder: &Path,
-) -> Result<Option<itch_manifest::Manifest>, String> {
+) -> Result<Option<Manifest>, String> {
   let upload_folder = get_upload_folder(game_folder, upload_id);
 
   itch_manifest::read_manifest(&upload_folder).await

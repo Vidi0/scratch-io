@@ -656,6 +656,70 @@ pub async fn get_upgrade_path(
     .map(|res| res.upgrade_path.builds)
 }
 
+/// Get additional information about the contents of the upload
+///
+/// # Arguments
+///
+/// * `client` - An itch.io API client
+///
+/// * `upload_id` - The ID of the upload from which information will be obtained
+///
+/// # Returns
+///
+/// A `ScannedArchive` struct with the info provided by the API
+///
+/// # Errors
+///
+/// If the request, retrieving its text, or parsing fails, or if the server returned an error
+pub async fn get_upload_scanned_archive(
+  client: &ItchClient,
+  upload_id: UploadID,
+) -> Result<ScannedArchive, ItchRequestJSONError<UploadResponseError>> {
+  client
+    .itch_request_json::<UploadScannedArchiveResponse>(
+      &ItchApiUrl::from_api_endpoint(
+        ItchApiVersion::V2,
+        format!("uploads/{upload_id}/scanned-archive"),
+      ),
+      Method::GET,
+      |b| b,
+    )
+    .await
+    .map(|res| res.scanned_archive)
+}
+
+/// Get additional information about the contents of the build
+///
+/// # Arguments
+///
+/// * `client` - An itch.io API client
+///
+/// * `build_id` - The ID of the build from which information will be obtained
+///
+/// # Returns
+///
+/// A `ScannedArchive` struct with the info provided by the API
+///
+/// # Errors
+///
+/// If the request, retrieving its text, or parsing fails, or if the server returned an error
+pub async fn get_build_scanned_archive(
+  client: &ItchClient,
+  build_id: BuildID,
+) -> Result<ScannedArchive, ItchRequestJSONError<BuildResponseError>> {
+  client
+    .itch_request_json::<BuildScannedArchiveResponse>(
+      &ItchApiUrl::from_api_endpoint(
+        ItchApiVersion::V2,
+        format!("builds/{build_id}/scanned-archive"),
+      ),
+      Method::GET,
+      |b| b,
+    )
+    .await
+    .map(|res| res.scanned_archive)
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -899,6 +963,58 @@ mod tests {
     // Verify that retrieving the build info for an invalid build fails
     assert!(matches!(
       get_build_info(&client, INVALID_BUILD_ID)
+        .await
+        .unwrap_err()
+        .kind,
+      ItchRequestJSONErrorKind::ServerRepliedWithError(BuildResponseError::InvalidBuildID(_))
+    ));
+  }
+
+  #[tokio::test]
+  async fn test_upload_scanned_archive() {
+    let client = get_client();
+
+    // Verify that retrieving the upload scanned archive info works
+    assert!(matches!(
+      get_upload_scanned_archive(&client, VALID_UPLOAD_ID)
+        .await
+        .unwrap()
+        .object_type,
+      ScannedArchiveObject::Upload {
+        object_id: VALID_UPLOAD_ID,
+        ..
+      }
+    ));
+
+    // Verify that retrieving the upload scanned archive info for an invalid build fails
+    assert!(matches!(
+      get_upload_scanned_archive(&client, INVALID_UPLOAD_ID)
+        .await
+        .unwrap_err()
+        .kind,
+      ItchRequestJSONErrorKind::ServerRepliedWithError(UploadResponseError::InvalidUploadID(_))
+    ));
+  }
+
+  #[tokio::test]
+  async fn test_build_scanned_archive() {
+    let client = get_client();
+
+    // Verify that retrieving the build scanned archive info works
+    assert!(matches!(
+      get_build_scanned_archive(&client, VALID_BUILD_ID)
+        .await
+        .unwrap()
+        .object_type,
+      ScannedArchiveObject::Build {
+        object_id: VALID_BUILD_ID,
+        ..
+      }
+    ));
+
+    // Verify that retrieving the build info for an invalid build fails
+    assert!(matches!(
+      get_build_scanned_archive(&client, INVALID_BUILD_ID)
         .await
         .unwrap_err()
         .kind,

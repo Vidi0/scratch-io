@@ -1,31 +1,10 @@
-use serde::{Deserialize, Serialize};
+use crate::itch_api::types::*;
 use std::path::{Path, PathBuf};
 
 const MANIFEST_FILENAME: &str = ".itch.toml";
 const MANIFEST_PLAY_ACTION: &str = "play";
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum ActionPlatform {
-  Linux,
-  Windows,
-  Osx,
-  Unknown,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Action {
-  pub name: String,
-  pub path: String,
-  pub platform: Option<ActionPlatform>,
-  pub args: Option<Vec<String>>,
-  pub sandbox: Option<bool>,
-  pub console: Option<bool>,
-  /// Games can ask for an itch.io API key by setting the `scope` parameter
-  pub scope: Option<String>,
-}
-
-impl Action {
+impl ManifestAction {
   pub async fn get_canonical_path(&self, folder: &Path) -> Result<PathBuf, String> {
     tokio::fs::canonicalize(folder.join(&self.path))
       .await
@@ -36,54 +15,6 @@ impl Action {
         )
       })
   }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum PrerequisiteName {
-  #[serde(rename = "vcredist-2010-x64")]
-  Vcredist2010x64,
-  #[serde(rename = "vcredist-2010-x86")]
-  Vcredist2010x86,
-  #[serde(rename = "vcredist-2013-x64")]
-  Vcredist2013x64,
-  #[serde(rename = "vcredist-2013-x86")]
-  Vcredist2013x86,
-  #[serde(rename = "vcredist-2015-x64")]
-  Vcredist2015x64,
-  #[serde(rename = "vcredist-2015-x86")]
-  Vcredist2015x86,
-  #[serde(rename = "vcredist-2017-x64")]
-  Vcredist2017x64,
-  #[serde(rename = "vcredist-2017-x86")]
-  Vcredist2017x86,
-  #[serde(rename = "vcredist-2019-x64")]
-  Vcredist2019x64,
-  #[serde(rename = "vcredist-2019-x86")]
-  Vcredist2019x86,
-
-  #[serde(rename = "net-4.5.2")]
-  Net452,
-  #[serde(rename = "net-4.6")]
-  Net46,
-  #[serde(rename = "net-4.6.2")]
-  Net462,
-
-  #[serde(rename = "xna-4.0")]
-  Xna40,
-
-  #[serde(rename = "dx-june-2010")]
-  DxJune2010,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Prerequisite {
-  pub name: PrerequisiteName,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Manifest {
-  pub actions: Vec<Action>,
-  pub prereqs: Option<Vec<Prerequisite>>,
 }
 
 /// Read the manifest from a folder and parse it (if any)
@@ -108,16 +39,22 @@ pub async fn read_manifest(upload_folder: &Path) -> Result<Option<Manifest>, Str
     })
 }
 
-/// Returns a itch Manifest Action given its name and the folder where the game manifest is located
+/// Returns an itch.io ManifestAction given its name and the folder where the game manifest is located
 pub async fn launch_action(
   upload_folder: &Path,
   action_name: Option<&str>,
-) -> Result<Option<Action>, String> {
+) -> Result<Option<ManifestAction>, String> {
   let Some(manifest) = read_manifest(upload_folder).await? else {
     return Ok(None);
   };
 
   let action_name = action_name.unwrap_or(MANIFEST_PLAY_ACTION);
 
-  Ok(manifest.actions.into_iter().find(|a| a.name == action_name))
+  Ok(
+    manifest
+      .actions
+      .unwrap_or_default()
+      .into_iter()
+      .find(|a| a.name == action_name),
+  )
 }

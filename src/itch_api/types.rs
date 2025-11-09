@@ -500,3 +500,93 @@ impl Upload {
     }
   }
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ManifestActionPlatform {
+  Linux,
+  Windows,
+  Osx,
+  Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ManifestAction {
+  pub name: String,
+  pub path: String,
+  pub platform: Option<ManifestActionPlatform>,
+  pub args: Option<Vec<String>>,
+  pub sandbox: Option<bool>,
+  pub console: Option<bool>,
+  /// Games can ask for an itch.io API key by setting the `scope` parameter
+  pub scope: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ManifestPrerequisiteName {
+  #[serde(rename = "vcredist-2010-x64")]
+  Vcredist2010x64,
+  #[serde(rename = "vcredist-2010-x86")]
+  Vcredist2010x86,
+  #[serde(rename = "vcredist-2013-x64")]
+  Vcredist2013x64,
+  #[serde(rename = "vcredist-2013-x86")]
+  Vcredist2013x86,
+  #[serde(rename = "vcredist-2015-x64")]
+  Vcredist2015x64,
+  #[serde(rename = "vcredist-2015-x86")]
+  Vcredist2015x86,
+  #[serde(rename = "vcredist-2017-x64")]
+  Vcredist2017x64,
+  #[serde(rename = "vcredist-2017-x86")]
+  Vcredist2017x86,
+  #[serde(rename = "vcredist-2019-x64")]
+  Vcredist2019x64,
+  #[serde(rename = "vcredist-2019-x86")]
+  Vcredist2019x86,
+
+  #[serde(rename = "net-4.5.2")]
+  Net452,
+  #[serde(rename = "net-4.6")]
+  Net46,
+  #[serde(rename = "net-4.6.2")]
+  Net462,
+
+  #[serde(rename = "xna-4.0")]
+  Xna40,
+
+  #[serde(rename = "dx-june-2010")]
+  DxJune2010,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ManifestPrerequisite {
+  pub name: ManifestPrerequisiteName,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Manifest {
+  pub actions: Option<Vec<ManifestAction>>,
+  pub prereqs: Option<Vec<ManifestPrerequisite>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "object_type", rename_all = "snake_case")]
+pub enum ScannedArchiveObject {
+  Upload { object_id: UploadID },
+  Build { object_id: BuildID },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ScannedArchive {
+  #[serde(flatten)]
+  pub object_type: ScannedArchiveObject,
+  pub extracted_size: Option<u64>,
+  pub manifest: Option<Manifest>,
+  // TODO: add launch targets structure
+  //pub launch_targets: Option<Vec<>>,
+  #[serde(with = "rfc3339")]
+  pub created_at: OffsetDateTime,
+  #[serde(with = "rfc3339")]
+  pub updated_at: OffsetDateTime,
+}

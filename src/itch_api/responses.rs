@@ -196,3 +196,23 @@ pub struct BuildUpgradePathResponse {
 impl IntoResponseResult for BuildUpgradePathResponse {
   type Err = UpgradePathResponseError;
 }
+
+/// Response struct for: <https://api.itch.io/uploads/{upload_id}/scanned-archive>
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UploadScannedArchiveResponse {
+  pub scanned_archive: ScannedArchive,
+}
+
+impl IntoResponseResult for UploadScannedArchiveResponse {
+  type Err = UploadResponseError;
+}
+
+/// Response struct for: <https://api.itch.io/builds/{build_id}/scanned-archive>
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BuildScannedArchiveResponse {
+  pub scanned_archive: ScannedArchive,
+}
+
+impl IntoResponseResult for BuildScannedArchiveResponse {
+  type Err = BuildResponseError;
+}

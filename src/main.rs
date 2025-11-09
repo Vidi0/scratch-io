@@ -105,6 +105,16 @@ enum WithApiCommands {
     /// The ID of the target build
     target_build_id: BuildID,
   },
+  /// Retrieve additional information about the contents of the upload
+  UploadScannedArchive {
+    /// The ID of the upload to retrieve information about
+    upload_id: UploadID,
+  },
+  /// Retrieve additional information about the contents of the build
+  BuildScannedArchive {
+    /// The ID of the build to retrieve information about
+    build_id: BuildID,
+  },
   /// Download the upload with the given ID
   Download {
     /// The ID of the upload to download
@@ -494,6 +504,26 @@ async fn print_upgrade_path(
   );
 }
 
+// Print the scanned info about an upload
+async fn print_scanned_upload(client: &ItchClient, upload_id: UploadID) {
+  println!(
+    "{:#?}",
+    itch_api::get_upload_scanned_archive(client, upload_id)
+      .await
+      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+  );
+}
+
+// Print the scanned info about a build
+async fn print_scanned_build(client: &ItchClient, build_id: BuildID) {
+  println!(
+    "{:#?}",
+    itch_api::get_build_scanned_archive(client, build_id)
+      .await
+      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+  );
+}
+
 // Download a game's upload
 async fn download(
   client: &ItchClient,
@@ -832,6 +862,12 @@ async fn main() {
           target_build_id,
         } => {
           print_upgrade_path(&client, current_build_id, target_build_id).await;
+        }
+        WithApiCommands::UploadScannedArchive { upload_id } => {
+          print_scanned_upload(&client, upload_id).await;
+        }
+        WithApiCommands::BuildScannedArchive { build_id } => {
+          print_scanned_build(&client, build_id).await;
         }
         WithApiCommands::Download {
           upload_id,
