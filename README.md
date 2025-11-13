@@ -94,6 +94,7 @@ scratch-io help
 - [itch.io docs: compatibility policy](https://docs.itch.ovh/itch/master/integrating/compatibility-policy.html)
 - [itch.io docs: manifest](https://docs.itch.ovh/itch/master/integrating/manifest.html)
 - [itch.io docs: butler](https://itch.io/docs/butler/)
+- [itch.io docs: wharf](https://itch.io/docs/wharf/)
 
 ## 📝 Roadmap
 
