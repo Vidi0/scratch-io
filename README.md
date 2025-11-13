@@ -91,7 +91,6 @@ scratch-io help
 ## 📚 References
 
 - [itchapi.ryhn.link](https://itchapi.ryhn.link) – Unofficial itch.io API documentation
-- [itch-downloader](https://github.com/BraedonWooding/itch-downloader) – Example itch.io API usage written in Rust
 - [itch.io docs: compatibility policy](https://docs.itch.ovh/itch/master/integrating/compatibility-policy.html)
 - [itch.io docs: manifest](https://docs.itch.ovh/itch/master/integrating/manifest.html)
 - [itch.io docs: butler](https://itch.io/docs/butler/)
