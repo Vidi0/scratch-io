@@ -135,6 +135,13 @@ Update to a newer scratch-io version to be able to load the given config.
     let config_text = toml::to_string_pretty::<Config>(self)
       .map_err(|e| format!("Couldn't serialize config into TOML!: {e}"))?;
 
+    // ensure config directory exists
+    if let Some(parent) = config_file_path.parent() {
+      tokio::fs::create_dir_all(parent)
+        .await
+        .map_err(|e| format!("Couldn't create config directory: \"{}\"\n{e}", parent.to_string_lossy()))?;
+    }
+
     // Write the config to a file
     tokio::fs::write(&config_file_path, &config_text)
       .await
