@@ -159,7 +159,7 @@ pub async fn move_folder(from: &Path, to: &Path) -> Result<(), FilesystemError> 
   // Create the destination parent dir
   create_dir(to).await?;
 
-  match move_path(from, to).await {
+  match rename(from, to).await {
     Ok(()) => Ok(()),
     Err(FilesystemError::IOError { error, .. })
       if error.kind() == tokio::io::ErrorKind::CrossesDevices =>
@@ -213,12 +213,12 @@ async fn move_folder_child(last_root: &Path, base_folder: &Path) -> Result<(), F
       // If the children filename already exists on the parent, rename it to a
       // temporal name and, at the end, rename all the temporal names in order to the final names
       let temporal_name: PathBuf = find_available_path(&to).await?;
-      move_path(&from, &temporal_name).await?;
+      rename(&from, &temporal_name).await?;
 
       // save the change to the collisions vector
       collisions.push((temporal_name, to));
     } else {
-      move_path(&from, &to).await?;
+      rename(&from, &to).await?;
     }
   }
 
@@ -232,7 +232,7 @@ async fn move_folder_child(last_root: &Path, base_folder: &Path) -> Result<(), F
 
   // now move all of the filenames that have collided to their original name
   for (src, dst) in &collisions {
-    move_path(src, dst).await?;
+    rename(src, dst).await?;
   }
 
   Ok(())

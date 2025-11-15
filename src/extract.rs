@@ -72,7 +72,7 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), Stri
     let destination = extract_folder.join(filesystem::get_file_name(file_path)?);
 
     // Move the file
-    filesystem::move_path(file_path, &destination).await?;
+    filesystem::rename(file_path, &destination).await?;
 
     // Make it executable
     game_files::make_executable(&destination).await?;

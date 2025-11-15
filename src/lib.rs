@@ -227,7 +227,7 @@ async fn download_file(
   // If there already exists a file in file_path, then move it to partial_file_path
   // This way, the file's length and its hash are verified
   if filesystem::exists(file_path).await? {
-    filesystem::move_path(file_path, &partial_file_path).await?;
+    filesystem::rename(file_path, &partial_file_path).await?;
   }
 
   // Open the file where the data is going to be downloaded
@@ -346,7 +346,7 @@ async fn download_file(
 
   // Move the downloaded file to its final destination
   // This has to be the last call in this function because after it, the File is not longer valid
-  filesystem::move_path(&partial_file_path, file_path).await?;
+  filesystem::rename(&partial_file_path, file_path).await?;
 
   Ok(())
 }
