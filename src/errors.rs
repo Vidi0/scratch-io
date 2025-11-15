@@ -23,6 +23,13 @@ pub enum FilesystemError {
   OtherError(#[from] OtherFilesystemErrorKind),
 }
 
+// TODO: This is temporary while more custom errors aren't implemented
+impl From<FilesystemError> for String {
+  fn from(value: FilesystemError) -> Self {
+    value.to_string()
+  }
+}
+
 #[derive(Error, Debug)]
 pub enum FilesystemIOErrorKind {
   #[error("Couldn't check if the path exists: \"{0}\"")]

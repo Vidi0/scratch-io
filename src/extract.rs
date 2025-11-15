@@ -50,10 +50,15 @@ fn get_archive_format(file: &Path) -> Result<ArchiveFormat, FilesystemError> {
 /// Extracts the archive into the given folder
 ///
 /// If the file isn't an archive it will be moved to the folder
-pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), FilesystemError> {
+pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), String> {
   // If the extract folder isn't empty, return an error
   if !game_files::is_folder_empty(extract_folder).await? {
-    return Err(OtherFilesystemErrorKind::ShouldBeEmpty(extract_folder.to_owned()).into());
+    return Err(
+      FilesystemError::OtherError(OtherFilesystemErrorKind::ShouldBeEmpty(
+        extract_folder.to_owned(),
+      ))
+      .into(),
+    );
   }
 
   let format: ArchiveFormat = get_archive_format(file_path)?;

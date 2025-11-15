@@ -759,7 +759,9 @@ pub async fn r#move(
   // If src_game_folder is empty, remove it
   game_files::remove_folder_if_empty(src_game_folder).await?;
 
-  filesystem::get_canonical_path(dst_game_folder).await
+  filesystem::get_canonical_path(dst_game_folder)
+    .await
+    .map_err(|e| e.into())
 }
 
 /// Retrieve the itch manifest from an installed upload
