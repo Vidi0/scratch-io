@@ -16,6 +16,18 @@ pub fn os_str_as_str(os_str: &std::ffi::OsStr) -> Result<&str, FilesystemError> 
     .ok_or_else(OtherErr::InvalidUnicodeOsStr(os_str.to_owned()).attach())
 }
 
+/// Get the file name of the given Path
+///
+/// # Errors
+///
+/// If the path doesn't have a filename
+pub fn get_file_name(path: &Path) -> Result<&str, FilesystemError> {
+  path
+    .file_name()
+    .ok_or_else(OtherErr::PathWithoutFilename(path.to_owned()).attach())
+    .and_then(|stem| os_str_as_str(stem))
+}
+
 /// Get the stem (non-extension) of the given Path
 ///
 /// # Errors
@@ -28,16 +40,16 @@ pub fn get_file_stem(path: &Path) -> Result<&str, FilesystemError> {
     .and_then(|stem| os_str_as_str(stem))
 }
 
-/// Get the file name of the given Path
+/// Get the extension of the given Path
 ///
 /// # Errors
 ///
-/// If the path doesn't have a filename
-pub fn get_file_name(path: &Path) -> Result<&str, FilesystemError> {
+/// If the path doesn't have an extension
+pub fn get_file_extension(path: &Path) -> Result<&str, FilesystemError> {
   path
-    .file_name()
-    .ok_or_else(OtherErr::PathWithoutFilename(path.to_owned()).attach())
-    .and_then(|stem| os_str_as_str(stem))
+    .extension()
+    .ok_or_else(OtherErr::PathWithoutExtension(path.to_owned()).attach())
+    .and_then(|extension| os_str_as_str(extension))
 }
 
 /// Check if a path points at an existing entity
@@ -228,7 +240,9 @@ pub async fn read_file_metadata(file: &fs::File) -> Result<std::fs::Metadata, Fi
 ///
 /// If the filesystem operation fails
 pub async fn is_dir(path: &Path) -> Result<bool, FilesystemError> {
-  read_path_metadata(path).await.map(|metadata| metadata.is_dir())
+  read_path_metadata(path)
+    .await
+    .map(|metadata| metadata.is_dir())
 }
 
 /// Set a file or a folder's permissions

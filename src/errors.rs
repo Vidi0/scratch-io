@@ -96,6 +96,9 @@ pub enum OtherFilesystemErrorKind {
   #[error("The following path doesn't have a filename: \"{0}\"")]
   PathWithoutFilename(PathBuf),
 
+  #[error("The following path doesn't have an extension: \"{0}\"")]
+  PathWithoutExtension(PathBuf),
+
   #[error("The following path doesn't have a parent: \"{0}\"")]
   PathWithoutParent(PathBuf),
 

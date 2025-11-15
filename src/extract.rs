@@ -1,4 +1,5 @@
-use crate::game_files::*;
+use crate::errors::{FilesystemError, OtherFilesystemErrorKind};
+use crate::{filesystem, game_files};
 use std::fs::File;
 use std::path::Path;
 
@@ -15,19 +16,13 @@ enum ArchiveFormat {
 /// Gets the archive format of the file
 ///
 /// If the file is not an archive, then the format is `ArchiveFormat::Other`
-fn get_archive_format(file: &Path) -> Result<ArchiveFormat, String> {
-  let Some(extension) = file.extension().map(|e| e.to_string_lossy().to_lowercase()) else {
+fn get_archive_format(file: &Path) -> Result<ArchiveFormat, FilesystemError> {
+  let Ok(extension) = filesystem::get_file_extension(file) else {
     return Ok(ArchiveFormat::Other);
   };
 
   // At this point, we know the file has an extension
-  let is_tar_compressed: bool = get_file_stem(file)
-    .map_err(|e| {
-      format!(
-        "Couldn't get archive format because it doesn't have a filename!: \"{}\"\n{e}",
-        file.to_string_lossy()
-      )
-    })?
+  let is_tar_compressed: bool = filesystem::get_file_stem(file)?
     .to_lowercase()
     .ends_with(".tar");
 
@@ -55,13 +50,10 @@ fn get_archive_format(file: &Path) -> Result<ArchiveFormat, String> {
 /// Extracts the archive into the given folder
 ///
 /// If the file isn't an archive it will be moved to the folder
-pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), String> {
+pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), FilesystemError> {
   // If the extract folder isn't empty, return an error
-  if !is_folder_empty(extract_folder)? {
-    return Err(format!(
-      "Extraction folder isn't empty: \"{}\"",
-      extract_folder.to_string_lossy()
-    ));
+  if !game_files::is_folder_empty(extract_folder).await? {
+    return Err(OtherFilesystemErrorKind::ShouldBeEmpty(extract_folder.to_owned()).into());
   }
 
   let format: ArchiveFormat = get_archive_format(file_path)?;
@@ -69,47 +61,32 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), Stri
   // If the file isn't an archive, return now
   if let ArchiveFormat::Other = format {
     // Create the destination folder
-    create_dir(&extract_folder).await?;
+    filesystem::create_dir(&extract_folder).await?;
 
     // Get the file destination
-    let destination = extract_folder.join(file_path.file_name().ok_or_else(|| {
-      format!(
-        "Couldn't get the file destination because it doesn't have a name: {}",
-        file_path.to_string_lossy()
-      )
-    })?);
+    let destination = extract_folder.join(filesystem::get_file_name(file_path)?);
 
     // Move the file
-    tokio::fs::rename(file_path, &destination)
-      .await
-      .map_err(|e| {
-        format!(
-          "Couldn't move the file:\n  Source: \"{}\"\n  Destination: \"{}\"\n{e}",
-          file_path.to_string_lossy(),
-          destination.to_string_lossy()
-        )
-      })?;
+    filesystem::move_path(file_path, &destination).await?;
 
     // Make it executable
-    crate::make_executable(&destination)?;
+    game_files::make_executable(&destination).await?;
 
     return Ok(());
   }
 
   // The archive will be extracted to the extract_folder_temp, and then moved to its final destination once the extraction is completed
-  let extract_folder_temp = add_part_extension(extract_folder).map_err(|e| {
-    format!(
-      "Couldn't add part extension to the extract temp folder!: \"{}\"{e}",
-      file_path.to_string_lossy()
-    )
-  })?;
+  let extract_folder_temp = game_files::add_part_extension(extract_folder)?;
 
   // The extraction temporal folder could have contents if a previous extraction was cancelled
   // For that reason, don't check if the folder is empty; but create it if it doesn't exist
-  create_dir(&extract_folder_temp).await?;
+  filesystem::create_dir(&extract_folder_temp).await?;
 
   // Open the file in read-only mode
-  let file = File::open(file_path).map_err(|e| e.to_string())?;
+  let file = filesystem::open_file(file_path, tokio::fs::OpenOptions::new().read(true))
+    .await?
+    .into_std()
+    .await;
 
   // Extract the archive based on its format
   match format {
@@ -123,13 +100,13 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), Stri
   }
 
   // Remove the archive
-  remove_file(file_path).await?;
+  filesystem::remove_file(file_path).await?;
 
   // If the extraction folder has any common roots, remove them
-  remove_root_folder(&extract_folder_temp).await?;
+  game_files::remove_root_folder(&extract_folder_temp).await?;
 
   // Move the temporal folder to its destination
-  move_folder(&extract_folder_temp, extract_folder).await?;
+  game_files::move_folder(&extract_folder_temp, extract_folder).await?;
 
   Ok(())
 }
