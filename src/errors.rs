@@ -7,33 +7,20 @@ use thiserror::Error;
 pub enum FilesystemError {
   #[error(
     "An IO filesystem error occured!
-{0}"
+{kind}
+{error}"
   )]
-  IOError(#[from] FilesystemIOError),
+  IOError {
+    kind: FilesystemIOErrorKind,
+    #[source]
+    error: std::io::Error,
+  },
 
   #[error(
     "A filesystem error occured!
 {0}"
   )]
-  OtherError(#[from] OtherFilesystemError),
-}
-
-#[derive(Error, Debug)]
-#[error(
-  "{kind}
-{error}"
-)]
-pub struct FilesystemIOError {
-  pub kind: FilesystemIOErrorKind,
-  #[source]
-  pub error: std::io::Error,
-}
-
-#[derive(Error, Debug)]
-#[error("{kind}")]
-pub struct OtherFilesystemError {
-  #[from]
-  pub kind: OtherFilesystemErrorKind,
+  OtherError(#[from] OtherFilesystemErrorKind),
 }
 
 #[derive(Error, Debug)]
@@ -47,7 +34,9 @@ pub enum FilesystemIOErrorKind {
   #[error("Couldn't read directory next element: \"{0}\"")]
   CouldntReadDirectoryNextEntry(PathBuf),
 
-  #[error("Couldn't get the canonical (absolute) form of the path. Maybe it doesn't exist: \"{0}\"")]
+  #[error(
+    "Couldn't get the canonical (absolute) form of the path. Maybe it doesn't exist: \"{0}\""
+  )]
   CouldntGetCanonical(PathBuf),
 
   #[error("Couldn't create the folder: \"{0}\"")]
@@ -79,7 +68,7 @@ pub enum FilesystemIOErrorKind {
 impl FilesystemIOErrorKind {
   /// Returns a closure that attaches this `FilesystemIOErrorKind` to a `std::io::Error` and returns a `FilesystemError`
   pub fn attach(self) -> impl FnOnce(std::io::Error) -> FilesystemError {
-    move |error| FilesystemError::IOError(FilesystemIOError { kind: self, error })
+    move |error| FilesystemError::IOError { kind: self, error }
   }
 }
 
@@ -107,6 +96,6 @@ pub enum OtherFilesystemErrorKind {
 impl OtherFilesystemErrorKind {
   /// Returns a closure that moves this `OtherFilesystemErrorKind` into a `FilesystemError`
   pub fn attach(self) -> impl FnOnce() -> FilesystemError {
-    move || FilesystemError::OtherError(OtherFilesystemError { kind: self })
+    move || FilesystemError::OtherError(self)
   }
 }
