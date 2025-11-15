@@ -702,7 +702,7 @@ pub async fn remove(upload_id: UploadID, game_folder: &Path) -> Result<(), Strin
 
   // If there isn't a upload_folder, or it is empty, that means the game
   // has already been removed, so return Ok(())
-  if game_files::is_folder_empty(&upload_folder)? {
+  if game_files::is_folder_empty(&upload_folder).await? {
     return Ok(());
   }
 
@@ -880,7 +880,7 @@ pub async fn launch(
   let upload_executable = filesystem::get_canonical_path(&upload_executable).await?;
 
   // Make the file executable
-  game_files::make_executable(&upload_executable)?;
+  game_files::make_executable(&upload_executable).await?;
 
   // Create the tokio process
   let mut game_process = {
