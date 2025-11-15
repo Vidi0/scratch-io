@@ -96,6 +96,9 @@ pub enum OtherFilesystemErrorKind {
   #[error("The following path should be a folder but it is not: \"{0}\"")]
   ShouldBeAFolder(PathBuf),
 
+  #[error("The following path should be an empty folder or not exist but it does: \"{0}\"")]
+  ShouldBeEmpty(PathBuf),
+
   #[error("Couldn't determine the home directory")]
   MissingHomeDirectory,
 

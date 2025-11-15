@@ -1,4 +1,6 @@
-use crate::errors::{FilesystemError, FilesystemIOErrorKind as IOErr, OtherFilesystemErrorKind as OtherErr};
+use crate::errors::{
+  FilesystemError, FilesystemIOErrorKind as IOErr, OtherFilesystemErrorKind as OtherErr,
+};
 use crate::itch_api::types::UploadID;
 
 use std::path::{Path, PathBuf};
@@ -13,13 +15,15 @@ pub const GAME_FOLDER: &str = "Games";
 ///
 /// If `os_str` doesn't contain valid unicode
 pub fn os_str_as_str(os_str: &std::ffi::OsStr) -> Result<&str, FilesystemError> {
-  os_str.to_str().ok_or_else(OtherErr::InvalidUnicodeOsStr(os_str.to_owned()).attach())
+  os_str
+    .to_str()
+    .ok_or_else(OtherErr::InvalidUnicodeOsStr(os_str.to_owned()).attach())
 }
 
 /// Get the stem (non-extension) of the given Path
-/// 
+///
 /// # Errors
-/// 
+///
 /// If the path doesn't have a filename
 pub fn get_file_stem(path: &Path) -> Result<&str, FilesystemError> {
   path
@@ -29,9 +33,9 @@ pub fn get_file_stem(path: &Path) -> Result<&str, FilesystemError> {
 }
 
 /// Get the file name of the given Path
-/// 
+///
 /// # Errors
-/// 
+///
 /// If the path doesn't have a filename
 pub fn get_file_name(path: &Path) -> Result<&str, FilesystemError> {
   path
@@ -46,7 +50,9 @@ pub fn get_file_name(path: &Path) -> Result<&str, FilesystemError> {
 ///
 /// If the filesystem operation fails
 pub async fn exists(path: &Path) -> Result<bool, FilesystemError> {
-  tokio::fs::try_exists(path).await.map_err(IOErr::CouldntCheckIfExists(path.to_owned()).attach())
+  tokio::fs::try_exists(path)
+    .await
+    .map_err(IOErr::CouldntCheckIfExists(path.to_owned()).attach())
 }
 
 /// Get the parent of the given path
@@ -55,7 +61,9 @@ pub async fn exists(path: &Path) -> Result<bool, FilesystemError> {
 ///
 /// If the path doesn't have a parent
 pub async fn parent(path: &Path) -> Result<&Path, FilesystemError> {
-  path.parent().ok_or_else(OtherErr::PathWithoutParent(path.to_owned()).attach())
+  path
+    .parent()
+    .ok_or_else(OtherErr::PathWithoutParent(path.to_owned()).attach())
 }
 
 /// Return a stream over the entries within a directory
@@ -64,7 +72,9 @@ pub async fn parent(path: &Path) -> Result<&Path, FilesystemError> {
 ///
 /// If the filesystem operation fails
 pub async fn read_dir(path: &Path) -> Result<tokio::fs::ReadDir, FilesystemError> {
-  tokio::fs::read_dir(path).await.map_err(IOErr::CouldntReadDirectory(path.to_owned()).attach())
+  tokio::fs::read_dir(path)
+    .await
+    .map_err(IOErr::CouldntReadDirectory(path.to_owned()).attach())
 }
 
 /// Return a stream over the entries within a directory
@@ -72,8 +82,14 @@ pub async fn read_dir(path: &Path) -> Result<tokio::fs::ReadDir, FilesystemError
 /// # Errors
 ///
 /// If the filesystem operation fails
-pub async fn next_entry(read_dir: &mut tokio::fs::ReadDir, path: &Path) -> Result<Option<tokio::fs::DirEntry>, FilesystemError> {
-  read_dir.next_entry().await.map_err(IOErr::CouldntReadDirectoryNextEntry(path.to_owned()).attach())
+pub async fn next_entry(
+  read_dir: &mut tokio::fs::ReadDir,
+  path: &Path,
+) -> Result<Option<tokio::fs::DirEntry>, FilesystemError> {
+  read_dir
+    .next_entry()
+    .await
+    .map_err(IOErr::CouldntReadDirectoryNextEntry(path.to_owned()).attach())
 }
 
 /// Get the file type of a `DirEntry`
@@ -81,8 +97,14 @@ pub async fn next_entry(read_dir: &mut tokio::fs::ReadDir, path: &Path) -> Resul
 /// # Errors
 ///
 /// If the filesystem operation fails
-pub async fn file_type(dir_entry: &tokio::fs::DirEntry, path: &Path) -> Result<std::fs::FileType, FilesystemError> {
-  dir_entry.file_type().await.map_err(IOErr::CouldntGetFileType(path.to_owned()).attach())
+pub async fn file_type(
+  dir_entry: &tokio::fs::DirEntry,
+  path: &Path,
+) -> Result<std::fs::FileType, FilesystemError> {
+  dir_entry
+    .file_type()
+    .await
+    .map_err(IOErr::CouldntGetFileType(path.to_owned()).attach())
 }
 
 /// Returns the canonical (absolute form of the path)
@@ -91,7 +113,9 @@ pub async fn file_type(dir_entry: &tokio::fs::DirEntry, path: &Path) -> Result<s
 ///
 /// If the filesystem operation fails
 pub async fn get_canonical_path(path: &Path) -> Result<PathBuf, FilesystemError> {
-  tokio::fs::canonicalize(path).await.map_err(IOErr::CouldntGetCanonical(path.to_owned()).attach())
+  tokio::fs::canonicalize(path)
+    .await
+    .map_err(IOErr::CouldntGetCanonical(path.to_owned()).attach())
 }
 
 /// Get the `directories::BaseDirs`
@@ -100,8 +124,7 @@ pub async fn get_canonical_path(path: &Path) -> Result<PathBuf, FilesystemError>
 ///
 /// If the home directory couldn't be determined
 pub fn get_basedirs() -> Result<directories::BaseDirs, FilesystemError> {
-  directories::BaseDirs::new()
-    .ok_or_else(OtherErr::MissingHomeDirectory.attach())
+  directories::BaseDirs::new().ok_or_else(OtherErr::MissingHomeDirectory.attach())
 }
 
 /// Create a directory recursively
@@ -121,9 +144,13 @@ pub async fn create_dir(path: &Path) -> Result<(), FilesystemError> {
 ///
 /// If the filesystem operation fails
 pub async fn copy_file(from: &Path, to: &Path) -> Result<u64, FilesystemError> {
-  tokio::fs::copy(from, to)
-    .await
-    .map_err(IOErr::CouldntCopyFile { from: from.to_owned(), to: to.to_owned() }.attach())
+  tokio::fs::copy(from, to).await.map_err(
+    IOErr::CouldntCopyFile {
+      from: from.to_owned(),
+      to: to.to_owned(),
+    }
+    .attach(),
+  )
 }
 
 /// Move a file or a directory to a new path
@@ -149,7 +176,9 @@ pub async fn move_path(from: &Path, to: &Path) -> Result<(), FilesystemError> {
 ///
 /// If the filesystem operation fails
 pub async fn remove_file(path: &Path) -> Result<(), FilesystemError> {
-  tokio::fs::remove_file(path).await.map_err(IOErr::CouldntRemoveFile(path.to_owned()).attach())
+  tokio::fs::remove_file(path)
+    .await
+    .map_err(IOErr::CouldntRemoveFile(path.to_owned()).attach())
 }
 
 /// Remove an empty directory
@@ -158,7 +187,9 @@ pub async fn remove_file(path: &Path) -> Result<(), FilesystemError> {
 ///
 /// If the filesystem operation fails
 pub async fn remove_empty_dir(path: &Path) -> Result<(), FilesystemError> {
-  tokio::fs::remove_dir(path).await.map_err(IOErr::CouldntRemoveEmptyDir(path.to_owned()).attach())
+  tokio::fs::remove_dir(path)
+    .await
+    .map_err(IOErr::CouldntRemoveEmptyDir(path.to_owned()).attach())
 }
 
 /// Remove a directory and all its contents
@@ -167,7 +198,9 @@ pub async fn remove_empty_dir(path: &Path) -> Result<(), FilesystemError> {
 ///
 /// If the filesystem operation fails
 pub async fn remove_dir_all(path: &Path) -> Result<(), FilesystemError> {
-  tokio::fs::remove_dir_all(path).await.map_err(IOErr::CouldntRemoveDirWithContents(path.to_owned()).attach())
+  tokio::fs::remove_dir_all(path)
+    .await
+    .map_err(IOErr::CouldntRemoveDirWithContents(path.to_owned()).attach())
 }
 
 /// Read a file or a folder's metadata
@@ -176,7 +209,18 @@ pub async fn remove_dir_all(path: &Path) -> Result<(), FilesystemError> {
 ///
 /// If the filesystem operation fails
 pub async fn read_metadata(path: &Path) -> Result<std::fs::Metadata, FilesystemError> {
-  tokio::fs::metadata(path).await.map_err(IOErr::CouldntReadMetadata(path.to_owned()).attach())
+  tokio::fs::metadata(path)
+    .await
+    .map_err(IOErr::CouldntReadMetadata(path.to_owned()).attach())
+}
+
+/// Checks if a given path represents a directory on the filesystem
+///
+/// # Errors
+///
+/// If the filesystem operation fails
+pub async fn is_dir(path: &Path) -> Result<bool, FilesystemError> {
+  read_metadata(path).await.map(|metadata| metadata.is_dir())
 }
 
 /// Set a file or a folder's permissions
@@ -184,8 +228,13 @@ pub async fn read_metadata(path: &Path) -> Result<std::fs::Metadata, FilesystemE
 /// # Errors
 ///
 /// If the filesystem operation fails
-pub async fn set_permissions(path: &Path, permissions: std::fs::Permissions) -> Result<(), FilesystemError> {
-  tokio::fs::set_permissions(path, permissions).await.map_err(IOErr::CouldntSetPermissions(path.to_owned()).attach())
+pub async fn set_permissions(
+  path: &Path,
+  permissions: std::fs::Permissions,
+) -> Result<(), FilesystemError> {
+  tokio::fs::set_permissions(path, permissions)
+    .await
+    .map_err(IOErr::CouldntSetPermissions(path.to_owned()).attach())
 }
 
 /// Get the upload folder based on its game folder
@@ -213,12 +262,10 @@ pub fn add_part_extension(file: &Path) -> Result<PathBuf, FilesystemError> {
 /// The game folder is `dirs::home_dir`+`Games`+`game_title`
 ///
 /// # Errors
-/// 
+///
 /// If `dirs::home_dir` is None
 pub fn get_game_folder(game_title: &str) -> Result<PathBuf, FilesystemError> {
-  let mut game_folder = get_basedirs()?
-    .home_dir()
-    .join(GAME_FOLDER);
+  let mut game_folder = get_basedirs()?.home_dir().join(GAME_FOLDER);
 
   game_folder.push(game_title);
 
@@ -226,13 +273,14 @@ pub fn get_game_folder(game_title: &str) -> Result<PathBuf, FilesystemError> {
 }
 
 /// Checks if a folder is empty
-/// 
+///
 /// # Errors
-/// 
+///
 /// If any filesystem operation fails
 pub async fn is_folder_empty(folder: &Path) -> Result<bool, FilesystemError> {
   if folder.is_dir() {
-    if next_entry(&mut read_dir(folder).await?, folder).await?
+    if next_entry(&mut read_dir(folder).await?, folder)
+      .await?
       .is_none()
     {
       Ok(true)
@@ -240,7 +288,9 @@ pub async fn is_folder_empty(folder: &Path) -> Result<bool, FilesystemError> {
       Ok(false)
     }
   } else if exists(folder).await? {
-    Err(FilesystemError::OtherError(OtherErr::ShouldBeAFolder(folder.to_owned()).into()))
+    Err(FilesystemError::OtherError(
+      OtherErr::ShouldBeAFolder(folder.to_owned()).into(),
+    ))
   } else {
     Ok(true)
   }
@@ -266,14 +316,12 @@ pub async fn remove_folder_if_empty(folder: &Path) -> Result<bool, FilesystemErr
 pub async fn remove_folder_safely(path: &Path) -> Result<(), FilesystemError> {
   let canonical = get_canonical_path(path).await?;
 
-  let home = get_canonical_path(
-    get_basedirs()?
-      .home_dir(),
-  )
-  .await?;
+  let home = get_canonical_path(get_basedirs()?.home_dir()).await?;
 
   if canonical == home {
-    return Err(FilesystemError::OtherError(OtherErr::RefusingToRemoveFolder(canonical).into()));
+    return Err(FilesystemError::OtherError(
+      OtherErr::RefusingToRemoveFolder(canonical).into(),
+    ));
   }
 
   remove_dir_all(&canonical).await
@@ -306,7 +354,9 @@ pub async fn make_executable(path: &Path) -> Result<(), FilesystemError> {
 /// Copy all the folder contents to another location
 async fn copy_dir_all(from: PathBuf, to: PathBuf) -> Result<(), FilesystemError> {
   if !from.is_dir() {
-    return Err(FilesystemError::OtherError(OtherErr::ShouldBeAFolder(from.to_owned()).into()));
+    return Err(FilesystemError::OtherError(
+      OtherErr::ShouldBeAFolder(from.to_owned()).into(),
+    ));
   }
 
   create_dir(&to).await?;
@@ -337,11 +387,8 @@ async fn copy_dir_all(from: PathBuf, to: PathBuf) -> Result<(), FilesystemError>
 ///
 /// It also works if the destination is on another filesystem
 pub async fn move_folder(from: &Path, to: &Path) -> Result<(), FilesystemError> {
-  if !from.is_dir() {
-    Err(format!(
-      "The source folder doesn't exist!: \"{}\"",
-      from.to_string_lossy()
-    ))?;
+  if !is_dir(from).await? {
+    return Err(OtherErr::ShouldBeAFolder(from.to_owned()).into());
   }
 
   // Create the destination parent dir
@@ -349,9 +396,11 @@ pub async fn move_folder(from: &Path, to: &Path) -> Result<(), FilesystemError> 
 
   match move_path(from, to).await {
     Ok(()) => Ok(()),
-    Err(e) if e.error.kind() == tokio::io::ErrorKind::CrossesDevices => {
+    Err(FilesystemError::IOError { error, .. })
+      if error.kind() == tokio::io::ErrorKind::CrossesDevices =>
+    {
       // fallback: copy + delete
-      copy_dir_all(&from, &to).await?;
+      copy_dir_all(from.to_owned(), to.to_owned()).await?;
       remove_folder_safely(&from).await?;
       Ok(())
     }
@@ -360,23 +409,14 @@ pub async fn move_folder(from: &Path, to: &Path) -> Result<(), FilesystemError> 
 }
 
 // If path already exists, change it a bit until it doesn't. Return the available path
-pub fn find_available_path(path: &Path) -> Result<PathBuf, FilesystemError> {
+pub async fn find_available_path(path: &Path) -> Result<PathBuf, FilesystemError> {
   let parent = parent(path).await?;
+  let filename = get_file_name(path)?;
 
   let mut i = 0;
   loop {
     // i is printed in hexadecimal because it looks better
-    let current_filename = format!(
-      "{}{:x}",
-      path
-        .file_name()
-        .ok_or_else(|| format!(
-          "Error getting file name of: \"{}\"",
-          path.to_string_lossy()
-        ))?
-        .to_string_lossy(),
-      i
-    );
+    let current_filename = format!("{filename}{i:x}");
     let current_path: PathBuf = parent.join(current_filename);
 
     if !exists(&current_path).await? {
@@ -392,36 +432,23 @@ pub fn find_available_path(path: &Path) -> Result<PathBuf, FilesystemError> {
 /// and removes all the empty folders between `last_root` and `base_folder`
 ///
 /// If applied to the folder `foo/` and `foo/bar/` in `/foo/bar/baz.txt`, the remainig structure is `/foo/baz.txt`
-async fn move_folder_child(
-  last_root: &Path,
-  base_folder: &Path,
-) -> Result<(), FilesystemError> {
+async fn move_folder_child(last_root: &Path, base_folder: &Path) -> Result<(), FilesystemError> {
   // If a file or a folder already exists in the destination folder, rename it and save the new name and
   // the original name to this Vector. At the end, after removing the parent folder, rename all elements of this Vector
   let mut collisions: Vec<(PathBuf, PathBuf)> = Vec::new();
 
-  let mut child_entries = tokio::fs::read_dir(&last_root).await.map_err(|e| {
-    format!(
-      "Couldn't read folder entries of: \"{}\"\n{e}",
-      last_root.to_string_lossy()
-    )
-  })?;
+  let mut child_entries = read_dir(&last_root).await?;
 
   // Move its children up one level
-  while let Some(child) = child_entries.next_entry().await.map_err(|e| {
-    format!(
-      "Couldn't get next folder entry: \"{}\"\n{e}",
-      last_root.to_string_lossy()
-    )
-  })? {
+  while let Some(child) = next_entry(&mut child_entries, &last_root).await? {
     let from = child.path();
     let to = base_folder.join(child.file_name());
 
     if exists(&to).await? {
       // If the children filename already exists on the parent, rename it to a
       // temporal name and, at the end, rename all the temporal names in order to the final names
-      let temporal_name: PathBuf = find_available_path(&to)?;
-      move_path(&from, &temporal_name).await?
+      let temporal_name: PathBuf = find_available_path(&to).await?;
+      move_path(&from, &temporal_name).await?;
 
       // save the change to the collisions vector
       collisions.push((temporal_name, to));
@@ -431,24 +458,16 @@ async fn move_folder_child(
   }
 
   // Remove the now-empty wrapper dirs
-  let mut current_root = last_root.to_path_buf();
-  while is_folder_empty(&current_root)? {
-    let parent = parent(&current_root).await?
-      .to_path_buf();
-
-    tokio::fs::remove_dir(&current_root).await.map_err(|e| {
-      format!(
-        "Couldn't remove empty folder: \"{}\"\n{e}",
-        current_root.to_string_lossy()
-      )
-    })?;
-
-    current_root = parent;
+  let mut current_root = last_root.to_owned();
+  while is_folder_empty(&current_root).await? {
+    let parent = parent(&current_root).await?;
+    remove_empty_dir(&current_root).await?;
+    current_root = parent.to_owned();
   }
 
   // now move all of the filenames that have collided to their original name
   for (src, dst) in &collisions {
-    move_path(&src, &dst).await?;
+    move_path(src, dst).await?;
   }
 
   Ok(())
@@ -465,38 +484,16 @@ pub async fn remove_root_folder(folder: &Path) -> Result<(), FilesystemError> {
 
   loop {
     // List entries
-    let mut entries: tokio::fs::ReadDir = tokio::fs::read_dir(&last_root).await.map_err(|e| {
-      format!(
-        "Couldn't read folder entries of: \"{}\"\n{e}",
-        last_root.to_string_lossy()
-      )
-    })?;
+    let mut entries = read_dir(&last_root).await?;
 
     // First entry (or empty)
-    let Some(first) = entries.next_entry().await.map_err(|e| {
-      format!(
-        "Couldn't get next folder entry: \"{}\"\n{e}",
-        last_root.to_string_lossy()
-      )
-    })?
-    else {
+    let Some(first) = next_entry(&mut entries, &last_root).await? else {
       break;
     };
 
     // If there’s another entry, stop (not a single root)
     // If the entry is a file, also stop
-    if entries
-      .next_entry()
-      .await
-      .map_err(|e| {
-        format!(
-          "Couldn't get next folder entry: \"{}\"\n{e}",
-          last_root.to_string_lossy()
-        )
-      })?
-      .is_some()
-      || first.path().is_file()
-    {
+    if next_entry(&mut entries, &last_root).await?.is_some() || first.path().is_file() {
       break;
     }
 
@@ -508,7 +505,7 @@ pub async fn remove_root_folder(folder: &Path) -> Result<(), FilesystemError> {
 
   // Remove the wrappers
   if is_there_any_root {
-    move_folder_child(last_root, folder).await?;
+    move_folder_child(&last_root, folder).await?;
   }
 
   Ok(())
