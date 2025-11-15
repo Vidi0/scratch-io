@@ -1,4 +1,4 @@
-use crate::{errors::FilesystemError, game_files, itch_api::types::*};
+use crate::{errors::FilesystemError, filesystem, itch_api::types::*};
 use std::path::{Path, PathBuf};
 
 const MANIFEST_FILENAME: &str = ".itch.toml";
@@ -6,7 +6,7 @@ const MANIFEST_PLAY_ACTION: &str = "play";
 
 impl ManifestAction {
   pub async fn get_canonical_path(&self, folder: &Path) -> Result<PathBuf, FilesystemError> {
-    game_files::get_canonical_path(&folder.join(&self.path)).await
+    filesystem::get_canonical_path(&folder.join(&self.path)).await
   }
 }
 

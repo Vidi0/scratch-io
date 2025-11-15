@@ -6,7 +6,6 @@ mod heuristics;
 pub mod itch_api;
 pub mod itch_manifest;
 
-use crate::game_files::*;
 pub use crate::itch_api::ItchClient;
 use crate::itch_api::{types::*, *};
 
@@ -223,12 +222,12 @@ async fn download_file(
 
   // The file will be downloaded to this file with the .part extension,
   // and then the extension will be removed when the download ends
-  let partial_file_path: PathBuf = add_part_extension(file_path)?;
+  let partial_file_path: PathBuf = game_files::add_part_extension(file_path)?;
 
   // If there already exists a file in file_path, then move it to partial_file_path
   // This way, the file's length and its hash are verified
-  if exists(file_path).await? {
-    move_path(file_path, &partial_file_path).await?;
+  if filesystem::exists(file_path).await? {
+    filesystem::move_path(file_path, &partial_file_path).await?;
   }
 
   // Open the file where the data is going to be downloaded
@@ -360,7 +359,7 @@ async fn download_file(
 
   // Move the downloaded file to its final destination
   // This has to be the last call in this function because after it, the File is not longer valid
-  move_path(&partial_file_path, &file_path).await?;
+  filesystem::move_path(&partial_file_path, &file_path).await?;
 
   Ok(())
 }
@@ -427,18 +426,18 @@ pub async fn download_game_cover(
   };
 
   // Create the folder where the file is going to be placed if it doesn't already exist
-  create_dir(folder).await?;
+  filesystem::create_dir(folder).await?;
 
   // If the cover filename isn't set, set it to "cover"
   let cover_filename = match cover_filename {
     Some(f) => f,
-    None => COVER_IMAGE_DEFAULT_FILENAME,
+    None => game_files::COVER_IMAGE_DEFAULT_FILENAME,
   };
 
   let cover_path = folder.join(cover_filename);
 
   // If the cover image already exists and the force variable is false, don't replace the original image
-  if !force_download && exists(&cover_path).await? {
+  if !force_download && filesystem::exists(&cover_path).await? {
     return Ok(Some(cover_path));
   }
 
@@ -507,14 +506,15 @@ pub async fn download_upload(
   // If the game_folder is unset, set it to ~/Games/{game_name}/
   let game_folder = match game_folder {
     Some(f) => f,
-    None => &get_game_folder(&game.game_info.title)?,
+    None => &game_files::get_game_folder(&game.game_info.title)?,
   };
 
   // upload_archive is the location where the upload will be downloaded
-  let upload_archive: PathBuf = get_upload_archive_path(game_folder, upload_id, &upload.filename);
+  let upload_archive: PathBuf =
+    game_files::get_upload_archive_path(game_folder, upload_id, &upload.filename);
 
   // Create the game folder if it doesn't already exist
-  create_dir(&game_folder).await?;
+  filesystem::create_dir(&game_folder).await?;
 
   // Get the upload's hash
   let hash: Option<&str> = upload.get_hash();
@@ -559,7 +559,7 @@ pub async fn download_upload(
   progress_callback(DownloadStatus::Extract);
 
   // The new upload_folder is game_folder + the upload id
-  let upload_folder: PathBuf = get_upload_folder(game_folder, upload_id);
+  let upload_folder: PathBuf = game_files::get_upload_folder(game_folder, upload_id);
 
   // Extracts the downloaded archive (if it's an archive)
   // game_files can be the path of an executable or the path to the extracted folder
@@ -570,7 +570,7 @@ pub async fn download_upload(
   Ok(InstalledUpload {
     upload_id,
     // Get the absolute (canonical) form of the path
-    game_folder: get_canonical_path(game_folder).await?,
+    game_folder: filesystem::get_canonical_path(game_folder).await?,
     game_id: game.game_info.id,
     game_title: game.game_info.title,
   })
@@ -609,7 +609,7 @@ pub async fn import(
   Ok(InstalledUpload {
     upload_id,
     // Get the absolute (canonical) form of the path
-    game_folder: get_canonical_path(game_folder).await?,
+    game_folder: filesystem::get_canonical_path(game_folder).await?,
     game_id: game.game_info.id,
     game_title: game.game_info.title,
   })
@@ -648,7 +648,7 @@ pub async fn remove_partial_download(
   // If the game_folder is unset, set it to ~/Games/{game_name}/
   let game_folder = match game_folder {
     Some(f) => f,
-    None => &get_game_folder(&game.game_info.title)?,
+    None => &game_files::get_game_folder(&game.game_info.title)?,
   };
 
   // Vector of files and folders to be removed
@@ -657,16 +657,17 @@ pub async fn remove_partial_download(
 
     // The upload partial folder
     // Example: ~/Games/ExampleGame/123456.part/
-    add_part_extension(get_upload_folder(game_folder, upload_id))?,
+    game_files::add_part_extension(&game_files::get_upload_folder(game_folder, upload_id))?,
   ];
 
   let to_be_removed_files: &[PathBuf] = {
-    let upload_archive = get_upload_archive_path(game_folder, upload_id, &upload.filename);
+    let upload_archive =
+      game_files::get_upload_archive_path(game_folder, upload_id, &upload.filename);
 
     &[
       // The upload partial archive
       // Example: ~/Games/ExampleGame/123456-download-ArchiveName.zip.part
-      add_part_extension(&upload_archive)?,
+      game_files::add_part_extension(&upload_archive)?,
       // The upload downloaded archive
       // Example: ~/Games/ExampleGame/123456-download-ArchiveName.zip
       upload_archive,
@@ -678,22 +679,22 @@ pub async fn remove_partial_download(
 
   // Remove the partially downloaded files
   for f in to_be_removed_files {
-    if exists(f).await? {
-      remove_file(f).await?;
+    if filesystem::exists(f).await? {
+      filesystem::remove_file(f).await?;
       was_something_deleted = true;
     }
   }
 
   // Remove the partially downloaded folders
   for f in to_be_removed_folders {
-    if exists(f).await? {
-      remove_folder_safely(f).await?;
+    if filesystem::exists(f).await? {
+      game_files::remove_folder_safely(f).await?;
       was_something_deleted = true;
     }
   }
 
   // If the game folder is now useless, remove it
-  was_something_deleted |= remove_folder_if_empty(game_folder).await?;
+  was_something_deleted |= game_files::remove_folder_if_empty(game_folder).await?;
 
   Ok(was_something_deleted)
 }
@@ -710,19 +711,19 @@ pub async fn remove_partial_download(
 ///
 /// If something goes wrong
 pub async fn remove(upload_id: UploadID, game_folder: &Path) -> Result<(), String> {
-  let upload_folder = get_upload_folder(game_folder, upload_id);
+  let upload_folder = game_files::get_upload_folder(game_folder, upload_id);
 
   // If there isn't a upload_folder, or it is empty, that means the game
   // has already been removed, so return Ok(())
-  if is_folder_empty(&upload_folder)? {
+  if game_files::is_folder_empty(&upload_folder)? {
     return Ok(());
   }
 
-  remove_folder_safely(upload_folder).await?;
+  game_files::remove_folder_safely(upload_folder).await?;
   // The upload folder has been removed
 
   // If the game folder is empty, remove it
-  remove_folder_if_empty(game_folder).await?;
+  game_files::remove_folder_if_empty(game_folder).await?;
 
   Ok(())
 }
@@ -749,16 +750,16 @@ pub async fn r#move(
   src_game_folder: &Path,
   dst_game_folder: &Path,
 ) -> Result<PathBuf, String> {
-  let src_upload_folder = get_upload_folder(src_game_folder, upload_id);
+  let src_upload_folder = game_files::get_upload_folder(src_game_folder, upload_id);
 
   // If there isn't a src_upload_folder, exit with error
-  if !exists(&src_upload_folder).await? {
+  if !filesystem::exists(&src_upload_folder).await? {
     return Err("The source game folder doesn't exsit!".to_string());
   }
 
-  let dst_upload_folder = get_upload_folder(dst_game_folder, upload_id);
+  let dst_upload_folder = game_files::get_upload_folder(dst_game_folder, upload_id);
   // If there is a dst_upload_folder with contents, exit with error
-  if !is_folder_empty(&dst_upload_folder)? {
+  if !game_files::is_folder_empty(&dst_upload_folder).await? {
     return Err(format!(
       "The upload folder destination isn't empty!: \"{}\"",
       dst_upload_folder.to_string_lossy()
@@ -766,12 +767,12 @@ pub async fn r#move(
   }
 
   // Move the upload folder
-  move_folder(&src_upload_folder, &dst_upload_folder).await?;
+  game_files::move_folder(&src_upload_folder, &dst_upload_folder).await?;
 
   // If src_game_folder is empty, remove it
-  remove_folder_if_empty(src_game_folder).await?;
+  game_files::remove_folder_if_empty(src_game_folder).await?;
 
-  get_canonical_path(dst_game_folder).await?
+  filesystem::get_canonical_path(dst_game_folder).await
 }
 
 /// Retrieve the itch manifest from an installed upload
@@ -793,7 +794,7 @@ pub async fn get_upload_manifest(
   upload_id: UploadID,
   game_folder: &Path,
 ) -> Result<Option<Manifest>, String> {
-  let upload_folder = get_upload_folder(game_folder, upload_id);
+  let upload_folder = game_files::get_upload_folder(game_folder, upload_id);
 
   itch_manifest::read_manifest(&upload_folder).await
 }
@@ -828,7 +829,7 @@ pub async fn launch(
   environment_variables: &[(String, String)],
   launch_start_callback: impl FnOnce(&Path, &tokio::process::Command),
 ) -> Result<(), String> {
-  let upload_folder: PathBuf = get_upload_folder(game_folder, upload_id);
+  let upload_folder: PathBuf = game_files::get_upload_folder(game_folder, upload_id);
 
   // Determine the upload executable and its launch arguments from the function arguments, manifest, or heuristics.
   let (upload_executable, game_arguments): (PathBuf, Cow<[String]>) = match launch_method {
@@ -889,10 +890,10 @@ pub async fn launch(
     }
   };
 
-  let upload_executable = get_canonical_path(&upload_executable).await?;
+  let upload_executable = filesystem::get_canonical_path(&upload_executable).await?;
 
   // Make the file executable
-  make_executable(&upload_executable)?;
+  game_files::make_executable(&upload_executable)?;
 
   // Create the tokio process
   let mut game_process = {
