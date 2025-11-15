@@ -1,4 +1,4 @@
-use crate::eprintln_exit;
+use anyhow::{Context, Result};
 use directories::ProjectDirs;
 use scratch_io::{InstalledUpload, itch_api::types::UploadID};
 use serde::{Deserialize, Serialize};
@@ -13,18 +13,18 @@ const LAST_CONFIGURATION_VERSION: u64 = 0;
 /// Gets the config folder of this application
 ///
 /// If `custom_config_folder` is provided, then use that path
-fn get_config_folder(custom_config_folder: Option<PathBuf>) -> Result<ProjectDirs, String> {
+fn get_config_folder(custom_config_folder: Option<PathBuf>) -> Result<ProjectDirs> {
   match custom_config_folder {
     None => ProjectDirs::from("", "", APP_CONFIGURATION_NAME),
     Some(p) => ProjectDirs::from_path(p),
   }
-  .ok_or_else(|| "Couldn't determine the project directory!".to_string())
+  .with_context(|| "Couldn't determine the project directory!")
 }
 
 /// Gets the config file of this application
 ///
 /// If `custom_config_folder` is provided, then use it as the config folder path instead of the system's default
-fn get_config_file(custom_config_folder: Option<PathBuf>) -> Result<PathBuf, String> {
+fn get_config_file(custom_config_folder: Option<PathBuf>) -> Result<PathBuf> {
   get_config_folder(custom_config_folder).map(|d| d.config_dir().join(APP_CONFIGURATION_FILE))
 }
 
@@ -61,13 +61,14 @@ impl Config {
   /// Load the application's config from a file
   ///
   /// If `custom_config_folder` is provided, then use that as the config folder path instead of the system's default
-  pub async fn load(custom_config_folder: Option<PathBuf>) -> Result<Self, String> {
+  pub async fn load(custom_config_folder: Option<PathBuf>) -> Result<Self> {
     // Get the config path
     let config_file_path: PathBuf = get_config_file(custom_config_folder)?;
+
     // If the config doesn't exist, create one with Config::default()
-    if !config_file_path.try_exists().map_err(|e| {
+    if !config_file_path.try_exists().with_context(|| {
       format!(
-        "Couldn't check if the config file exists: \"{}\"\n{e}",
+        "Couldn't check if the config file exists: \"{}\"",
         config_file_path.to_string_lossy()
       )
     })? {
@@ -77,18 +78,18 @@ impl Config {
     // Get the config text
     let config_text: String = tokio::fs::read_to_string(&config_file_path)
       .await
-      .map_err(|e| {
+      .with_context(|| {
         format!(
-          "Couldn't read the config file data: \"{}\"\n{e}",
+          "Couldn't read the config file data: \"{}\"",
           config_file_path.to_string_lossy()
         )
       })?;
 
     // Get the config version
     let ver = toml::from_str::<ConfigVersion>(&config_text)
-      .map_err(|e| {
+      .with_context(|| {
         format!(
-          "Couldn't get the config version: \"{}\"\n{e}",
+          "Couldn't get the config version: \"{}\"",
           config_file_path.to_string_lossy()
         )
       })?
@@ -98,48 +99,39 @@ impl Config {
     match ver {
       LAST_CONFIGURATION_VERSION => toml::from_str::<Config>(&config_text),
       _ => {
-        return Err(format!(
+        return Err(anyhow::Error::msg(format!(
           r#"The config version of "{}" is not compatible with this scratch-io version!
 Update to a newer scratch-io version to be able to load the given config.
   Config version: {ver}
   Supported version: {LAST_CONFIGURATION_VERSION}"#,
           config_file_path.to_string_lossy()
-        ));
+        )));
       }
     }
-    .map_err(|e| {
+    .with_context(|| {
       format!(
-        "Invalid configuration file: \"{}\"\n{e}",
+        "Invalid configuration file: \"{}\"",
         config_file_path.to_string_lossy()
       )
     })
   }
 
-  /// Load the application's config from a file and panic on error
-  ///
-  /// If `custom_config_folder` is provided, then use that as the config folder path instead of the system's default
-  pub async fn load_unwrap(custom_config_folder: Option<PathBuf>) -> Self {
-    Self::load(custom_config_folder)
-      .await
-      .unwrap_or_else(|e| eprintln_exit!("Error while reading configuration file!\n{}", e))
-  }
-
   /// Save the application's config to a file
   ///
   /// If `custom_config_folder` is provided, then use that as the config folder path instead of the system's default
-  pub async fn save(&self, custom_config_folder: Option<PathBuf>) -> Result<(), String> {
+  pub async fn save(&self, custom_config_folder: Option<PathBuf>) -> Result<()> {
     // Get the config path
     let config_file_path: PathBuf = get_config_file(custom_config_folder)?;
 
     // Get the config text
     let config_text = toml::to_string_pretty::<Config>(self)
-      .map_err(|e| format!("Couldn't serialize config into TOML!: {e}"))?;
+      .with_context(|| "Couldn't serialize config into TOML!")?;
 
     // Ensure config directory exists
     if let Some(parent) = config_file_path.parent() {
-      tokio::fs::create_dir_all(parent).await.map_err(|e| {
+      tokio::fs::create_dir_all(parent).await.with_context(|| {
         format!(
-          "Couldn't create config directory: \"{}\"\n{e}",
+          "Couldn't create config directory: \"{}\"",
           parent.to_string_lossy()
         )
       })?;
@@ -148,21 +140,11 @@ Update to a newer scratch-io version to be able to load the given config.
     // Write the config to a file
     tokio::fs::write(&config_file_path, &config_text)
       .await
-      .map_err(|e| {
+      .with_context(|| {
         format!(
-          "Couldn't write config to a file: \"{}\"\n{e}",
+          "Couldn't write config to a file: \"{}\"",
           config_file_path.to_string_lossy()
         )
       })
-  }
-
-  /// Save the application's config to a file and panic on error
-  ///
-  /// If `custom_config_folder` is provided, then use that as the config folder path instead of the system's default
-  pub async fn save_unwrap(&self, custom_config_folder: Option<PathBuf>) {
-    self
-      .save(custom_config_folder)
-      .await
-      .unwrap_or_else(|e| eprintln_exit!("Error while saving to the configuration file!\n{}", e))
   }
 }

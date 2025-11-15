@@ -226,21 +226,8 @@ async fn download_file(
 
   // If there already exists a file in file_path, then move it to partial_file_path
   // This way, the file's length and its hash are verified
-  if tokio::fs::try_exists(file_path).await.map_err(|e| {
-    format!(
-      "Couldn't check is the file exists!: \"{}\"\n{e}",
-      file_path.to_string_lossy()
-    )
-  })? {
-    tokio::fs::rename(file_path, &partial_file_path)
-      .await
-      .map_err(|e| {
-        format!(
-          "Couldn't move the downloaded file:\n  Source: \"{}\"\n  Destination: \"{}\"\n{e}",
-          file_path.to_string_lossy(),
-          partial_file_path.to_string_lossy()
-        )
-      })?;
+  if exists(file_path).await? {
+    move_path(file_path, &partial_file_path).await?;
   }
 
   // Open the file where the data is going to be downloaded
@@ -372,15 +359,7 @@ async fn download_file(
 
   // Move the downloaded file to its final destination
   // This has to be the last call in this function because after it, the File is not longer valid
-  tokio::fs::rename(&partial_file_path, file_path)
-    .await
-    .map_err(|e| {
-      format!(
-        "Couldn't move the downloaded file:\n  Source: \"{}\"\n  Destination: \"{}\"\n{e}",
-        partial_file_path.to_string_lossy(),
-        file_path.to_string_lossy()
-      )
-    })?;
+  move_path(&partial_file_path, &file_path).await?;
 
   Ok(())
 }
@@ -463,14 +442,7 @@ pub async fn download_game_cover(
   let cover_path = folder.join(cover_filename);
 
   // If the cover image already exists and the force variable is false, don't replace the original image
-  if !force_download
-    && cover_path.try_exists().map_err(|e| {
-      format!(
-        "Couldn't check if the game cover image exists: \"{}\"\n{e}",
-        cover_path.to_string_lossy()
-      )
-    })?
-  {
+  if !force_download && exists(&cover_path).await? {
     return Ok(Some(cover_path));
   }
 
@@ -607,12 +579,7 @@ pub async fn download_upload(
   Ok(InstalledUpload {
     upload_id,
     // Get the absolute (canonical) form of the path
-    game_folder: tokio::fs::canonicalize(game_folder).await.map_err(|e| {
-      format!(
-        "Error getting the canonical form of the game folder! Maybe it doesn't exist: {}\n{e}",
-        game_folder.to_string_lossy()
-      )
-    })?,
+    game_folder: get_canonical_path(game_folder).await?,
     game_id: game.game_info.id,
     game_title: game.game_info.title,
   })
@@ -651,12 +618,7 @@ pub async fn import(
   Ok(InstalledUpload {
     upload_id,
     // Get the absolute (canonical) form of the path
-    game_folder: tokio::fs::canonicalize(game_folder).await.map_err(|e| {
-      format!(
-        "Error getting the canonical form of the game folder! Maybe it doesn't exist: {}\n{e}",
-        game_folder.to_string_lossy()
-      )
-    })?,
+    game_folder: get_canonical_path(game_folder).await?,
     game_id: game.game_info.id,
     game_title: game.game_info.title,
   })
@@ -725,30 +687,16 @@ pub async fn remove_partial_download(
 
   // Remove the partially downloaded files
   for f in to_be_removed_files {
-    if f.try_exists().map_err(|e| {
-      format!(
-        "Couldn't check if the file exists: \"{}\"\n{e}",
-        f.to_string_lossy()
-      )
-    })? {
-      tokio::fs::remove_file(f)
-        .await
-        .map_err(|e| format!("Couldn't remove file: \"{}\"\n{e}", f.to_string_lossy()))?;
-
+    if exists(f).await? {
+      remove_file(f).await?;
       was_something_deleted = true;
     }
   }
 
   // Remove the partially downloaded folders
   for f in to_be_removed_folders {
-    if f.try_exists().map_err(|e| {
-      format!(
-        "Couldn't check if the folder exists: \"{}\"\n{e}",
-        f.to_string_lossy()
-      )
-    })? {
+    if exists(f).await? {
       remove_folder_safely(f).await?;
-
       was_something_deleted = true;
     }
   }
@@ -813,10 +761,7 @@ pub async fn r#move(
   let src_upload_folder = get_upload_folder(src_game_folder, upload_id);
 
   // If there isn't a src_upload_folder, exit with error
-  if !src_upload_folder
-    .try_exists()
-    .map_err(|e| format!("Couldn't check if the upload folder exists: {e}"))?
-  {
+  if !exists(&src_upload_folder).await? {
     return Err("The source game folder doesn't exsit!".to_string());
   }
 
@@ -835,8 +780,7 @@ pub async fn r#move(
   // If src_game_folder is empty, remove it
   remove_folder_if_empty(src_game_folder).await?;
 
-  tokio::fs::canonicalize(dst_game_folder).await
-    .map_err(|e| format!("Error getting the canonical form of the destination game folder! Maybe it doesn't exist: {}\n{e}", dst_game_folder.to_string_lossy()))
+  get_canonical_path(dst_game_folder).await?
 }
 
 /// Retrieve the itch manifest from an installed upload
@@ -954,8 +898,7 @@ pub async fn launch(
     }
   };
 
-  let upload_executable = tokio::fs::canonicalize(&upload_executable).await
-    .map_err(|e| format!("Error getting the canonical form of the upload executable path! Maybe it doesn't exist: {}\n{e}", upload_executable.to_string_lossy()))?;
+  let upload_executable = get_canonical_path(&upload_executable).await?;
 
   // Make the file executable
   make_executable(&upload_executable)?;

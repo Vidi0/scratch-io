@@ -1,19 +1,12 @@
-use crate::itch_api::types::*;
+use crate::{errors::FilesystemError, game_files_operations, itch_api::types::*};
 use std::path::{Path, PathBuf};
 
 const MANIFEST_FILENAME: &str = ".itch.toml";
 const MANIFEST_PLAY_ACTION: &str = "play";
 
 impl ManifestAction {
-  pub async fn get_canonical_path(&self, folder: &Path) -> Result<PathBuf, String> {
-    tokio::fs::canonicalize(folder.join(&self.path))
-      .await
-      .map_err(|e| {
-        format!(
-          "Error getting the canonical form of the action path! Maybe it doesn't exist: {}\n{e}",
-          self.path
-        )
-      })
+  pub async fn get_canonical_path(&self, folder: &Path) -> Result<PathBuf, FilesystemError> {
+    game_files_operations::get_canonical_path(&folder.join(&self.path)).await
   }
 }
 

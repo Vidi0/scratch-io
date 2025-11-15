@@ -69,14 +69,7 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), Stri
   // If the file isn't an archive, return now
   if let ArchiveFormat::Other = format {
     // Create the destination folder
-    tokio::fs::create_dir_all(&extract_folder)
-      .await
-      .map_err(|e| {
-        format!(
-          "Couldn't create folder \"{}\": {e}",
-          extract_folder.to_string_lossy()
-        )
-      })?;
+    create_dir(&extract_folder).await?;
 
     // Get the file destination
     let destination = extract_folder.join(file_path.file_name().ok_or_else(|| {
@@ -113,14 +106,7 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), Stri
 
   // The extraction temporal folder could have contents if a previous extraction was cancelled
   // For that reason, don't check if the folder is empty; but create it if it doesn't exist
-  tokio::fs::create_dir_all(&extract_folder_temp)
-    .await
-    .map_err(|e| {
-      format!(
-        "Couldn't create folder \"{}\": {e}",
-        extract_folder_temp.to_string_lossy()
-      )
-    })?;
+  create_dir(&extract_folder_temp).await?;
 
   // Open the file in read-only mode
   let file = File::open(file_path).map_err(|e| e.to_string())?;
@@ -137,12 +123,7 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), Stri
   }
 
   // Remove the archive
-  tokio::fs::remove_file(file_path).await.map_err(|e| {
-    format!(
-      "Couldn't remove the archive: \"{}\"\n{e}",
-      file_path.to_string_lossy()
-    )
-  })?;
+  remove_file(file_path).await?;
 
   // If the extraction folder has any common roots, remove them
   remove_root_folder(&extract_folder_temp).await?;
