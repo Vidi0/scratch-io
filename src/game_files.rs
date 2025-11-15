@@ -59,9 +59,7 @@ pub async fn is_folder_empty(folder: &Path) -> Result<bool, FilesystemError> {
       Ok(false)
     }
   } else if exists(folder).await? {
-    Err(FilesystemError::OtherError(
-      OtherErr::ShouldBeAFolder(folder.to_owned()).into(),
-    ))
+    Err(OtherErr::ShouldBeAFolder(folder.to_owned()).into())
   } else {
     Ok(true)
   }
@@ -72,13 +70,13 @@ pub async fn is_folder_empty(folder: &Path) -> Result<bool, FilesystemError> {
 /// Returns whether the folder was removed or not
 pub async fn remove_folder_if_empty(folder: &Path) -> Result<bool, FilesystemError> {
   // Return if the folder is not empty
-  let true = is_folder_empty(&folder).await? else {
+  let true = is_folder_empty(folder).await? else {
     // The folder wasn't removed, so return false
     return Ok(false);
   };
 
   // Remove the empty folder
-  remove_empty_dir(&folder).await?;
+  remove_empty_dir(folder).await?;
 
   Ok(true)
 }
@@ -90,9 +88,7 @@ pub async fn remove_folder_safely(path: &Path) -> Result<(), FilesystemError> {
   let home = get_canonical_path(get_basedirs()?.home_dir()).await?;
 
   if canonical == home {
-    return Err(FilesystemError::OtherError(
-      OtherErr::RefusingToRemoveFolder(canonical).into(),
-    ));
+    return Err(OtherErr::RefusingToRemoveFolder(canonical).into());
   }
 
   remove_dir_all(&canonical).await
@@ -125,9 +121,7 @@ pub async fn make_executable(path: &Path) -> Result<(), FilesystemError> {
 /// Copy all the folder contents to another location
 async fn copy_dir_all(from: PathBuf, to: PathBuf) -> Result<(), FilesystemError> {
   if !from.is_dir() {
-    return Err(FilesystemError::OtherError(
-      OtherErr::ShouldBeAFolder(from.to_owned()).into(),
-    ));
+    return Err(OtherErr::ShouldBeAFolder(from.to_owned()).into());
   }
 
   create_dir(&to).await?;
@@ -172,7 +166,7 @@ pub async fn move_folder(from: &Path, to: &Path) -> Result<(), FilesystemError> 
     {
       // fallback: copy + delete
       copy_dir_all(from.to_owned(), to.to_owned()).await?;
-      remove_folder_safely(&from).await?;
+      remove_folder_safely(from).await?;
       Ok(())
     }
     Err(e) => Err(e),
@@ -208,10 +202,10 @@ async fn move_folder_child(last_root: &Path, base_folder: &Path) -> Result<(), F
   // the original name to this Vector. At the end, after removing the parent folder, rename all elements of this Vector
   let mut collisions: Vec<(PathBuf, PathBuf)> = Vec::new();
 
-  let mut child_entries = read_dir(&last_root).await?;
+  let mut child_entries = read_dir(last_root).await?;
 
   // Move its children up one level
-  while let Some(child) = next_entry(&mut child_entries, &last_root).await? {
+  while let Some(child) = next_entry(&mut child_entries, last_root).await? {
     let from = child.path();
     let to = base_folder.join(child.file_name());
 

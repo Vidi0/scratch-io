@@ -26,7 +26,7 @@ fn get_archive_format(file: &Path) -> Result<ArchiveFormat, FilesystemError> {
     .to_lowercase()
     .ends_with(".tar");
 
-  Ok(match &*extension {
+  Ok(match extension {
     "zip" => ArchiveFormat::Zip,
 
     "tar" => ArchiveFormat::Tar,
@@ -66,7 +66,7 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), Stri
   // If the file isn't an archive, return now
   if let ArchiveFormat::Other = format {
     // Create the destination folder
-    filesystem::create_dir(&extract_folder).await?;
+    filesystem::create_dir(extract_folder).await?;
 
     // Get the file destination
     let destination = extract_folder.join(filesystem::get_file_name(file_path)?);

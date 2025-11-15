@@ -346,7 +346,7 @@ async fn download_file(
 
   // Move the downloaded file to its final destination
   // This has to be the last call in this function because after it, the File is not longer valid
-  filesystem::move_path(&partial_file_path, &file_path).await?;
+  filesystem::move_path(&partial_file_path, file_path).await?;
 
   Ok(())
 }
@@ -501,7 +501,7 @@ pub async fn download_upload(
     game_files::get_upload_archive_path(game_folder, upload_id, &upload.filename);
 
   // Create the game folder if it doesn't already exist
-  filesystem::create_dir(&game_folder).await?;
+  filesystem::create_dir(game_folder).await?;
 
   // Get the upload's hash
   let hash: Option<&str> = upload.get_hash();
