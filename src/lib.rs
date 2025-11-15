@@ -706,7 +706,7 @@ pub async fn remove(upload_id: UploadID, game_folder: &Path) -> Result<(), Strin
     return Ok(());
   }
 
-  game_files::remove_folder_safely(upload_folder).await?;
+  game_files::remove_folder_safely(&upload_folder).await?;
   // The upload folder has been removed
 
   // If the game folder is empty, remove it
