@@ -68,8 +68,11 @@ pub enum FilesystemIOErrorKind {
   #[error("Couldn't remove a folder and its contents: \"{0}\"")]
   CouldntRemoveDirWithContents(PathBuf),
 
-  #[error("Couldn't read the metadata of: \"{0}\"")]
-  CouldntReadMetadata(PathBuf),
+  #[error("Couldn't read the metadata of the path: \"{0}\"")]
+  CouldntReadPathMetadata(PathBuf),
+
+  #[error("Couldn't read the metadata of an open file!")]
+  CouldntReadFileMetadata,
 
   #[error("Couldn't set the permissions of: \"{0}\"")]
   CouldntSetPermissions(PathBuf),

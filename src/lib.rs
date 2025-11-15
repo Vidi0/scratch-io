@@ -238,18 +238,10 @@ async fn download_file(
       .create(true)
       .append(true)
       .read(true),
-  ).await?;
+  )
+  .await?;
 
-  let mut downloaded_bytes: u64 = file
-    .metadata()
-    .await
-    .map_err(|e| {
-      format!(
-        "Couldn't get file metadata: {}\n{e}",
-        partial_file_path.to_string_lossy()
-      )
-    })?
-    .len();
+  let mut downloaded_bytes: u64 = filesystem::read_file_metadata(&file).await?.len();
 
   let file_response: Option<Response> = 'r: {
     // Send a request for the whole file

@@ -204,10 +204,22 @@ pub async fn remove_dir_all(path: &Path) -> Result<(), FilesystemError> {
 /// # Errors
 ///
 /// If the filesystem operation fails
-pub async fn read_metadata(path: &Path) -> Result<std::fs::Metadata, FilesystemError> {
+pub async fn read_path_metadata(path: &Path) -> Result<std::fs::Metadata, FilesystemError> {
   fs::metadata(path)
     .await
-    .map_err(IOErr::CouldntReadMetadata(path.to_owned()).attach())
+    .map_err(IOErr::CouldntReadPathMetadata(path.to_owned()).attach())
+}
+
+/// Read an open file metadata
+///
+/// # Errors
+///
+/// If the filesystem operation fails
+pub async fn read_file_metadata(file: &fs::File) -> Result<std::fs::Metadata, FilesystemError> {
+  file
+    .metadata()
+    .await
+    .map_err(IOErr::CouldntReadFileMetadata.attach())
 }
 
 /// Checks if a given path represents a directory on the filesystem
@@ -216,7 +228,7 @@ pub async fn read_metadata(path: &Path) -> Result<std::fs::Metadata, FilesystemE
 ///
 /// If the filesystem operation fails
 pub async fn is_dir(path: &Path) -> Result<bool, FilesystemError> {
-  read_metadata(path).await.map(|metadata| metadata.is_dir())
+  read_path_metadata(path).await.map(|metadata| metadata.is_dir())
 }
 
 /// Set a file or a folder's permissions

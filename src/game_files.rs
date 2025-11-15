@@ -104,7 +104,7 @@ pub async fn make_executable(path: &Path) -> Result<(), FilesystemError> {
   {
     use std::os::unix::fs::PermissionsExt;
 
-    let metadata = read_metadata(path).await?;
+    let metadata = read_path_metadata(path).await?;
     let mut permissions = metadata.permissions();
     let mode = permissions.mode();
 
