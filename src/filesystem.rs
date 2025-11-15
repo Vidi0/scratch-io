@@ -168,7 +168,7 @@ pub async fn copy_file(from: &Path, to: &Path) -> Result<u64, FilesystemError> {
 /// If the filesystem operation fails
 ///
 /// If the new name is on a different mount point
-pub async fn move_path(from: &Path, to: &Path) -> Result<(), FilesystemError> {
+pub async fn rename(from: &Path, to: &Path) -> Result<(), FilesystemError> {
   fs::rename(from, to).await.map_err(
     IOErr::CouldntMove {
       from: from.to_owned(),
