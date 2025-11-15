@@ -118,55 +118,6 @@ impl<'a> tokio::io::AsyncRead for HttpSeekReader<'a> {
   }
 }
 
-impl<'a> tokio::io::AsyncBufRead for HttpSeekReader<'a> {
-  fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<&[u8]>> {
-    // Get a mutable reference to self
-    let this = self.get_mut();
-
-    match &mut this.state {
-      // If the reader already has an stream of data, read from it
-      ReaderState::WaitingForData(data) => match data.poll_next_unpin(cx) {
-        // If the data is ready, read it
-        Poll::Ready(Some(Ok(bytes))) => Poll::Ready(Ok(&bytes)),
-
-        // If an error was encountered, return it
-        Poll::Ready(Some(Err(e))) => {
-          Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, e)))
-        }
-
-        // If the poll is ready, but does not contain data, skip it
-        Poll::Ready(None) => Poll::Ready(Ok(&[])),
-
-        // If the future isn't ready yet, return Pending
-        Poll::Pending => Poll::Pending,
-      },
-
-      // If the reader is waiting for an API request, poll it
-      ReaderState::WaitingForResponse(res) => match res.poll_unpin(cx) {
-        // If the response is ready
-        Poll::Ready(Ok(res)) => {
-          // Create a bytes stream from the response body
-          let bytes_stream = res.bytes_stream();
-
-          // Replace the current state with WaitingForData
-          this.state = ReaderState::WaitingForData(Box::pin(bytes_stream));
-
-          // Return Pending so the executor can wake this task again and continue reading from the new data stream
-          Poll::Pending
-        }
-
-        // If an error was encountered, return it
-        Poll::Ready(Err(e)) => Poll::Ready(Err(std::io::Error::new(std::io::ErrorKind::Other, e))),
-
-        // If the future isn't ready yet, return Pending
-        Poll::Pending => Poll::Pending,
-      },
-    }
-  }
-
-  fn consume(self: Pin<&mut Self>, amt: usize) {}
-}
-
 impl<'a> tokio::io::AsyncSeek for HttpSeekReader<'a> {
   fn start_seek(self: Pin<&mut Self>, position: std::io::SeekFrom) -> std::io::Result<()> {
     // Get a mutable reference to self
