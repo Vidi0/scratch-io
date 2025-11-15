@@ -1,11 +1,12 @@
 pub mod errors;
 mod extract;
-mod game_files_operations;
+mod filesystem;
+mod game_files;
 mod heuristics;
 pub mod itch_api;
 pub mod itch_manifest;
 
-use crate::game_files_operations::*;
+use crate::game_files::*;
 pub use crate::itch_api::ItchClient;
 use crate::itch_api::{types::*, *};
 
