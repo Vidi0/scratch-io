@@ -73,6 +73,9 @@ pub enum FilesystemIOErrorKind {
 
   #[error("Couldn't set the permissions of: \"{0}\"")]
   CouldntSetPermissions(PathBuf),
+
+  #[error("Couldn't open the file: \"{0}\"")]
+  CouldntOpenFile(PathBuf),
 }
 
 impl FilesystemIOErrorKind {

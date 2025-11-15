@@ -232,3 +232,18 @@ pub async fn set_permissions(
     .await
     .map_err(IOErr::CouldntSetPermissions(path.to_owned()).attach())
 }
+
+/// Open a file with the given options
+///
+/// # Errors
+///
+/// If the filesystem operation fails
+pub async fn open_file(
+  path: &Path,
+  options: &mut fs::OpenOptions,
+) -> Result<fs::File, FilesystemError> {
+  options
+    .open(path)
+    .await
+    .map_err(IOErr::CouldntOpenFile(path.to_owned()).attach())
+}

@@ -232,18 +232,13 @@ async fn download_file(
 
   // Open the file where the data is going to be downloaded
   // Use the append option to ensure that the old download data isn't deleted
-  let mut file = tokio::fs::OpenOptions::new()
-    .create(true)
-    .append(true)
-    .read(true)
-    .open(&partial_file_path)
-    .await
-    .map_err(|e| {
-      format!(
-        "Couldn't open file: {}\n{e}",
-        partial_file_path.to_string_lossy()
-      )
-    })?;
+  let mut file = filesystem::open_file(
+    &partial_file_path,
+    tokio::fs::OpenOptions::new()
+      .create(true)
+      .append(true)
+      .read(true),
+  ).await?;
 
   let mut downloaded_bytes: u64 = file
     .metadata()
