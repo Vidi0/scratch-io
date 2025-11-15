@@ -426,12 +426,7 @@ pub async fn download_game_cover(
   };
 
   // Create the folder where the file is going to be placed if it doesn't already exist
-  tokio::fs::create_dir_all(folder).await.map_err(|e| {
-    format!(
-      "Couldn't create the folder \"{}\": {e}",
-      folder.to_string_lossy()
-    )
-  })?;
+  create_dir(folder).await?;
 
   // If the cover filename isn't set, set it to "cover"
   let cover_filename = match cover_filename {
@@ -518,12 +513,7 @@ pub async fn download_upload(
   let upload_archive: PathBuf = get_upload_archive_path(game_folder, upload_id, &upload.filename);
 
   // Create the game folder if it doesn't already exist
-  tokio::fs::create_dir_all(&game_folder).await.map_err(|e| {
-    format!(
-      "Couldn't create the folder \"{}\": {e}",
-      game_folder.to_string_lossy()
-    )
-  })?;
+  create_dir(&game_folder).await?;
 
   // Get the upload's hash
   let hash: Option<&str> = upload.get_hash();

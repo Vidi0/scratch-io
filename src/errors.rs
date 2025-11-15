@@ -34,6 +34,9 @@ pub enum FilesystemIOErrorKind {
   #[error("Couldn't read directory next element: \"{0}\"")]
   CouldntReadDirectoryNextEntry(PathBuf),
 
+  #[error("Couldn't get directory element file type: \"{0}\"")]
+  CouldntGetFileType(PathBuf),
+
   #[error(
     "Couldn't get the canonical (absolute) form of the path. Maybe it doesn't exist: \"{0}\""
   )]
@@ -41,6 +44,13 @@ pub enum FilesystemIOErrorKind {
 
   #[error("Couldn't create the folder: \"{0}\"")]
   CouldntCreateDirectory(PathBuf),
+
+  #[error(
+    r#"Couldn't copy file:
+  Source: "{from}"
+  Destination: "{to}""#
+  )]
+  CouldntCopyFile { from: PathBuf, to: PathBuf },
 
   #[error(
     r#"Couldn't move file/directory:

@@ -7,7 +7,7 @@ pub const UPLOAD_ARCHIVE_NAME: &str = "download";
 pub const COVER_IMAGE_DEFAULT_FILENAME: &str = "cover.png";
 pub const GAME_FOLDER: &str = "Games";
 
-/// Converts an `&OsStr` into an `&str`
+/// Convert an `&OsStr` into an `&str`
 ///
 /// # Errors
 ///
@@ -16,7 +16,7 @@ pub fn os_str_as_str(os_str: &std::ffi::OsStr) -> Result<&str, FilesystemError> 
   os_str.to_str().ok_or_else(OtherErr::InvalidUnicodeOsStr(os_str.to_owned()).attach())
 }
 
-/// Gets the stem (non-extension) of the given Path
+/// Get the stem (non-extension) of the given Path
 /// 
 /// # Errors
 /// 
@@ -28,7 +28,7 @@ pub fn get_file_stem(path: &Path) -> Result<&str, FilesystemError> {
     .and_then(|stem| os_str_as_str(stem))
 }
 
-/// Gets the file name of the given Path
+/// Get the file name of the given Path
 /// 
 /// # Errors
 /// 
@@ -58,7 +58,7 @@ pub async fn parent(path: &Path) -> Result<&Path, FilesystemError> {
   path.parent().ok_or_else(OtherErr::PathWithoutParent(path.to_owned()).attach())
 }
 
-/// Returns a stream over the entries within a directory
+/// Return a stream over the entries within a directory
 ///
 /// # Errors
 ///
@@ -67,13 +67,22 @@ pub async fn read_dir(path: &Path) -> Result<tokio::fs::ReadDir, FilesystemError
   tokio::fs::read_dir(path).await.map_err(IOErr::CouldntReadDirectory(path.to_owned()).attach())
 }
 
-/// Returns a stream over the entries within a directory
+/// Return a stream over the entries within a directory
 ///
 /// # Errors
 ///
 /// If the filesystem operation fails
-pub async fn next_entry(mut read_dir: tokio::fs::ReadDir, path: &Path) -> Result<Option<tokio::fs::DirEntry>, FilesystemError> {
+pub async fn next_entry(read_dir: &mut tokio::fs::ReadDir, path: &Path) -> Result<Option<tokio::fs::DirEntry>, FilesystemError> {
   read_dir.next_entry().await.map_err(IOErr::CouldntReadDirectoryNextEntry(path.to_owned()).attach())
+}
+
+/// Get the file type of a `DirEntry`
+///
+/// # Errors
+///
+/// If the filesystem operation fails
+pub async fn file_type(dir_entry: &tokio::fs::DirEntry, path: &Path) -> Result<std::fs::FileType, FilesystemError> {
+  dir_entry.file_type().await.map_err(IOErr::CouldntGetFileType(path.to_owned()).attach())
 }
 
 /// Returns the canonical (absolute form of the path)
@@ -104,6 +113,17 @@ pub async fn create_dir(path: &Path) -> Result<(), FilesystemError> {
   tokio::fs::create_dir_all(path)
     .await
     .map_err(IOErr::CouldntCreateDirectory(path.to_owned()).attach())
+}
+
+/// Copy a file to a new path
+///
+/// # Errors
+///
+/// If the filesystem operation fails
+pub async fn copy_file(from: &Path, to: &Path) -> Result<u64, FilesystemError> {
+  tokio::fs::copy(from, to)
+    .await
+    .map_err(IOErr::CouldntCopyFile { from: from.to_owned(), to: to.to_owned() }.attach())
 }
 
 /// Move a file or a directory to a new path
@@ -212,7 +232,7 @@ pub fn get_game_folder(game_title: &str) -> Result<PathBuf, FilesystemError> {
 /// If any filesystem operation fails
 pub async fn is_folder_empty(folder: &Path) -> Result<bool, FilesystemError> {
   if folder.is_dir() {
-    if next_entry(read_dir(folder).await?, folder).await?
+    if next_entry(&mut read_dir(folder).await?, folder).await?
       .is_none()
     {
       Ok(true)
@@ -284,33 +304,28 @@ pub async fn make_executable(path: &Path) -> Result<(), FilesystemError> {
 }
 
 /// Copy all the folder contents to another location
-async fn copy_dir_all(src: &Path, dst: &Path) -> Result<(), FilesystemError> {
-  if !src.is_dir() {
-    return Err(FilesystemError::OtherError(OtherErr::ShouldBeAFolder(src.to_owned()).into()));
+async fn copy_dir_all(from: PathBuf, to: PathBuf) -> Result<(), FilesystemError> {
+  if !from.is_dir() {
+    return Err(FilesystemError::OtherError(OtherErr::ShouldBeAFolder(from.to_owned()).into()));
   }
 
+  create_dir(&to).await?;
+
   let mut queue: std::collections::VecDeque<(PathBuf, PathBuf)> = std::collections::VecDeque::new();
-  queue.push_back((src.to_path_buf(), dst.to_path_buf()));
+  queue.push_back((from, to));
 
-  while let Some((src, dst)) = queue.pop_front() {
-    create_dir(&dst).await?;
+  while let Some((from, to)) = queue.pop_front() {
+    let mut entries = read_dir(&from).await?;
 
-    let mut entries = read_dir(&src).await?;
+    while let Some(entry) = next_entry(&mut entries, &from).await? {
+      let from_path = entry.path();
+      let to_path = to.join(entry.file_name());
 
-    while let Some(entry) = next_entry(entries, &src).await? {
-      let src_path = entry.path();
-      let dst_path = dst.join(entry.file_name());
-
-      if entry.file_type().await.map_err(|e| e.to_string())?.is_dir() {
-        queue.push_back((src_path, dst_path));
+      if file_type(&entry, &from).await?.is_dir() {
+        create_dir(&to).await?;
+        queue.push_back((from_path, to_path));
       } else {
-        tokio::fs::copy(&src_path, &dst_path).await.map_err(|e| {
-          format!(
-            "Couldn't copy file:\n  Source: \"{}\"\n  Destination: \"{}\"\n{e}",
-            src_path.to_string_lossy(),
-            dst_path.to_string_lossy()
-          )
-        })?;
+        copy_file(&from_path, &to_path).await?;
       }
     }
   }
