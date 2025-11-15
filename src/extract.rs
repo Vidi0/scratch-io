@@ -17,7 +17,7 @@ enum ArchiveFormat {
 ///
 /// If the file is not an archive, then the format is `ArchiveFormat::Other`
 fn get_archive_format(file: &Path) -> Result<ArchiveFormat, FilesystemError> {
-  let Ok(extension) = filesystem::get_file_extension(file) else {
+  let Ok(extension) = filesystem::get_file_extension(file).map(|e| e.to_lowercase()) else {
     return Ok(ArchiveFormat::Other);
   };
 
@@ -26,7 +26,7 @@ fn get_archive_format(file: &Path) -> Result<ArchiveFormat, FilesystemError> {
     .to_lowercase()
     .ends_with(".tar");
 
-  Ok(match extension {
+  Ok(match &*extension {
     "zip" => ArchiveFormat::Zip,
 
     "tar" => ArchiveFormat::Tar,
