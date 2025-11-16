@@ -235,7 +235,7 @@ pub async fn login(
 /// # Returns
 ///
 /// A `LoginSuccess` struct with the new API key
-/// 
+///
 /// # Errors
 ///
 /// If something goes wrong
