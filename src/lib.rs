@@ -876,7 +876,7 @@ pub async fn launch(
   let upload_executable = filesystem::get_canonical_path(&upload_executable).await?;
 
   // Make the file executable
-  game_files::make_executable(&upload_executable).await?;
+  filesystem::make_executable(&upload_executable).await?;
 
   // Create the tokio process
   let mut game_process = {

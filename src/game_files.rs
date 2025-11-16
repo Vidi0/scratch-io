@@ -72,30 +72,6 @@ pub async fn remove_folder_safely(path: &Path) -> Result<(), FilesystemError> {
   remove_dir_all(&canonical).await
 }
 
-#[cfg_attr(not(unix), allow(unused_variables))]
-pub async fn make_executable(path: &Path) -> Result<(), FilesystemError> {
-  #[cfg(unix)]
-  {
-    use std::os::unix::fs::PermissionsExt;
-
-    let metadata = read_path_metadata(path).await?;
-    let mut permissions = metadata.permissions();
-    let mode = permissions.mode();
-
-    // If all the executable bits are already set, return Ok()
-    if mode & 0o111 == 0o111 {
-      return Ok(());
-    }
-
-    // Otherwise, add execute bits
-    permissions.set_mode(mode | 0o111);
-
-    set_permissions(path, permissions).await?;
-  }
-
-  Ok(())
-}
-
 /// Copy all the folder contents to another location
 async fn copy_dir_all(from: PathBuf, to: PathBuf) -> Result<(), FilesystemError> {
   ensure_is_dir(&from).await?;

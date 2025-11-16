@@ -68,7 +68,7 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), Stri
     filesystem::rename(file_path, &destination).await?;
 
     // Make it executable
-    game_files::make_executable(&destination).await?;
+    filesystem::make_executable(&destination).await?;
 
     return Ok(());
   }
