@@ -1,4 +1,4 @@
-use crate::errors::{FilesystemError, OtherFilesystemErrorKind};
+use crate::errors::FilesystemError;
 use crate::{filesystem, game_files};
 use std::fs::File;
 use std::path::Path;
@@ -52,14 +52,7 @@ fn get_archive_format(file: &Path) -> Result<ArchiveFormat, FilesystemError> {
 /// If the file isn't an archive it will be moved to the folder
 pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), String> {
   // If the extract folder isn't empty, return an error
-  if !game_files::is_folder_empty(extract_folder).await? {
-    return Err(
-      FilesystemError::OtherError(OtherFilesystemErrorKind::ShouldBeEmpty(
-        extract_folder.to_owned(),
-      ))
-      .into(),
-    );
-  }
+  filesystem::ensure_is_empty(extract_folder).await?;
 
   let format: ArchiveFormat = get_archive_format(file_path)?;
 

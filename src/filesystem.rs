@@ -245,6 +245,54 @@ pub async fn is_dir(path: &Path) -> Result<bool, FilesystemError> {
     .map(|metadata| metadata.is_dir())
 }
 
+/// Checks if a folder is empty
+///
+/// # Errors
+///
+/// If any filesystem operation fails
+pub async fn is_folder_empty(folder: &Path) -> Result<bool, FilesystemError> {
+  if is_dir(folder).await? {
+    if next_entry(&mut read_dir(folder).await?, folder)
+      .await?
+      .is_none()
+    {
+      Ok(true)
+    } else {
+      Ok(false)
+    }
+  } else if exists(folder).await? {
+    Err(OtherErr::ShouldBeAFolder(folder.to_owned()).into())
+  } else {
+    Ok(true)
+  }
+}
+
+/// Ensume `path` is a folder
+///
+/// # Errors
+///
+/// If `path` is not a directory
+pub async fn ensure_is_dir(path: &Path) -> Result<(), FilesystemError> {
+  if !is_dir(path).await? {
+    Err(OtherErr::ShouldBeAFolder(path.to_owned()).into())
+  } else {
+    Ok(())
+  }
+}
+
+/// Ensume `path` doesn't exist or is an empty folder
+///
+/// # Errors
+///
+/// If `path` is a file
+pub async fn ensure_is_empty(path: &Path) -> Result<(), FilesystemError> {
+  if !is_folder_empty(path).await? {
+    Err(OtherErr::ShouldBeEmpty(path.to_owned()).into())
+  } else {
+    Ok(())
+  }
+}
+
 /// Set a file or a folder's permissions
 ///
 /// # Errors

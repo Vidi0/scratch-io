@@ -1,8 +1,4 @@
-use crate::{
-  GamePlatform,
-  errors::{FilesystemError, OtherFilesystemErrorKind},
-  filesystem,
-};
+use crate::{GamePlatform, errors::FilesystemError, filesystem};
 use std::path::{Path, PathBuf};
 
 const GOOD_LAUNCH_FILENAMES: &[&str] = &[
@@ -74,14 +70,7 @@ pub async fn get_game_executable(
   game_title: String,
 ) -> Result<PathBuf, String> {
   // If the folder is not a directory, return
-  if !upload_folder.is_dir() {
-    return Err(
-      FilesystemError::OtherError(OtherFilesystemErrorKind::ShouldBeAFolder(
-        upload_folder.to_owned(),
-      ))
-      .into(),
-    );
-  }
+  filesystem::ensure_is_dir(upload_folder).await?;
 
   // This variable will store the best executable found at the moment and its rating
   let mut best_executable: (Option<PathBuf>, i64) = (None, i64::MIN);

@@ -702,7 +702,7 @@ pub async fn remove(upload_id: UploadID, game_folder: &Path) -> Result<(), Strin
 
   // If there isn't a upload_folder, or it is empty, that means the game
   // has already been removed, so return Ok(())
-  if game_files::is_folder_empty(&upload_folder).await? {
+  if filesystem::is_folder_empty(&upload_folder).await? {
     return Ok(());
   }
 
@@ -740,18 +740,12 @@ pub async fn r#move(
   let src_upload_folder = game_files::get_upload_folder(src_game_folder, upload_id);
 
   // If there isn't a src_upload_folder, exit with error
-  if !filesystem::exists(&src_upload_folder).await? {
-    return Err("The source game folder doesn't exsit!".to_string());
-  }
+  filesystem::ensure_is_dir(&src_upload_folder).await?;
 
   let dst_upload_folder = game_files::get_upload_folder(dst_game_folder, upload_id);
+
   // If there is a dst_upload_folder with contents, exit with error
-  if !game_files::is_folder_empty(&dst_upload_folder).await? {
-    return Err(format!(
-      "The upload folder destination isn't empty!: \"{}\"",
-      dst_upload_folder.to_string_lossy()
-    ));
-  }
+  filesystem::ensure_is_empty(&dst_upload_folder).await?;
 
   // Move the upload folder
   game_files::move_folder(&src_upload_folder, &dst_upload_folder).await?;

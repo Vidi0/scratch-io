@@ -43,28 +43,6 @@ pub fn get_game_folder(game_title: &str) -> Result<PathBuf, FilesystemError> {
   Ok(game_folder)
 }
 
-/// Checks if a folder is empty
-///
-/// # Errors
-///
-/// If any filesystem operation fails
-pub async fn is_folder_empty(folder: &Path) -> Result<bool, FilesystemError> {
-  if folder.is_dir() {
-    if next_entry(&mut read_dir(folder).await?, folder)
-      .await?
-      .is_none()
-    {
-      Ok(true)
-    } else {
-      Ok(false)
-    }
-  } else if exists(folder).await? {
-    Err(OtherErr::ShouldBeAFolder(folder.to_owned()).into())
-  } else {
-    Ok(true)
-  }
-}
-
 /// Remove a folder if it is empty
 ///
 /// Returns whether the folder was removed or not
@@ -120,10 +98,7 @@ pub async fn make_executable(path: &Path) -> Result<(), FilesystemError> {
 
 /// Copy all the folder contents to another location
 async fn copy_dir_all(from: PathBuf, to: PathBuf) -> Result<(), FilesystemError> {
-  if !from.is_dir() {
-    return Err(OtherErr::ShouldBeAFolder(from.to_owned()).into());
-  }
-
+  ensure_is_dir(&from).await?;
   create_dir(&to).await?;
 
   let mut queue: std::collections::VecDeque<(PathBuf, PathBuf)> = std::collections::VecDeque::new();
@@ -152,9 +127,7 @@ async fn copy_dir_all(from: PathBuf, to: PathBuf) -> Result<(), FilesystemError>
 ///
 /// It also works if the destination is on another filesystem
 pub async fn move_folder(from: &Path, to: &Path) -> Result<(), FilesystemError> {
-  if !is_dir(from).await? {
-    return Err(OtherErr::ShouldBeAFolder(from.to_owned()).into());
-  }
+  ensure_is_dir(from).await?;
 
   // Create the destination parent dir
   create_dir(to).await?;
