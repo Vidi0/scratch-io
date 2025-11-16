@@ -93,8 +93,8 @@ scratch-io help
 - [itchapi.ryhn.link](https://itchapi.ryhn.link) – Unofficial itch.io API documentation
 - [itch.io docs: compatibility policy](https://docs.itch.ovh/itch/master/integrating/compatibility-policy.html)
 - [itch.io docs: manifest](https://docs.itch.ovh/itch/master/integrating/manifest.html)
-- [itch.io docs: butler](https://itch.io/docs/butler/)
-- [itch.io docs: wharf](https://itch.io/docs/wharf/)
+- [itch.io docs: butler](https://docs.itch.ovh/butler/master/)
+- [itch.io docs: wharf](https://docs.itch.ovh/wharf/master/)
 
 ## 📝 Roadmap
 
