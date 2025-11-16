@@ -14,7 +14,7 @@ impl ManifestAction {
 pub async fn read_manifest(upload_folder: &Path) -> Result<Option<Manifest>, String> {
   let manifest_path = upload_folder.join(MANIFEST_FILENAME);
 
-  if !manifest_path.is_file() {
+  if !filesystem::exists(&manifest_path).await? {
     return Ok(None);
   }
 

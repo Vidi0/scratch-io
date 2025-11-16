@@ -207,7 +207,9 @@ pub async fn remove_root_folder(folder: &Path) -> Result<(), FilesystemError> {
 
     // If there’s another entry, stop (not a single root)
     // If the entry is a file, also stop
-    if next_entry(&mut entries, &last_root).await?.is_some() || first.path().is_file() {
+    if next_entry(&mut entries, &last_root).await?.is_some()
+      || file_type(&first, &last_root).await?.is_file()
+    {
       break;
     }
 
