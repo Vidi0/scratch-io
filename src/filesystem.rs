@@ -273,10 +273,10 @@ pub async fn is_folder_empty(folder: &Path) -> Result<bool, FilesystemError> {
 ///
 /// If `path` is not a directory
 pub async fn ensure_is_dir(path: &Path) -> Result<(), FilesystemError> {
-  if !is_dir(path).await? {
-    Err(OtherErr::ShouldBeAFolder(path.to_owned()).into())
-  } else {
+  if is_dir(path).await? {
     Ok(())
+  } else {
+    Err(OtherErr::ShouldBeAFolder(path.to_owned()).into())
   }
 }
 
@@ -286,10 +286,10 @@ pub async fn ensure_is_dir(path: &Path) -> Result<(), FilesystemError> {
 ///
 /// If `path` is a file
 pub async fn ensure_is_empty(path: &Path) -> Result<(), FilesystemError> {
-  if !is_folder_empty(path).await? {
-    Err(OtherErr::ShouldBeEmpty(path.to_owned()).into())
-  } else {
+  if is_folder_empty(path).await? {
     Ok(())
+  } else {
+    Err(OtherErr::ShouldBeEmpty(path.to_owned()).into())
   }
 }
 

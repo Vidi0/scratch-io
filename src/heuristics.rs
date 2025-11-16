@@ -20,7 +20,7 @@ const BEST_PROXIMITY_MULTIPLIER: f64 = 0.34;
 const MAX_DIRECTORY_LEVEL_DEPTH: usize = 2;
 
 impl GamePlatform {
-  fn get_allowed_extensions(&self) -> &'static [&'static str] {
+  fn get_allowed_extensions(self) -> &'static [&'static str] {
     // These must only be ascii alphanumeric lowercase
     match self {
       GamePlatform::Linux => &["x8664", "x86", "bin", "sh", "run", ""],
@@ -34,7 +34,7 @@ impl GamePlatform {
     }
   }
 
-  fn get_best_filenames(&self) -> &'static [&'static str] {
+  fn get_best_filenames(self) -> &'static [&'static str] {
     match self {
       // These must only be ascii alphanumeric lowercase
       GamePlatform::Linux

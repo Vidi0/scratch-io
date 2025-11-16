@@ -235,8 +235,10 @@ pub async fn login(
 /// # Returns
 ///
 /// A `LoginSuccess` struct with the new API key
+/// 
+/// # Errors
 ///
-/// An error if something goes wrong
+/// If something goes wrong
 pub async fn totp_verification(
   client: &ItchClient,
   totp_token: &str,

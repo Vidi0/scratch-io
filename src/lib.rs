@@ -755,7 +755,7 @@ pub async fn r#move(
 
   filesystem::get_canonical_path(dst_game_folder)
     .await
-    .map_err(|e| e.into())
+    .map_err(std::convert::Into::into)
 }
 
 /// Retrieve the itch manifest from an installed upload

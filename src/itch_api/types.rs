@@ -113,6 +113,7 @@ impl<'a> ItchApiUrl {
   }
 
   /// Returns the API version of this `ItchApiUrl`
+  #[must_use]
   pub fn get_version(&self) -> ItchApiVersion {
     self.version
   }
@@ -120,6 +121,7 @@ impl<'a> ItchApiUrl {
 
 impl ItchApiUrl {
   /// Get a reference to the full URL string
+  #[must_use]
   pub fn as_str(&self) -> &str {
     &self.url
   }
