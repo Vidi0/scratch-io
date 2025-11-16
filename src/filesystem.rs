@@ -68,7 +68,7 @@ pub async fn exists(path: &Path) -> Result<bool, FilesystemError> {
 /// # Errors
 ///
 /// If the path doesn't have a parent
-pub async fn parent(path: &Path) -> Result<&Path, FilesystemError> {
+pub fn parent(path: &Path) -> Result<&Path, FilesystemError> {
   path
     .parent()
     .ok_or_else(OtherErr::PathWithoutParent(path.to_owned()).attach())

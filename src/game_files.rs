@@ -124,7 +124,7 @@ pub async fn move_folder(from: &Path, to: &Path) -> Result<(), FilesystemError> 
 
 // If path already exists, change it a bit until it doesn't. Return the available path
 pub async fn find_available_path(path: &Path) -> Result<PathBuf, FilesystemError> {
-  let parent = parent(path).await?;
+  let parent = parent(path)?;
   let filename = get_file_name(path)?;
 
   let mut i = 0;
@@ -174,7 +174,7 @@ async fn move_folder_child(last_root: &Path, base_folder: &Path) -> Result<(), F
   // Remove the now-empty wrapper dirs
   let mut current_root = last_root.to_owned();
   while is_folder_empty(&current_root).await? {
-    let parent = parent(&current_root).await?;
+    let parent = parent(&current_root)?;
     remove_empty_dir(&current_root).await?;
     current_root = parent.to_owned();
   }
