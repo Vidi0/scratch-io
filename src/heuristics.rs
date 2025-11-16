@@ -1,4 +1,4 @@
-use crate::GamePlatform;
+use crate::{GamePlatform, errors::FilesystemError, filesystem};
 use std::path::{Path, PathBuf};
 
 const GOOD_LAUNCH_FILENAMES: &[&str] = &[
@@ -70,12 +70,7 @@ pub async fn get_game_executable(
   game_title: String,
 ) -> Result<PathBuf, String> {
   // If the folder is not a directory, return
-  if !upload_folder.is_dir() {
-    return Err(format!(
-      "Not a folder: \"{}\"",
-      upload_folder.to_string_lossy()
-    ));
-  }
+  filesystem::ensure_is_dir(upload_folder).await?;
 
   // This variable will store the best executable found at the moment and its rating
   let mut best_executable: (Option<PathBuf>, i64) = (None, i64::MIN);
@@ -85,14 +80,12 @@ pub async fn get_game_executable(
   queue.push_back((upload_folder.to_path_buf(), 0));
 
   while let Some((folder, depth)) = queue.pop_front() {
-    let mut entries = tokio::fs::read_dir(&folder)
-      .await
-      .map_err(|e| format!("Couldn't read dir \"{}\": {e}", folder.to_string_lossy()))?;
+    let mut entries = filesystem::read_dir(&folder).await?;
 
-    while let Some(entry) = entries.next_entry().await.map_err(|e| e.to_string())? {
+    while let Some(entry) = filesystem::next_entry(&mut entries, &folder).await? {
       let entry_path = entry.path();
 
-      if entry.file_type().await.map_err(|e| e.to_string())?.is_dir() {
+      if filesystem::file_type(&entry, &folder).await?.is_dir() {
         // If we are on the last depth, don't go to the next one, stop now
         // For this reason it is < and not <=
         if depth < MAX_DIRECTORY_LEVEL_DEPTH {
@@ -139,7 +132,7 @@ fn rate_executable(
   directory_levels: usize,
   platform: GamePlatform,
   game_title: &str,
-) -> Result<i64, String> {
+) -> Result<i64, FilesystemError> {
   let mut rating: i64 = 0;
 
   // base level: keep the rating
@@ -150,18 +143,8 @@ fn rate_executable(
   rating -= (directory_levels as i64).saturating_pow(2) * 1000;
 
   // Most of the checks will be based on the filename
-  let filename: String = make_alphanumeric_lowercase(
-    file_path
-      .file_stem()
-      .ok_or_else(|| {
-        format!(
-          "File doesn't have a filename????: \"{}\"",
-          file_path.to_string_lossy()
-        )
-      })?
-      .to_string_lossy()
-      .to_string(),
-  );
+  let filename: String =
+    make_alphanumeric_lowercase(filesystem::get_file_stem(file_path)?.to_owned());
 
   let extension = make_alphanumeric_lowercase(
     file_path
