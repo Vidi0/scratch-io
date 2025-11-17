@@ -92,7 +92,7 @@ pub enum FilesystemIOErrorKind {
 }
 
 impl FilesystemIOErrorKind {
-  /// Returns a closure that attaches this [`FilesystemIOErrorKind`] to a [`std::error::Error`] and returns a [`FilesystemError`]
+  /// Returns a closure that attaches this [`FilesystemIOErrorKind`] to a [`std::io::Error`] and returns a [`FilesystemError`]
   pub fn attach(self) -> impl FnOnce(std::io::Error) -> FilesystemError {
     move |error| FilesystemError::IOError { kind: self, error }
   }
