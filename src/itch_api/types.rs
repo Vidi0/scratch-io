@@ -97,7 +97,7 @@ pub struct ItchApiUrl {
 impl<'a> ItchApiUrl {
   /// Creates an [`ItchApiUrl`] by combining the API version with an endpoint path
   /// V1 and V2 prepend their base URLs
-  /// 
+  ///
   /// Other uses the endpoint as-is
   pub fn from_api_endpoint(
     version: ItchApiVersion,
