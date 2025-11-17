@@ -107,10 +107,7 @@ async fn hash_readable_async(
   let mut br = tokio::io::BufReader::new(readable);
 
   loop {
-    let buffer = br
-      .fill_buf()
-      .await
-      .map_err(|e| format!("Couldn't read file in order to hash it!\n{e}"))?;
+    let buffer = filesystem::fill_buffer(&mut br).await?;
 
     // If buffer is empty then BufReader has reached the EOF
     if buffer.is_empty() {

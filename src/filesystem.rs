@@ -350,3 +350,17 @@ pub async fn make_executable(path: &Path) -> Result<(), FilesystemError> {
 
   Ok(())
 }
+
+/// Fill the provided async buffer
+///
+/// # Errors
+///
+/// If the IO operation fails
+pub async fn fill_buffer<'a>(
+  buf: &'a mut (impl tokio::io::AsyncBufReadExt + Unpin),
+) -> Result<&'a [u8], FilesystemError> {
+  buf
+    .fill_buf()
+    .await
+    .map_err(IOErr::CouldntFillAsyncBuffer.attach())
+}

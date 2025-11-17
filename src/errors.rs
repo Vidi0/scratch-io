@@ -86,6 +86,9 @@ pub enum FilesystemIOErrorKind {
 
   #[error("Couldn't open the file: \"{0}\"")]
   CouldntOpenFile(PathBuf),
+
+  #[error("Couldn't fill an async buffer!")]
+  CouldntFillAsyncBuffer,
 }
 
 impl FilesystemIOErrorKind {
