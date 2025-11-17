@@ -17,6 +17,17 @@ pub enum FilesystemError {
   },
 
   #[error(
+    "A network error occured!
+{kind}
+{error}"
+  )]
+  NetworkError {
+    kind: NetworkErrorKind,
+    #[source]
+    error: reqwest::Error,
+  },
+
+  #[error(
     "A filesystem error occured!
 {0}"
   )]
@@ -95,6 +106,19 @@ impl FilesystemIOErrorKind {
   /// Returns a closure that attaches this [`FilesystemIOErrorKind`] to a [`std::io::Error`] and returns a [`FilesystemError`]
   pub fn attach(self) -> impl FnOnce(std::io::Error) -> FilesystemError {
     move |error| FilesystemError::IOError { kind: self, error }
+  }
+}
+
+#[derive(Error, Debug)]
+pub enum NetworkErrorKind {
+  #[error("Couldn't read chunk from network!")]
+  CouldntReadChunk,
+}
+
+impl NetworkErrorKind {
+  /// Returns a closure that attaches this [`NetworkErrorKind`] to a [`reqwest::Error`] and returns a [`FilesystemError`]
+  pub fn attach(self) -> impl FnOnce(reqwest::Error) -> FilesystemError {
+    move |error| FilesystemError::NetworkError { kind: self, error }
   }
 }
 

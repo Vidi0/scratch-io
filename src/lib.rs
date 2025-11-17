@@ -9,7 +9,6 @@ pub mod itch_manifest;
 pub use crate::itch_api::ItchClient;
 use crate::itch_api::{types::*, *};
 
-use futures_util::StreamExt;
 use md5::{Digest, Md5};
 use reqwest::{Method, Response, header};
 use serde::{Deserialize, Serialize};
@@ -156,10 +155,7 @@ async fn stream_response_into_file(
 
   // Save chunks to the file async
   // Also, compute the md5 hash while it is being downloaded
-  while let Some(chunk) = stream.next().await {
-    // Return an error if the chunk is invalid
-    let chunk = chunk.map_err(|e| format!("Error reading chunk: {e}"))?;
-
+  while let Some(chunk) = filesystem::next_chunk(&mut stream).await? {
     // Write the chunk to the file
     file
       .write_all(&chunk)
