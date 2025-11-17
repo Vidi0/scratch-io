@@ -100,6 +100,9 @@ pub enum FilesystemIOErrorKind {
 
   #[error("Couldn't fill an async buffer!")]
   CouldntFillAsyncBuffer,
+
+  #[error("Couldn't write a buffer to an async writer!")]
+  CouldntWriteBuffer,
 }
 
 impl FilesystemIOErrorKind {

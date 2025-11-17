@@ -14,7 +14,7 @@ use reqwest::{Method, Response, header};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+use tokio::io::AsyncBufReadExt;
 use tokio::time::{Duration, Instant};
 
 // This isn't inside itch_types because it is not something that the itch API returns
@@ -157,13 +157,10 @@ async fn stream_response_into_file(
   // Also, compute the md5 hash while it is being downloaded
   while let Some(chunk) = filesystem::next_chunk(&mut stream).await? {
     // Write the chunk to the file
-    file
-      .write_all(&chunk)
-      .await
-      .map_err(|e| format!("Error writing chunk to the file: {e}"))?;
+    filesystem::write_all(file, &chunk).await?;
 
     // If the file has a md5 hash, update the hasher
-    if let Some(ref mut hasher) = md5_hash {
+    if let Some(hasher) = &mut md5_hash {
       hasher.update(&chunk);
     }
 

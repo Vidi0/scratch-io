@@ -276,6 +276,17 @@ pub async fn fill_buffer<'a>(
     .map_err(IOErr::CouldntFillAsyncBuffer.attach())
 }
 
+/// [`tokio::io::AsyncWriteExt::write_all`]
+pub async fn write_all(
+  writer: &mut (impl tokio::io::AsyncWriteExt + Unpin),
+  buffer: &[u8],
+) -> Result<(), FilesystemError> {
+  writer
+    .write_all(buffer)
+    .await
+    .map_err(IOErr::CouldntWriteBuffer.attach())
+}
+
 /// [`futures_util::stream::StreamExt::next`]
 pub async fn next_chunk<T>(
   stream: &mut (impl futures_util::Stream<Item = Result<T, reqwest::Error>> + Unpin),
