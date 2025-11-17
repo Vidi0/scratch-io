@@ -38,7 +38,7 @@ const ERROR_INVALID_TARGET_BUILD: &str =
   "target_build_id: expected empty, or integer then database id";
 const ERROR_NO_UPGRADE_PATH: &str = "no upgrade path";
 
-/// Error returned from `itch_request_json`
+/// Error returned from [`super::ItchClient::itch_request_json`]
 #[derive(Error, Debug)]
 #[error("An API call to \"{url}\" failed:\n{kind}")]
 pub struct ItchRequestJSONError<T>

@@ -32,7 +32,7 @@ pub async fn read_manifest(upload_folder: &Path) -> Result<Option<Manifest>, Str
     })
 }
 
-/// Returns an itch.io `ManifestAction` given its name and the folder where the game manifest is located
+/// Returns an itch.io [`ManifestAction`] given its name and the folder where the game manifest is located
 pub async fn launch_action(
   upload_folder: &Path,
   action_name: Option<&str>,

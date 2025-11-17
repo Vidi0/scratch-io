@@ -95,8 +95,10 @@ pub struct ItchApiUrl {
 }
 
 impl<'a> ItchApiUrl {
-  /// Creates an `ItchApiUrl` by combining the API version with an endpoint path
-  /// V1 and V2 prepend their base URLs; Other uses the endpoint as-is
+  /// Creates an [`ItchApiUrl`] by combining the API version with an endpoint path
+  /// V1 and V2 prepend their base URLs
+  /// 
+  /// Other uses the endpoint as-is
   pub fn from_api_endpoint(
     version: ItchApiVersion,
     endpoint: impl Into<std::borrow::Cow<'a, str>>,
@@ -112,7 +114,7 @@ impl<'a> ItchApiUrl {
     }
   }
 
-  /// Returns the API version of this `ItchApiUrl`
+  /// Returns the API version of this [`ItchApiUrl`]
   #[must_use]
   pub fn get_version(&self) -> ItchApiVersion {
     self.version
@@ -128,7 +130,7 @@ impl ItchApiUrl {
 }
 
 impl std::fmt::Display for ItchApiUrl {
-  /// Format the `ItchApiUrl` as a string, returning the full URL
+  /// Format the [`ItchApiUrl`] as a string, returning the full URL
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "{}", self.url)
   }

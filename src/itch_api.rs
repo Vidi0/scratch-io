@@ -16,7 +16,7 @@ pub struct ItchClient {
   api_key: String,
 }
 
-/// This block defiles the `ItchClient` API calls
+/// This block defiles the [`ItchClient`] API calls
 impl ItchClient {
   /// Make a request to the itch.io API
   ///
@@ -30,7 +30,7 @@ impl ItchClient {
   ///
   /// # Returns
   ///
-  /// The reqwest `Response`
+  /// The reqwest [`Response`]
   ///
   /// # Errors
   ///
@@ -125,9 +125,9 @@ impl ItchClient {
   }
 }
 
-/// This block defines the `ItchClient` constructors and other functions
+/// This block defines the [`ItchClient`] constructors and other functions
 impl ItchClient {
-  /// Obtain the API key associated with this `ItchClient`
+  /// Obtain the API key associated with this [`ItchClient`]
   #[must_use]
   pub fn get_api_key(&self) -> &str {
     &self.api_key
@@ -141,7 +141,7 @@ impl ItchClient {
   ///
   /// # Returns
   ///
-  /// A `ItchClient` struct with the given key
+  /// An [`ItchClient`] struct with the given key
   #[must_use]
   pub fn new(api_key: String) -> Self {
     Self {
@@ -158,7 +158,7 @@ impl ItchClient {
   ///
   /// # Returns
   ///
-  /// A `ItchClient` struct with the given key
+  /// An [`ItchClient`] struct with the given key
   ///
   /// # Errors
   ///
@@ -192,7 +192,7 @@ impl ItchClient {
 ///
 /// # Returns
 ///
-/// A `LoginResponse` enum with the response from the API, which can be either the API key or an error
+/// A [`LoginResponse`] enum with the response from the API, which can be either the API key or an error
 ///
 /// # Errors
 ///
@@ -234,7 +234,7 @@ pub async fn login(
 ///
 /// # Returns
 ///
-/// A `LoginSuccess` struct with the new API key
+/// A [`LoginSuccess`] struct with the new API key
 ///
 /// # Errors
 ///
@@ -262,7 +262,7 @@ pub async fn totp_verification(
 ///
 /// # Returns
 ///
-/// A `User` struct with the info provided by the API
+/// A [`User`] struct with the info provided by the API
 ///
 /// # Errors
 ///
@@ -291,7 +291,7 @@ pub async fn get_user_info(
 ///
 /// # Returns
 ///
-/// A `Profile` struct with the info provided by the API
+/// A [`Profile`] struct with the info provided by the API
 ///
 /// # Errors
 ///
@@ -317,7 +317,7 @@ pub async fn get_profile(
 ///
 /// # Returns
 ///
-/// A vector of `CreatedGame` structs with the info provided by the API
+/// A vector of [`CreatedGame`] structs with the info provided by the API
 ///
 /// # Errors
 ///
@@ -343,7 +343,7 @@ pub async fn get_created_games(
 ///
 /// # Returns
 ///
-/// A vector of `OwnedKey` structs with the info provided by the API
+/// A vector of [`OwnedKey`] structs with the info provided by the API
 ///
 /// # Errors
 ///
@@ -384,7 +384,7 @@ pub async fn get_owned_keys(
 ///
 /// # Returns
 ///
-/// A vector of `Collection` structs with the info provided by the API
+/// A vector of [`Collection`] structs with the info provided by the API
 ///
 /// # Errors
 ///
@@ -412,7 +412,7 @@ pub async fn get_profile_collections(
 ///
 /// # Returns
 ///
-/// A `Collection` struct with the info provided by the API
+/// A [`Collection`] struct with the info provided by the API
 ///
 /// # Errors
 ///
@@ -441,7 +441,7 @@ pub async fn get_collection_info(
 ///
 /// # Returns
 ///
-/// A vector of `CollectionGameItem` structs with the info provided by the API
+/// A vector of [`CollectionGameItem`] structs with the info provided by the API
 ///
 /// # Errors
 ///
@@ -488,7 +488,7 @@ pub async fn get_collection_games(
 ///
 /// # Returns
 ///
-/// A `Game` struct with the info provided by the API
+/// A [`Game`] struct with the info provided by the API
 ///
 /// # Errors
 ///
@@ -517,7 +517,7 @@ pub async fn get_game_info(
 ///
 /// # Returns
 ///
-/// A vector of `Upload` structs with the info provided by the API
+/// A vector of [`Upload`] structs with the info provided by the API
 ///
 /// # Errors
 ///
@@ -546,7 +546,7 @@ pub async fn get_game_uploads(
 ///
 /// # Returns
 ///
-/// An `Upload` struct with the info provided by the API
+/// An [`Upload`] struct with the info provided by the API
 ///
 /// # Errors
 ///
@@ -575,7 +575,7 @@ pub async fn get_upload_info(
 ///
 /// # Returns
 ///
-/// A vector of `UploadBuild` structs with the info provided by the API
+/// A vector of [`UploadBuild`] structs with the info provided by the API
 ///
 /// # Errors
 ///
@@ -604,7 +604,7 @@ pub async fn get_upload_builds(
 ///
 /// # Returns
 ///
-/// A `Build` struct with the info provided by the API
+/// A [`Build`] struct with the info provided by the API
 ///
 /// # Errors
 ///
@@ -635,7 +635,7 @@ pub async fn get_build_info(
 ///
 /// # Returns
 ///
-/// A vector of `UpgradePathBuild` structs with the info provided by the API
+/// A vector of [`UpgradePathBuild`] structs with the info provided by the API
 ///
 /// # Errors
 ///
@@ -668,7 +668,7 @@ pub async fn get_upgrade_path(
 ///
 /// # Returns
 ///
-/// A `ScannedArchive` struct with the info provided by the API
+/// A [`ScannedArchive`] struct with the info provided by the API
 ///
 /// # Errors
 ///
@@ -700,7 +700,7 @@ pub async fn get_upload_scanned_archive(
 ///
 /// # Returns
 ///
-/// A `ScannedArchive` struct with the info provided by the API
+/// A [`ScannedArchive`] struct with the info provided by the API
 ///
 /// # Errors
 ///

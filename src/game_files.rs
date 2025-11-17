@@ -30,11 +30,11 @@ pub fn add_part_extension(file: &Path) -> Result<PathBuf, FilesystemError> {
   Ok(file.with_file_name(format!("{filename}.part")))
 }
 
-/// The game folder is `dirs::home_dir`+`Games`+`game_title`
+/// The game folder is the home directory + `Games` + `game_title`
 ///
 /// # Errors
 ///
-/// If `dirs::home_dir` is None
+/// If the home directory couldn't be determined
 pub fn get_game_folder(game_title: &str) -> Result<PathBuf, FilesystemError> {
   let mut game_folder = get_basedirs()?.home_dir().join(GAME_FOLDER);
 

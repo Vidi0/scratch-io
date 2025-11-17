@@ -93,7 +93,7 @@ pub struct InstalledUpload {
 ///
 /// # Arguments
 ///
-/// * `readable` - Anything that implements `tokio::io::AsyncRead` to read the data from, could be a File
+/// * `readable` - Anything that implements [`tokio::io::AsyncRead`] to read the data from, could be a File
 ///
 /// * `hasher` - A mutable reference to a MD5 hasher, which will be updated with the file data
 ///
@@ -123,13 +123,13 @@ async fn hash_readable_async(
   }
 }
 
-/// Stream a reqwest `Response` into a `File` async
+/// Stream a reqwest [`Response`] into a [`tokio::fs::File`] async
 ///
 /// # Arguments
 ///
 /// * `response` - A file download response
 ///
-/// * `file` - An opened `File` with write access
+/// * `file` - An opened [`tokio::fs::File`] with write access
 ///
 /// * `md5_hash` - If provided, the hasher to update with the received data
 ///
@@ -356,7 +356,7 @@ async fn download_file(
 ///
 /// # Returns
 ///
-/// A vector of tuples containing an upload ID and the `GamePlatform` in which it is available
+/// A vector of tuples containing an upload ID and the [`GamePlatform`] in which it is available
 #[must_use]
 pub fn get_game_platforms(uploads: &[Upload]) -> Vec<(UploadID, GamePlatform)> {
   let mut platforms: Vec<(UploadID, GamePlatform)> = Vec::new();
@@ -765,7 +765,7 @@ pub async fn r#move(
 ///
 /// # Returns
 ///
-/// A `Manifest` struct with the manifest actions info, or None if the manifest isn't present
+/// A [`Manifest`] struct with the manifest actions info, or None if the manifest isn't present
 ///
 /// # Errors
 ///
