@@ -267,9 +267,9 @@ pub async fn make_executable(path: &Path) -> Result<(), FilesystemError> {
 }
 
 /// [`tokio::io::AsyncBufReadExt::fill_buf`]
-pub async fn fill_buffer<'a>(
-  buf: &'a mut (impl tokio::io::AsyncBufReadExt + Unpin),
-) -> Result<&'a [u8], FilesystemError> {
+pub async fn fill_buffer(
+  buf: &mut (impl tokio::io::AsyncBufReadExt + Unpin),
+) -> Result<&[u8], FilesystemError> {
   buf
     .fill_buf()
     .await
