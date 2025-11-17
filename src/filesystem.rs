@@ -5,22 +5,14 @@ use crate::errors::{
 use std::path::{Path, PathBuf};
 use tokio::fs;
 
-/// Convert an `&OsStr` into an `&str`
-///
-/// # Errors
-///
-/// If `os_str` doesn't contain valid unicode
+/// [`std::ffi::OsStr::to_str`]
 pub fn os_str_as_str(os_str: &std::ffi::OsStr) -> Result<&str, FilesystemError> {
   os_str
     .to_str()
     .ok_or_else(OtherErr::InvalidUnicodeOsStr(os_str.to_owned()).attach())
 }
 
-/// Get the file name of the given Path
-///
-/// # Errors
-///
-/// If the path doesn't have a filename
+/// [`std::path::Path::file_name`]
 pub fn get_file_name(path: &Path) -> Result<&str, FilesystemError> {
   path
     .file_name()
@@ -28,11 +20,7 @@ pub fn get_file_name(path: &Path) -> Result<&str, FilesystemError> {
     .and_then(|stem| os_str_as_str(stem))
 }
 
-/// Get the stem (non-extension) of the given Path
-///
-/// # Errors
-///
-/// If the path doesn't have a filename
+/// [`std::path::Path::file_stem`]
 pub fn get_file_stem(path: &Path) -> Result<&str, FilesystemError> {
   path
     .file_stem()
@@ -40,11 +28,7 @@ pub fn get_file_stem(path: &Path) -> Result<&str, FilesystemError> {
     .and_then(|stem| os_str_as_str(stem))
 }
 
-/// Get the extension of the given Path
-///
-/// # Errors
-///
-/// If the path doesn't have an extension
+/// [`std::path::Path::extension`]
 pub fn get_file_extension(path: &Path) -> Result<&str, FilesystemError> {
   path
     .extension()
@@ -52,44 +36,28 @@ pub fn get_file_extension(path: &Path) -> Result<&str, FilesystemError> {
     .and_then(|extension| os_str_as_str(extension))
 }
 
-/// Check if a path points at an existing entity
-///
-/// # Errors
-///
-/// If the filesystem operation fails
+/// [`tokio::fs::try_exists`]
 pub async fn exists(path: &Path) -> Result<bool, FilesystemError> {
   fs::try_exists(path)
     .await
     .map_err(IOErr::CouldntCheckIfExists(path.to_owned()).attach())
 }
 
-/// Get the parent of the given path
-///
-/// # Errors
-///
-/// If the path doesn't have a parent
+/// [`std::path::Path::parent`]
 pub fn parent(path: &Path) -> Result<&Path, FilesystemError> {
   path
     .parent()
     .ok_or_else(OtherErr::PathWithoutParent(path.to_owned()).attach())
 }
 
-/// Return a stream over the entries within a directory
-///
-/// # Errors
-///
-/// If the filesystem operation fails
+/// [`tokio::fs::read_dir`]
 pub async fn read_dir(path: &Path) -> Result<fs::ReadDir, FilesystemError> {
   fs::read_dir(path)
     .await
     .map_err(IOErr::CouldntReadDirectory(path.to_owned()).attach())
 }
 
-/// Return a stream over the entries within a directory
-///
-/// # Errors
-///
-/// If the filesystem operation fails
+/// [`tokio::fs::ReadDir::next_entry`]
 pub async fn next_entry(
   read_dir: &mut fs::ReadDir,
   path: &Path,
@@ -100,11 +68,7 @@ pub async fn next_entry(
     .map_err(IOErr::CouldntReadDirectoryNextEntry(path.to_owned()).attach())
 }
 
-/// Get the file type of a `DirEntry`
-///
-/// # Errors
-///
-/// If the filesystem operation fails
+/// [`tokio::fs::DirEntry::file_type`]
 pub async fn file_type(
   dir_entry: &fs::DirEntry,
   path: &Path,
@@ -115,42 +79,26 @@ pub async fn file_type(
     .map_err(IOErr::CouldntGetFileType(path.to_owned()).attach())
 }
 
-/// Returns the canonical (absolute form of the path)
-///
-/// # Errors
-///
-/// If the filesystem operation fails
+/// [`tokio::fs::canonicalize`]
 pub async fn get_canonical_path(path: &Path) -> Result<PathBuf, FilesystemError> {
   fs::canonicalize(path)
     .await
     .map_err(IOErr::CouldntGetCanonical(path.to_owned()).attach())
 }
 
-/// Get the `directories::BaseDirs`
-///
-/// # Errors
-///
-/// If the home directory couldn't be determined
+/// [`directories::BaseDirs::new`]
 pub fn get_basedirs() -> Result<directories::BaseDirs, FilesystemError> {
   directories::BaseDirs::new().ok_or_else(OtherErr::MissingHomeDirectory.attach())
 }
 
-/// Create a directory recursively
-///
-/// # Errors
-///
-/// If the filesystem operation fails
+/// [`tokio::fs::create_dir_all`]
 pub async fn create_dir(path: &Path) -> Result<(), FilesystemError> {
   fs::create_dir_all(path)
     .await
     .map_err(IOErr::CouldntCreateDirectory(path.to_owned()).attach())
 }
 
-/// Copy a file to a new path
-///
-/// # Errors
-///
-/// If the filesystem operation fails
+/// [`tokio::fs::copy`]
 pub async fn copy_file(from: &Path, to: &Path) -> Result<u64, FilesystemError> {
   fs::copy(from, to).await.map_err(
     IOErr::CouldntCopyFile {
@@ -161,13 +109,7 @@ pub async fn copy_file(from: &Path, to: &Path) -> Result<u64, FilesystemError> {
   )
 }
 
-/// Move a file or a directory to a new path
-///
-/// # Errors
-///
-/// If the filesystem operation fails
-///
-/// If the new name is on a different mount point
+/// [`tokio::fs::rename`]
 pub async fn rename(from: &Path, to: &Path) -> Result<(), FilesystemError> {
   fs::rename(from, to).await.map_err(
     IOErr::CouldntMove {
@@ -178,55 +120,35 @@ pub async fn rename(from: &Path, to: &Path) -> Result<(), FilesystemError> {
   )
 }
 
-/// Remove a file
-///
-/// # Errors
-///
-/// If the filesystem operation fails
+/// [`tokio::fs::remove_file`]
 pub async fn remove_file(path: &Path) -> Result<(), FilesystemError> {
   fs::remove_file(path)
     .await
     .map_err(IOErr::CouldntRemoveFile(path.to_owned()).attach())
 }
 
-/// Remove an empty directory
-///
-/// # Errors
-///
-/// If the filesystem operation fails
+/// [`tokio::fs::remove_dir`]
 pub async fn remove_empty_dir(path: &Path) -> Result<(), FilesystemError> {
   fs::remove_dir(path)
     .await
     .map_err(IOErr::CouldntRemoveEmptyDir(path.to_owned()).attach())
 }
 
-/// Remove a directory and all its contents
-///
-/// # Errors
-///
-/// If the filesystem operation fails
+/// [`tokio::fs::remove_dir_all`]
 pub async fn remove_dir_all(path: &Path) -> Result<(), FilesystemError> {
   fs::remove_dir_all(path)
     .await
     .map_err(IOErr::CouldntRemoveDirWithContents(path.to_owned()).attach())
 }
 
-/// Read a file or a folder's metadata
-///
-/// # Errors
-///
-/// If the filesystem operation fails
+/// [`tokio::fs::metadata`]
 pub async fn read_path_metadata(path: &Path) -> Result<std::fs::Metadata, FilesystemError> {
   fs::metadata(path)
     .await
     .map_err(IOErr::CouldntReadPathMetadata(path.to_owned()).attach())
 }
 
-/// Read an open file metadata
-///
-/// # Errors
-///
-/// If the filesystem operation fails
+/// [`tokio::fs::File::metadata`]
 pub async fn read_file_metadata(file: &fs::File) -> Result<std::fs::Metadata, FilesystemError> {
   file
     .metadata()
@@ -293,11 +215,7 @@ pub async fn ensure_is_empty(path: &Path) -> Result<(), FilesystemError> {
   }
 }
 
-/// Set a file or a folder's permissions
-///
-/// # Errors
-///
-/// If the filesystem operation fails
+/// [`tokio::fs::set_permissions`]
 pub async fn set_permissions(
   path: &Path,
   permissions: std::fs::Permissions,
@@ -307,11 +225,7 @@ pub async fn set_permissions(
     .map_err(IOErr::CouldntSetPermissions(path.to_owned()).attach())
 }
 
-/// Open a file with the given options
-///
-/// # Errors
-///
-/// If the filesystem operation fails
+/// [`tokio::fs::OpenOptions::open`]
 pub async fn open_file(
   path: &Path,
   options: &mut fs::OpenOptions,
@@ -351,11 +265,7 @@ pub async fn make_executable(path: &Path) -> Result<(), FilesystemError> {
   Ok(())
 }
 
-/// Fill the provided async buffer
-///
-/// # Errors
-///
-/// If the IO operation fails
+/// [`tokio::io::AsyncBufReadExt::fill_buf`]
 pub async fn fill_buffer<'a>(
   buf: &'a mut (impl tokio::io::AsyncBufReadExt + Unpin),
 ) -> Result<&'a [u8], FilesystemError> {
