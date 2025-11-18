@@ -290,12 +290,7 @@ async fn download_file(
     //
     // In either case, the current file should be removed and downloaded again fully
     downloaded_bytes = 0;
-    file.set_len(0).await.map_err(|e| {
-      format!(
-        "Couldn't remove old partially downloaded file: {}\n{e}",
-        partial_file_path.to_string_lossy()
-      )
-    })?;
+    filesystem::set_file_len(&file, 0).await?;
 
     Some(res)
   };

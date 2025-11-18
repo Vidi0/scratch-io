@@ -237,6 +237,14 @@ pub async fn open_file(
     .map_err(IOErr::CouldntOpenFile(path.to_owned()).attach())
 }
 
+/// [`tokio::fs::File::set_len`]
+pub async fn set_file_len(file: &fs::File, size: u64) -> Result<(), FilesystemError> {
+  file
+    .set_len(size)
+    .await
+    .map_err(IOErr::SetFileLength(size).attach())
+}
+
 /// Make the provided path executable (on Unix targets)
 ///
 /// # Errors

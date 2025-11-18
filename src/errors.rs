@@ -98,6 +98,9 @@ pub enum FilesystemIOErrorKind {
   #[error("Couldn't open the file: \"{0}\"")]
   CouldntOpenFile(PathBuf),
 
+  #[error("Couldn't set file length to: {0}")]
+  SetFileLength(u64),
+
   #[error("Couldn't fill an async buffer!")]
   CouldntFillAsyncBuffer,
 
