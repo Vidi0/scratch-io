@@ -5,6 +5,7 @@ mod game_files;
 mod heuristics;
 pub mod itch_api;
 pub mod itch_manifest;
+mod network;
 
 pub use crate::itch_api::ItchClient;
 use crate::itch_api::{types::*, *};
@@ -155,7 +156,7 @@ async fn stream_response_into_file(
 
   // Save chunks to the file async
   // Also, compute the md5 hash while it is being downloaded
-  while let Some(chunk) = filesystem::next_chunk(&mut stream).await? {
+  while let Some(chunk) = network::next_chunk(&mut stream).await? {
     // Write the chunk to the file
     filesystem::write_all(file, &chunk).await?;
 

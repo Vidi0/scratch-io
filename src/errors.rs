@@ -17,17 +17,6 @@ pub enum FilesystemError {
   },
 
   #[error(
-    "A network error occured!
-{kind}
-{error}"
-  )]
-  NetworkError {
-    kind: NetworkErrorKind,
-    #[source]
-    error: reqwest::Error,
-  },
-
-  #[error(
     "A filesystem error occured!
 {0}"
   )]
@@ -116,19 +105,6 @@ impl FilesystemIOErrorKind {
 }
 
 #[derive(Error, Debug)]
-pub enum NetworkErrorKind {
-  #[error("Couldn't read chunk from network!")]
-  CouldntReadChunk,
-}
-
-impl NetworkErrorKind {
-  /// Returns a closure that attaches this [`NetworkErrorKind`] to a [`reqwest::Error`] and returns a [`FilesystemError`]
-  pub fn attach(self) -> impl FnOnce(reqwest::Error) -> FilesystemError {
-    move |error| FilesystemError::NetworkError { kind: self, error }
-  }
-}
-
-#[derive(Error, Debug)]
 pub enum OtherFilesystemErrorKind {
   #[error("The path contains invalid unicode: \"{}\"", .0.to_string_lossy())]
   InvalidUnicodeOsStr(std::ffi::OsString),
@@ -159,5 +135,55 @@ impl OtherFilesystemErrorKind {
   /// Returns a closure that moves this [`OtherFilesystemErrorKind`] into a [`FilesystemError`]
   pub fn attach(self) -> impl FnOnce() -> FilesystemError {
     move || FilesystemError::OtherError(self)
+  }
+}
+
+// TODO: This is temporary while more custom errors aren't implemented
+impl From<NetworkError> for String {
+  fn from(value: NetworkError) -> Self {
+    value.to_string()
+  }
+}
+
+#[derive(Error, Debug)]
+pub enum NetworkError {
+  #[error(
+    "A network error occured!
+{kind}
+{error}"
+  )]
+  NetworkError {
+    kind: NetworkErrorKind,
+    #[source]
+    error: reqwest::Error,
+  },
+
+  #[error(
+    "A network error occured!
+{0}"
+  )]
+  OtherNetworkError(#[from] OtherNetworkErrorKind),
+}
+
+#[derive(Error, Debug)]
+pub enum NetworkErrorKind {
+  #[error("Couldn't read chunk from network!")]
+  CouldntReadChunk,
+}
+
+impl NetworkErrorKind {
+  /// Returns a closure that attaches this [`NetworkErrorKind`] to a [`reqwest::Error`] and returns a [`NetworkError`]
+  pub fn attach(self) -> impl FnOnce(reqwest::Error) -> NetworkError {
+    move |error| NetworkError::NetworkError { kind: self, error }
+  }
+}
+
+#[derive(Error, Debug)]
+pub enum OtherNetworkErrorKind {}
+
+impl OtherNetworkErrorKind {
+  /// Returns a closure that attaches this [`OtherNetworkErrorKind`] into a [`NetworkError`]
+  pub fn attach(self) -> impl FnOnce() -> NetworkError {
+    move || NetworkError::OtherNetworkError(self)
   }
 }
