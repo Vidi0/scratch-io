@@ -1,4 +1,4 @@
-use crate::errors::{NetworkError, NetworkErrorKind as NetErr};
+use crate::errors::{NetworkError, NetworkErrorKind as NetErr, OtherNetworkErrorKind as OtherErr};
 
 /// [`futures_util::stream::StreamExt::next`]
 pub async fn next_chunk<T>(
@@ -10,4 +10,14 @@ pub async fn next_chunk<T>(
     None => Ok(None),
     Some(result) => result.map(Some).map_err(NetErr::CouldntReadChunk.attach()),
   }
+}
+
+/// [`reqwest::Response::content_length`]
+pub fn get_content_length(response: &reqwest::Response, url: &str) -> Result<u64, NetworkError> {
+  response.content_length().ok_or_else(
+    OtherErr::CouldntGetContentLength {
+      url: url.to_owned(),
+    }
+    .attach(),
+  )
 }

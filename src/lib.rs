@@ -241,9 +241,7 @@ async fn download_file(
       .await
       .map_err(|e| e.to_string())?;
 
-    let download_size = res.content_length().ok_or_else(|| {
-      format!("Couldn't get the Content Length of the file to download!\n{res:?}")
-    })?;
+    let download_size = network::get_content_length(&res, url.as_str())?;
 
     file_size_callback(download_size);
 
@@ -276,10 +274,15 @@ async fn download_file(
 
         // Any code other than 200 or 206 means that something went wrong
         _ => {
-          return Err(format!(
-            "The HTTP server to download the file from didn't return HTTP code 200 nor 206, so exiting! It returned: {}\n{part_res:?}",
-            part_res.status().as_u16()
-          ));
+          return Err(
+            errors::NetworkError::OtherNetworkError(
+              errors::OtherNetworkErrorKind::ErrorHTTPCodeRange {
+                url: url.to_string(),
+                code: part_res.status().as_u16(),
+              },
+            )
+            .into(),
+          );
         }
       }
     }

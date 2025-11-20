@@ -179,7 +179,21 @@ impl NetworkErrorKind {
 }
 
 #[derive(Error, Debug)]
-pub enum OtherNetworkErrorKind {}
+pub enum OtherNetworkErrorKind {
+  #[error(
+    "Couldn't get content length!
+  URL: {url}
+  "
+  )]
+  CouldntGetContentLength { url: String },
+
+  #[error(
+    "The HTTP server to download the file from didn't return HTTP code 200 nor 206, so exiting!
+  It returned code: {code}
+  URL: {url}"
+  )]
+  ErrorHTTPCodeRange { url: String, code: u16 },
+}
 
 impl OtherNetworkErrorKind {
   /// Returns a closure that attaches this [`OtherNetworkErrorKind`] into a [`NetworkError`]
