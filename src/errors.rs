@@ -98,6 +98,12 @@ pub enum FilesystemIOErrorKind {
 
   #[error("Couldn't write a buffer to an async writer!")]
   CouldntWriteBuffer,
+
+  #[error("Couldn't spawn the child process!")]
+  CouldnSpawnProcess,
+
+  #[error("Error while awaiting for child exit!")]
+  CouldntWaitForChild,
 }
 
 impl FilesystemIOErrorKind {

@@ -891,21 +891,8 @@ pub async fn launch(
 
   launch_start_callback(&upload_executable, &game_process);
 
-  let mut child = game_process.spawn().map_err(|e| {
-    // Error code 8: Exec format error
-    if let Some(8) = e.raw_os_error() {
-      "Couldn't spawn the child process because it is not an executable format for this OS\n\
-          Maybe a wrapper is missing or the selected game executable isn't the correct one!"
-        .to_string()
-    } else {
-      format!("Couldn't spawn the child process: {e}")
-    }
-  })?;
-
-  child
-    .wait()
-    .await
-    .map_err(|e| format!("Error while awaiting for child exit!: {e}"))?;
+  let mut child = filesystem::spawn_command(&mut game_process)?;
+  filesystem::wait_child(&mut child).await?;
 
   Ok(())
 }

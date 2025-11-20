@@ -298,3 +298,20 @@ pub async fn write_all(
     .await
     .map_err(IOErr::CouldntWriteBuffer.attach())
 }
+
+/// [`tokio::process::Command::spawn`]
+pub fn spawn_command(
+  command: &mut tokio::process::Command,
+) -> Result<tokio::process::Child, FilesystemError> {
+  command.spawn().map_err(IOErr::CouldnSpawnProcess.attach())
+}
+
+/// [`tokio::process::Child::wait`]
+pub async fn wait_child(
+  child: &mut tokio::process::Child,
+) -> Result<std::process::ExitStatus, FilesystemError> {
+  child
+    .wait()
+    .await
+    .map_err(IOErr::CouldntWaitForChild.attach())
+}
