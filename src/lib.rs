@@ -331,7 +331,7 @@ async fn download_file(
   }
 
   // Sync the file to ensure all the data has been written
-  file.sync_all().await.map_err(|e| e.to_string())?;
+  filesystem::file_sync_all(&file).await?;
 
   // Move the downloaded file to its final destination
   // This has to be the last call in this function because after it, the File is not longer valid

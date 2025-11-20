@@ -90,6 +90,9 @@ pub enum FilesystemIOErrorKind {
   #[error("Couldn't set file length to: {0}")]
   SetFileLength(u64),
 
+  #[error("Couldn't sync file data to disk!")]
+  SyncFile,
+
   #[error("Couldn't fill an async buffer!")]
   CouldntFillAsyncBuffer,
 

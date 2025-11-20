@@ -244,6 +244,11 @@ pub async fn set_file_len(file: &fs::File, size: u64) -> Result<(), FilesystemEr
     .map_err(IOErr::SetFileLength(size).attach())
 }
 
+/// [`tokio::fs::File::sync_all`]
+pub async fn file_sync_all(file: &fs::File) -> Result<(), FilesystemError> {
+  file.sync_all().await.map_err(IOErr::SyncFile.attach())
+}
+
 /// Make the provided path executable (on Unix targets)
 ///
 /// # Errors
