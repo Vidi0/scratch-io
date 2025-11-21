@@ -11,6 +11,10 @@ const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
 /// Read a protobuf varint (variable-width integers) and consume its bytes
 ///
 /// <https://protobuf.dev/programming-guides/encoding/#varints>
+/// 
+/// # Errors
+/// 
+/// If the read operation from the buffer fails, an unexpected EOF is encountered, or the varint is invalid
 fn read_varint(reader: &mut impl BufRead) -> Result<usize, String> {
   // A protobuf varint must be 10 bytes or less
   let mut varint: Vec<u8> = Vec::with_capacity(10);
@@ -21,6 +25,7 @@ fn read_varint(reader: &mut impl BufRead) -> Result<usize, String> {
       .fill_buf()
       .map_err(|e| format!("Couldn't read from reader into buffer!\n{e}"))?;
 
+    // Read one byte
     if chunk.is_empty() {
       return Err("Unexpected EOF while reading varint".to_string());
     }
@@ -35,6 +40,7 @@ fn read_varint(reader: &mut impl BufRead) -> Result<usize, String> {
     }
   }
 
+  // Decode the varint
   prost::decode_length_delimiter(&varint[..])
     .map_err(|e| format!("Couldn't decode the signature header length delimiter!\n{e}"))
 }
