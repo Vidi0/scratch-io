@@ -5,7 +5,6 @@ mod game_files;
 mod heuristics;
 pub mod itch_api;
 pub mod itch_manifest;
-mod network;
 
 pub use crate::itch_api::ItchClient;
 use crate::itch_api::{types::*, *};
@@ -154,9 +153,16 @@ async fn stream_response_into_file(
   let mut stream = response.bytes_stream();
   let mut last_callback = Instant::now();
 
+  use futures_util::StreamExt;
+
   // Save chunks to the file async
   // Also, compute the md5 hash while it is being downloaded
-  while let Some(chunk) = network::next_chunk(&mut stream).await? {
+  while let Some(chunk) = match stream.next().await {
+    None => Ok(None),
+    Some(result) => result
+      .map(Some)
+      .map_err(|e| format!("Couldn't read chunk from network!\n{e}")),
+  }? {
     // Write the chunk to the file
     filesystem::write_all(file, &chunk).await?;
 
@@ -241,7 +247,12 @@ async fn download_file(
       .await
       .map_err(|e| e.to_string())?;
 
-    let download_size = network::get_content_length(&res, url.as_str())?;
+    let download_size = res.content_length().ok_or_else(|| {
+      format!(
+        "Couldn't get content length!
+  URL: {url}"
+      )
+    })?;
 
     file_size_callback(download_size);
 
@@ -274,15 +285,10 @@ async fn download_file(
 
         // Any code other than 200 or 206 means that something went wrong
         _ => {
-          return Err(
-            errors::NetworkError::OtherNetworkError(
-              errors::OtherNetworkErrorKind::ErrorHTTPCodeRange {
-                url: url.to_string(),
-                code: part_res.status().as_u16(),
-              },
-            )
-            .into(),
-          );
+          return Err(format!(
+            "The HTTP server to download the file from didn't return HTTP code 200 nor 206, so exiting!
+  It returned code: {}
+  URL: {url}", part_res.status().as_str()));
         }
       }
     }
