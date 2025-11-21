@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package io.itch.wharf.pwr;
+option go_package = "pwr";
+
+// Patch file format
+
+message PatchHeader {
+  CompressionSettings compression = 1;
+}
+
+message SyncHeader {
+  enum Type {
+    RSYNC = 0;
+    // when set, bsdiffTargetIndex must be set
+    BSDIFF = 1;
+  }
+
+  Type type = 1;
+  int64 fileIndex = 16;
+}
+
+message BsdiffHeader {
+  int64 targetIndex = 1;
+}
+
+message SyncOp {
+  enum Type {
+    BLOCK_RANGE = 0;
+    DATA = 1;
+    HEY_YOU_DID_IT = 2049; // <3 @GranPC & @tomasduda
+  }
+  Type type = 1;
+
+  int64 fileIndex = 2;
+  int64 blockIndex = 3;
+  int64 blockSpan = 4;
+  bytes data = 5;
+}
+
+// Signature file format
+
+message SignatureHeader {
+  CompressionSettings compression = 1;
+}
+
+message BlockHash {
+  uint32 weakHash = 1;
+  bytes strongHash = 2;
+}
+
+// Compression
+
+enum CompressionAlgorithm {
+  NONE = 0;
+  BROTLI = 1;
+  GZIP = 2;
+  ZSTD = 3;
+}
+
+message CompressionSettings {
+  CompressionAlgorithm algorithm = 1;
+  int32 quality = 2;
+}
+
+// Manifest file format
+
+message ManifestHeader {
+  CompressionSettings compression = 1;
+  HashAlgorithm algorithm = 2;
+}
+
+enum HashAlgorithm {
+  SHAKE128_32 = 0;
+  CRC32C = 1;
+}
+
+message ManifestBlockHash {
+  bytes hash = 1;
+}
+
+// Wounds files format: header, container, then any
+// number of Wounds
+message WoundsHeader {}
+
+enum WoundKind {
+  FILE = 0;
+  SYMLINK = 1;
+  DIR = 2;
+  
+  // sent when a file portion has been verified as valid
+  CLOSED_FILE = 3;
+}
+
+// Describe a corrupted portion of a file, in [start,end)
+message Wound {
+  int64 index = 1;
+  int64 start = 2;
+  int64 end = 3;
+  WoundKind kind = 4;
+}
