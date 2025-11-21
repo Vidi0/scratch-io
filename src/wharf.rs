@@ -48,9 +48,7 @@ pub fn read_signature(reader: &mut impl BufRead) -> Result<(), String> {
 
   let magic = u32::from_le_bytes(magic_bytes);
   if magic != SIGNATURE_MAGIC {
-    return Err(format!(
-      "The magic bytes don't match! The signature is corrupted!"
-    ));
+    return Err("The magic bytes don't match! The signature is corrupted!".to_string());
   }
 
   // Decore the SignatureHeader
