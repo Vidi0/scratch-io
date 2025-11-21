@@ -11,9 +11,9 @@ const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
 /// Read a protobuf varint (variable-width integers) and consume its bytes
 ///
 /// <https://protobuf.dev/programming-guides/encoding/#varints>
-/// 
+///
 /// # Errors
-/// 
+///
 /// If the read operation from the buffer fails, an unexpected EOF is encountered, or the varint is invalid
 fn read_varint(reader: &mut impl BufRead) -> Result<usize, String> {
   // A protobuf varint must be 10 bytes or less
