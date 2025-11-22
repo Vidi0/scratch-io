@@ -48,7 +48,7 @@ fn read_varint(reader: &mut impl BufRead) -> Result<usize, String> {
       .map_err(|e| format!("Couldn't read from reader into buffer!\n{e}"))?;
 
     // Read one byte
-    let Some(byte) = chunk.get(0).copied() else {
+    let Some(byte) = chunk.first().copied() else {
       return Err("Unexpected EOF while reading varint".to_string());
     };
 
