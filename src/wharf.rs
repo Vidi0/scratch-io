@@ -16,7 +16,7 @@ const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
 /// If the bytes couldn't be read from the reader or the magic bytes don't match
 fn check_magic_bytes(reader: &mut impl Read, expected_magic: u32) -> Result<(), String> {
   // Read the magic bytes
-  let mut magic_bytes = [0u8; 4];
+  let mut magic_bytes = [0u8; _];
   reader
     .read_exact(&mut magic_bytes)
     .map_err(|e| format!("Couldn't read magic bytes!\n{e}"))?;
