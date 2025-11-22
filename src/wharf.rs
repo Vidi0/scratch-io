@@ -197,6 +197,7 @@ fn decompress_stream(
   }
 }
 
+/// <https://docs.itch.ovh/wharf/master/file-formats/signatures.html>
 pub fn read_signature(reader: &mut impl BufRead) -> Result<(), String> {
   // Check the magic bytes
   check_magic_bytes(reader, SIGNATURE_MAGIC)?;
@@ -213,10 +214,10 @@ pub fn read_signature(reader: &mut impl BufRead) -> Result<(), String> {
   let mut decompressed = decompress_stream(reader, compression_algorithm)?;
 
   // Decode the container
-  let _container = decode_protobuf::<tlc::Container>(&mut decompressed)?;
+  let _new_container = decode_protobuf::<tlc::Container>(&mut decompressed)?;
 
   // Decode the hashes
-  let _hash_iter = decode_protobuf_stream::<pwr::BlockHash>(&mut decompressed);
+  let _block_hash_iter = decode_protobuf_stream::<pwr::BlockHash>(&mut decompressed);
 
   Ok(())
 }
