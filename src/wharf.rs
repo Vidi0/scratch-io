@@ -9,7 +9,7 @@ use std::io::{BufRead, Read};
 const PATCH_MAGIC: u32 = 0x0FEF5F00;
 const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
 
-/// Iterator over independent, sequential length-delimited protobuf messages in a `BufRead` stream
+/// Iterator over independent, sequential length-delimited Protobuf messages in a `BufRead` stream
 ///
 /// Each message is of the same type, independent and follows directly after the previous one in the stream.
 /// The messages are read and decoded one by one, without loading the entire stream into memory.
@@ -33,7 +33,7 @@ where
       // If there isn't any data remaining, return None
       Ok([]) => None,
 
-      // If there is data remaining, return the decoded protobuf message
+      // If there is data remaining, return the decoded Protobuf message
       Ok(_) => Some(decode_protobuf::<T>(&mut self.reader)),
     }
   }
@@ -60,7 +60,7 @@ fn check_magic_bytes(reader: &mut impl Read, expected_magic: u32) -> Result<(), 
   }
 }
 
-/// Read a protobuf varint (variable-width integers) and consume its bytes
+/// Read a Protobuf varint (variable-width integers) and consume its bytes
 ///
 /// <https://protobuf.dev/programming-guides/encoding/#varints>
 ///
@@ -68,7 +68,7 @@ fn check_magic_bytes(reader: &mut impl Read, expected_magic: u32) -> Result<(), 
 ///
 /// If the read operation from the buffer fails, an unexpected EOF is encountered, or the varint is invalid
 fn read_varint(reader: &mut impl BufRead) -> Result<usize, String> {
-  // A protobuf varint must be 10 bytes or less
+  // A Protobuf varint must be 10 bytes or less
   let mut varint: Vec<u8> = Vec::with_capacity(10);
 
   loop {
@@ -96,17 +96,17 @@ fn read_varint(reader: &mut impl BufRead) -> Result<usize, String> {
     .map_err(|e| format!("Couldn't decode the signature header length delimiter!\n{e}"))
 }
 
-/// Decode a length-delimited protobuf message
+/// Decode a length-delimited Protobuf message
 ///
 /// Advance the reader to the end of the message
 ///
 /// # Returns
 ///
-/// The deserialized protobuf message
+/// The deserialized Protobuf message
 ///
 /// # Errors
 ///
-/// If the reader could not be read, or if the protobuf message is invalid
+/// If the reader could not be read, or if the Protobuf message is invalid
 fn decode_protobuf<T: prost::Message + Default>(reader: &mut impl BufRead) -> Result<T, String> {
   let length = read_varint(reader)?;
 
@@ -115,7 +115,7 @@ fn decode_protobuf<T: prost::Message + Default>(reader: &mut impl BufRead) -> Re
     .read_exact(&mut bytes)
     .map_err(|e| format!("Couldn't read from reader into buffer!\n{e}"))?;
 
-  T::decode(bytes.as_slice()).map_err(|e| format!("Couldn't decode protobuf message!\n{e}"))
+  T::decode(bytes.as_slice()).map_err(|e| format!("Couldn't decode Protobuf message!\n{e}"))
 }
 
 /// Create an iterator over all remaining length-delimited Protobuf messages from a `BufRead` stream
