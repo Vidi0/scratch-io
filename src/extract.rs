@@ -159,7 +159,7 @@ fn extract_tar_gz(file: &File, folder: &Path) -> Result<(), String> {
   #[cfg(not(all(feature = "gzip", feature = "tar")))]
   {
     Err(format!(
-      "This binary was built without gzip or TAR support. Recompile with `--features gzip` to be able to extract this archive"
+      r#"This binary was built without gzip or TAR support. Recompile with `--features "gzip tar"` to be able to extract this archive"#
     ))
   }
 }
@@ -178,7 +178,7 @@ fn extract_tar_bz2(file: &File, folder: &Path) -> Result<(), String> {
   #[cfg(not(all(feature = "bzip2", feature = "tar")))]
   {
     Err(format!(
-      "This binary was built without bzip2 or TAR support. Recompile with `--features bzip2` to be able to extract this archive"
+      r#"This binary was built without bzip2 or TAR support. Recompile with `--features "bzip2 tar"` to be able to extract this archive"#
     ))
   }
 }
@@ -197,7 +197,7 @@ fn extract_tar_xz(file: &File, folder: &Path) -> Result<(), String> {
   #[cfg(not(all(feature = "xz", feature = "tar")))]
   {
     Err(format!(
-      "This binary was built without XZ or TAR support. Recompile with `--features xz` to be able to extract this archive"
+      r#"This binary was built without XZ or TAR support. Recompile with `--features "xz tar"` to be able to extract this archive"#
     ))
   }
 }
@@ -217,7 +217,7 @@ fn extract_tar_zst(file: &File, folder: &Path) -> Result<(), String> {
   #[cfg(not(all(feature = "zstd", feature = "tar")))]
   {
     Err(format!(
-      "This binary was built without Zstd or TAR support. Recompile with `--features zstd` to be able to extract this archive"
+      r#"This binary was built without Zstd or TAR support. Recompile with `--features "zstd tar"` to be able to extract this archive"#
     ))
   }
 }
