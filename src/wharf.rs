@@ -39,27 +39,6 @@ where
   }
 }
 
-/// Verify that the next four bytes of the reader match the expected magic number
-///
-/// # Errors
-///
-/// If the bytes couldn't be read from the reader or the magic bytes don't match
-fn check_magic_bytes(reader: &mut impl Read, expected_magic: u32) -> Result<(), String> {
-  // Read the magic bytes
-  let mut magic_bytes = [0u8; _];
-  reader
-    .read_exact(&mut magic_bytes)
-    .map_err(|e| format!("Couldn't read magic bytes!\n{e}"))?;
-
-  // Compare the magic numbers
-  let actual_magic = u32::from_le_bytes(magic_bytes);
-  if actual_magic == expected_magic {
-    Ok(())
-  } else {
-    Err("The magic bytes don't match! The binary file is corrupted!".to_string())
-  }
-}
-
 /// Read a Protobuf length delimiter encoded as a variable-width integer and consume its bytes
 ///
 /// <https://protobuf.dev/programming-guides/encoding/#varints>
@@ -128,6 +107,27 @@ fn decode_protobuf_stream<T: prost::Message + Default>(
   ProtobufMessageIter {
     reader,
     phantom: std::marker::PhantomData,
+  }
+}
+
+/// Verify that the next four bytes of the reader match the expected magic number
+///
+/// # Errors
+///
+/// If the bytes couldn't be read from the reader or the magic bytes don't match
+fn check_magic_bytes(reader: &mut impl Read, expected_magic: u32) -> Result<(), String> {
+  // Read the magic bytes
+  let mut magic_bytes = [0u8; _];
+  reader
+    .read_exact(&mut magic_bytes)
+    .map_err(|e| format!("Couldn't read magic bytes!\n{e}"))?;
+
+  // Compare the magic numbers
+  let actual_magic = u32::from_le_bytes(magic_bytes);
+  if actual_magic == expected_magic {
+    Ok(())
+  } else {
+    Err("The magic bytes don't match! The binary file is corrupted!".to_string())
   }
 }
 
