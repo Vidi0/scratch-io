@@ -60,14 +60,14 @@ fn check_magic_bytes(reader: &mut impl Read, expected_magic: u32) -> Result<(), 
   }
 }
 
-/// Read a Protobuf varint (variable-width integers) and consume its bytes
+/// Read a Protobuf length delimiter encoded as a variable-width integer and consume its bytes
 ///
 /// <https://protobuf.dev/programming-guides/encoding/#varints>
 ///
 /// # Errors
 ///
-/// If the read operation from the buffer fails, an unexpected EOF is encountered, or the varint is invalid
-fn read_varint(reader: &mut impl BufRead) -> Result<usize, String> {
+/// If the read operation from the buffer fails, an unexpected EOF is encountered, or the length delimiter is invalid
+fn read_length_delimiter(reader: &mut impl BufRead) -> Result<usize, String> {
   // A Protobuf varint must be 10 bytes or less
   let mut varint: Vec<u8> = Vec::with_capacity(10);
 
@@ -108,7 +108,7 @@ fn read_varint(reader: &mut impl BufRead) -> Result<usize, String> {
 ///
 /// If the reader could not be read, or if the Protobuf message is invalid
 fn decode_protobuf<T: prost::Message + Default>(reader: &mut impl BufRead) -> Result<T, String> {
-  let length = read_varint(reader)?;
+  let length = read_length_delimiter(reader)?;
 
   let mut bytes = vec![0u8; length];
   reader
