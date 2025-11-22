@@ -67,32 +67,28 @@ fn check_magic_bytes(reader: &mut impl Read, expected_magic: u32) -> Result<(), 
 /// # Errors
 ///
 /// If the read operation from the buffer fails, an unexpected EOF is encountered, or the length delimiter is invalid
-fn read_length_delimiter(reader: &mut impl BufRead) -> Result<usize, String> {
+fn read_length_delimiter(reader: &mut impl Read) -> Result<usize, String> {
   // A Protobuf varint must be 10 bytes or less
-  let mut varint: Vec<u8> = Vec::with_capacity(10);
+  let mut varint = [0u8; 10];
 
-  loop {
-    // Get the next chunk
-    let chunk = reader
-      .fill_buf()
+  for current_byte in &mut varint {
+    // Read one byte
+    let mut byte = [0u8; 1];
+    reader
+      .read_exact(&mut byte)
       .map_err(|e| format!("Couldn't read from reader into buffer!\n{e}"))?;
 
-    // Read one byte
-    let Some(byte) = chunk.first().copied() else {
-      return Err("Unexpected EOF while reading varint".to_string());
-    };
-
-    varint.push(byte);
-    reader.consume(1);
+    // Save the byte in the array
+    *current_byte = byte[0];
 
     // The most significant bit indicates whether there are more bytes in the varint
-    if (byte & 0x80) == 0 {
+    if (byte[0] & 0x80) == 0 {
       break;
     }
   }
 
   // Decode the varint
-  prost::decode_length_delimiter(&varint[..])
+  prost::decode_length_delimiter(varint.as_slice())
     .map_err(|e| format!("Couldn't decode the signature header length delimiter!\n{e}"))
 }
 
@@ -107,7 +103,7 @@ fn read_length_delimiter(reader: &mut impl BufRead) -> Result<usize, String> {
 /// # Errors
 ///
 /// If the reader could not be read, or if the Protobuf message is invalid
-fn decode_protobuf<T: prost::Message + Default>(reader: &mut impl BufRead) -> Result<T, String> {
+fn decode_protobuf<T: prost::Message + Default>(reader: &mut impl Read) -> Result<T, String> {
   let length = read_length_delimiter(reader)?;
 
   let mut bytes = vec![0u8; length];
