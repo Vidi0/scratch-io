@@ -145,9 +145,9 @@ fn extract_tar(file: &File, folder: &Path) -> Result<(), String> {
   }
 }
 
-#[cfg_attr(not(feature = "gzip"), allow(unused_variables))]
+#[cfg_attr(not(all(feature = "gzip", feature = "tar")), allow(unused_variables))]
 fn extract_tar_gz(file: &File, folder: &Path) -> Result<(), String> {
-  #[cfg(feature = "gzip")]
+  #[cfg(all(feature = "gzip", feature = "tar"))]
   {
     let gz_decoder = flate2::read::GzDecoder::new(file);
     let mut tar_decoder = tar::Archive::new(gz_decoder);
@@ -156,17 +156,17 @@ fn extract_tar_gz(file: &File, folder: &Path) -> Result<(), String> {
       .map_err(|e| format!("Error extracting tar.gz archive: {e}"))
   }
 
-  #[cfg(not(feature = "gzip"))]
+  #[cfg(not(all(feature = "gzip", feature = "tar")))]
   {
     Err(format!(
-      "This binary was built without gzip support. Recompile with `--features gzip` to be able to extract this archive"
+      "This binary was built without gzip or TAR support. Recompile with `--features gzip` to be able to extract this archive"
     ))
   }
 }
 
-#[cfg_attr(not(feature = "bzip2"), allow(unused_variables))]
+#[cfg_attr(not(all(feature = "bzip2", feature = "tar")), allow(unused_variables))]
 fn extract_tar_bz2(file: &File, folder: &Path) -> Result<(), String> {
-  #[cfg(feature = "bzip2")]
+  #[cfg(all(feature = "bzip2", feature = "tar"))]
   {
     let bz2_decoder = bzip2::read::BzDecoder::new(file);
     let mut tar_decoder = tar::Archive::new(bz2_decoder);
@@ -175,17 +175,17 @@ fn extract_tar_bz2(file: &File, folder: &Path) -> Result<(), String> {
       .map_err(|e| format!("Error extracting tar.gz archive: {e}"))
   }
 
-  #[cfg(not(feature = "bzip2"))]
+  #[cfg(not(all(feature = "bzip2", feature = "tar")))]
   {
     Err(format!(
-      "This binary was built without bzip2 support. Recompile with `--features bzip2` to be able to extract this archive"
+      "This binary was built without bzip2 or TAR support. Recompile with `--features bzip2` to be able to extract this archive"
     ))
   }
 }
 
-#[cfg_attr(not(feature = "xz"), allow(unused_variables))]
+#[cfg_attr(not(all(feature = "xz", feature = "tar")), allow(unused_variables))]
 fn extract_tar_xz(file: &File, folder: &Path) -> Result<(), String> {
-  #[cfg(feature = "xz")]
+  #[cfg(all(feature = "xz", feature = "tar"))]
   {
     let xz_decoder = liblzma::read::XzDecoder::new(file);
     let mut tar_decoder = tar::Archive::new(xz_decoder);
@@ -194,17 +194,17 @@ fn extract_tar_xz(file: &File, folder: &Path) -> Result<(), String> {
       .map_err(|e| format!("Error extracting tar.xz archive: {e}"))
   }
 
-  #[cfg(not(feature = "xz"))]
+  #[cfg(not(all(feature = "xz", feature = "tar")))]
   {
     Err(format!(
-      "This binary was built without XZ support. Recompile with `--features xz` to be able to extract this archive"
+      "This binary was built without XZ or TAR support. Recompile with `--features xz` to be able to extract this archive"
     ))
   }
 }
 
-#[cfg_attr(not(feature = "zstd"), allow(unused_variables))]
+#[cfg_attr(not(all(feature = "zstd", feature = "tar")), allow(unused_variables))]
 fn extract_tar_zst(file: &File, folder: &Path) -> Result<(), String> {
-  #[cfg(feature = "zstd")]
+  #[cfg(all(feature = "zstd", feature = "tar"))]
   {
     let zstd_decoder =
       zstd::Decoder::new(file).map_err(|e| format!("Error reading tar.zst archive: {e}"))?;
@@ -214,10 +214,10 @@ fn extract_tar_zst(file: &File, folder: &Path) -> Result<(), String> {
       .map_err(|e| format!("Error extracting tar.zst archive: {e}"))
   }
 
-  #[cfg(not(feature = "zstd"))]
+  #[cfg(not(all(feature = "zstd", feature = "tar")))]
   {
     Err(format!(
-      "This binary was built without Zstd support. Recompile with `--features zstd` to be able to extract this archive"
+      "This binary was built without Zstd or TAR support. Recompile with `--features zstd` to be able to extract this archive"
     ))
   }
 }
