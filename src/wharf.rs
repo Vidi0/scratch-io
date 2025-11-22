@@ -221,3 +221,29 @@ pub fn read_signature(reader: &mut impl BufRead) -> Result<(), String> {
 
   Ok(())
 }
+
+/// <https://docs.itch.ovh/wharf/master/file-formats/patches.html>
+pub fn read_patch(reader: &mut impl BufRead) -> Result<(), String> {
+  // Check the magic bytes
+  check_magic_bytes(reader, PATCH_MAGIC)?;
+
+  // Decode the PatchHeader
+  let patch_header = decode_protobuf::<pwr::PatchHeader>(reader)?;
+
+  // Decompress the remaining stream
+  let compression_algorithm = patch_header
+    .compression
+    .ok_or("Missing compressing field in Patch Header!")?
+    .algorithm();
+
+  let mut decompressed = decompress_stream(reader, compression_algorithm)?;
+
+  // Decode the containers
+  let _old_container = decode_protobuf::<tlc::Container>(&mut decompressed)?;
+  let _new_container = decode_protobuf::<tlc::Container>(&mut decompressed)?;
+
+  // Decode the sync operations
+  let _sync_op_iter = decode_protobuf_stream::<pwr::SyncOp>(&mut decompressed);
+
+  Ok(())
+}
