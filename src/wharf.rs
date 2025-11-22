@@ -9,6 +9,36 @@ use std::io::{BufRead, Read};
 const PATCH_MAGIC: u32 = 0x0FEF5F00;
 const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
 
+/// Iterator over independent, sequential length-delimited protobuf messages in a `BufRead` stream
+///
+/// Each message is of the same type, independent and follows directly after the previous one in the stream.
+/// The messages are read and decoded one by one, without loading the entire stream into memory.
+struct ProtobufMessageIter<'a, R, T> {
+  reader: &'a mut R,
+  phantom: std::marker::PhantomData<T>,
+}
+
+impl<'a, R, T> Iterator for ProtobufMessageIter<'a, R, T>
+where
+  R: BufRead,
+  T: prost::Message + Default,
+{
+  type Item = Result<T, String>;
+
+  fn next(&mut self) -> Option<Self::Item> {
+    match self.reader.fill_buf() {
+      // If it couldn't read from the stream, return an error
+      Err(e) => Some(Err(format!("Couldn't read from reader into buffer!\n{e}"))),
+
+      // If there isn't any data remaining, return None
+      Ok([]) => None,
+
+      // If there is data remaining, return the decoded protobuf message
+      Ok(_) => Some(decode_protobuf::<T>(&mut self.reader)),
+    }
+  }
+}
+
 /// Verify that the next four bytes of the reader match the expected magic number
 ///
 /// # Errors
@@ -86,6 +116,23 @@ fn decode_protobuf<T: prost::Message + Default>(reader: &mut impl BufRead) -> Re
     .map_err(|e| format!("Couldn't read from reader into buffer!\n{e}"))?;
 
   T::decode(bytes.as_slice()).map_err(|e| format!("Couldn't decode protobuf message!\n{e}"))
+}
+
+/// Create an iterator over all remaining length-delimited Protobuf messages from a `BufRead` stream
+///
+/// Each message is decoded independently and sequentially. The reader is advanced
+/// as each message is read, without loading the entire stream into memory.
+///
+/// # Returns
+///
+/// An iterator that yields `Result<T, String>` for each decoded Protobuf message.
+fn decode_protobuf_stream<T: prost::Message + Default>(
+  reader: &'_ mut impl BufRead,
+) -> ProtobufMessageIter<'_, impl BufRead, T> {
+  ProtobufMessageIter {
+    reader,
+    phantom: std::marker::PhantomData,
+  }
 }
 
 /// Decompress a stream using the specified decompression algorithm
@@ -171,6 +218,9 @@ pub fn read_signature(reader: &mut impl BufRead) -> Result<(), String> {
 
   // Decode the container
   let _container = decode_protobuf::<tlc::Container>(&mut decompressed)?;
+
+  // Decode the hashes
+  let _hash_iter = decode_protobuf_stream::<pwr::BlockHash>(&mut decompressed);
 
   Ok(())
 }
