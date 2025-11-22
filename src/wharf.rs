@@ -158,7 +158,7 @@ pub fn read_signature(reader: &mut impl BufRead) -> Result<(), String> {
   // Check the magic bytes
   check_magic_bytes(reader, SIGNATURE_MAGIC)?;
 
-  // Decore the SignatureHeader
+  // Decode the SignatureHeader
   let signature_header = decode_protobuf::<pwr::SignatureHeader>(reader)?;
 
   // Decompress the remaining stream
