@@ -9,6 +9,7 @@ use std::io::{BufRead, Read};
 const PATCH_MAGIC: u32 = 0x0FEF5F00;
 const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
 
+// https://protobuf.dev/programming-guides/encoding/#varints
 const PROTOBUF_VARINT_MAX_LENGTH: usize = 10;
 
 /// Iterator over independent, sequential length-delimited Protobuf messages in a `BufRead` stream
@@ -42,6 +43,8 @@ where
 }
 
 /// Read a Protobuf length delimiter encoded as a variable-width integer and consume its bytes
+///
+/// <https://protobuf.dev/programming-guides/encoding/#length-types>
 ///
 /// <https://protobuf.dev/programming-guides/encoding/#varints>
 ///
