@@ -173,7 +173,7 @@ fn decompress_stream(
       #[cfg(feature = "gzip")]
       {
         Ok(Box::new(std::io::BufReader::new(
-          flate2::read::GzDecoder::new(reader),
+          flate2::bufread::GzDecoder::new(reader),
         )))
       }
 
