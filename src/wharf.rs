@@ -188,7 +188,8 @@ fn decompress_stream(
       #[cfg(feature = "zstd")]
       {
         Ok(Box::new(std::io::BufReader::new(
-          zstd::Decoder::new(reader).map_err(|e| format!("Couldn't create zstd decoder!\n{e}"))?,
+          zstd::Decoder::with_buffer(reader)
+            .map_err(|e| format!("Couldn't create zstd decoder!\n{e}"))?,
         )))
       }
 
