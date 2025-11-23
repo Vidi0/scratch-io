@@ -9,6 +9,8 @@ use std::io::{BufRead, Read};
 const PATCH_MAGIC: u32 = 0x0FEF5F00;
 const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
 
+const PROTOBUF_VARINT_MAX_LENGTH: usize = 10;
+
 /// Iterator over independent, sequential length-delimited Protobuf messages in a `BufRead` stream
 ///
 /// Each message is of the same type, independent and follows directly after the previous one in the stream.
@@ -48,7 +50,7 @@ where
 /// If the read operation from the buffer fails, an unexpected EOF is encountered, or the length delimiter is invalid
 fn read_length_delimiter(reader: &mut impl Read) -> Result<usize, String> {
   // A Protobuf varint must be 10 bytes or less
-  let mut varint = [0u8; 10];
+  let mut varint = [0u8; PROTOBUF_VARINT_MAX_LENGTH];
 
   for current_byte in &mut varint {
     // Read one byte
