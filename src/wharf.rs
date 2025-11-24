@@ -11,7 +11,7 @@ const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
 const PROTOBUF_VARINT_MAX_LENGTH: usize = 10;
 
 /// Represents a decoded wharf signature file
-/// 
+///
 /// <https://docs.itch.ovh/wharf/master/file-formats/signatures.html>
 ///
 /// Contains the header, the container describing the files/dirs/symlinks,
@@ -24,7 +24,7 @@ pub struct Signature<R> {
 }
 
 /// Represents a decoded wharf patch file
-/// 
+///
 /// <https://docs.itch.ovh/wharf/master/file-formats/patches.html>
 ///
 /// Contains the header, the old and new containers describing file system
