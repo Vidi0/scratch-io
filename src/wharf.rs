@@ -16,12 +16,12 @@ const PROTOBUF_VARINT_MAX_LENGTH: usize = 10;
 ///
 /// Each message is of the same type, independent and follows directly after the previous one in the stream.
 /// The messages are read and decoded one by one, without loading the entire stream into memory.
-struct ProtobufMessageIter<'a, R, T> {
-  reader: &'a mut R,
+struct ProtobufMessageIter<R, T> {
+  reader: R,
   phantom: std::marker::PhantomData<T>,
 }
 
-impl<'a, R, T> Iterator for ProtobufMessageIter<'a, R, T>
+impl<R, T> Iterator for ProtobufMessageIter<R, T>
 where
   R: BufRead,
   T: prost::Message + Default,
@@ -107,8 +107,8 @@ fn decode_protobuf<T: prost::Message + Default>(reader: &mut impl Read) -> Resul
 ///
 /// An iterator that yields `Result<T, String>` for each decoded Protobuf message.
 fn decode_protobuf_stream<T: prost::Message + Default>(
-  reader: &'_ mut impl BufRead,
-) -> ProtobufMessageIter<'_, impl BufRead, T> {
+  reader: impl BufRead,
+) -> ProtobufMessageIter<impl BufRead, T> {
   ProtobufMessageIter {
     reader,
     phantom: std::marker::PhantomData,
