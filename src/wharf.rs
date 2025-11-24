@@ -233,7 +233,7 @@ pub fn read_signature(reader: &mut impl BufRead) -> Result<Signature<impl BufRea
   // Check the magic bytes
   check_magic_bytes(reader, SIGNATURE_MAGIC)?;
 
-  // Decode the SignatureHeader
+  // Decode the signature header
   let header = decode_protobuf::<pwr::SignatureHeader>(reader)?;
 
   // Decompress the remaining stream
@@ -262,7 +262,7 @@ pub fn read_patch(reader: &mut impl BufRead) -> Result<Patch<impl BufRead>, Stri
   // Check the magic bytes
   check_magic_bytes(reader, PATCH_MAGIC)?;
 
-  // Decode the PatchHeader
+  // Decode the patch header
   let header = decode_protobuf::<pwr::PatchHeader>(reader)?;
 
   // Decompress the remaining stream
