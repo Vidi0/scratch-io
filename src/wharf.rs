@@ -1,7 +1,5 @@
-#[allow(dead_code)]
-mod pwr;
-#[allow(dead_code)]
-mod tlc;
+pub mod pwr;
+pub mod tlc;
 
 use std::io::{BufRead, Read};
 
@@ -12,11 +10,38 @@ const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
 // https://protobuf.dev/programming-guides/encoding/#varints
 const PROTOBUF_VARINT_MAX_LENGTH: usize = 10;
 
+/// Represents a decoded wharf signature file
+/// 
+/// <https://docs.itch.ovh/wharf/master/file-formats/signatures.html>
+///
+/// Contains the header, the container describing the files/dirs/symlinks,
+/// and an iterator over the signature block hashes. The iterator reads
+/// from the underlying stream on the fly as items are requested.
+pub struct Signature<R> {
+  pub header: pwr::SignatureHeader,
+  pub container_new: tlc::Container,
+  pub block_hash_iter: ProtobufMessageIter<R, pwr::BlockHash>,
+}
+
+/// Represents a decoded wharf patch file
+/// 
+/// <https://docs.itch.ovh/wharf/master/file-formats/patches.html>
+///
+/// Contains the header, the old and new containers describing file system
+/// state before and after the patch, and an iterator over the patch operations.
+/// The iterator reads from the underlying stream on the fly as items are requested.
+pub struct Patch<R> {
+  pub header: pwr::PatchHeader,
+  pub container_old: tlc::Container,
+  pub container_new: tlc::Container,
+  pub sync_op_iter: ProtobufMessageIter<R, pwr::SyncOp>,
+}
+
 /// Iterator over independent, sequential length-delimited Protobuf messages in a `BufRead` stream
 ///
 /// Each message is of the same type, independent and follows directly after the previous one in the stream.
 /// The messages are read and decoded one by one, without loading the entire stream into memory.
-struct ProtobufMessageIter<R, T> {
+pub struct ProtobufMessageIter<R, T> {
   reader: R,
   phantom: std::marker::PhantomData<T>,
 }
@@ -204,7 +229,7 @@ fn decompress_stream(
 }
 
 /// <https://docs.itch.ovh/wharf/master/file-formats/signatures.html>
-pub fn read_signature(reader: &mut impl BufRead) -> Result<(), String> {
+pub fn read_signature(reader: &mut impl BufRead) -> Result<Signature<impl BufRead>, String> {
   // Check the magic bytes
   check_magic_bytes(reader, SIGNATURE_MAGIC)?;
 
@@ -220,16 +245,20 @@ pub fn read_signature(reader: &mut impl BufRead) -> Result<(), String> {
   let mut decompressed = decompress_stream(reader, compression_algorithm)?;
 
   // Decode the container
-  let _container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
+  let container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
 
   // Decode the hashes
-  let _block_hash_iter = decode_protobuf_stream::<pwr::BlockHash>(&mut decompressed);
+  let block_hash_iter = decode_protobuf_stream::<pwr::BlockHash>(decompressed);
 
-  Ok(())
+  Ok(Signature {
+    header,
+    container_new,
+    block_hash_iter,
+  })
 }
 
 /// <https://docs.itch.ovh/wharf/master/file-formats/patches.html>
-pub fn read_patch(reader: &mut impl BufRead) -> Result<(), String> {
+pub fn read_patch(reader: &mut impl BufRead) -> Result<Patch<impl BufRead>, String> {
   // Check the magic bytes
   check_magic_bytes(reader, PATCH_MAGIC)?;
 
@@ -245,11 +274,16 @@ pub fn read_patch(reader: &mut impl BufRead) -> Result<(), String> {
   let mut decompressed = decompress_stream(reader, compression_algorithm)?;
 
   // Decode the containers
-  let _container_old = decode_protobuf::<tlc::Container>(&mut decompressed)?;
-  let _container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
+  let container_old = decode_protobuf::<tlc::Container>(&mut decompressed)?;
+  let container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
 
   // Decode the sync operations
-  let _sync_op_iter = decode_protobuf_stream::<pwr::SyncOp>(&mut decompressed);
+  let sync_op_iter = decode_protobuf_stream::<pwr::SyncOp>(decompressed);
 
-  Ok(())
+  Ok(Patch {
+    header,
+    container_old,
+    container_new,
+    sync_op_iter,
+  })
 }
