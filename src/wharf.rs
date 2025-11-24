@@ -209,10 +209,10 @@ pub fn read_signature(reader: &mut impl BufRead) -> Result<(), String> {
   check_magic_bytes(reader, SIGNATURE_MAGIC)?;
 
   // Decode the SignatureHeader
-  let signature_header = decode_protobuf::<pwr::SignatureHeader>(reader)?;
+  let header = decode_protobuf::<pwr::SignatureHeader>(reader)?;
 
   // Decompress the remaining stream
-  let compression_algorithm = signature_header
+  let compression_algorithm = header
     .compression
     .ok_or("Missing compressing field in Signature Header!")?
     .algorithm();
@@ -220,7 +220,7 @@ pub fn read_signature(reader: &mut impl BufRead) -> Result<(), String> {
   let mut decompressed = decompress_stream(reader, compression_algorithm)?;
 
   // Decode the container
-  let _new_container = decode_protobuf::<tlc::Container>(&mut decompressed)?;
+  let _container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
 
   // Decode the hashes
   let _block_hash_iter = decode_protobuf_stream::<pwr::BlockHash>(&mut decompressed);
@@ -234,10 +234,10 @@ pub fn read_patch(reader: &mut impl BufRead) -> Result<(), String> {
   check_magic_bytes(reader, PATCH_MAGIC)?;
 
   // Decode the PatchHeader
-  let patch_header = decode_protobuf::<pwr::PatchHeader>(reader)?;
+  let header = decode_protobuf::<pwr::PatchHeader>(reader)?;
 
   // Decompress the remaining stream
-  let compression_algorithm = patch_header
+  let compression_algorithm = header
     .compression
     .ok_or("Missing compressing field in Patch Header!")?
     .algorithm();
@@ -245,8 +245,8 @@ pub fn read_patch(reader: &mut impl BufRead) -> Result<(), String> {
   let mut decompressed = decompress_stream(reader, compression_algorithm)?;
 
   // Decode the containers
-  let _old_container = decode_protobuf::<tlc::Container>(&mut decompressed)?;
-  let _new_container = decode_protobuf::<tlc::Container>(&mut decompressed)?;
+  let _container_old = decode_protobuf::<tlc::Container>(&mut decompressed)?;
+  let _container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
 
   // Decode the sync operations
   let _sync_op_iter = decode_protobuf_stream::<pwr::SyncOp>(&mut decompressed);
