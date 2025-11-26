@@ -17,10 +17,11 @@ const PROTOBUF_VARINT_MAX_LENGTH: usize = 10;
 /// Contains the header, the container describing the files/dirs/symlinks,
 /// and an iterator over the signature block hashes. The iterator reads
 /// from the underlying stream on the fly as items are requested.
+#[derive(Debug, Clone, PartialEq)]
 pub struct Signature<R> {
   pub header: pwr::SignatureHeader,
   pub container_new: tlc::Container,
-  pub block_hash_iter: ProtobufMessageIter<R, pwr::BlockHash>,
+  pub block_hash_iter: BlockHashIter<R>,
 }
 
 /// Represents a decoded wharf patch file
@@ -30,28 +31,30 @@ pub struct Signature<R> {
 /// Contains the header, the old and new containers describing file system
 /// state before and after the patch, and an iterator over the patch operations.
 /// The iterator reads from the underlying stream on the fly as items are requested.
+#[derive(Debug, Clone, PartialEq)]
 pub struct Patch<R> {
   pub header: pwr::PatchHeader,
   pub container_old: tlc::Container,
   pub container_new: tlc::Container,
-  pub sync_op_iter: ProtobufMessageIter<R, pwr::SyncOp>,
+  pub sync_op_iter: SyncEntryIter<R>,
 }
 
-/// Iterator over independent, sequential length-delimited Protobuf messages in a `BufRead` stream
+/// Iterator over independent, sequential length-delimited [`pwr::BlockHash`] Protobuf messages in a [`std::io::BufRead`] stream
 ///
 /// Each message is of the same type, independent and follows directly after the previous one in the stream.
 /// The messages are read and decoded one by one, without loading the entire stream into memory.
-pub struct ProtobufMessageIter<R, T> {
+///
+/// The iterator finishes when reaching EOF
+#[derive(Debug, Clone, PartialEq)]
+pub struct BlockHashIter<R> {
   reader: R,
-  phantom: std::marker::PhantomData<T>,
 }
 
-impl<R, T> Iterator for ProtobufMessageIter<R, T>
+impl<R> Iterator for BlockHashIter<R>
 where
   R: BufRead,
-  T: prost::Message + Default,
 {
-  type Item = Result<T, String>;
+  type Item = Result<pwr::BlockHash, String>;
 
   fn next(&mut self) -> Option<Self::Item> {
     match self.reader.fill_buf() {
@@ -61,8 +64,123 @@ where
       // If there isn't any data remaining, return None
       Ok([]) => None,
 
-      // If there is data remaining, return the decoded Protobuf message
-      Ok(_) => Some(decode_protobuf::<T>(&mut self.reader)),
+      // If there is data remaining, return the decoded BlockHash Protobuf message
+      Ok(_) => Some(decode_protobuf::<pwr::BlockHash>(&mut self.reader)),
+    }
+  }
+}
+
+/// A single logical unit in a wharf patch stream.
+///
+/// The patch stream alternates between:
+///   1. A [`SyncEntry::Header`] entry describing how to patch a specific file  
+///      ([`pwr::SyncHeader`], and optionally a [`pwr::BsdiffHeader`])
+///   2. A sequence of [`SyncEntry::Op`] entries ([`pwr::SyncOp`]) containing the actual patch
+///      operations for that file, ending with one whose type is [`pwr::sync_op::Type::HeyYouDidIt`]
+///
+/// After the final [`pwr::sync_op::Type::HeyYouDidIt`], the next call to the iterator yields
+/// the next [`SyncEntry::Header`], or `None` if the stream has ended.
+#[derive(Debug, Clone, PartialEq)]
+pub enum SyncEntry {
+  /// Describes a new file patching sequence.
+  ///  
+  /// Contains the file-level [`pwr::SyncHeader`] and, if the header specifies a
+  /// bsdiff patch, a [`pwr::BsdiffHeader`].
+  Header {
+    header: pwr::SyncHeader,
+    bsdiff_header: Option<pwr::BsdiffHeader>,
+  },
+
+  /// A single [`pwr::SyncOp`] operation belonging to the current file.
+  ///  
+  /// [`pwr::SyncOp`] messages are emitted sequentially until one with the
+  /// [`pwr::sync_op::Type::HeyYouDidIt`] operation type is encountered, marking the end
+  /// of the current file's operation sequence.
+  Op(pwr::SyncOp),
+}
+
+/// Iterator over a full wharf patch stream
+///
+/// The stream is structured as alternating segments:
+///   - A [`pwr::SyncHeader`] (and optional [`pwr::BsdiffHeader`])
+///   - Followed by a sequence of [`pwr::SyncOp`] messages
+///
+/// This iterator yields each header and each operation in order, without
+/// loading the entire stream into memory. It continuously reads from the
+/// underlying `BufRead` source and decodes length-delimited Protobuf
+/// messages on demand.
+///
+/// Once a [`pwr::SyncOp`] with type [`pwr::sync_op::Type::HeyYouDidIt`] is read, the iterator
+/// considers the current file's operation sequence finished, and the next call to
+/// `next()` yields the next [`SyncEntry::Header`] if any data remains.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SyncEntryIter<R> {
+  reader: R,
+
+  /// Tracks whether the previous [`SyncEntry`] was a [`pwr::sync_op::Type::HeyYouDidIt`],
+  /// indicating that the next call to `next()` must decode a new header instead of another
+  /// [`pwr::SyncOp`].
+  op_sequence_finished: bool,
+}
+
+impl<R> Iterator for SyncEntryIter<R>
+where
+  R: BufRead,
+{
+  type Item = Result<SyncEntry, String>;
+
+  fn next(&mut self) -> Option<Self::Item> {
+    // If the OP sequence finished, then decode a new header,
+    // or return None if the stream reached EOF
+    if self.op_sequence_finished {
+      match self.reader.fill_buf() {
+        // If it couldn't read from the stream, return an error
+        Err(e) => Some(Err(format!("Couldn't read from reader into buffer!\n{e}"))),
+
+        // If there isn't any data remaining, return None
+        Ok([]) => None,
+
+        // If there is data remaining, return the decoded header
+        Ok(_) => {
+          // Set the variable to go back to the OP cycle
+          self.op_sequence_finished = false;
+
+          // Decode the SyncHeader
+          let header = match decode_protobuf::<pwr::SyncHeader>(&mut self.reader) {
+            Err(e) => return Some(Err(e)),
+            Ok(sync_header) => sync_header,
+          };
+
+          // Decode the BsdiffHeader (if the header type is Bsdiff)
+          let bsdiff_header = match header.r#type() {
+            pwr::sync_header::Type::Rsync => None,
+            pwr::sync_header::Type::Bsdiff => {
+              match decode_protobuf::<pwr::BsdiffHeader>(&mut self.reader) {
+                Err(e) => return Some(Err(e)),
+                Ok(bsdiff_header) => Some(bsdiff_header),
+              }
+            }
+          };
+
+          Some(Ok(SyncEntry::Header {
+            header,
+            bsdiff_header,
+          }))
+        }
+      }
+    }
+    // If the OP sequence continues, then decode the SyncOp message
+    else {
+      Some(
+        decode_protobuf::<pwr::SyncOp>(&mut self.reader)
+          .inspect(|sync_op| {
+            // If the SyncOp Type is HeyYouDidIt, then this OP sequence has finished
+            if let pwr::sync_op::Type::HeyYouDidIt = sync_op.r#type() {
+              self.op_sequence_finished = true;
+            }
+          })
+          .map(SyncEntry::Op),
+      )
     }
   }
 }
@@ -121,23 +239,6 @@ fn decode_protobuf<T: prost::Message + Default>(reader: &mut impl Read) -> Resul
     .map_err(|e| format!("Couldn't read from reader into buffer!\n{e}"))?;
 
   T::decode(bytes.as_slice()).map_err(|e| format!("Couldn't decode Protobuf message!\n{e}"))
-}
-
-/// Create an iterator over all remaining length-delimited Protobuf messages from a `BufRead` stream
-///
-/// Each message is decoded independently and sequentially. The reader is advanced
-/// as each message is read, without loading the entire stream into memory.
-///
-/// # Returns
-///
-/// An iterator that yields `Result<T, String>` for each decoded Protobuf message.
-fn decode_protobuf_stream<T: prost::Message + Default>(
-  reader: impl BufRead,
-) -> ProtobufMessageIter<impl BufRead, T> {
-  ProtobufMessageIter {
-    reader,
-    phantom: std::marker::PhantomData,
-  }
 }
 
 /// Verify that the next four bytes of the reader match the expected magic number
@@ -229,6 +330,15 @@ fn decompress_stream(
 }
 
 /// <https://docs.itch.ovh/wharf/master/file-formats/signatures.html>
+///
+/// The signature structure is:
+///
+/// - [`SIGNATURE_MAGIC`]
+/// - [`pwr::SignatureHeader`]
+/// - decompressed stream follows:
+///   - [`tlc::Container`]    (target container)
+///   - repeated sequence:
+///     - [`pwr::BlockHash`]
 pub fn read_signature(reader: &mut impl BufRead) -> Result<Signature<impl BufRead>, String> {
   // Check the magic bytes
   check_magic_bytes(reader, SIGNATURE_MAGIC)?;
@@ -248,7 +358,9 @@ pub fn read_signature(reader: &mut impl BufRead) -> Result<Signature<impl BufRea
   let container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
 
   // Decode the hashes
-  let block_hash_iter = decode_protobuf_stream::<pwr::BlockHash>(decompressed);
+  let block_hash_iter = BlockHashIter {
+    reader: decompressed,
+  };
 
   Ok(Signature {
     header,
@@ -258,6 +370,20 @@ pub fn read_signature(reader: &mut impl BufRead) -> Result<Signature<impl BufRea
 }
 
 /// <https://docs.itch.ovh/wharf/master/file-formats/patches.html>
+///
+/// The patch structure is:
+///
+/// - [`PATCH_MAGIC`]
+/// - [`pwr::PatchHeader`]
+/// - decompressed stream follows:
+///   - [`tlc::Container`]    (target container)
+///   - [`tlc::Container`]    (source container)
+///   - repeated sequence:
+///     - [`pwr::SyncHeader`]
+///     - Optional [`pwr::BsdiffHeader`] if the previous header type is [`pwr::sync_header::Type::Bsdiff`]
+///       - repeated sequence:
+///       - [`pwr::SyncOp`]
+///     - [`pwr::SyncOp`] (Type = HEY_YOU_DID_IT)  // end of file’s series
 pub fn read_patch(reader: &mut impl BufRead) -> Result<Patch<impl BufRead>, String> {
   // Check the magic bytes
   check_magic_bytes(reader, PATCH_MAGIC)?;
@@ -278,7 +404,11 @@ pub fn read_patch(reader: &mut impl BufRead) -> Result<Patch<impl BufRead>, Stri
   let container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
 
   // Decode the sync operations
-  let sync_op_iter = decode_protobuf_stream::<pwr::SyncOp>(decompressed);
+  let sync_op_iter = SyncEntryIter {
+    reader: decompressed,
+    // Set op_sequence_finished to true to start decoding with a header
+    op_sequence_finished: true,
+  };
 
   Ok(Patch {
     header,
