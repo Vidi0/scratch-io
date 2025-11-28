@@ -72,6 +72,10 @@ pub async fn get_game_executable(
   // If the folder is not a directory, return
   filesystem::ensure_is_dir(upload_folder).await?;
 
+  // Make the game title ascii alphanumeric lowercase to be able
+  // to compare it with other alphanumeric lowercase strings
+  let game_title = make_alphanumeric_lowercase(game_title);
+
   // This variable will store the best executable found at the moment and its rating
   let mut best_executable: (Option<PathBuf>, i64) = (None, i64::MIN);
 
