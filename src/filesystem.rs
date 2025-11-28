@@ -158,13 +158,19 @@ pub async fn read_file_metadata(file: &fs::File) -> Result<std::fs::Metadata, Fi
 
 /// Checks if a given path represents a directory on the filesystem
 ///
+/// Returns none if the path doesn't exist
+///
 /// # Errors
 ///
 /// If the filesystem operation fails
-pub async fn is_dir(path: &Path) -> Result<bool, FilesystemError> {
-  read_path_metadata(path)
-    .await
-    .map(|metadata| metadata.is_dir())
+pub async fn is_dir(path: &Path) -> Result<Option<bool>, FilesystemError> {
+  if exists(path).await? {
+    read_path_metadata(path)
+      .await
+      .map(|metadata| Some(metadata.is_dir()))
+  } else {
+    Ok(None)
+  }
 }
 
 /// Checks if a folder is empty
@@ -173,19 +179,18 @@ pub async fn is_dir(path: &Path) -> Result<bool, FilesystemError> {
 ///
 /// If any filesystem operation fails
 pub async fn is_folder_empty(folder: &Path) -> Result<bool, FilesystemError> {
-  if is_dir(folder).await? {
-    if next_entry(&mut read_dir(folder).await?, folder)
-      .await?
-      .is_none()
-    {
-      Ok(true)
-    } else {
-      Ok(false)
-    }
-  } else if exists(folder).await? {
-    Err(OtherErr::ShouldBeAFolder(folder.to_owned()).into())
-  } else {
-    Ok(true)
+  match is_dir(folder).await? {
+    // If it doesn't exist, return true (is empty)
+    None => Ok(true),
+    // If it isn't a folder, return an error
+    Some(false) => Err(OtherErr::ShouldBeAFolder(folder.to_owned()).into()),
+    // If it is a folder, check if it's empty
+    Some(true) => match next_entry(&mut read_dir(folder).await?, folder).await? {
+      // It it's empty, return true
+      None => Ok(true),
+      // If it's not empty, return false
+      Some(_) => Ok(false),
+    },
   }
 }
 
@@ -195,7 +200,7 @@ pub async fn is_folder_empty(folder: &Path) -> Result<bool, FilesystemError> {
 ///
 /// If `path` is not a directory
 pub async fn ensure_is_dir(path: &Path) -> Result<(), FilesystemError> {
-  if is_dir(path).await? {
+  if let Some(true) = is_dir(path).await? {
     Ok(())
   } else {
     Err(OtherErr::ShouldBeAFolder(path.to_owned()).into())
