@@ -189,7 +189,7 @@ pub async fn is_folder_empty(folder: &Path) -> Result<bool, FilesystemError> {
   }
 }
 
-/// Ensume `path` is a folder
+/// Ensure `path` is a folder
 ///
 /// # Errors
 ///
@@ -202,7 +202,7 @@ pub async fn ensure_is_dir(path: &Path) -> Result<(), FilesystemError> {
   }
 }
 
-/// Ensume `path` doesn't exist or is an empty folder
+/// Ensure `path` doesn't exist or is an empty folder
 ///
 /// # Errors
 ///
