@@ -151,10 +151,9 @@ fn rate_executable(
     make_alphanumeric_lowercase(filesystem::get_file_stem(file_path)?.to_owned());
 
   let extension = make_alphanumeric_lowercase(
-    file_path
-      .extension()
-      .map(|s| s.to_string_lossy().to_string())
-      .unwrap_or_default(),
+    filesystem::get_file_extension(file_path)
+      .unwrap_or_default()
+      .to_owned(),
   );
   // If the file doesn't have an allowed extension, lower the rating by A LOT
   if !platform
