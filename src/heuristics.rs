@@ -20,20 +20,6 @@ const BEST_PROXIMITY_MULTIPLIER: f64 = 0.34;
 const MAX_DIRECTORY_LEVEL_DEPTH: usize = 2;
 
 impl GamePlatform {
-  fn get_allowed_extensions(self) -> &'static [&'static str] {
-    // These must only be ascii alphanumeric lowercase
-    match self {
-      GamePlatform::Linux => &["x8664", "x86", "bin", "sh", "run", ""],
-      GamePlatform::Windows => &["exe", "msi", "bat"],
-      GamePlatform::OSX => &["dmg", "app", "pkg"],
-      GamePlatform::Android => &["apk"],
-      GamePlatform::Web => &["html"],
-      GamePlatform::Flash => &["swf"],
-      GamePlatform::Java => &["jar"],
-      GamePlatform::UnityWebPlayer => &["unity3d"],
-    }
-  }
-
   fn get_best_filenames(self) -> &'static [&'static str] {
     match self {
       // These must only be ascii alphanumeric lowercase
@@ -155,14 +141,9 @@ fn rate_executable(
       .unwrap_or_default()
       .to_owned(),
   );
+  // Raise the rating is the extension is one of the recommended ones
   // If the file doesn't have an allowed extension, lower the rating by A LOT
-  if !platform
-    .get_allowed_extensions()
-    .iter()
-    .any(|ext| extension.eq_ignore_ascii_case(ext))
-  {
-    rating -= 10_000_000;
-  }
+  rating += rate_extension(&extension, platform);
 
   // If the file has an ideal filename (e.g: index.html for a web game), raise the rating
   if platform
@@ -190,6 +171,39 @@ fn rate_executable(
   }
 
   Ok(rating)
+}
+
+/// Computes a priority score for a platform–extension pair
+///
+/// Higher values indicate more preferred executable formats.
+/// Unknown pairs receive a large negative penalty.
+fn rate_extension(extension: &str, platform: GamePlatform) -> i64 {
+  // These must only be ascii alphanumeric lowercase
+  match (platform, extension) {
+    #[cfg(target_pointer_width = "64")]
+    (GamePlatform::Linux, "x8664") => 1000,
+    #[cfg(target_pointer_width = "64")]
+    (GamePlatform::Linux, "x86") => 400,
+    #[cfg(not(target_pointer_width = "64"))]
+    (GamePlatform::Linux, "x86") => 1000,
+    (GamePlatform::Linux, "sh") => 600,
+    (GamePlatform::Linux, "") => 400,
+    (GamePlatform::Linux, "bin") => 200,
+    (GamePlatform::Linux, "run") => 250,
+    (GamePlatform::Windows, "exe") => 1000,
+    (GamePlatform::Windows, "bat") => 700,
+    (GamePlatform::Windows, "msi") => 500,
+    (GamePlatform::OSX, "app") => 1000,
+    (GamePlatform::OSX, "sh") => 700,
+    (GamePlatform::OSX, "dmg") => 500,
+    (GamePlatform::OSX, "pkg") => 500,
+    (GamePlatform::Android, "apk") => 1000,
+    (GamePlatform::Web, "html") => 1000,
+    (GamePlatform::Flash, "swf") => 1000,
+    (GamePlatform::Java, "jar") => 1000,
+    (GamePlatform::UnityWebPlayer, "unity3d") => 1000,
+    (_, _) => -10_000_000,
+  }
 }
 
 fn make_alphanumeric_lowercase(mut string: String) -> String {
