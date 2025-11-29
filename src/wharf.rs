@@ -1,4 +1,8 @@
+/// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/bsdiff/bsdiff.proto>
+pub mod bsdiff;
+/// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/pwr.proto>
 pub mod pwr;
+/// <https://github.com/itchio/lake/blob/cc4284ec2b2a9ebc4735d7560ed8216de6ffac6f/tlc/tlc.proto>
 pub mod tlc;
 
 use std::io::{BufRead, Read};
