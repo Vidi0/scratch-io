@@ -16,7 +16,7 @@ const PATCH_MAGIC: u32 = 0x0FEF5F00;
 const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L30>
-const _MODE_MASK: u32 = 0644;
+const _MODE_MASK: u32 = 0o644;
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L33>
 const BLOCK_SIZE: usize = 64 * 1024;
@@ -429,7 +429,7 @@ pub fn verify_files(
       })?;
 
       let signature_hash = signature.block_hash_iter.next().ok_or_else(|| {
-        format!("Expected a block hash message in the signature, but EOF was encountered!")
+        "Expected a block hash message in the signature, but EOF was encountered!".to_string()
       })??;
 
       let hash = Md5::digest(&buf_ref);
