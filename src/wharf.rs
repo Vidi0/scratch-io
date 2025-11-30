@@ -437,9 +437,6 @@ pub fn verify_files(
       let hash = Md5::digest(&buf);
 
       if *signature_hash.strong_hash != *hash {
-        println!("buf.len() = {}", buf.len());
-        println!("buf = {:02X?}", buf);
-
         return Err(format!(
           "Hash mismatch!
   Signature: {:X?}
@@ -448,16 +445,12 @@ pub fn verify_files(
         ));
       }
 
-      println!("block_start: {block_start}, block_end: {block_end}");
-
       if block_end == container_file.size as usize {
         break;
       }
 
       block_index += 1;
     }
-
-    println!("{:?}", container_file);
   }
 
   Ok(())
