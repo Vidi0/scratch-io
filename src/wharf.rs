@@ -8,13 +8,20 @@ pub mod pwr;
 /// <https://github.com/itchio/lake/blob/cc4284ec2b2a9ebc4735d7560ed8216de6ffac6f/tlc/tlc.proto>
 pub mod tlc;
 
+use md5::{Digest, Md5};
 use std::io::{BufRead, Read};
 
-// https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L14
+/// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L14>
 const PATCH_MAGIC: u32 = 0x0FEF5F00;
 const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
 
-// https://protobuf.dev/programming-guides/encoding/#varints
+/// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L30>
+const _MODE_MASK: u32 = 0644;
+
+/// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L33>
+const BLOCK_SIZE: usize = 64 * 1024;
+
+/// <https://protobuf.dev/programming-guides/encoding/#varints>
 const PROTOBUF_VARINT_MAX_LENGTH: usize = 10;
 
 /// Represents a decoded wharf signature file
@@ -374,6 +381,77 @@ pub fn read_signature(reader: &mut impl BufRead) -> Result<Signature<impl BufRea
     container_new,
     block_hash_iter,
   })
+}
+
+pub fn verify_files(
+  build_folder: &std::path::Path,
+  signature_reader: &mut impl BufRead,
+) -> Result<(), String> {
+  let mut signature = read_signature(signature_reader)
+    .map_err(|e| format!("Couldn't read signature stream!\n{e}"))?;
+
+  let mut buffer = vec![0u8; BLOCK_SIZE];
+
+  for container_file in &signature.container_new.files {
+    let file_path = build_folder.join(&container_file.path);
+    let file = std::fs::File::open(&file_path).map_err(|e| {
+      format!(
+        "Couldn't open file: \"{}\"\n{e}",
+        file_path.to_string_lossy()
+      )
+    })?;
+
+    let metadata = file.metadata().map_err(|e| {
+      format!(
+        "Couldn't get file metadata: \"{}\"\n{e}",
+        file_path.to_string_lossy()
+      )
+    })?;
+
+    if metadata.len() as i64 != container_file.size {
+      return Err(format!(
+        "The signature and the in-disk size of \"{}\" don't match!",
+        file_path.to_string_lossy()
+      ));
+    }
+
+    let mut file_bufreader = std::io::BufReader::new(file);
+
+    for block_start in (0..container_file.size).step_by(BLOCK_SIZE) {
+      let block_end = std::cmp::min(block_start + BLOCK_SIZE as i64, container_file.size);
+      let buf_ref = &mut buffer[0..(block_end - block_start) as usize];
+
+      file_bufreader.read_exact(buf_ref).map_err(|e| {
+        format!(
+          "Couldn't read file data into buffer: \"{}\"\n{e}",
+          file_path.to_string_lossy()
+        )
+      })?;
+
+      let signature_hash = signature.block_hash_iter.next().ok_or_else(|| {
+        format!("Expected a block hash message in the signature, but EOF was encountered!")
+      })??;
+
+      let hash = Md5::digest(&buf_ref);
+
+      if *signature_hash.strong_hash != *hash {
+        println!("buf_ref.len() = {}", buf_ref.len());
+        println!("buf_ref = {:02X?}", buf_ref);
+
+        return Err(format!(
+          "Hash mismatch!
+  Signature: {:X?}
+  In-disk: {:X?}",
+          signature_hash.strong_hash, hash,
+        ));
+      }
+
+      println!("block_start: {block_start}, block_end: {block_end}");
+    }
+    println!("{:?}", container_file);
+  }
+
+  Ok(())
 }
 
 /// <https://docs.itch.ovh/wharf/master/file-formats/patches.html>
