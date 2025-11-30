@@ -416,12 +416,14 @@ pub fn verify_files(
     }
 
     let mut file_bufreader = std::io::BufReader::new(file);
+    let mut block_index: usize = 0;
 
-    for block_start in (0..container_file.size).step_by(BLOCK_SIZE) {
-      let block_end = std::cmp::min(block_start + BLOCK_SIZE as i64, container_file.size);
-      let buf_ref = &mut buffer[0..(block_end - block_start) as usize];
+    loop {
+      let block_start: usize = block_index * BLOCK_SIZE;
+      let block_end: usize = std::cmp::min(block_start + BLOCK_SIZE, container_file.size as usize);
+      let buf = &mut buffer[0..block_end - block_start];
 
-      file_bufreader.read_exact(buf_ref).map_err(|e| {
+      file_bufreader.read_exact(buf).map_err(|e| {
         format!(
           "Couldn't read file data into buffer: \"{}\"\n{e}",
           file_path.to_string_lossy()
@@ -432,11 +434,11 @@ pub fn verify_files(
         "Expected a block hash message in the signature, but EOF was encountered!".to_string()
       })??;
 
-      let hash = Md5::digest(&buf_ref);
+      let hash = Md5::digest(&buf);
 
       if *signature_hash.strong_hash != *hash {
-        println!("buf_ref.len() = {}", buf_ref.len());
-        println!("buf_ref = {:02X?}", buf_ref);
+        println!("buf.len() = {}", buf.len());
+        println!("buf = {:02X?}", buf);
 
         return Err(format!(
           "Hash mismatch!
@@ -447,7 +449,14 @@ pub fn verify_files(
       }
 
       println!("block_start: {block_start}, block_end: {block_end}");
+
+      if block_end == container_file.size as usize {
+        break;
+      }
+
+      block_index += 1;
     }
+
     println!("{:?}", container_file);
   }
 
