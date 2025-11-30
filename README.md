@@ -91,10 +91,10 @@ scratch-io help
 ## 📚 References
 
 - [itchapi.ryhn.link](https://itchapi.ryhn.link) – Unofficial itch.io API documentation
-- [itch.io docs: compatibility policy](https://docs.itch.ovh/itch/master/integrating/compatibility-policy.html)
-- [itch.io docs: manifest](https://docs.itch.ovh/itch/master/integrating/manifest.html)
-- [itch.io docs: butler](https://docs.itch.ovh/butler/master/)
-- [itch.io docs: wharf](https://docs.itch.ovh/wharf/master/)
+- [itch.io docs: compatibility policy](https://docs.itch.zone/itch/master/integrating/compatibility-policy.html)
+- [itch.io docs: manifest](https://docs.itch.zone/itch/master/integrating/manifest.html)
+- [itch.io docs: butler](https://docs.itch.zone/butler/master/)
+- [itch.io docs: wharf](https://docs.itch.zone/wharf/master/)
 
 ## 📝 Roadmap
 
@@ -104,7 +104,7 @@ scratch-io help
 
 ## 📝 TODO
 
-- [X] Read and use the [itch.io manifest](https://docs.itch.ovh/itch/master/integrating/manifest.html)
+- [X] Read and use the [itch.io manifest](https://docs.itch.zone/itch/master/integrating/manifest.html)
   - [X] Detect game executable from manifest actions  
   - [X] Handle game prerequisites from manifest  
     > **Note:** Prerequisites are read from the manifest, but they must be handled and installed by the user
