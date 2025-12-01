@@ -421,7 +421,7 @@ pub fn verify_files(
     loop {
       let block_start: usize = block_index * BLOCK_SIZE;
       let block_end: usize = std::cmp::min(block_start + BLOCK_SIZE, container_file.size as usize);
-      let buf = &mut buffer[0..block_end - block_start];
+      let buf = &mut buffer[..block_end - block_start];
 
       file_bufreader.read_exact(buf).map_err(|e| {
         format!(
