@@ -89,11 +89,11 @@ where
 /// The patch stream alternates between:
 ///   1. A [`SyncEntry::Header`] entry describing how to patch a specific file  
 ///      ([`pwr::SyncHeader`], and optionally a [`pwr::BsdiffHeader`])
-///   2. A sequence of [`SyncEntry::Op`] entries ([`pwr::SyncOp`]) containing the actual patch
-///      operations for that file, ending with one whose type is [`pwr::sync_op::Type::HeyYouDidIt`]
-///
-/// After the final [`pwr::sync_op::Type::HeyYouDidIt`], the next call to the iterator yields
-/// the next [`SyncEntry::Header`], or `None` if the stream has ended.
+///   2. Exactly one of the following sequences:
+///      - A sequence of [`SyncEntry::Rsync`] entries ([`pwr::SyncOp`]) containing the rsync patch operations
+///        for that file, ending with one whose type is [`pwr::sync_op::Type::HeyYouDidIt`]
+///      - A sequence of [`SyncEntry::Bsdiff`] entries ([`bsdiff::Control`]) containing the bsdiff operations
+///        for that file, ending with one whose [`bsdiff::Control::eof`] field is set to `true`
 #[derive(Debug, Clone, PartialEq)]
 pub enum SyncEntry {
   /// Describes a new file patching sequence.
@@ -108,9 +108,16 @@ pub enum SyncEntry {
   /// A single [`pwr::SyncOp`] operation belonging to the current file.
   ///  
   /// [`pwr::SyncOp`] messages are emitted sequentially until one with the
-  /// [`pwr::sync_op::Type::HeyYouDidIt`] operation type is encountered, marking the end
-  /// of the current file's operation sequence.
-  Op(pwr::SyncOp),
+  /// [`pwr::sync_op::Type::HeyYouDidIt`] operation type is encountered, marking
+  /// the end of the current file's operation sequence.
+  Rsync(pwr::SyncOp),
+
+  /// A single [`bsdiff::Control`] operation belonging to the current file.
+  ///  
+  /// [`bsdiff::Control`] messages are emitted sequentially until one with the
+  /// [`bsdiff::Control::eof`] field set to `true` is encountered, marking
+  /// the end of the current file's operation sequence.
+  Bsdiff(bsdiff::Control),
 }
 
 /// Iterator over a full wharf patch stream
@@ -131,10 +138,9 @@ pub enum SyncEntry {
 pub struct SyncEntryIter<R> {
   reader: R,
 
-  /// Tracks whether the previous [`SyncEntry`] was a [`pwr::sync_op::Type::HeyYouDidIt`],
-  /// indicating that the next call to `next()` must decode a new header instead of another
-  /// [`pwr::SyncOp`].
-  op_sequence_finished: bool,
+  /// Tracks whether the next [`SyncEntry`] will be a header, a rsync operation, or a bsdiff one.
+  /// If it is `None`, then the next message is going to be a header.
+  next_entry: Option<pwr::sync_header::Type>,
 }
 
 impl<R> Iterator for SyncEntryIter<R>
@@ -144,57 +150,72 @@ where
   type Item = Result<SyncEntry, String>;
 
   fn next(&mut self) -> Option<Self::Item> {
-    // If the OP sequence finished, then decode a new header,
-    // or return None if the stream reached EOF
-    if self.op_sequence_finished {
-      match self.reader.fill_buf() {
-        // If it couldn't read from the stream, return an error
-        Err(e) => Some(Err(format!("Couldn't read from reader into buffer!\n{e}"))),
+    match self.next_entry {
+      // If the patch operation sequence finished, then decode a new header,
+      // or return None if the stream reached EOF
+      None => {
+        match self.reader.fill_buf() {
+          // If it couldn't read from the stream, return an error
+          Err(e) => Some(Err(format!("Couldn't read from reader into buffer!\n{e}"))),
 
-        // If there isn't any data remaining, return None
-        Ok([]) => None,
+          // If there isn't any data remaining, return None
+          Ok([]) => None,
 
-        // If there is data remaining, return the decoded header
-        Ok(_) => {
-          // Set the variable to go back to the OP cycle
-          self.op_sequence_finished = false;
+          // If there is data remaining, return the decoded header
+          Ok(_) => {
+            // Decode the SyncHeader
+            let header = match decode_protobuf::<pwr::SyncHeader>(&mut self.reader) {
+              Err(e) => return Some(Err(e)),
+              Ok(sync_header) => sync_header,
+            };
 
-          // Decode the SyncHeader
-          let header = match decode_protobuf::<pwr::SyncHeader>(&mut self.reader) {
-            Err(e) => return Some(Err(e)),
-            Ok(sync_header) => sync_header,
-          };
-
-          // Decode the BsdiffHeader (if the header type is Bsdiff)
-          let bsdiff_header = match header.r#type() {
-            pwr::sync_header::Type::Rsync => None,
-            pwr::sync_header::Type::Bsdiff => {
-              match decode_protobuf::<pwr::BsdiffHeader>(&mut self.reader) {
-                Err(e) => return Some(Err(e)),
-                Ok(bsdiff_header) => Some(bsdiff_header),
+            // Decode the BsdiffHeader (if the header type is Bsdiff)
+            let bsdiff_header = match header.r#type() {
+              pwr::sync_header::Type::Rsync => None,
+              pwr::sync_header::Type::Bsdiff => {
+                match decode_protobuf::<pwr::BsdiffHeader>(&mut self.reader) {
+                  Err(e) => return Some(Err(e)),
+                  Ok(bsdiff_header) => Some(bsdiff_header),
+                }
               }
-            }
-          };
+            };
 
-          Some(Ok(SyncEntry::Header {
-            header,
-            bsdiff_header,
-          }))
+            // Set the next_entry variable to go back to the patch operation cycle
+            self.next_entry = Some(header.r#type());
+
+            Some(Ok(SyncEntry::Header {
+              header,
+              bsdiff_header,
+            }))
+          }
         }
       }
-    }
-    // If the OP sequence continues, then decode the SyncOp message
-    else {
-      Some(
-        decode_protobuf::<pwr::SyncOp>(&mut self.reader)
-          .inspect(|sync_op| {
-            // If the SyncOp Type is HeyYouDidIt, then this OP sequence has finished
-            if let pwr::sync_op::Type::HeyYouDidIt = sync_op.r#type() {
-              self.op_sequence_finished = true;
-            }
-          })
-          .map(SyncEntry::Op),
-      )
+      // If the sequence continues with a rsync operation, then decode the SyncOp message
+      Some(pwr::sync_header::Type::Rsync) => {
+        Some(
+          decode_protobuf::<pwr::SyncOp>(&mut self.reader)
+            .inspect(|sync_op| {
+              // If the SyncOp Type is HeyYouDidIt, then this OP sequence has finished
+              if let pwr::sync_op::Type::HeyYouDidIt = sync_op.r#type() {
+                self.next_entry = None;
+              }
+            })
+            .map(SyncEntry::Rsync),
+        )
+      }
+      // If the sequence continues with a bsdiff operation, then decode the Control message
+      Some(pwr::sync_header::Type::Bsdiff) => {
+        Some(
+          decode_protobuf::<bsdiff::Control>(&mut self.reader)
+            .inspect(|control| {
+              // If the Control eof field is true, then this Control sequence has finished
+              if control.eof {
+                self.next_entry = None;
+              }
+            })
+            .map(SyncEntry::Bsdiff),
+        )
+      }
     }
   }
 }
@@ -507,8 +528,8 @@ pub fn read_patch(reader: &mut impl BufRead) -> Result<Patch<impl BufRead>, Stri
   // Decode the sync operations
   let sync_op_iter = SyncEntryIter {
     reader: decompressed,
-    // Set op_sequence_finished to true to start decoding with a header
-    op_sequence_finished: true,
+    // Set next_entry to None to start decoding with a header
+    next_entry: None,
   };
 
   Ok(Patch {
