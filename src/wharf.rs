@@ -93,7 +93,9 @@ where
 ///      - A sequence of [`SyncEntry::Rsync`] entries ([`pwr::SyncOp`]) containing the rsync patch operations
 ///        for that file, ending with one whose type is [`pwr::sync_op::Type::HeyYouDidIt`]
 ///      - A sequence of [`SyncEntry::Bsdiff`] entries ([`bsdiff::Control`]) containing the bsdiff operations
-///        for that file, ending with one whose [`bsdiff::Control::eof`] field is set to `true`
+///        for that file, ending with one whose [`bsdiff::Control::eof`] field is set to `true`. After that last
+///        bsdiff Control message, one [`SyncEntry::Rsync`] entry with [`pwr::sync_op::Type::HeyYouDidIt`]
+///        type will be returned
 #[derive(Debug, Clone, PartialEq)]
 pub enum SyncEntry {
   /// Describes a new file patching sequence.
@@ -115,8 +117,9 @@ pub enum SyncEntry {
   /// A single [`bsdiff::Control`] operation belonging to the current file.
   ///  
   /// [`bsdiff::Control`] messages are emitted sequentially until one with the
-  /// [`bsdiff::Control::eof`] field set to `true` is encountered, marking
-  /// the end of the current file's operation sequence.
+  /// [`bsdiff::Control::eof`] field set to `true` is encountered, marking the end
+  /// of the current file's operation sequence. After that last Control message, one
+  /// [`SyncEntry::Rsync`] entry with [`pwr::sync_op::Type::HeyYouDidIt`] will be returned
   Bsdiff(bsdiff::Control),
 }
 
@@ -124,7 +127,7 @@ pub enum SyncEntry {
 ///
 /// The stream is structured as alternating segments:
 ///   - A [`pwr::SyncHeader`] (and optional [`pwr::BsdiffHeader`])
-///   - Followed by a sequence of [`pwr::SyncOp`] messages
+///   - Followed by a sequence of [`pwr::SyncOp`] messages (or [`bsdiff::Control`] ones)
 ///
 /// This iterator yields each header and each operation in order, without
 /// loading the entire stream into memory. It continuously reads from the
@@ -209,8 +212,9 @@ where
           decode_protobuf::<bsdiff::Control>(&mut self.reader)
             .inspect(|control| {
               // If the Control eof field is true, then this Control sequence has finished
+              // The next protobuf message will be a rsync SyncOp with HeyYouDidIt type
               if control.eof {
-                self.next_entry = None;
+                self.next_entry = Some(pwr::sync_header::Type::Rsync);
               }
             })
             .map(SyncEntry::Bsdiff),
