@@ -434,7 +434,7 @@ pub fn verify_files(
         "Expected a block hash message in the signature, but EOF was encountered!".to_string()
       })??;
 
-      let hash = Md5::digest(&buf);
+      let hash = Md5::digest(buf);
 
       if *signature_hash.strong_hash != *hash {
         return Err(format!(
