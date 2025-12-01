@@ -387,11 +387,14 @@ pub fn verify_files(
   build_folder: &std::path::Path,
   signature_reader: &mut impl BufRead,
 ) -> Result<(), String> {
+  // Read the wharf signature from the reader
   let mut signature = read_signature(signature_reader)
     .map_err(|e| format!("Couldn't read signature stream!\n{e}"))?;
 
+  // This buffer will hold the current block that is being hashed
   let mut buffer = vec![0u8; BLOCK_SIZE];
 
+  // Loop over all the files in the signature container
   for container_file in &signature.container_new.files {
     let file_path = build_folder.join(&container_file.path);
     let file = std::fs::File::open(&file_path).map_err(|e| {
@@ -401,6 +404,7 @@ pub fn verify_files(
       )
     })?;
 
+    // Check if the file length matches
     let metadata = file.metadata().map_err(|e| {
       format!(
         "Couldn't get file metadata: \"{}\"\n{e}",
@@ -415,14 +419,16 @@ pub fn verify_files(
       ));
     }
 
+    // For each block in the file, compare its hash with the one provided in the signature
     let mut file_bufreader = std::io::BufReader::new(file);
     let mut block_index: usize = 0;
 
     loop {
       let block_start: usize = block_index * BLOCK_SIZE;
       let block_end: usize = std::cmp::min(block_start + BLOCK_SIZE, container_file.size as usize);
-      let buf = &mut buffer[..block_end - block_start];
 
+      // Hash the current block
+      let buf = &mut buffer[..block_end - block_start];
       file_bufreader.read_exact(buf).map_err(|e| {
         format!(
           "Couldn't read file data into buffer: \"{}\"\n{e}",
@@ -430,12 +436,14 @@ pub fn verify_files(
         )
       })?;
 
+      let hash = Md5::digest(buf);
+
+      // Get the expected hash from the signature
       let signature_hash = signature.block_hash_iter.next().ok_or_else(|| {
         "Expected a block hash message in the signature, but EOF was encountered!".to_string()
       })??;
 
-      let hash = Md5::digest(buf);
-
+      // Compare the hashes
       if *signature_hash.strong_hash != *hash {
         return Err(format!(
           "Hash mismatch!
@@ -445,6 +453,7 @@ pub fn verify_files(
         ));
       }
 
+      // If the file has been fully read, proceed to the next one
       if block_end == container_file.size as usize {
         break;
       }
