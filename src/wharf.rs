@@ -394,6 +394,9 @@ pub fn verify_files(
   // This buffer will hold the current block that is being hashed
   let mut buffer = vec![0u8; BLOCK_SIZE];
 
+  // Create a MD5 hasher
+  let mut hasher = Md5::new();
+
   // Loop over all the files in the signature container
   for container_file in &signature.container_new.files {
     let file_path = build_folder.join(&container_file.path);
@@ -427,7 +430,7 @@ pub fn verify_files(
       let block_start: usize = block_index * BLOCK_SIZE;
       let block_end: usize = std::cmp::min(block_start + BLOCK_SIZE, container_file.size as usize);
 
-      // Hash the current block
+      // Read the current block
       let buf = &mut buffer[..block_end - block_start];
       file_bufreader.read_exact(buf).map_err(|e| {
         format!(
@@ -436,7 +439,9 @@ pub fn verify_files(
         )
       })?;
 
-      let hash = Md5::digest(buf);
+      // Hash the current block
+      hasher.update(buf);
+      let hash = hasher.finalize_reset();
 
       // Get the expected hash from the signature
       let signature_hash = signature.block_hash_iter.next().ok_or_else(|| {
