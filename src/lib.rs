@@ -157,7 +157,7 @@ async fn stream_response_into_file(
   use futures_util::StreamExt;
 
   // Save chunks to the file async
-  // Also, compute the md5 hash while it is being downloaded
+  // Also, compute the MD5 hash while it is being downloaded
   while let Some(chunk) = match stream.next().await {
     None => Ok(None),
     Some(result) => result
@@ -167,7 +167,7 @@ async fn stream_response_into_file(
     // Write the chunk to the file
     filesystem::write_all(file, &chunk).await?;
 
-    // If the file has a md5 hash, update the hasher
+    // If the file has a MD5 hash, update the hasher
     if let Some(hasher) = &mut md5_hash {
       hasher.update(&chunk);
     }
@@ -195,7 +195,7 @@ async fn stream_response_into_file(
 ///
 /// * `file_path` - The path where the file will be placed
 ///
-/// * `md5_hash` - A md5 hash to check the file against. If none, don't verify the download
+/// * `md5_hash` - A MD5 hash to check the file against. If none, don't verify the download
 ///
 /// * `file_size_callback` - A clousure called with total size the downloaded file will have after the download
 ///
@@ -533,7 +533,7 @@ pub async fn download_upload(
     ));
   } else if hash.is_none() {
     progress_callback(DownloadStatus::Warning(
-      "Missing md5 hash. Couldn't verify the file integrity!".to_string(),
+      "Missing MD5 hash. Couldn't verify the file integrity!".to_string(),
     ));
   }
 
