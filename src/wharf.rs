@@ -410,12 +410,8 @@ pub fn read_signature(reader: &mut impl BufRead) -> Result<Signature<impl BufRea
 
 pub fn verify_files(
   build_folder: &std::path::Path,
-  signature_reader: &mut impl BufRead,
+  signature: &mut Signature<impl BufRead>,
 ) -> Result<(), String> {
-  // Read the wharf signature from the reader
-  let mut signature = read_signature(signature_reader)
-    .map_err(|e| format!("Couldn't read signature stream!\n{e}"))?;
-
   // This buffer will hold the current block that is being hashed
   let mut buffer = vec![0u8; BLOCK_SIZE];
 
