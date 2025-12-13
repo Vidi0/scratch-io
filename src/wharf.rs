@@ -24,6 +24,8 @@ const BLOCK_SIZE: usize = 64 * 1024;
 /// <https://protobuf.dev/programming-guides/encoding/#varints>
 const PROTOBUF_VARINT_MAX_LENGTH: usize = 10;
 
+const MAX_OPEN_FILES_PATCH: std::num::NonZeroUsize = std::num::NonZeroUsize::new(16).unwrap();
+
 /// Represents a decoded wharf signature file
 ///
 /// <https://docs.itch.ovh/wharf/master/file-formats/signatures.html>
@@ -537,4 +539,45 @@ pub fn read_patch(reader: &mut impl BufRead) -> Result<Patch<impl BufRead>, Stri
     container_new,
     sync_op_iter,
   })
+}
+
+pub fn apply_patch(
+  _old_build_folder: &std::path::Path,
+  new_build_folder: &std::path::Path,
+  patch: &mut Patch<impl BufRead>,
+) -> Result<(), String> {
+  // Iterate over the folders in the new container and create them
+  for folder in &patch.container_new.dirs {
+    std::fs::create_dir_all(new_build_folder.join(&folder.path)).map_err(|e| {
+      format!(
+        "Couldn't create folder: \"{}\"\n{e}",
+        new_build_folder.join(&folder.path).to_string_lossy()
+      )
+    })?;
+  }
+
+  // Create a cache of open file descriptors for the old files
+  // The key is the file_index of the old file provided by the patch
+  // The value is the open file descriptor
+  let _old_files_cache: lru::LruCache<u64, std::fs::File> =
+    lru::LruCache::new(MAX_OPEN_FILES_PATCH);
+
+  while let Some(header) = patch.sync_op_iter.next_header() {
+    let header = header.map_err(|e| format!("Couldn't get next patch sync operation!\n{e}"))?;
+
+    match header {
+      SyncHeader::Rsync {
+        file_index: _,
+        op_iter: _,
+      } => {}
+
+      SyncHeader::Bsdiff {
+        file_index: _,
+        target_index: _,
+        op_iter: _,
+      } => {}
+    }
+  }
+
+  Ok(())
 }
