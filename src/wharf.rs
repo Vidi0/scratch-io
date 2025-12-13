@@ -179,7 +179,7 @@ impl<'a, R> SyncEntryIter<R>
 where
   R: BufRead,
 {
-  fn next_header(&'a mut self) -> Option<Result<SyncHeader<'a, R>, String>> {
+  pub fn next_header(&'a mut self) -> Option<Result<SyncHeader<'a, R>, String>> {
     match self.reader.fill_buf() {
       // If it couldn't read from the stream, return an error
       Err(e) => Some(Err(format!("Couldn't read from reader into buffer!\n{e}"))),
