@@ -3,7 +3,7 @@
 title: Wharf Patch File
 ---
 flowchart TB
-    Magic["Patch magic bytes"] --> PatchHeader["Patch Header (pwr::PatchHeader protobuf)"]
+    Magic["Patch Magic Bytes"] --> PatchHeader["Patch Header (pwr::PatchHeader protobuf)"]
     PatchHeader --> ContainerOld
     subgraph Compressed["Compressed stream"]
         ContainerOld["Old Container (tlc::Container protobuf)"] --> ContainerNew["New Container (tlc::Container protobuf)"]
