@@ -16,13 +16,13 @@ flowchart TB
                 Control -->|"eof = true"| HeySyncOp["SyncOp(type = HEY_YOU_DID_IT) (pwr::SyncOp protobuf)"]
             end
             SyncHeader -->|"type = RSYNC"| SyncOp["Rsync Sync Operation (pwr::SyncOp protobuf)"]
-            SyncOp .->|"type = HEY_YOU_DID_IT"| EOF
+            SyncOp -->|"type = HEY_YOU_DID_IT"| EOF
             subgraph RsyncLoop["Rsync File Patch"]
                 SyncOp -->|"type != HEY_YOU_DID_IT"| SyncOp
             end
-            HeySyncOp .-> EOF
+            HeySyncOp --> EOF
 
-            EOF{"Maybe EOF"} .->|"Not EOF"| SyncHeader
+            EOF{"End of stream?"} -->|"no → next file"| SyncHeader
         end
     end
 ```

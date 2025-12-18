@@ -9,7 +9,7 @@ flowchart TB
         ContainerNew["New Container (tlc::Container protobuf)"] --> BlockHash["Block Hash (pwr::BlockHash protobuf)"]
         subgraph BlockHashLoop["Block Hash Loop"]
             BlockHash --> EOF
-            EOF{"Maybe EOF"} .->|"Not EOF"| BlockHash
+            EOF{"End of stream?"} -->|"no → next block hash"| BlockHash
         end
     end
 ```
