@@ -7,6 +7,9 @@ flowchart TB
     SignatureHeader --> ContainerNew
     subgraph Compressed["Compressed stream"]
         ContainerNew["New Container (tlc::Container protobuf)"] --> BlockHash["Block Hash (pwr::BlockHash protobuf)"]
-        BlockHash --> BlockHash
+        subgraph BlockHashLoop["Block Hash Loop"]
+            BlockHash --> EOF
+            EOF{"Maybe EOF"} .->|"Not EOF"| BlockHash
+        end
     end
 ```

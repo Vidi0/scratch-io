@@ -8,13 +8,21 @@ flowchart TB
     subgraph Compressed["Compressed stream"]
         ContainerOld["Old Container (tlc::Container protobuf)"] --> ContainerNew["New Container (tlc::Container protobuf)"]
         ContainerNew --> SyncHeader["SyncHeader (pwr::SyncHeader protobuf)"]
-        SyncHeader -->|"type = RSYNC"| SyncOp["Rsync Sync Operation (pwr::SyncOp protobuf)"]
-        SyncOp --->|"type = HEY_YOU_DID_IT"| SyncHeader
-        SyncOp -->|"type != HEY_YOU_DID_IT"| SyncOp
-        SyncHeader -->|"type = BSDIFF"| BsdiffHeader["BsdiffHeader (pwr::BsdiffHeader protobuf)"]
-        BsdiffHeader --> Control["Bsdiff Control Operation (bsdiff::Control protobuf)"]
-        Control -->|"eof = false"| Control
-        Control ---->|"eof = true"| HeySyncOp["SyncOp(type = HEY_YOU_DID_IT) (pwr::SyncOp protobuf)"]
-        HeySyncOp --> SyncHeader
+        subgraph SyncHeaderLoop["File Patch Loop"]
+            SyncHeader -->|"type = BSDIFF"| BsdiffHeader["BsdiffHeader (pwr::BsdiffHeader protobuf)"]
+            subgraph BsdiffLoop["Bsdiff File Patch"]
+                BsdiffHeader --> Control["Bsdiff Control Operation (bsdiff::Control protobuf)"]
+                Control -->|"eof = false"| Control
+                Control -->|"eof = true"| HeySyncOp["SyncOp(type = HEY_YOU_DID_IT) (pwr::SyncOp protobuf)"]
+            end
+            SyncHeader -->|"type = RSYNC"| SyncOp["Rsync Sync Operation (pwr::SyncOp protobuf)"]
+            SyncOp .->|"type = HEY_YOU_DID_IT"| EOF
+            subgraph RsyncLoop["Rsync File Patch"]
+                SyncOp -->|"type != HEY_YOU_DID_IT"| SyncOp
+            end
+            HeySyncOp .-> EOF
+
+            EOF{"Maybe EOF"} .->|"Not EOF"| SyncHeader
+        end
     end
 ```
