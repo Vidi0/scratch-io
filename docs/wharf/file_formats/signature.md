@@ -6,7 +6,7 @@ flowchart TB
     Magic["Signature magic bytes"] --> SignatureHeader["SignatureHeader (pwr::SignatureHeader protobuf)"]
     SignatureHeader --> ContainerNew
     subgraph Compressed["Compressed stream"]
-        ContainerNew["New Container (tlc::Container protobuf)"] --> BlockHash["BlockHash (protobuf)"]
+        ContainerNew["New Container (tlc::Container protobuf)"] --> BlockHash["Block Hash (pwr::BlockHash protobuf)"]
         BlockHash --> BlockHash
     end
 ```
