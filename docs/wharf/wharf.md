@@ -21,5 +21,5 @@ At the beginning of each binary, a 4-byte sequence of magic bytes identifies the
 patches and signatures are compressed. The header protobuf message specifies the compression algorithm used
 for the remaining data.
 
-### [Patches](wharf/patch.md)
-### [Signatures](wharf/signature.md)
+### [Patches](patch.md)
+### [Signatures](signature.md)
