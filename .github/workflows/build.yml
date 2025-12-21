@@ -49,13 +49,14 @@ jobs:
       - name: Package binary
         shell: bash
         run: |
-          BIN_NAME="scratch-io"
+          BIN_NAME="scratch-io-cli"
+          NEW_NAME="scratch-io"
           TARGET="${{ matrix.target }}"
           
           if [[ -f "target/$TARGET/release/$BIN_NAME" ]]; then
-              cp "target/$TARGET/release/$BIN_NAME" "$BIN_NAME-$TARGET"
+              cp "target/$TARGET/release/$BIN_NAME" "$NEW_NAME-$TARGET"
           else
-              cp "target/$TARGET/release/$BIN_NAME.exe" "$BIN_NAME-$TARGET.exe"
+              cp "target/$TARGET/release/$BIN_NAME.exe" "$NEW_NAME-$TARGET.exe"
           fi
 
       - name: Upload artifact

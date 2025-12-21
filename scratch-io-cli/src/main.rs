@@ -791,7 +791,7 @@ async fn main() {
   let custom_config_file = cli.config_file;
   let mut config: Config = Config::load_unwrap(custom_config_file.clone()).await;
 
-  // Create reqwest client
+  // Create itch.io client
   let client = get_itch_client(
     // The api key is:
     vec![
