@@ -28,7 +28,7 @@ const MAX_OPEN_FILES_PATCH: std::num::NonZeroUsize = std::num::NonZeroUsize::new
 
 /// Represents a decoded wharf signature file
 ///
-/// <https://docs.itch.ovh/wharf/master/file-formats/signatures.html>
+/// <https://docs.itch.zone/wharf/master/file-formats/signatures.html>
 ///
 /// Contains the header, the container describing the files/dirs/symlinks,
 /// and an iterator over the signature block hashes. The iterator reads
@@ -42,7 +42,7 @@ pub struct Signature<R> {
 
 /// Represents a decoded wharf patch file
 ///
-/// <https://docs.itch.ovh/wharf/master/file-formats/patches.html>
+/// <https://docs.itch.zone/wharf/master/file-formats/patches.html>
 ///
 /// Contains the header, the old and new containers describing file system
 /// state before and after the patch, and an iterator over the patch operations.
@@ -371,7 +371,7 @@ fn decompress_stream(
   }
 }
 
-/// <https://docs.itch.ovh/wharf/master/file-formats/signatures.html>
+/// <https://docs.itch.zone/wharf/master/file-formats/signatures.html>
 ///
 /// The signature structure is:
 ///
@@ -494,7 +494,7 @@ pub fn verify_files(
   Ok(())
 }
 
-/// <https://docs.itch.ovh/wharf/master/file-formats/patches.html>
+/// <https://docs.itch.zone/wharf/master/file-formats/patches.html>
 ///
 /// The patch structure is:
 ///
