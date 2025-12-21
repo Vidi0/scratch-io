@@ -1,6 +1,6 @@
 ```mermaid
 ---
-title: Wharf Signature File
+title: Wharf Signature
 ---
 flowchart TB
     Magic["Signature Magic Bytes"] --> SignatureHeader["Signature Header (pwr::SignatureHeader protobuf)"]

@@ -1,6 +1,6 @@
 ```mermaid
 ---
-title: Wharf Patch File
+title: Wharf Patch
 ---
 flowchart TB
     Magic["Patch Magic Bytes"] --> PatchHeader["Patch Header (pwr::PatchHeader protobuf)"]
