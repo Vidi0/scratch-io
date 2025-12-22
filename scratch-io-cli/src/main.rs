@@ -34,6 +34,34 @@ struct Cli {
   command: Commands,
 }
 
+// This enum is a copy of scratch_io::GamePlatform that derives clap::ValueEnum
+#[derive(clap::ValueEnum, Clone)]
+enum GamePlatform {
+  Linux,
+  Windows,
+  OSX,
+  Android,
+  Web,
+  Flash,
+  Java,
+  UnityWebPlayer,
+}
+
+impl From<GamePlatform> for scratch_io::GamePlatform {
+  fn from(value: GamePlatform) -> Self {
+    match value {
+      GamePlatform::Linux => scratch_io::GamePlatform::Linux,
+      GamePlatform::Windows => scratch_io::GamePlatform::Windows,
+      GamePlatform::OSX => scratch_io::GamePlatform::OSX,
+      GamePlatform::Android => scratch_io::GamePlatform::Android,
+      GamePlatform::Web => scratch_io::GamePlatform::Web,
+      GamePlatform::Flash => scratch_io::GamePlatform::Flash,
+      GamePlatform::Java => scratch_io::GamePlatform::Java,
+      GamePlatform::UnityWebPlayer => scratch_io::GamePlatform::UnityWebPlayer,
+    }
+  }
+}
+
 #[derive(Subcommand)]
 enum Commands {
   #[clap(flatten)]
@@ -224,7 +252,7 @@ enum WithoutApiCommands {
     ///
     /// The heuristics need to know which platform is the executable they are searching.
     #[arg(long, env = "SCRATCH_PLATFORM", group = "launch_method")]
-    platform: Option<scratch_io::GamePlatform>,
+    platform: Option<GamePlatform>,
     /// Instead of the platform (or in addition to), a executable path can be provided
     #[arg(long, env = "SCRATCH_UPLOAD_EXECUTABLE_PATH", group = "launch_method")]
     upload_executable_path: Option<PathBuf>,
@@ -711,7 +739,7 @@ async fn launch_upload(
   upload_id: UploadID,
   upload_executable_path: Option<PathBuf>,
   launch_action: Option<String>,
-  platform: Option<scratch_io::GamePlatform>,
+  platform: Option<GamePlatform>,
   wrapper: Option<&str>,
   game_arguments: Option<&str>,
   environment_variables: Option<&str>,
@@ -755,7 +783,7 @@ async fn launch_upload(
     }
   } else if let Some(platform) = platform {
     scratch_io::LaunchMethod::Heuristics {
-      game_platform: platform,
+      game_platform: platform.into(),
       game_title: upload_info.game_title.to_string(),
     }
   } else {

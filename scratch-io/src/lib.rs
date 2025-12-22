@@ -21,7 +21,7 @@ use tokio::time::{Duration, Instant};
 // This isn't inside itch_types because it is not something that the itch API returns
 // These platforms are *interpreted* from the data provided by the API
 /// The different platforms a upload can be made for
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize, clap::ValueEnum)]
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub enum GamePlatform {
   Linux,
   Windows,
