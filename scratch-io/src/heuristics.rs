@@ -50,13 +50,13 @@ impl GamePlatform {
 /// A path with the best guess for the game executable
 ///
 /// An error if something goes wrong
-pub async fn get_game_executable(
+pub fn get_game_executable(
   upload_folder: &Path,
   platform: GamePlatform,
   game_title: String,
 ) -> Result<PathBuf, String> {
   // If the folder is not a directory, return
-  filesystem::ensure_is_dir(upload_folder).await?;
+  filesystem::ensure_is_dir(upload_folder)?;
 
   // Make the game title ascii alphanumeric lowercase to be able
   // to compare it with other alphanumeric lowercase strings
@@ -70,12 +70,12 @@ pub async fn get_game_executable(
   queue.push_back((upload_folder.to_path_buf(), 0));
 
   while let Some((folder, depth)) = queue.pop_front() {
-    let mut entries = filesystem::read_dir(&folder).await?;
+    let mut entries = filesystem::read_dir(&folder)?;
 
-    while let Some(entry) = filesystem::next_entry(&mut entries, &folder).await? {
+    while let Some(entry) = filesystem::next_entry(&mut entries, &folder)? {
       let entry_path = entry.path();
 
-      if filesystem::file_type(&entry, &folder).await?.is_dir() {
+      if filesystem::file_type(&entry, &folder)?.is_dir() {
         // If we are on the last depth, don't go to the next one, stop now
         // For this reason it is < and not <=
         if depth < MAX_DIRECTORY_LEVEL_DEPTH {

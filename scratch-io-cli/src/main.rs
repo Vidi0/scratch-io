@@ -273,7 +273,7 @@ enum WithoutApiCommands {
 }
 
 /// Returns a Itch client with the first API key of the vector that is not None
-async fn get_itch_client(keys: Vec<Option<String>>) -> Result<ItchClient, String> {
+fn get_itch_client(keys: Vec<Option<String>>) -> Result<ItchClient, String> {
   let api_key = keys.into_iter().find_map(|key| key);
 
   match api_key {
@@ -337,20 +337,18 @@ fn exit_if_already_installed(
 }
 
 // Save a key to the config and print info
-async fn auth(client: &ItchClient, config_api_key: &mut Option<String>) {
+fn auth(client: &ItchClient, config_api_key: &mut Option<String>) {
   // We already checked if the key was valid
   println!("Valid key!");
   *config_api_key = Some(client.get_api_key().to_string());
 
   // Print user info
-  let profile = itch_api::get_profile(client)
-    .await
-    .unwrap_or_else(|e| eprintln_exit!("{e}"));
+  let profile = itch_api::get_profile(client).unwrap_or_else(|e| eprintln_exit!("{e}"));
   println!("Logged in as: {}", profile.user.get_name());
 }
 
 // Login with a username and password, save to the config and print info
-async fn login(
+fn login(
   username: &str,
   password: &str,
   recaptcha_response: Option<&str>,
@@ -359,7 +357,6 @@ async fn login(
   // Create a temporary client and call the login function
   let client = ItchClient::new(String::new());
   let response = itch_api::login(&client, username, password, recaptcha_response)
-    .await
     .unwrap_or_else(|e| eprintln_exit!("{e}"));
 
   // If the login failed, return the corresponding error
@@ -371,20 +368,19 @@ async fn login(
 
   // Save the new key to the config
   let new_client = ItchClient::new(login_success.key.key);
-  auth(&new_client, config_api_key).await;
+  auth(&new_client, config_api_key);
 }
 
 // Finish login by using two-step verifitaion
-async fn totp_verification(totp_token: &str, totp_code: u64, config_api_key: &mut Option<String>) {
+fn totp_verification(totp_token: &str, totp_code: u64, config_api_key: &mut Option<String>) {
   // Create a temporary client and call the totp verification function
   let client = ItchClient::new(String::new());
   let login_success = itch_api::totp_verification(&client, totp_token, totp_code)
-    .await
     .unwrap_or_else(|e| eprintln_exit!("{e}"));
 
   // Save the new key to the config
   let new_client = ItchClient::new(login_success.key.key);
-  auth(&new_client, config_api_key).await;
+  auth(&new_client, config_api_key);
 }
 
 // Remove the saved API key (if any)
@@ -399,161 +395,130 @@ fn logout(config_api_key: &mut Option<String>) {
 }
 
 /// Print a user info
-async fn print_user_info(client: &ItchClient, user_id: UserID) {
+fn print_user_info(client: &ItchClient, user_id: UserID) {
   println!(
     "{:#?}",
-    itch_api::get_user_info(client, user_id)
-      .await
-      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+    itch_api::get_user_info(client, user_id).unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
 }
 
 /// Print the current user info
-async fn print_profile_info(client: &ItchClient) {
+fn print_profile_info(client: &ItchClient) {
   println!(
     "{:#?}",
-    itch_api::get_profile(client)
-      .await
-      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+    itch_api::get_profile(client).unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
 }
 
 // List the games that the user created or is an admin of
-async fn print_created_games(client: &ItchClient) {
+fn print_created_games(client: &ItchClient) {
   println!(
     "{:#?}",
-    itch_api::get_created_games(client)
-      .await
-      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+    itch_api::get_created_games(client).unwrap_or_else(|e| eprintln_exit!("{e}"))
   )
 }
 
 // List the owned game keys
-async fn print_owned_keys(client: &ItchClient) {
+fn print_owned_keys(client: &ItchClient) {
   println!(
     "{:#?}",
-    itch_api::get_owned_keys(client)
-      .await
-      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+    itch_api::get_owned_keys(client).unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
 }
 
 // Print information about the user's collections
-async fn print_profile_collections(client: &ItchClient) {
+fn print_profile_collections(client: &ItchClient) {
   println!(
     "{:#?}",
-    itch_api::get_profile_collections(client)
-      .await
-      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+    itch_api::get_profile_collections(client).unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
 }
 
 // Print information about a collection
-async fn print_collection_info(client: &ItchClient, collection_id: CollectionID) {
+fn print_collection_info(client: &ItchClient, collection_id: CollectionID) {
   println!(
     "{:#?}",
-    itch_api::get_collection_info(client, collection_id)
-      .await
-      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+    itch_api::get_collection_info(client, collection_id).unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
 }
 
 // Print the games listed in a collection
-async fn print_collection_games(client: &ItchClient, collection_id: CollectionID) {
+fn print_collection_games(client: &ItchClient, collection_id: CollectionID) {
   println!(
     "{:#?}",
-    itch_api::get_collection_games(client, collection_id)
-      .await
-      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+    itch_api::get_collection_games(client, collection_id).unwrap_or_else(|e| eprintln_exit!("{e}"))
   )
 }
 
 // Print information about a game
-async fn print_game_info(client: &ItchClient, game_id: GameID) {
+fn print_game_info(client: &ItchClient, game_id: GameID) {
   println!(
     "{:#?}",
-    itch_api::get_game_info(client, game_id)
-      .await
-      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+    itch_api::get_game_info(client, game_id).unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
 }
 
 // Print a game's uploads and platforms information
-async fn print_game_uploads(client: &ItchClient, game_id: GameID) {
-  let uploads = itch_api::get_game_uploads(client, game_id)
-    .await
-    .unwrap_or_else(|e| eprintln_exit!("{e}"));
+fn print_game_uploads(client: &ItchClient, game_id: GameID) {
+  let uploads =
+    itch_api::get_game_uploads(client, game_id).unwrap_or_else(|e| eprintln_exit!("{e}"));
   println!("{uploads:#?}");
 
   println!("{:#?}", scratch_io::get_game_platforms(&uploads));
 }
 
 // Print information about an upload
-async fn print_upload_info(client: &ItchClient, upload_id: UploadID) {
+fn print_upload_info(client: &ItchClient, upload_id: UploadID) {
   println!(
     "{:#?}",
-    itch_api::get_upload_info(client, upload_id)
-      .await
-      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+    itch_api::get_upload_info(client, upload_id).unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
 }
 
 // Print an upload's builds information
-async fn print_upload_builds(client: &ItchClient, upload_id: UploadID) {
+fn print_upload_builds(client: &ItchClient, upload_id: UploadID) {
   println!(
     "{:#?}",
-    itch_api::get_upload_builds(client, upload_id)
-      .await
-      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+    itch_api::get_upload_builds(client, upload_id).unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
 }
 
 // Print information about a build
-async fn print_build_info(client: &ItchClient, build_id: BuildID) {
+fn print_build_info(client: &ItchClient, build_id: BuildID) {
   println!(
     "{:#?}",
-    itch_api::get_build_info(client, build_id)
-      .await
-      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+    itch_api::get_build_info(client, build_id).unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
 }
 
 // Print the upgrade path between two builds
-async fn print_upgrade_path(
-  client: &ItchClient,
-  current_build_id: BuildID,
-  target_build_id: BuildID,
-) {
+fn print_upgrade_path(client: &ItchClient, current_build_id: BuildID, target_build_id: BuildID) {
   println!(
     "{:#?}",
     itch_api::get_upgrade_path(client, current_build_id, target_build_id)
-      .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
 }
 
 // Print the scanned info about an upload
-async fn print_scanned_upload(client: &ItchClient, upload_id: UploadID) {
+fn print_scanned_upload(client: &ItchClient, upload_id: UploadID) {
   println!(
     "{:#?}",
     itch_api::get_upload_scanned_archive(client, upload_id)
-      .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
 }
 
 // Print the scanned info about a build
-async fn print_scanned_build(client: &ItchClient, build_id: BuildID) {
+fn print_scanned_build(client: &ItchClient, build_id: BuildID) {
   println!(
     "{:#?}",
-    itch_api::get_build_scanned_archive(client, build_id)
-      .await
-      .unwrap_or_else(|e| eprintln_exit!("{e}"))
+    itch_api::get_build_scanned_archive(client, build_id).unwrap_or_else(|e| eprintln_exit!("{e}"))
   );
 }
 
 // Download a game's upload
-async fn download(
+fn download(
   client: &ItchClient,
   upload_id: UploadID,
   dest: &Path,
@@ -591,7 +556,6 @@ async fn download(
     },
     std::time::Duration::from_millis(100),
   )
-  .await
   .unwrap_or_else(|e| eprintln_exit!("Error while downloading file!\n{}", e));
 
   println!(
@@ -604,7 +568,7 @@ async fn download(
 }
 
 // Download a game's cover image
-async fn download_cover(
+fn download_cover(
   client: &ItchClient,
   game_id: GameID,
   folder: &Path,
@@ -613,7 +577,6 @@ async fn download_cover(
 ) {
   let cover_path =
     scratch_io::download_game_cover(client, game_id, folder, filename, force_download)
-      .await
       .unwrap_or_else(|e| eprintln_exit!("{e}"));
 
   match cover_path {
@@ -626,9 +589,8 @@ async fn download_cover(
 }
 
 // Remove partially downloaded game files
-async fn remove_partial_download(client: &ItchClient, upload_id: UploadID, game_folder: &Path) {
+fn remove_partial_download(client: &ItchClient, upload_id: UploadID, game_folder: &Path) {
   let was_something_deleted = scratch_io::remove_partial_download(client, upload_id, game_folder)
-    .await
     .unwrap_or_else(|e| eprintln_exit!("Couldn't remove partial download: {e}"));
 
   if was_something_deleted {
@@ -646,7 +608,7 @@ fn print_installed_games(installed_uploads: &mut HashMap<UploadID, InstalledUplo
 }
 
 // Print the installed info of an upload
-async fn print_installed_upload(
+fn print_installed_upload(
   upload_id: UploadID,
   installed_uploads: &mut HashMap<UploadID, InstalledUpload>,
 ) {
@@ -655,7 +617,6 @@ async fn print_installed_upload(
   println!("{iu:#?}");
 
   let manifest = scratch_io::get_upload_manifest(upload_id, &iu.game_folder)
-    .await
     .unwrap_or_else(|e| eprintln_exit!("Couldn't get the itch manifest of the upload!: {e}"));
 
   if let Some(m) = manifest {
@@ -664,7 +625,7 @@ async fn print_installed_upload(
 }
 
 // Import an already installed upload from a folder
-async fn import(
+fn import(
   client: &ItchClient,
   upload_id: UploadID,
   game_folder: &Path,
@@ -673,7 +634,6 @@ async fn import(
   exit_if_already_installed(upload_id, installed_uploads);
 
   let iu = scratch_io::import(client, upload_id, game_folder)
-    .await
     .inspect(|ui| {
       println!(
         "Game imported from: \"{}\"",
@@ -688,14 +648,10 @@ async fn import(
 }
 
 // Remove an installed upload from the system
-async fn remove_upload(
-  upload_id: UploadID,
-  installed_uploads: &mut HashMap<UploadID, InstalledUpload>,
-) {
+fn remove_upload(upload_id: UploadID, installed_uploads: &mut HashMap<UploadID, InstalledUpload>) {
   let upload_info = get_installed_upload_info_ref(upload_id, installed_uploads);
 
   scratch_io::remove(upload_id, &upload_info.game_folder)
-    .await
     .unwrap_or_else(|e| eprintln_exit!("Couldn't remove upload!\n{e}"));
 
   println!(
@@ -709,7 +665,7 @@ async fn remove_upload(
 }
 
 // Move an installed upload from a place to another
-async fn move_upload(
+fn move_upload(
   upload_id: UploadID,
   dst_game_folder: &Path,
   installed_uploads: &mut HashMap<UploadID, InstalledUpload>,
@@ -719,7 +675,6 @@ async fn move_upload(
   let src_game_folder = upload_info.game_folder.to_path_buf();
 
   upload_info.game_folder = scratch_io::r#move(upload_id, &src_game_folder, dst_game_folder)
-    .await
     .unwrap_or_else(|e| eprintln_exit!("Couldn't move upload!\n{e}"));
 
   println!(
@@ -731,7 +686,7 @@ async fn move_upload(
 
 // Launch an installed upload
 #[allow(clippy::too_many_arguments)]
-async fn launch_upload(
+fn launch_upload(
   upload_id: UploadID,
   upload_executable_path: Option<PathBuf>,
   launch_action: Option<String>,
@@ -802,18 +757,16 @@ async fn launch_upload(
       )
     },
   )
-  .await
   .unwrap_or_else(|e| eprintln_exit!("Couldn't launch: {upload_id}\n{e}"));
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
   // Read the user commands
   let cli: Cli = Cli::parse();
 
   // Get the config from the file
   let custom_config_file = cli.config_file;
-  let mut config: Config = Config::load_unwrap(custom_config_file.clone()).await;
+  let mut config: Config = Config::load_unwrap(custom_config_file.clone());
 
   // Create itch.io client
   let client = get_itch_client(
@@ -831,8 +784,7 @@ async fn main() {
       config.api_key.to_owned(),
       // 4. If there isn't a saved config, throw an error
     ],
-  )
-  .await;
+  );
 
   /**** COMMANDS ****/
 
@@ -842,56 +794,56 @@ async fn main() {
 
       match command {
         WithApiCommands::Auth { .. } => {
-          auth(&client, &mut config.api_key).await;
-          config.save_unwrap(custom_config_file).await;
+          auth(&client, &mut config.api_key);
+          config.save_unwrap(custom_config_file);
         }
         WithApiCommands::UserInfo { user_id } => {
-          print_user_info(&client, user_id).await;
+          print_user_info(&client, user_id);
         }
         WithApiCommands::ProfileInfo => {
-          print_profile_info(&client).await;
+          print_profile_info(&client);
         }
         WithApiCommands::CreatedGames => {
-          print_created_games(&client).await;
+          print_created_games(&client);
         }
         WithApiCommands::OwnedKeys => {
-          print_owned_keys(&client).await;
+          print_owned_keys(&client);
         }
         WithApiCommands::ProfileCollections => {
-          print_profile_collections(&client).await;
+          print_profile_collections(&client);
         }
         WithApiCommands::CollectionInfo { collection_id } => {
-          print_collection_info(&client, collection_id).await;
+          print_collection_info(&client, collection_id);
         }
         WithApiCommands::CollectionGames { collection_id } => {
-          print_collection_games(&client, collection_id).await;
+          print_collection_games(&client, collection_id);
         }
         WithApiCommands::GameInfo { game_id } => {
-          print_game_info(&client, game_id).await;
+          print_game_info(&client, game_id);
         }
         WithApiCommands::GameUploads { game_id } => {
-          print_game_uploads(&client, game_id).await;
+          print_game_uploads(&client, game_id);
         }
         WithApiCommands::UploadInfo { upload_id } => {
-          print_upload_info(&client, upload_id).await;
+          print_upload_info(&client, upload_id);
         }
         WithApiCommands::UploadBuilds { upload_id } => {
-          print_upload_builds(&client, upload_id).await;
+          print_upload_builds(&client, upload_id);
         }
         WithApiCommands::BuildInfo { build_id } => {
-          print_build_info(&client, build_id).await;
+          print_build_info(&client, build_id);
         }
         WithApiCommands::UpgradePath {
           current_build_id,
           target_build_id,
         } => {
-          print_upgrade_path(&client, current_build_id, target_build_id).await;
+          print_upgrade_path(&client, current_build_id, target_build_id);
         }
         WithApiCommands::UploadScannedArchive { upload_id } => {
-          print_scanned_upload(&client, upload_id).await;
+          print_scanned_upload(&client, upload_id);
         }
         WithApiCommands::BuildScannedArchive { build_id } => {
-          print_scanned_build(&client, build_id).await;
+          print_scanned_build(&client, build_id);
         }
         WithApiCommands::Download {
           upload_id,
@@ -904,9 +856,8 @@ async fn main() {
             &install_path,
             skip_hash_verification,
             &mut config.installed_uploads,
-          )
-          .await;
-          config.save_unwrap(custom_config_file).await;
+          );
+          config.save_unwrap(custom_config_file);
         }
         WithApiCommands::DownloadCover {
           game_id,
@@ -920,14 +871,13 @@ async fn main() {
             &folder,
             filename.as_deref(),
             force_download,
-          )
-          .await;
+          );
         }
         WithApiCommands::RemovePartialDownload {
           upload_id,
           install_path,
         } => {
-          remove_partial_download(&client, upload_id, &install_path).await;
+          remove_partial_download(&client, upload_id, &install_path);
         }
         WithApiCommands::Import {
           upload_id,
@@ -938,9 +888,8 @@ async fn main() {
             upload_id,
             &install_path,
             &mut config.installed_uploads,
-          )
-          .await;
-          config.save_unwrap(custom_config_file).await;
+          );
+          config.save_unwrap(custom_config_file);
         }
       }
     }
@@ -955,37 +904,36 @@ async fn main() {
           &password,
           recaptcha_response.as_deref(),
           &mut config.api_key,
-        )
-        .await;
-        config.save_unwrap(custom_config_file).await;
+        );
+        config.save_unwrap(custom_config_file);
       }
       WithoutApiCommands::TOTPVerification {
         totp_token,
         totp_code,
       } => {
-        totp_verification(&totp_token, totp_code, &mut config.api_key).await;
-        config.save_unwrap(custom_config_file).await;
+        totp_verification(&totp_token, totp_code, &mut config.api_key);
+        config.save_unwrap(custom_config_file);
       }
       WithoutApiCommands::Logout => {
         logout(&mut config.api_key);
-        config.save_unwrap(custom_config_file).await;
+        config.save_unwrap(custom_config_file);
       }
       WithoutApiCommands::Installed => {
         print_installed_games(&mut config.installed_uploads);
       }
       WithoutApiCommands::InstalledUpload { upload_id } => {
-        print_installed_upload(upload_id, &mut config.installed_uploads).await;
+        print_installed_upload(upload_id, &mut config.installed_uploads);
       }
       WithoutApiCommands::Remove { upload_id } => {
-        remove_upload(upload_id, &mut config.installed_uploads).await;
-        config.save_unwrap(custom_config_file).await;
+        remove_upload(upload_id, &mut config.installed_uploads);
+        config.save_unwrap(custom_config_file);
       }
       WithoutApiCommands::Move {
         upload_id,
         game_path_dst,
       } => {
-        move_upload(upload_id, &game_path_dst, &mut config.installed_uploads).await;
-        config.save_unwrap(custom_config_file).await;
+        move_upload(upload_id, &game_path_dst, &mut config.installed_uploads);
+        config.save_unwrap(custom_config_file);
       }
       WithoutApiCommands::Launch {
         upload_id,
@@ -1005,8 +953,7 @@ async fn main() {
           game_arguments.as_deref(),
           environment_variables.as_deref(),
           config.installed_uploads,
-        )
-        .await;
+        );
       }
     },
   }

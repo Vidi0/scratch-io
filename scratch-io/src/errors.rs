@@ -93,10 +93,10 @@ pub enum FilesystemIOErrorKind {
   #[error("Couldn't sync file data to disk!")]
   SyncFile,
 
-  #[error("Couldn't fill an async buffer!")]
-  CouldntFillAsyncBuffer,
+  #[error("Couldn't fill a buffer!")]
+  CouldntFillBuffer,
 
-  #[error("Couldn't write a buffer to an async writer!")]
+  #[error("Couldn't write a buffer to a writer!")]
   CouldntWriteBuffer,
 
   #[error("Couldn't spawn the child process!")]

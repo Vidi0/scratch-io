@@ -7,12 +7,16 @@ use responses::*;
 pub use responses::{ApiResponse, IntoResponseResult, LoginResponse};
 use types::*;
 
-use reqwest::{Method, Response, header};
+use reqwest::{
+  Method,
+  blocking::{Client, RequestBuilder, Response},
+  header,
+};
 
 /// A client able to send requests to the itch.io API
 #[derive(Debug, Clone)]
 pub struct ItchClient {
-  client: reqwest::Client,
+  client: Client,
   api_key: String,
 }
 
@@ -35,14 +39,14 @@ impl ItchClient {
   /// # Errors
   ///
   /// If the request fails to send
-  pub(crate) async fn itch_request(
+  pub(crate) fn itch_request(
     &self,
     url: &ItchApiUrl,
     method: Method,
-    options: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
+    options: impl FnOnce(RequestBuilder) -> RequestBuilder,
   ) -> Result<Response, reqwest::Error> {
     // Create the base request
-    let mut request: reqwest::RequestBuilder = self.client.request(method, url.as_str());
+    let mut request: RequestBuilder = self.client.request(method, url.as_str());
 
     // Add authentication based on the API's version.
     request = match url.get_version() {
@@ -67,7 +71,7 @@ impl ItchClient {
     // it needs to be able to modify anything
     request = options(request);
 
-    request.send().await
+    request.send()
   }
 
   /// Make a request to the itch.io API and parse the response as JSON
@@ -87,11 +91,11 @@ impl ItchClient {
   /// # Errors
   ///
   /// If the request, retrieving its text, or parsing fails, or if the server returned an error
-  async fn itch_request_json<T>(
+  fn itch_request_json<T>(
     &self,
     url: &ItchApiUrl,
     method: Method,
-    options: impl FnOnce(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
+    options: impl FnOnce(RequestBuilder) -> RequestBuilder,
   ) -> Result<T, ItchRequestJSONError<<T as IntoResponseResult>::Err>>
   where
     T: serde::de::DeserializeOwned + IntoResponseResult,
@@ -99,13 +103,11 @@ impl ItchClient {
     // Get the response text
     let text = self
       .itch_request(url, method, options)
-      .await
       .map_err(|e| ItchRequestJSONError {
         url: url.to_string(),
         kind: ItchRequestJSONErrorKind::CouldntSend(e),
       })?
       .text()
-      .await
       .map_err(|e| ItchRequestJSONError {
         url: url.to_string(),
         kind: ItchRequestJSONErrorKind::CouldntGetText(e),
@@ -145,7 +147,7 @@ impl ItchClient {
   #[must_use]
   pub fn new(api_key: String) -> Self {
     Self {
-      client: reqwest::Client::new(),
+      client: Client::new(),
       api_key,
     }
   }
@@ -163,14 +165,12 @@ impl ItchClient {
   /// # Errors
   ///
   /// If the request, retrieving its text, or parsing fails, or if the server returned an error
-  pub async fn auth(
-    api_key: String,
-  ) -> Result<Self, ItchRequestJSONError<ApiResponseCommonErrors>> {
+  pub fn auth(api_key: String) -> Result<Self, ItchRequestJSONError<ApiResponseCommonErrors>> {
     let client = Self::new(api_key);
 
     // Verify that the API key is valid
     // Calling get_profile will fail if the given API key is invalid
-    get_profile(&client).await?;
+    get_profile(&client)?;
 
     Ok(client)
   }
@@ -197,7 +197,7 @@ impl ItchClient {
 /// # Errors
 ///
 /// If the requests fail
-pub async fn login(
+pub fn login(
   client: &ItchClient,
   username: &str,
   password: &str,
@@ -215,13 +215,11 @@ pub async fn login(
     params.push(("recaptcha_response", rr));
   }
 
-  client
-    .itch_request_json::<LoginResponse>(
-      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "login"),
-      Method::POST,
-      |b| b.form(&params),
-    )
-    .await
+  client.itch_request_json::<LoginResponse>(
+    &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "login"),
+    Method::POST,
+    |b| b.form(&params),
+  )
 }
 
 /// Complete the login with the TOTP two-factor verification
@@ -239,7 +237,7 @@ pub async fn login(
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn totp_verification(
+pub fn totp_verification(
   client: &ItchClient,
   totp_token: &str,
   totp_code: u64,
@@ -250,7 +248,6 @@ pub async fn totp_verification(
       Method::POST,
       |b| b.form(&[("token", totp_token), ("code", &totp_code.to_string())]),
     )
-    .await
     .map(|res| res.success)
 }
 
@@ -267,7 +264,7 @@ pub async fn totp_verification(
 /// # Errors
 ///
 /// If the request, retrieving its text, or parsing fails, or if the server returned an error
-pub async fn get_user_info(
+pub fn get_user_info(
   client: &ItchClient,
   user_id: UserID,
 ) -> Result<User, ItchRequestJSONError<UserResponseError>> {
@@ -277,7 +274,6 @@ pub async fn get_user_info(
       Method::GET,
       |b| b,
     )
-    .await
     .map(|res| res.user)
 }
 
@@ -296,7 +292,7 @@ pub async fn get_user_info(
 /// # Errors
 ///
 /// If the request, retrieving its text, or parsing fails, or if the server returned an error
-pub async fn get_profile(
+pub fn get_profile(
   client: &ItchClient,
 ) -> Result<Profile, ItchRequestJSONError<ApiResponseCommonErrors>> {
   client
@@ -305,7 +301,6 @@ pub async fn get_profile(
       Method::GET,
       |b| b,
     )
-    .await
     .map(|res| res.user)
 }
 
@@ -322,7 +317,7 @@ pub async fn get_profile(
 /// # Errors
 ///
 /// If the request, retrieving its text, or parsing fails, or if the server returned an error
-pub async fn get_created_games(
+pub fn get_created_games(
   client: &ItchClient,
 ) -> Result<Vec<CreatedGame>, ItchRequestJSONError<ApiResponseCommonErrors>> {
   client
@@ -331,7 +326,6 @@ pub async fn get_created_games(
       Method::GET,
       |b| b,
     )
-    .await
     .map(|res| res.games)
 }
 
@@ -348,23 +342,21 @@ pub async fn get_created_games(
 /// # Errors
 ///
 /// If the request, retrieving its text, or parsing fails, or if the server returned an error
-pub async fn get_owned_keys(
+pub fn get_owned_keys(
   client: &ItchClient,
 ) -> Result<Vec<OwnedKey>, ItchRequestJSONError<ApiResponseCommonErrors>> {
   let mut values: Vec<OwnedKey> = Vec::new();
   let mut page: u64 = 1;
   loop {
-    let response = client
-      .itch_request_json::<OwnedKeysResponse>(
-        &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "profile/owned-keys"),
-        Method::GET,
-        |b| b.query(&[("page", page)]),
-      )
-      .await?;
+    let response = client.itch_request_json::<OwnedKeysResponse>(
+      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "profile/owned-keys"),
+      Method::GET,
+      |b| b.query(&[("page", page)]),
+    )?;
 
     let response_values = response.owned_keys;
     let num_elements: u64 = response_values.len() as u64;
-    values.extend(response_values.into_iter());
+    values.extend(response_values);
 
     if num_elements == 0 || num_elements < response.per_page {
       break;
@@ -389,7 +381,7 @@ pub async fn get_owned_keys(
 /// # Errors
 ///
 /// If the request, retrieving its text, or parsing fails, or if the server returned an error
-pub async fn get_profile_collections(
+pub fn get_profile_collections(
   client: &ItchClient,
 ) -> Result<Vec<Collection>, ItchRequestJSONError<ApiResponseCommonErrors>> {
   client
@@ -398,7 +390,6 @@ pub async fn get_profile_collections(
       Method::GET,
       |b| b,
     )
-    .await
     .map(|res| res.collections)
 }
 
@@ -417,7 +408,7 @@ pub async fn get_profile_collections(
 /// # Errors
 ///
 /// If the request, retrieving its text, or parsing fails, or if the server returned an error
-pub async fn get_collection_info(
+pub fn get_collection_info(
   client: &ItchClient,
   collection_id: CollectionID,
 ) -> Result<Collection, ItchRequestJSONError<CollectionResponseError>> {
@@ -427,7 +418,6 @@ pub async fn get_collection_info(
       Method::GET,
       |b| b,
     )
-    .await
     .map(|res| res.collection)
 }
 
@@ -446,27 +436,25 @@ pub async fn get_collection_info(
 /// # Errors
 ///
 /// If the request, retrieving its text, or parsing fails, or if the server returned an error
-pub async fn get_collection_games(
+pub fn get_collection_games(
   client: &ItchClient,
   collection_id: CollectionID,
 ) -> Result<Vec<CollectionGameItem>, ItchRequestJSONError<CollectionResponseError>> {
   let mut values: Vec<CollectionGameItem> = Vec::new();
   let mut page: u64 = 1;
   loop {
-    let response = client
-      .itch_request_json::<CollectionGamesResponse>(
-        &ItchApiUrl::from_api_endpoint(
-          ItchApiVersion::V2,
-          format!("collections/{collection_id}/collection-games"),
-        ),
-        Method::GET,
-        |b| b.query(&[("page", page)]),
-      )
-      .await?;
+    let response = client.itch_request_json::<CollectionGamesResponse>(
+      &ItchApiUrl::from_api_endpoint(
+        ItchApiVersion::V2,
+        format!("collections/{collection_id}/collection-games"),
+      ),
+      Method::GET,
+      |b| b.query(&[("page", page)]),
+    )?;
 
     let response_values = response.collection_games;
     let num_elements: u64 = response_values.len() as u64;
-    values.extend(response_values.into_iter());
+    values.extend(response_values);
 
     if num_elements == 0 || num_elements < response.per_page {
       break;
@@ -493,7 +481,7 @@ pub async fn get_collection_games(
 /// # Errors
 ///
 /// If the request, retrieving its text, or parsing fails, or if the server returned an error
-pub async fn get_game_info(
+pub fn get_game_info(
   client: &ItchClient,
   game_id: GameID,
 ) -> Result<Game, ItchRequestJSONError<GameResponseError>> {
@@ -503,7 +491,6 @@ pub async fn get_game_info(
       Method::GET,
       |b| b,
     )
-    .await
     .map(|res| res.game)
 }
 
@@ -522,7 +509,7 @@ pub async fn get_game_info(
 /// # Errors
 ///
 /// If the request, retrieving its text, or parsing fails, or if the server returned an error
-pub async fn get_game_uploads(
+pub fn get_game_uploads(
   client: &ItchClient,
   game_id: GameID,
 ) -> Result<Vec<Upload>, ItchRequestJSONError<GameResponseError>> {
@@ -532,7 +519,6 @@ pub async fn get_game_uploads(
       Method::GET,
       |b| b,
     )
-    .await
     .map(|res| res.uploads)
 }
 
@@ -551,7 +537,7 @@ pub async fn get_game_uploads(
 /// # Errors
 ///
 /// If the request, retrieving its text, or parsing fails, or if the server returned an error
-pub async fn get_upload_info(
+pub fn get_upload_info(
   client: &ItchClient,
   upload_id: UploadID,
 ) -> Result<Upload, ItchRequestJSONError<UploadResponseError>> {
@@ -561,7 +547,6 @@ pub async fn get_upload_info(
       Method::GET,
       |b| b,
     )
-    .await
     .map(|res| res.upload)
 }
 
@@ -580,7 +565,7 @@ pub async fn get_upload_info(
 /// # Errors
 ///
 /// If the request, retrieving its text, or parsing fails, or if the server returned an error
-pub async fn get_upload_builds(
+pub fn get_upload_builds(
   client: &ItchClient,
   upload_id: UploadID,
 ) -> Result<Vec<UploadBuild>, ItchRequestJSONError<UploadResponseError>> {
@@ -590,7 +575,6 @@ pub async fn get_upload_builds(
       Method::GET,
       |b| b,
     )
-    .await
     .map(|res| res.builds)
 }
 
@@ -609,7 +593,7 @@ pub async fn get_upload_builds(
 /// # Errors
 ///
 /// If the request, retrieving its text, or parsing fails, or if the server returned an error
-pub async fn get_build_info(
+pub fn get_build_info(
   client: &ItchClient,
   build_id: BuildID,
 ) -> Result<Build, ItchRequestJSONError<BuildResponseError>> {
@@ -619,7 +603,6 @@ pub async fn get_build_info(
       Method::GET,
       |b| b,
     )
-    .await
     .map(|res| res.build)
 }
 
@@ -640,7 +623,7 @@ pub async fn get_build_info(
 /// # Errors
 ///
 /// If the request, retrieving its text, or parsing fails, or if the server returned an error
-pub async fn get_upgrade_path(
+pub fn get_upgrade_path(
   client: &ItchClient,
   current_build_id: BuildID,
   target_build_id: BuildID,
@@ -654,7 +637,6 @@ pub async fn get_upgrade_path(
       Method::GET,
       |b| b,
     )
-    .await
     .map(|res| res.upgrade_path.builds)
 }
 
@@ -673,7 +655,7 @@ pub async fn get_upgrade_path(
 /// # Errors
 ///
 /// If the request, retrieving its text, or parsing fails, or if the server returned an error
-pub async fn get_upload_scanned_archive(
+pub fn get_upload_scanned_archive(
   client: &ItchClient,
   upload_id: UploadID,
 ) -> Result<ScannedArchive, ItchRequestJSONError<UploadResponseError>> {
@@ -686,7 +668,6 @@ pub async fn get_upload_scanned_archive(
       Method::GET,
       |b| b,
     )
-    .await
     .map(|res| res.scanned_archive)
 }
 
@@ -705,7 +686,7 @@ pub async fn get_upload_scanned_archive(
 /// # Errors
 ///
 /// If the request, retrieving its text, or parsing fails, or if the server returned an error
-pub async fn get_build_scanned_archive(
+pub fn get_build_scanned_archive(
   client: &ItchClient,
   build_id: BuildID,
 ) -> Result<ScannedArchive, ItchRequestJSONError<BuildResponseError>> {
@@ -718,6 +699,5 @@ pub async fn get_build_scanned_archive(
       Method::GET,
       |b| b,
     )
-    .await
     .map(|res| res.scanned_archive)
 }

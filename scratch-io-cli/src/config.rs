@@ -61,7 +61,7 @@ impl Config {
   /// Load the application's config from a file
   ///
   /// If `custom_config_folder` is provided, then use that as the config folder path instead of the system's default
-  pub async fn load(custom_config_folder: Option<PathBuf>) -> Result<Self, String> {
+  pub fn load(custom_config_folder: Option<PathBuf>) -> Result<Self, String> {
     // Get the config path
     let config_file_path: PathBuf = get_config_file(custom_config_folder)?;
     // If the config doesn't exist, create one with Config::default()
@@ -75,14 +75,12 @@ impl Config {
     }
 
     // Get the config text
-    let config_text: String = tokio::fs::read_to_string(&config_file_path)
-      .await
-      .map_err(|e| {
-        format!(
-          "Couldn't read the config file data: \"{}\"\n{e}",
-          config_file_path.to_string_lossy()
-        )
-      })?;
+    let config_text: String = std::fs::read_to_string(&config_file_path).map_err(|e| {
+      format!(
+        "Couldn't read the config file data: \"{}\"\n{e}",
+        config_file_path.to_string_lossy()
+      )
+    })?;
 
     // Get the config version
     let ver = toml::from_str::<ConfigVersion>(&config_text)
@@ -118,16 +116,15 @@ Update to a newer scratch-io version to be able to load the given config.
   /// Load the application's config from a file and panic on error
   ///
   /// If `custom_config_folder` is provided, then use that as the config folder path instead of the system's default
-  pub async fn load_unwrap(custom_config_folder: Option<PathBuf>) -> Self {
+  pub fn load_unwrap(custom_config_folder: Option<PathBuf>) -> Self {
     Self::load(custom_config_folder)
-      .await
       .unwrap_or_else(|e| eprintln_exit!("Error while reading configuration file!\n{}", e))
   }
 
   /// Save the application's config to a file
   ///
   /// If `custom_config_folder` is provided, then use that as the config folder path instead of the system's default
-  pub async fn save(&self, custom_config_folder: Option<PathBuf>) -> Result<(), String> {
+  pub fn save(&self, custom_config_folder: Option<PathBuf>) -> Result<(), String> {
     // Get the config path
     let config_file_path: PathBuf = get_config_file(custom_config_folder)?;
 
@@ -137,7 +134,7 @@ Update to a newer scratch-io version to be able to load the given config.
 
     // Ensure config directory exists
     if let Some(parent) = config_file_path.parent() {
-      tokio::fs::create_dir_all(parent).await.map_err(|e| {
+      std::fs::create_dir_all(parent).map_err(|e| {
         format!(
           "Couldn't create config directory: \"{}\"\n{e}",
           parent.to_string_lossy()
@@ -146,23 +143,20 @@ Update to a newer scratch-io version to be able to load the given config.
     }
 
     // Write the config to a file
-    tokio::fs::write(&config_file_path, &config_text)
-      .await
-      .map_err(|e| {
-        format!(
-          "Couldn't write config to a file: \"{}\"\n{e}",
-          config_file_path.to_string_lossy()
-        )
-      })
+    std::fs::write(&config_file_path, &config_text).map_err(|e| {
+      format!(
+        "Couldn't write config to a file: \"{}\"\n{e}",
+        config_file_path.to_string_lossy()
+      )
+    })
   }
 
   /// Save the application's config to a file and panic on error
   ///
   /// If `custom_config_folder` is provided, then use that as the config folder path instead of the system's default
-  pub async fn save_unwrap(&self, custom_config_folder: Option<PathBuf>) {
+  pub fn save_unwrap(&self, custom_config_folder: Option<PathBuf>) {
     self
       .save(custom_config_folder)
-      .await
       .unwrap_or_else(|e| eprintln_exit!("Error while saving to the configuration file!\n{}", e))
   }
 }

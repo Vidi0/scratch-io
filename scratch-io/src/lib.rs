@@ -11,12 +11,11 @@ pub use crate::itch_api::ItchClient;
 use crate::itch_api::{types::*, *};
 
 use md5::{Digest, Md5};
-use reqwest::{Method, Response, header};
+use reqwest::{Method, blocking::Response, header};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
-use tokio::io::AsyncBufReadExt;
-use tokio::time::{Duration, Instant};
+use std::time::{Duration, Instant};
 
 // This isn't inside itch_types because it is not something that the itch API returns
 // These platforms are *interpreted* from the data provided by the API
@@ -93,43 +92,38 @@ pub struct InstalledUpload {
 ///
 /// # Arguments
 ///
-/// * `readable` - Anything that implements [`tokio::io::AsyncRead`] to read the data from, could be a File
+/// * `readable` - Anything that implements [`std::io::BufRead`] to read the data from, could be a File
 ///
 /// * `hasher` - A mutable reference to a MD5 hasher, which will be updated with the file data
 ///
 /// # Returns
 ///
 /// An error if something goes wrong
-async fn hash_readable_async(
-  readable: impl tokio::io::AsyncRead + Unpin,
-  hasher: &mut Md5,
-) -> Result<(), String> {
-  let mut br = tokio::io::BufReader::new(readable);
-
+fn hash_readable(reader: &mut impl std::io::BufRead, hasher: &mut Md5) -> Result<(), String> {
   loop {
-    let buffer = filesystem::fill_buffer(&mut br).await?;
+    let chunk = filesystem::fill_buffer(reader)?;
 
     // If buffer is empty then BufReader has reached the EOF
-    if buffer.is_empty() {
+    if chunk.is_empty() {
       break Ok(());
     }
 
     // Update the hasher
-    hasher.update(buffer);
+    hasher.update(chunk);
 
     // Marked the hashed bytes as read
-    let len = buffer.len();
-    br.consume(len);
+    let len = chunk.len();
+    reader.consume(len);
   }
 }
 
-/// Stream a reqwest [`Response`] into a [`tokio::fs::File`] async
+/// Stream a reqwest [`Response`] into a [`std::fs::File`]
 ///
 /// # Arguments
 ///
 /// * `response` - A file download response
 ///
-/// * `file` - An opened [`tokio::fs::File`] with write access
+/// * `file` - An opened [`std::fs::File`] with write access
 ///
 /// * `md5_hash` - If provided, the hasher to update with the received data
 ///
@@ -142,34 +136,37 @@ async fn hash_readable_async(
 /// The total downloaded bytes
 ///
 /// An error if something goes wrong
-async fn stream_response_into_file(
+fn stream_response_into_file(
   response: Response,
-  file: &mut tokio::fs::File,
+  file: &mut std::fs::File,
   mut md5_hash: Option<&mut Md5>,
   progress_callback: impl Fn(u64),
   callback_interval: Duration,
 ) -> Result<u64, String> {
-  use futures_util::StreamExt;
+  use std::io::BufRead;
 
   // Prepare the download and the callback variables
   let mut downloaded_bytes: u64 = 0;
-  let mut stream = response.bytes_stream();
   let mut last_callback = Instant::now();
+  let mut reader = std::io::BufReader::new(response);
 
-  // Save chunks to the file async
+  // Save chunks to the file
   // Also, compute the MD5 hash while it is being downloaded
-  while let Some(chunk) = match stream.next().await {
-    None => Ok(None),
-    Some(result) => result
-      .map(Some)
-      .map_err(|e| format!("Couldn't read chunk from network!\n{e}")),
-  }? {
+  loop {
+    let chunk = filesystem::fill_buffer(&mut reader)?;
+
+    // If chunk is empty then the reader has reached the EOF
+    if chunk.is_empty() {
+      progress_callback(downloaded_bytes);
+      return Ok(downloaded_bytes);
+    }
+
     // Write the chunk to the file
-    filesystem::write_all(file, &chunk).await?;
+    filesystem::write_all(file, chunk)?;
 
     // If the file has a MD5 hash, update the hasher
     if let Some(hasher) = &mut md5_hash {
-      hasher.update(&chunk);
+      hasher.update(chunk);
     }
 
     // Send a callback with the progress
@@ -178,11 +175,11 @@ async fn stream_response_into_file(
       last_callback = Instant::now();
       progress_callback(downloaded_bytes);
     }
+
+    // Marked the hashed bytes as read
+    let len = chunk.len();
+    reader.consume(len);
   }
-
-  progress_callback(downloaded_bytes);
-
-  Ok(downloaded_bytes)
 }
 
 /// Download a file from an itch API URL
@@ -206,7 +203,7 @@ async fn stream_response_into_file(
 /// # Returns
 ///
 /// An error if something goes wrong
-async fn download_file(
+fn download_file(
   client: &ItchClient,
   url: &ItchApiUrl,
   file_path: &Path,
@@ -224,28 +221,26 @@ async fn download_file(
 
   // If there already exists a file in file_path, then move it to partial_file_path
   // This way, the file's length and its hash are verified
-  if filesystem::exists(file_path).await? {
-    filesystem::rename(file_path, &partial_file_path).await?;
+  if filesystem::exists(file_path)? {
+    filesystem::rename(file_path, &partial_file_path)?;
   }
 
   // Open the file where the data is going to be downloaded
   // Use the append option to ensure that the old download data isn't deleted
   let mut file = filesystem::open_file(
     &partial_file_path,
-    tokio::fs::OpenOptions::new()
+    std::fs::OpenOptions::new()
       .create(true)
       .append(true)
       .read(true),
-  )
-  .await?;
+  )?;
 
-  let mut downloaded_bytes: u64 = filesystem::read_file_metadata(&file).await?.len();
+  let mut downloaded_bytes: u64 = filesystem::read_file_metadata(&file)?.len();
 
   let file_response: Option<Response> = 'r: {
     // Send a request for the whole file
     let res = client
       .itch_request(url, Method::GET, |b| b)
-      .await
       .map_err(|e| e.to_string())?;
 
     let download_size = res.content_length().ok_or_else(|| {
@@ -271,7 +266,6 @@ async fn download_file(
         .itch_request(url, Method::GET, |b| {
           b.header(header::RANGE, format!("bytes={downloaded_bytes}-"))
         })
-        .await
         .map_err(|e| e.to_string())?;
 
       match part_res.status() {
@@ -301,7 +295,7 @@ async fn download_file(
     //
     // In either case, the current file should be removed and downloaded again fully
     downloaded_bytes = 0;
-    filesystem::set_file_len(&file, 0).await?;
+    filesystem::set_file_len(&file, 0)?;
 
     Some(res)
   };
@@ -310,7 +304,8 @@ async fn download_file(
   if let Some((ref mut hasher, _)) = md5_hash
     && downloaded_bytes > 0
   {
-    hash_readable_async(&mut file, hasher).await?;
+    let mut file_reader = std::io::BufReader::new(&mut file);
+    hash_readable(&mut file_reader, hasher)?;
   }
 
   // Stream the Response into the File
@@ -321,8 +316,7 @@ async fn download_file(
       md5_hash.as_mut().map(|(h, _)| h),
       |b| progress_callback(downloaded_bytes + b),
       callback_interval,
-    )
-    .await?;
+    )?;
   }
 
   // If the hashes aren't equal, exit with an error
@@ -338,11 +332,11 @@ async fn download_file(
   }
 
   // Sync the file to ensure all the data has been written
-  filesystem::file_sync_all(&file).await?;
+  filesystem::file_sync_all(&file)?;
 
   // Move the downloaded file to its final destination
   // This has to be the last call in this function because after it, the File is not longer valid
-  filesystem::rename(&partial_file_path, file_path).await?;
+  filesystem::rename(&partial_file_path, file_path)?;
 
   Ok(())
 }
@@ -392,7 +386,7 @@ pub fn get_game_platforms(uploads: &[Upload]) -> Vec<(UploadID, GamePlatform)> {
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn download_game_cover(
+pub fn download_game_cover(
   client: &ItchClient,
   game_id: GameID,
   folder: &Path,
@@ -400,16 +394,14 @@ pub async fn download_game_cover(
   force_download: bool,
 ) -> Result<Option<PathBuf>, String> {
   // Get the game info from the server
-  let game = get_game_info(client, game_id)
-    .await
-    .map_err(|e| e.to_string())?;
+  let game = get_game_info(client, game_id).map_err(|e| e.to_string())?;
   // If the game doesn't have a cover, return
   let Some(cover_url) = game.game_info.cover_url else {
     return Ok(None);
   };
 
   // Create the folder where the file is going to be placed if it doesn't already exist
-  filesystem::create_dir(folder).await?;
+  filesystem::create_dir(folder)?;
 
   // If the cover filename isn't set, set it to "cover"
   let cover_filename = match cover_filename {
@@ -420,7 +412,7 @@ pub async fn download_game_cover(
   let cover_path = folder.join(cover_filename);
 
   // If the cover image already exists and the force variable is false, don't replace the original image
-  if !force_download && filesystem::exists(&cover_path).await? {
+  if !force_download && filesystem::exists(&cover_path)? {
     return Ok(Some(cover_path));
   }
 
@@ -432,8 +424,7 @@ pub async fn download_game_cover(
     |_| (),
     |_| (),
     Duration::MAX,
-  )
-  .await?;
+  )?;
 
   Ok(Some(cover_path))
 }
@@ -463,7 +454,7 @@ pub async fn download_game_cover(
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn download_upload(
+pub fn download_upload(
   client: &ItchClient,
   upload_id: UploadID,
   game_folder: &Path,
@@ -475,12 +466,8 @@ pub async fn download_upload(
   // --- DOWNLOAD PREPARATION ---
 
   // Obtain information about the game and the upload that will be downloaeded
-  let upload: Upload = get_upload_info(client, upload_id)
-    .await
-    .map_err(|e| e.to_string())?;
-  let game: Game = get_game_info(client, upload.game_id)
-    .await
-    .map_err(|e| e.to_string())?;
+  let upload: Upload = get_upload_info(client, upload_id).map_err(|e| e.to_string())?;
+  let game: Game = get_game_info(client, upload.game_id).map_err(|e| e.to_string())?;
 
   // Send to the caller the game and the upload info
   upload_info(&upload, &game);
@@ -490,7 +477,7 @@ pub async fn download_upload(
     game_files::get_upload_archive_path(game_folder, upload_id, &upload.filename);
 
   // Create the game folder if it doesn't already exist
-  filesystem::create_dir(game_folder).await?;
+  filesystem::create_dir(game_folder)?;
 
   // Get the upload's hash
   let hash: Option<&str> = upload.get_hash();
@@ -515,8 +502,7 @@ pub async fn download_upload(
       });
     },
     callback_interval,
-  )
-  .await?;
+  )?;
 
   // Print a warning if the upload doesn't have a hash in the server
   // or the hash verification is skipped
@@ -539,12 +525,12 @@ pub async fn download_upload(
 
   // Extracts the downloaded archive (if it's an archive)
   // game_files can be the path of an executable or the path to the extracted folder
-  extract::extract(&upload_archive, &upload_folder).await?;
+  extract::extract(&upload_archive, &upload_folder)?;
 
   Ok(InstalledUpload {
     upload_id,
     // Get the absolute (canonical) form of the path
-    game_folder: filesystem::get_canonical_path(game_folder).await?,
+    game_folder: filesystem::get_canonical_path(game_folder)?,
     game_id: game.game_info.id,
     game_title: game.game_info.title,
   })
@@ -567,23 +553,19 @@ pub async fn download_upload(
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn import(
+pub fn import(
   client: &ItchClient,
   upload_id: UploadID,
   game_folder: &Path,
 ) -> Result<InstalledUpload, String> {
   // Obtain information about the game and the upload that will be downloaeded
-  let upload: Upload = get_upload_info(client, upload_id)
-    .await
-    .map_err(|e| e.to_string())?;
-  let game: Game = get_game_info(client, upload.game_id)
-    .await
-    .map_err(|e| e.to_string())?;
+  let upload: Upload = get_upload_info(client, upload_id).map_err(|e| e.to_string())?;
+  let game: Game = get_game_info(client, upload.game_id).map_err(|e| e.to_string())?;
 
   Ok(InstalledUpload {
     upload_id,
     // Get the absolute (canonical) form of the path
-    game_folder: filesystem::get_canonical_path(game_folder).await?,
+    game_folder: filesystem::get_canonical_path(game_folder)?,
     game_id: game.game_info.id,
     game_title: game.game_info.title,
   })
@@ -606,15 +588,13 @@ pub async fn import(
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn remove_partial_download(
+pub fn remove_partial_download(
   client: &ItchClient,
   upload_id: UploadID,
   game_folder: &Path,
 ) -> Result<bool, String> {
   // Obtain information about the game and the upload
-  let upload: Upload = get_upload_info(client, upload_id)
-    .await
-    .map_err(|e| e.to_string())?;
+  let upload: Upload = get_upload_info(client, upload_id).map_err(|e| e.to_string())?;
 
   // Vector of files and folders to be removed
   let to_be_removed_folders: &[PathBuf] = &[
@@ -644,22 +624,22 @@ pub async fn remove_partial_download(
 
   // Remove the partially downloaded files
   for f in to_be_removed_files {
-    if filesystem::exists(f).await? {
-      filesystem::remove_file(f).await?;
+    if filesystem::exists(f)? {
+      filesystem::remove_file(f)?;
       was_something_deleted = true;
     }
   }
 
   // Remove the partially downloaded folders
   for f in to_be_removed_folders {
-    if filesystem::exists(f).await? {
-      game_files::remove_folder_safely(f).await?;
+    if filesystem::exists(f)? {
+      game_files::remove_folder_safely(f)?;
       was_something_deleted = true;
     }
   }
 
   // If the game folder is now useless, remove it
-  was_something_deleted |= game_files::remove_folder_if_empty(game_folder).await?;
+  was_something_deleted |= game_files::remove_folder_if_empty(game_folder)?;
 
   Ok(was_something_deleted)
 }
@@ -675,20 +655,20 @@ pub async fn remove_partial_download(
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn remove(upload_id: UploadID, game_folder: &Path) -> Result<(), String> {
+pub fn remove(upload_id: UploadID, game_folder: &Path) -> Result<(), String> {
   let upload_folder = game_files::get_upload_folder(game_folder, upload_id);
 
   // If there isn't a upload_folder, or it is empty, that means the game
   // has already been removed, so return Ok(())
-  if filesystem::is_folder_empty(&upload_folder).await? {
+  if filesystem::is_folder_empty(&upload_folder)? {
     return Ok(());
   }
 
-  game_files::remove_folder_safely(&upload_folder).await?;
+  game_files::remove_folder_safely(&upload_folder)?;
   // The upload folder has been removed
 
   // If the game folder is empty, remove it
-  game_files::remove_folder_if_empty(game_folder).await?;
+  game_files::remove_folder_if_empty(game_folder)?;
 
   Ok(())
 }
@@ -710,7 +690,7 @@ pub async fn remove(upload_id: UploadID, game_folder: &Path) -> Result<(), Strin
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn r#move(
+pub fn r#move(
   upload_id: UploadID,
   src_game_folder: &Path,
   dst_game_folder: &Path,
@@ -718,22 +698,20 @@ pub async fn r#move(
   let src_upload_folder = game_files::get_upload_folder(src_game_folder, upload_id);
 
   // If there isn't a src_upload_folder, exit with error
-  filesystem::ensure_is_dir(&src_upload_folder).await?;
+  filesystem::ensure_is_dir(&src_upload_folder)?;
 
   let dst_upload_folder = game_files::get_upload_folder(dst_game_folder, upload_id);
 
   // If there is a dst_upload_folder with contents, exit with error
-  filesystem::ensure_is_empty(&dst_upload_folder).await?;
+  filesystem::ensure_is_empty(&dst_upload_folder)?;
 
   // Move the upload folder
-  game_files::move_folder(&src_upload_folder, &dst_upload_folder).await?;
+  game_files::move_folder(&src_upload_folder, &dst_upload_folder)?;
 
   // If src_game_folder is empty, remove it
-  game_files::remove_folder_if_empty(src_game_folder).await?;
+  game_files::remove_folder_if_empty(src_game_folder)?;
 
-  filesystem::get_canonical_path(dst_game_folder)
-    .await
-    .map_err(std::convert::Into::into)
+  filesystem::get_canonical_path(dst_game_folder).map_err(std::convert::Into::into)
 }
 
 /// Retrieve the itch manifest from an installed upload
@@ -751,13 +729,13 @@ pub async fn r#move(
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn get_upload_manifest(
+pub fn get_upload_manifest(
   upload_id: UploadID,
   game_folder: &Path,
 ) -> Result<Option<Manifest>, String> {
   let upload_folder = game_files::get_upload_folder(game_folder, upload_id);
 
-  itch_manifest::read_manifest(&upload_folder).await
+  itch_manifest::read_manifest(&upload_folder)
 }
 
 /// Launchs an installed upload
@@ -781,14 +759,14 @@ pub async fn get_upload_manifest(
 /// # Errors
 ///
 /// If something goes wrong
-pub async fn launch(
+pub fn launch(
   upload_id: UploadID,
   game_folder: &Path,
   launch_method: LaunchMethod,
   wrapper: &[String],
   game_arguments: &[String],
   environment_variables: &[(String, String)],
-  launch_start_callback: impl FnOnce(&Path, &tokio::process::Command),
+  launch_start_callback: impl FnOnce(&Path, &std::process::Command),
 ) -> Result<(), String> {
   let upload_folder: PathBuf = game_files::get_upload_folder(game_folder, upload_id);
 
@@ -802,15 +780,14 @@ pub async fn launch(
     LaunchMethod::ManifestAction {
       manifest_action_name,
     } => {
-      let ma = itch_manifest::launch_action(&upload_folder, Some(&manifest_action_name))
-        .await?
+      let ma = itch_manifest::launch_action(&upload_folder, Some(&manifest_action_name))?
         .ok_or_else(|| {
           format!(
             "The provided launch action doesn't exist in the manifest: {manifest_action_name}"
           )
         })?;
       (
-        ma.get_canonical_path(&upload_folder).await?,
+        ma.get_canonical_path(&upload_folder)?,
         // a) If the function's game arguments are empty, use the ones from the manifest
         if game_arguments.is_empty() {
           Cow::Owned(ma.args.unwrap_or_default())
@@ -827,12 +804,12 @@ pub async fn launch(
       game_title,
     } => {
       // But first, check if the game has a manifest with a "play" action, and use it if possible
-      let mao = itch_manifest::launch_action(&upload_folder, None).await?;
+      let mao = itch_manifest::launch_action(&upload_folder, None)?;
 
       match mao {
         // If the manifest has a "play" action, launch from it
         Some(ma) => (
-          ma.get_canonical_path(&upload_folder).await?,
+          ma.get_canonical_path(&upload_folder)?,
           // a) If the function's game arguments are empty, use the ones from the manifest
           if game_arguments.is_empty() {
             Cow::Owned(ma.args.unwrap_or_default())
@@ -844,28 +821,28 @@ pub async fn launch(
         ),
         // Else, now use the heuristics to determine the executable, with the function's game arguments
         None => (
-          heuristics::get_game_executable(&upload_folder, game_platform, game_title).await?,
+          heuristics::get_game_executable(&upload_folder, game_platform, game_title)?,
           Cow::Borrowed(game_arguments),
         ),
       }
     }
   };
 
-  let upload_executable = filesystem::get_canonical_path(&upload_executable).await?;
+  let upload_executable = filesystem::get_canonical_path(&upload_executable)?;
 
   // Make the file executable
-  filesystem::make_executable(&upload_executable).await?;
+  filesystem::make_executable(&upload_executable)?;
 
-  // Create the tokio process
+  // Create the process
   let mut game_process = {
     let mut wrapper_iter = wrapper.iter();
     match wrapper_iter.next() {
       // If it doesn't have a wrapper, just run the executable
-      None => tokio::process::Command::new(&upload_executable),
+      None => std::process::Command::new(&upload_executable),
       Some(w) => {
         // If the game has a wrapper, then run the wrapper with its
         // arguments and add the game executable as the last argument
-        let mut gp = tokio::process::Command::new(w);
+        let mut gp = std::process::Command::new(w);
         gp.args(wrapper_iter).arg(&upload_executable);
         gp
       }
@@ -881,7 +858,7 @@ pub async fn launch(
   launch_start_callback(&upload_executable, &game_process);
 
   let mut child = filesystem::spawn_command(&mut game_process)?;
-  filesystem::wait_child(&mut child).await?;
+  filesystem::wait_child(&mut child)?;
 
   Ok(())
 }

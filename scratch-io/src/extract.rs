@@ -50,25 +50,25 @@ fn get_archive_format(file: &Path) -> Result<ArchiveFormat, FilesystemError> {
 /// Extracts the archive into the given folder
 ///
 /// If the file isn't an archive it will be moved to the folder
-pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), String> {
+pub fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), String> {
   // If the extract folder isn't empty, return an error
-  filesystem::ensure_is_empty(extract_folder).await?;
+  filesystem::ensure_is_empty(extract_folder)?;
 
   let format: ArchiveFormat = get_archive_format(file_path)?;
 
   // If the file isn't an archive, return now
   if let ArchiveFormat::Other = format {
     // Create the destination folder
-    filesystem::create_dir(extract_folder).await?;
+    filesystem::create_dir(extract_folder)?;
 
     // Get the file destination
     let destination = extract_folder.join(filesystem::get_file_name(file_path)?);
 
     // Move the file
-    filesystem::rename(file_path, &destination).await?;
+    filesystem::rename(file_path, &destination)?;
 
     // Make it executable
-    filesystem::make_executable(&destination).await?;
+    filesystem::make_executable(&destination)?;
 
     return Ok(());
   }
@@ -78,13 +78,10 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), Stri
 
   // The extraction temporal folder could have contents if a previous extraction was cancelled
   // For that reason, don't check if the folder is empty; but create it if it doesn't exist
-  filesystem::create_dir(&extract_folder_temp).await?;
+  filesystem::create_dir(&extract_folder_temp)?;
 
   // Open the file in read-only mode
-  let file = filesystem::open_file(file_path, tokio::fs::OpenOptions::new().read(true))
-    .await?
-    .into_std()
-    .await;
+  let file = filesystem::open_file(file_path, std::fs::OpenOptions::new().read(true))?;
 
   // Extract the archive based on its format
   match format {
@@ -98,13 +95,13 @@ pub async fn extract(file_path: &Path, extract_folder: &Path) -> Result<(), Stri
   }
 
   // Remove the archive
-  filesystem::remove_file(file_path).await?;
+  filesystem::remove_file(file_path)?;
 
   // If the extraction folder has any common roots, remove them
-  game_files::remove_root_folder(&extract_folder_temp).await?;
+  game_files::remove_root_folder(&extract_folder_temp)?;
 
   // Move the temporal folder to its destination
-  game_files::move_folder(&extract_folder_temp, extract_folder).await?;
+  game_files::move_folder(&extract_folder_temp, extract_folder)?;
 
   Ok(())
 }

@@ -32,52 +32,52 @@ pub fn add_part_extension(file: &Path) -> Result<PathBuf, FilesystemError> {
 /// Remove a folder if it is empty
 ///
 /// Returns whether the folder was removed or not
-pub async fn remove_folder_if_empty(folder: &Path) -> Result<bool, FilesystemError> {
+pub fn remove_folder_if_empty(folder: &Path) -> Result<bool, FilesystemError> {
   // Return if the folder is not empty
-  let true = is_folder_empty(folder).await? else {
+  let true = is_folder_empty(folder)? else {
     // The folder wasn't removed, so return false
     return Ok(false);
   };
 
   // Remove the empty folder
-  remove_empty_dir(folder).await?;
+  remove_empty_dir(folder)?;
 
   Ok(true)
 }
 
 /// Removes a folder recursively, but checks if it is a dangerous path before doing so
-pub async fn remove_folder_safely(path: &Path) -> Result<(), FilesystemError> {
-  let canonical = get_canonical_path(path).await?;
+pub fn remove_folder_safely(path: &Path) -> Result<(), FilesystemError> {
+  let canonical = get_canonical_path(path)?;
 
   if let Some(home) = std::env::home_dir()
-    && canonical == get_canonical_path(&home).await?
+    && canonical == get_canonical_path(&home)?
   {
     return Err(OtherErr::RefusingToRemoveFolder(canonical).into());
   }
 
-  remove_dir_all(&canonical).await
+  remove_dir_all(&canonical)
 }
 
 /// Copy all the folder contents to another location
-async fn copy_dir_all(from: PathBuf, to: PathBuf) -> Result<(), FilesystemError> {
-  ensure_is_dir(&from).await?;
-  create_dir(&to).await?;
+fn copy_dir_all(from: PathBuf, to: PathBuf) -> Result<(), FilesystemError> {
+  ensure_is_dir(&from)?;
+  create_dir(&to)?;
 
   let mut queue: std::collections::VecDeque<(PathBuf, PathBuf)> = std::collections::VecDeque::new();
   queue.push_back((from, to));
 
   while let Some((from, to)) = queue.pop_front() {
-    let mut entries = read_dir(&from).await?;
+    let mut entries = read_dir(&from)?;
 
-    while let Some(entry) = next_entry(&mut entries, &from).await? {
+    while let Some(entry) = next_entry(&mut entries, &from)? {
       let from_path = entry.path();
       let to_path = to.join(entry.file_name());
 
-      if file_type(&entry, &from).await?.is_dir() {
-        create_dir(&to).await?;
+      if file_type(&entry, &from)?.is_dir() {
+        create_dir(&to)?;
         queue.push_back((from_path, to_path));
       } else {
-        copy_file(&from_path, &to_path).await?;
+        copy_file(&from_path, &to_path)?;
       }
     }
   }
@@ -88,20 +88,20 @@ async fn copy_dir_all(from: PathBuf, to: PathBuf) -> Result<(), FilesystemError>
 /// Move a folder and its contents to another location
 ///
 /// It also works if the destination is on another filesystem
-pub async fn move_folder(from: &Path, to: &Path) -> Result<(), FilesystemError> {
-  ensure_is_dir(from).await?;
+pub fn move_folder(from: &Path, to: &Path) -> Result<(), FilesystemError> {
+  ensure_is_dir(from)?;
 
   // Create the destination parent dir
-  create_dir(to).await?;
+  create_dir(to)?;
 
-  match rename(from, to).await {
+  match rename(from, to) {
     Ok(()) => Ok(()),
     Err(FilesystemError::IOError { error, .. })
-      if error.kind() == tokio::io::ErrorKind::CrossesDevices =>
+      if error.kind() == std::io::ErrorKind::CrossesDevices =>
     {
       // fallback: copy + delete
-      copy_dir_all(from.to_owned(), to.to_owned()).await?;
-      remove_folder_safely(from).await?;
+      copy_dir_all(from.to_owned(), to.to_owned())?;
+      remove_folder_safely(from)?;
       Ok(())
     }
     Err(e) => Err(e),
@@ -109,7 +109,7 @@ pub async fn move_folder(from: &Path, to: &Path) -> Result<(), FilesystemError> 
 }
 
 // If path already exists, change it a bit until it doesn't. Return the available path
-pub async fn find_available_path(path: &Path) -> Result<PathBuf, FilesystemError> {
+pub fn find_available_path(path: &Path) -> Result<PathBuf, FilesystemError> {
   let parent = parent(path)?;
   let filename = get_file_name(path)?;
 
@@ -119,7 +119,7 @@ pub async fn find_available_path(path: &Path) -> Result<PathBuf, FilesystemError
     let current_filename = format!("{filename}{i:x}");
     let current_path: PathBuf = parent.join(current_filename);
 
-    if !exists(&current_path).await? {
+    if !exists(&current_path)? {
       return Ok(current_path);
     }
     i += 1;
@@ -132,42 +132,42 @@ pub async fn find_available_path(path: &Path) -> Result<PathBuf, FilesystemError
 /// and removes all the empty folders between `last_root` and `base_folder`
 ///
 /// If applied to the folder `foo/` and `foo/bar/` in `/foo/bar/baz.txt`, the remainig structure is `/foo/baz.txt`
-async fn move_folder_child(last_root: &Path, base_folder: &Path) -> Result<(), FilesystemError> {
+fn move_folder_child(last_root: &Path, base_folder: &Path) -> Result<(), FilesystemError> {
   // If a file or a folder already exists in the destination folder, rename it and save the new name and
   // the original name to this Vector. At the end, after removing the parent folder, rename all elements of this Vector
   let mut collisions: Vec<(PathBuf, PathBuf)> = Vec::new();
 
-  let mut child_entries = read_dir(last_root).await?;
+  let mut child_entries = read_dir(last_root)?;
 
   // Move its children up one level
-  while let Some(child) = next_entry(&mut child_entries, last_root).await? {
+  while let Some(child) = next_entry(&mut child_entries, last_root)? {
     let from = child.path();
     let to = base_folder.join(child.file_name());
 
-    if exists(&to).await? {
+    if exists(&to)? {
       // If the children filename already exists on the parent, rename it to a
       // temporal name and, at the end, rename all the temporal names in order to the final names
-      let temporal_name: PathBuf = find_available_path(&to).await?;
-      rename(&from, &temporal_name).await?;
+      let temporal_name: PathBuf = find_available_path(&to)?;
+      rename(&from, &temporal_name)?;
 
       // save the change to the collisions vector
       collisions.push((temporal_name, to));
     } else {
-      rename(&from, &to).await?;
+      rename(&from, &to)?;
     }
   }
 
   // Remove the now-empty wrapper dirs
   let mut current_root = last_root.to_owned();
-  while is_folder_empty(&current_root).await? {
+  while is_folder_empty(&current_root)? {
     let parent = parent(&current_root)?;
-    remove_empty_dir(&current_root).await?;
+    remove_empty_dir(&current_root)?;
     current_root = parent.to_owned();
   }
 
   // now move all of the filenames that have collided to their original name
   for (src, dst) in &collisions {
-    rename(src, dst).await?;
+    rename(src, dst)?;
   }
 
   Ok(())
@@ -177,25 +177,23 @@ async fn move_folder_child(last_root: &Path, base_folder: &Path) -> Result<(), F
 /// and unwraps its children to its parent
 ///
 /// If applied to the folder `foo` in `/foo/bar/baz.txt`, the remainig structure is `/foo/baz.txt`
-pub async fn remove_root_folder(folder: &Path) -> Result<(), FilesystemError> {
+pub fn remove_root_folder(folder: &Path) -> Result<(), FilesystemError> {
   // This variable is the last nested root of the folder
   let mut last_root: PathBuf = folder.to_path_buf();
   let mut is_there_any_root: bool = false;
 
   loop {
     // List entries
-    let mut entries = read_dir(&last_root).await?;
+    let mut entries = read_dir(&last_root)?;
 
     // First entry (or empty)
-    let Some(first) = next_entry(&mut entries, &last_root).await? else {
+    let Some(first) = next_entry(&mut entries, &last_root)? else {
       break;
     };
 
     // If there’s another entry, stop (not a single root)
     // If the entry is a file, also stop
-    if next_entry(&mut entries, &last_root).await?.is_some()
-      || file_type(&first, &last_root).await?.is_file()
-    {
+    if next_entry(&mut entries, &last_root)?.is_some() || file_type(&first, &last_root)?.is_file() {
       break;
     }
 
@@ -207,7 +205,7 @@ pub async fn remove_root_folder(folder: &Path) -> Result<(), FilesystemError> {
 
   // Remove the wrappers
   if is_there_any_root {
-    move_folder_child(&last_root, folder).await?;
+    move_folder_child(&last_root, folder)?;
   }
 
   Ok(())
