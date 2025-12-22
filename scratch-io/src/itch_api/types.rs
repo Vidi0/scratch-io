@@ -78,7 +78,7 @@ where
 /// * `V2` - itch.io JSON API V2 <https://api.itch.io/>
 ///
 /// * `Other` - Any other URL
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ItchApiVersion {
   V1,
   V2,
@@ -88,7 +88,7 @@ pub enum ItchApiVersion {
 /// An itch.io API address
 ///
 /// Use the Other variant with the full URL when it isn't a known API version
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItchApiUrl {
   version: ItchApiVersion,
   url: String,
@@ -116,7 +116,7 @@ impl<'a> ItchApiUrl {
 
   /// Returns the API version of this [`ItchApiUrl`]
   #[must_use]
-  pub fn get_version(&self) -> ItchApiVersion {
+  pub const fn get_version(&self) -> ItchApiVersion {
     self.version
   }
 }
@@ -136,19 +136,19 @@ impl std::fmt::Display for ItchApiUrl {
   }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItchCookie {
   pub itchio: String,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ItchKeySource {
   Desktop,
   Android,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItchKey {
   pub key: String,
   pub id: ItchKeyID,
@@ -163,7 +163,7 @@ pub struct ItchKey {
   pub last_used_at: Option<OffsetDateTime>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LoginSuccess {
   pub success: bool,
   pub cookie: ItchCookie,
@@ -172,7 +172,7 @@ pub struct LoginSuccess {
 
 // LoginCaptchaError is defined here because it's not returned by the API
 // the same way the other errors, but in its own separate struct
-#[derive(Error, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Error, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[error(
   r#"A reCAPTCHA verification is required to continue!
   Go to "{recaptcha_url}" and solve the reCAPTCHA.
@@ -188,7 +188,7 @@ pub struct LoginCaptchaError {
 
 // LoginTOTPError is defined here because it's not returned by the API
 // the same way the other errors, but in its own separate struct
-#[derive(Error, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Error, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[error(
   r#"The account has two-step verification enabled via TOTP.
   To complete the login, run the totp verification command with the following options:
@@ -201,7 +201,7 @@ pub struct LoginTOTPError {
   pub token: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct User {
   pub id: UserID,
   pub username: String,
@@ -220,7 +220,7 @@ impl User {
   }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Profile {
   #[serde(flatten)]
   pub user: User,
@@ -229,7 +229,7 @@ pub struct Profile {
   pub press_user: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameSale {
   pub id: SaleID,
   /// Rate must be an integger between -100 and 100
@@ -241,7 +241,7 @@ pub struct GameSale {
   pub end_date: OffsetDateTime,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GameType {
   Default,
@@ -251,7 +251,7 @@ pub enum GameType {
   Unity,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GameClassification {
   Game,
@@ -265,7 +265,7 @@ pub enum GameClassification {
   Other,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GameTrait {
   PLinux,
@@ -280,7 +280,7 @@ pub enum GameTrait {
 /// This struct represents all the shared fields among the different Game structs
 ///
 /// It should always be used alongside serde flattten
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameCommon {
   pub id: GameID,
   pub url: String,
@@ -299,14 +299,14 @@ pub struct GameCommon {
   pub traits: Vec<GameTrait>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Game {
   #[serde(flatten)]
   pub game_info: GameCommon,
   pub user: User,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Collection {
   pub id: CollectionID,
   pub title: String,
@@ -317,13 +317,13 @@ pub struct Collection {
   pub updated_at: OffsetDateTime,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CollectionGame {
   #[serde(flatten)]
   pub game_info: GameCommon,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CollectionGameItem {
   pub game: CollectionGame,
   pub position: u64,
@@ -332,7 +332,7 @@ pub struct CollectionGameItem {
   pub created_at: OffsetDateTime,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreatedGame {
   #[serde(flatten)]
   pub game_info: GameCommon,
@@ -343,7 +343,7 @@ pub struct CreatedGame {
   pub published: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OwnedKey {
   pub id: OwnedKeyID,
   pub game_id: GameID,
@@ -359,7 +359,7 @@ pub struct OwnedKey {
 ///
 /// It should always be used alongside serde flattten
 #[serde_as]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BuildCommon {
   pub id: BuildID,
   #[serde_as(deserialize_as = "DefaultOnError")]
@@ -372,7 +372,7 @@ pub struct BuildCommon {
   pub updated_at: OffsetDateTime,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BuildFileType {
   Archive,
@@ -382,7 +382,7 @@ pub enum BuildFileType {
   Unpacked,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BuildFileSubtype {
   Default,
@@ -391,13 +391,13 @@ pub enum BuildFileSubtype {
   Gzip,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BuildFileState {
   Uploaded,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BuildFile {
   pub size: u64,
   pub r#type: BuildFileType,
@@ -405,13 +405,13 @@ pub struct BuildFile {
   pub state: BuildFileState,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BuildState {
   Completed,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Build {
   #[serde(flatten)]
   pub build_info: BuildCommon,
@@ -422,7 +422,7 @@ pub struct Build {
   pub files: Vec<BuildFile>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UpgradePathBuild {
   #[serde(flatten)]
   pub build_info: BuildCommon,
@@ -431,13 +431,13 @@ pub struct UpgradePathBuild {
   pub files: Vec<BuildFile>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UploadBuild {
   #[serde(flatten)]
   pub build_info: BuildCommon,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UploadType {
   Default,
@@ -456,7 +456,7 @@ pub enum UploadType {
   Other,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum UploadTrait {
   PLinux,
@@ -466,7 +466,7 @@ pub enum UploadTrait {
   Demo,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "storage", rename_all = "snake_case")]
 pub enum UploadStorage {
   Hosted {
@@ -484,7 +484,7 @@ pub enum UploadStorage {
   },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Upload {
   pub position: u64,
   pub id: UploadID,
@@ -519,7 +519,7 @@ impl Upload {
   }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ManifestActionPlatform {
   Linux,
@@ -528,7 +528,7 @@ pub enum ManifestActionPlatform {
   Unknown,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ManifestAction {
   pub name: String,
   pub path: String,
@@ -540,7 +540,7 @@ pub struct ManifestAction {
   pub scope: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ManifestPrerequisiteName {
   #[serde(rename = "vcredist-2010-x64")]
   Vcredist2010x64,
@@ -577,25 +577,25 @@ pub enum ManifestPrerequisiteName {
   DxJune2010,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ManifestPrerequisite {
   pub name: ManifestPrerequisiteName,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Manifest {
   pub actions: Option<Vec<ManifestAction>>,
   pub prereqs: Option<Vec<ManifestPrerequisite>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "object_type", rename_all = "snake_case")]
 pub enum ScannedArchiveObject {
   Upload { object_id: UploadID },
   Build { object_id: BuildID },
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScannedArchive {
   #[serde(flatten)]
   pub object_type: ScannedArchiveObject,

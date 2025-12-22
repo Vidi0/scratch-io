@@ -59,7 +59,7 @@ impl ItchClient {
 
     // This header is set to ensure the use of the v2 version
     // https://itchapi.ryhn.link/API/V2/index.html
-    if let ItchApiVersion::V2 = url.get_version() {
+    if url.get_version() == ItchApiVersion::V2 {
       request = request.header(header::ACCEPT, "application/vnd.itch.v2");
     }
 
@@ -166,7 +166,7 @@ impl ItchClient {
   pub async fn auth(
     api_key: String,
   ) -> Result<Self, ItchRequestJSONError<ApiResponseCommonErrors>> {
-    let client = ItchClient::new(api_key);
+    let client = Self::new(api_key);
 
     // Verify that the API key is valid
     // Calling get_profile will fail if the given API key is invalid

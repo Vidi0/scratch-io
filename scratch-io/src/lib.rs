@@ -21,7 +21,7 @@ use tokio::time::{Duration, Instant};
 // This isn't inside itch_types because it is not something that the itch API returns
 // These platforms are *interpreted* from the data provided by the API
 /// The different platforms a upload can be made for
-#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GamePlatform {
   Linux,
   Windows,
@@ -81,7 +81,7 @@ pub enum LaunchMethod {
 }
 
 /// Some information about a installed upload
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InstalledUpload {
   pub upload_id: UploadID,
   pub game_folder: PathBuf,
@@ -539,9 +539,7 @@ pub async fn download_upload(
 
   // Extracts the downloaded archive (if it's an archive)
   // game_files can be the path of an executable or the path to the extracted folder
-  extract::extract(&upload_archive, &upload_folder)
-    .await
-    .map_err(|e| e.clone())?;
+  extract::extract(&upload_archive, &upload_folder).await?;
 
   Ok(InstalledUpload {
     upload_id,

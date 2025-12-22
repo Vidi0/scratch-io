@@ -20,17 +20,17 @@ const BEST_PROXIMITY_MULTIPLIER: f64 = 0.34;
 const MAX_DIRECTORY_LEVEL_DEPTH: usize = 2;
 
 impl GamePlatform {
-  fn get_best_filenames(self) -> &'static [&'static str] {
+  const fn get_best_filenames(self) -> &'static [&'static str] {
     match self {
       // These must only be ascii alphanumeric lowercase
-      GamePlatform::Linux
-      | GamePlatform::Windows
-      | GamePlatform::OSX
-      | GamePlatform::Android
-      | GamePlatform::Flash
-      | GamePlatform::Java
-      | GamePlatform::UnityWebPlayer => &[],
-      GamePlatform::Web => &["index"],
+      Self::Linux
+      | Self::Windows
+      | Self::OSX
+      | Self::Android
+      | Self::Flash
+      | Self::Java
+      | Self::UnityWebPlayer => &[],
+      Self::Web => &["index"],
     }
   }
 }
@@ -228,7 +228,7 @@ fn proximity_rating(
   // y = normalized ^ ( 1 / (multiplier ^ 2) )
   // This works when multiplier is between 0 and 1
   base_points
-    + (strsim::normalized_levenshtein(a, b).powf(1.0 / proximity_multiplier.powf(2.0))
+    + (strsim::normalized_levenshtein(a, b).powf(1.0 / proximity_multiplier.powi(2))
       * extra_points as f64) as i64
 }
 

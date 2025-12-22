@@ -195,7 +195,7 @@ pub async fn is_folder_empty(folder: &Path) -> Result<bool, FilesystemError> {
 ///
 /// If `path` is not a directory
 pub async fn ensure_is_dir(path: &Path) -> Result<(), FilesystemError> {
-  if let Some(true) = is_dir(path).await? {
+  if is_dir(path).await? == Some(true) {
     Ok(())
   } else {
     Err(OtherErr::ShouldBeAFolder(path.to_owned()).into())
@@ -228,7 +228,7 @@ pub async fn set_permissions(
 /// [`tokio::fs::OpenOptions::open`]
 pub async fn open_file(
   path: &Path,
-  options: &mut fs::OpenOptions,
+  options: &fs::OpenOptions,
 ) -> Result<fs::File, FilesystemError> {
   options
     .open(path)

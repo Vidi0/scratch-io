@@ -3,8 +3,10 @@
 /// More information about bsdiff wharf patches:
 /// <https://web.archive.org/web/20211123032456/https://twitter.com/fasterthanlime/status/790617515009437701>
 pub mod bsdiff;
+
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/pwr.proto>
 pub mod pwr;
+
 /// <https://github.com/itchio/lake/blob/cc4284ec2b2a9ebc4735d7560ed8216de6ffac6f/tlc/tlc.proto>
 pub mod tlc;
 
@@ -61,7 +63,7 @@ pub struct Patch<R> {
 /// The messages are read and decoded one by one, without loading the entire stream into memory.
 ///
 /// The iterator finishes when reaching EOF
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockHashIter<R> {
   reader: R,
 }
@@ -86,7 +88,7 @@ where
   }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct RsyncOpIter<'a, R> {
   reader: &'a mut R,
 }
@@ -104,7 +106,7 @@ where
       ))),
 
       Ok(sync_op) => {
-        if let pwr::sync_op::Type::HeyYouDidIt = sync_op.r#type() {
+        if sync_op.r#type() == pwr::sync_op::Type::HeyYouDidIt {
           None
         } else {
           Some(Ok(sync_op))
@@ -114,7 +116,7 @@ where
   }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct BsdiffOpIter<'a, R> {
   reader: &'a mut R,
 }
@@ -140,7 +142,7 @@ where
             ))),
 
             Ok(sync_op) => {
-              if let pwr::sync_op::Type::HeyYouDidIt = sync_op.r#type() {
+              if sync_op.r#type() == pwr::sync_op::Type::HeyYouDidIt {
                 None
               } else {
                 Some(Err(
@@ -157,7 +159,7 @@ where
   }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum SyncHeader<'a, R> {
   Rsync {
     file_index: i64,
@@ -170,7 +172,7 @@ pub enum SyncHeader<'a, R> {
   },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncEntryIter<R> {
   reader: R,
 }
