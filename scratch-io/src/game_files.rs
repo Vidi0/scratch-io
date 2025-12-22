@@ -49,9 +49,9 @@ pub async fn remove_folder_if_empty(folder: &Path) -> Result<bool, FilesystemErr
 pub async fn remove_folder_safely(path: &Path) -> Result<(), FilesystemError> {
   let canonical = get_canonical_path(path).await?;
 
-  let home = get_canonical_path(get_basedirs()?.home_dir()).await?;
-
-  if canonical == home {
+  if let Some(home) = std::env::home_dir()
+    && canonical == get_canonical_path(&home).await?
+  {
     return Err(OtherErr::RefusingToRemoveFolder(canonical).into());
   }
 

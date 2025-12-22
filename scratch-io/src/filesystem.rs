@@ -86,11 +86,6 @@ pub async fn get_canonical_path(path: &Path) -> Result<PathBuf, FilesystemError>
     .map_err(IOErr::CouldntGetCanonical(path.to_owned()).attach())
 }
 
-/// [`directories::BaseDirs::new`]
-pub fn get_basedirs() -> Result<directories::BaseDirs, FilesystemError> {
-  directories::BaseDirs::new().ok_or_else(OtherErr::MissingHomeDirectory.attach())
-}
-
 /// [`tokio::fs::create_dir_all`]
 pub async fn create_dir(path: &Path) -> Result<(), FilesystemError> {
   fs::create_dir_all(path)
