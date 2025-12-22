@@ -1,6 +1,6 @@
 about.hbs linguist-vendored
 LICENSE-THIRD-PARTY.html linguist-vendored
 
-src/wharf/bsdiff.rs linguist-vendored
-src/wharf/pwr.rs linguist-vendored
-src/wharf/tlc.rs linguist-vendored
+scratch-io/src/wharf/bsdiff.rs linguist-vendored
+scratch-io/src/wharf/pwr.rs linguist-vendored
+scratch-io/src/wharf/tlc.rs linguist-vendored
