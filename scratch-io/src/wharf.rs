@@ -564,6 +564,21 @@ fn copy_range(
   Ok(())
 }
 
+fn add_bytes(src: &mut std::fs::File, dst: &mut std::fs::File, add: &[u8]) -> Result<(), String> {
+  let mut buffer = vec![0u8; add.len()];
+  src
+    .read_exact(&mut buffer)
+    .map_err(|e| format!("Couldn't read data from old file into buffer!\n {e}"))?;
+
+  for (b, a) in buffer.iter_mut().zip(add) {
+    *b = b.wrapping_add(*a);
+  }
+
+  dst
+    .write_all(&buffer)
+    .map_err(|e| format!("Couldn't save buffer data into new file!\n {e}"))
+}
+
 pub fn apply_patch(
   old_build_folder: &std::path::Path,
   new_build_folder: &std::path::Path,
@@ -643,6 +658,9 @@ pub fn apply_patch(
                   })
                 })?;
 
+              // Rewind isn't needed because the copy_range function already seeks
+              // into the correct (not relative) position
+
               copy_range(
                 old_file,
                 &mut new_file,
@@ -662,11 +680,82 @@ pub fn apply_patch(
       }
 
       SyncHeader::Bsdiff {
-        file_index: _,
-        target_index: _,
-        op_iter: _,
+        file_index,
+        target_index,
+        mut op_iter,
       } => {
-        todo!();
+        let new_file_path: std::path::PathBuf = new_build_folder.join(
+          &patch
+            .container_new
+            .files
+            .get(file_index as usize)
+            .ok_or_else(|| format!("Invalid new file index in patch file!\nIndex: {file_index}"))?
+            .path,
+        );
+
+        let mut new_file: std::fs::File = std::fs::OpenOptions::new()
+          .create(true)
+          .write(true)
+          .truncate(true)
+          .open(&new_file_path)
+          .map_err(|e| {
+            format!(
+              "Couldn't open new file for writting: \"{}\"\n{e}",
+              new_file_path.to_string_lossy()
+            )
+          })?;
+
+        let old_file = old_files_cache.try_get_or_insert_mut(target_index as usize, || {
+          let old_file_path: std::path::PathBuf = old_build_folder.join(
+            &patch
+              .container_old
+              .files
+              .get(target_index as usize)
+              .ok_or_else(|| {
+                format!(
+                  "Invalid old file index in patch file!\nIndex: {}",
+                  target_index
+                )
+              })?
+              .path,
+          );
+
+          std::fs::File::open(&old_file_path).map_err(|e| {
+            format!(
+              "Couldn't open old file for reading: \"{}\"\n{e}",
+              new_file_path.to_string_lossy()
+            )
+          })
+        })?;
+
+        // Rewind to the start because the file might have been in the cache
+        // and seeked before
+        old_file
+          .rewind()
+          .map_err(|e| format!("Couldn't seek old file to start: {e}"))?;
+
+        for control in op_iter.by_ref() {
+          let control = control?;
+
+          if !control.add.is_empty() {
+            add_bytes(old_file, &mut new_file, &control.add)?;
+          }
+
+          if !control.copy.is_empty() {
+            new_file
+              .write_all(&control.copy)
+              .map_err(|e| format!("Couldn't copy data from patch to new file!\n {e}"))?;
+          }
+
+          if control.seek != 0 {
+            old_file.seek_relative(control.seek).map_err(|e| {
+              format!(
+                "Couldn't seek into old file at relative pos: {}\n{e}",
+                control.seek
+              )
+            })?;
+          }
+        }
       }
     }
   }
