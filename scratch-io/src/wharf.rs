@@ -628,7 +628,7 @@ pub fn apply_patch(
                       .get(op.file_index as usize)
                       .ok_or_else(|| {
                         format!(
-                          "Invalid olf file index in patch file!\nIndex: {}",
+                          "Invalid old file index in patch file!\nIndex: {}",
                           op.file_index
                         )
                       })?
