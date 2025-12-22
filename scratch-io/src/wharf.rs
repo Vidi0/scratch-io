@@ -559,9 +559,8 @@ fn copy_range(
   let mut limited = src.take(len);
 
   std::io::copy(&mut limited, dst)
-    .map_err(|e| format!("Couldn't copy data from old file to new!\n {e}"))?;
-
-  Ok(())
+    .map(|_| ())
+    .map_err(|e| format!("Couldn't copy data from old file to new!\n {e}"))
 }
 
 fn add_bytes(src: &mut std::fs::File, dst: &mut std::fs::File, add: &[u8]) -> Result<(), String> {
