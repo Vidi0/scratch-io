@@ -12,7 +12,7 @@ use md5::{Digest, Md5};
 use std::io::{BufRead, Read};
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L14>
-const PATCH_MAGIC: u32 = 0x0FEF5F00;
+const PATCH_MAGIC: u32 = 0x0FEF_5F00;
 const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L30>
@@ -91,7 +91,7 @@ pub struct RsyncOpIter<'a, R> {
   reader: &'a mut R,
 }
 
-impl<'a, R> Iterator for RsyncOpIter<'a, R>
+impl<R> Iterator for RsyncOpIter<'_, R>
 where
   R: BufRead,
 {
@@ -119,7 +119,7 @@ pub struct BsdiffOpIter<'a, R> {
   reader: &'a mut R,
 }
 
-impl<'a, R> Iterator for BsdiffOpIter<'a, R>
+impl<R> Iterator for BsdiffOpIter<'_, R>
 where
   R: BufRead,
 {
@@ -508,7 +508,7 @@ pub fn verify_files(
 ///     - Optional [`pwr::BsdiffHeader`] if the previous header type is [`pwr::sync_header::Type::Bsdiff`]
 ///       - repeated sequence:
 ///       - [`pwr::SyncOp`]
-///     - [`pwr::SyncOp`] (Type = HEY_YOU_DID_IT)  // end of file’s series
+///     - [`pwr::SyncOp`] (Type = `HEY_YOU_DID_IT`)  // end of file’s series
 pub fn read_patch(reader: &mut impl BufRead) -> Result<Patch<impl BufRead>, String> {
   // Check the magic bytes
   check_magic_bytes(reader, PATCH_MAGIC)?;

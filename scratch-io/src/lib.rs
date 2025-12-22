@@ -149,12 +149,12 @@ async fn stream_response_into_file(
   progress_callback: impl Fn(u64),
   callback_interval: Duration,
 ) -> Result<u64, String> {
+  use futures_util::StreamExt;
+
   // Prepare the download and the callback variables
   let mut downloaded_bytes: u64 = 0;
   let mut stream = response.bytes_stream();
   let mut last_callback = Instant::now();
-
-  use futures_util::StreamExt;
 
   // Save chunks to the file async
   // Also, compute the MD5 hash while it is being downloaded
@@ -541,7 +541,7 @@ pub async fn download_upload(
   // game_files can be the path of an executable or the path to the extracted folder
   extract::extract(&upload_archive, &upload_folder)
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| e.clone())?;
 
   Ok(InstalledUpload {
     upload_id,
