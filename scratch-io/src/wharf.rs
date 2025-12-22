@@ -614,7 +614,7 @@ pub fn apply_patch(
             )
           })?;
 
-        while let Some(op) = op_iter.next() {
+        for op in op_iter.by_ref() {
           let op: pwr::SyncOp = op?;
 
           match op.r#type() {
