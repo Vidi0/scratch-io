@@ -11,7 +11,7 @@ pub mod pwr;
 pub mod tlc;
 
 use md5::{Digest, Md5};
-use std::io::{BufRead, Read};
+use std::io::{BufRead, Read, Seek, Write};
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L14>
 const PATCH_MAGIC: u32 = 0x0FEF_5F00;
@@ -543,8 +543,29 @@ pub fn read_patch(reader: &mut impl BufRead) -> Result<Patch<impl BufRead>, Stri
   })
 }
 
+fn copy_range(
+  src: &mut std::fs::File,
+  dst: &mut std::fs::File,
+  block_index: u64,
+  block_span: u64,
+) -> Result<(), String> {
+  let start_pos = block_index * BLOCK_SIZE as u64;
+  let len = block_span * BLOCK_SIZE as u64;
+
+  src
+    .seek(std::io::SeekFrom::Start(start_pos))
+    .map_err(|e| format!("Couldn't seek into old file at pos: {}\n{e}", start_pos))?;
+
+  let mut limited = src.take(len);
+
+  std::io::copy(&mut limited, dst)
+    .map_err(|e| format!("Couldn't copy data from old file to new!\n {e}"))?;
+
+  Ok(())
+}
+
 pub fn apply_patch(
-  _old_build_folder: &std::path::Path,
+  old_build_folder: &std::path::Path,
   new_build_folder: &std::path::Path,
   patch: &mut Patch<impl BufRead>,
 ) -> Result<(), String> {
@@ -561,7 +582,7 @@ pub fn apply_patch(
   // Create a cache of open file descriptors for the old files
   // The key is the file_index of the old file provided by the patch
   // The value is the open file descriptor
-  let _old_files_cache: lru::LruCache<u64, std::fs::File> =
+  let mut old_files_cache: lru::LruCache<usize, std::fs::File> =
     lru::LruCache::new(MAX_OPEN_FILES_PATCH);
 
   while let Some(header) = patch.sync_op_iter.next_header() {
@@ -569,15 +590,84 @@ pub fn apply_patch(
 
     match header {
       SyncHeader::Rsync {
-        file_index: _,
-        op_iter: _,
-      } => {}
+        file_index,
+        mut op_iter,
+      } => {
+        let new_file_path: std::path::PathBuf = new_build_folder.join(
+          &patch
+            .container_new
+            .files
+            .get(file_index as usize)
+            .ok_or_else(|| format!("Invalid new file index in patch file!\nIndex: {file_index}"))?
+            .path,
+        );
+
+        let mut new_file: std::fs::File = std::fs::OpenOptions::new()
+          .create(true)
+          .write(true)
+          .truncate(true)
+          .open(&new_file_path)
+          .map_err(|e| {
+            format!(
+              "Couldn't open new file for writting: \"{}\"\n{e}",
+              new_file_path.to_string_lossy()
+            )
+          })?;
+
+        while let Some(op) = op_iter.next() {
+          let op: pwr::SyncOp = op?;
+
+          match op.r#type() {
+            pwr::sync_op::Type::BlockRange => {
+              let old_file =
+                old_files_cache.try_get_or_insert_mut(op.file_index as usize, || {
+                  let old_file_path: std::path::PathBuf = old_build_folder.join(
+                    &patch
+                      .container_old
+                      .files
+                      .get(op.file_index as usize)
+                      .ok_or_else(|| {
+                        format!(
+                          "Invalid olf file index in patch file!\nIndex: {}",
+                          op.file_index
+                        )
+                      })?
+                      .path,
+                  );
+
+                  std::fs::File::open(&old_file_path).map_err(|e| {
+                    format!(
+                      "Couldn't open old file for reading: \"{}\"\n{e}",
+                      new_file_path.to_string_lossy()
+                    )
+                  })
+                })?;
+
+              copy_range(
+                old_file,
+                &mut new_file,
+                op.block_index as u64,
+                op.block_span as u64,
+              )?;
+            }
+            pwr::sync_op::Type::Data => {
+              new_file
+                .write_all(&op.data)
+                .map_err(|e| format!("Couldn't copy data from patch to new file!\n {e}"))?;
+            }
+            // If the type was HeyYouDidIt, then it would have returned None
+            pwr::sync_op::Type::HeyYouDidIt => unreachable!(),
+          }
+        }
+      }
 
       SyncHeader::Bsdiff {
         file_index: _,
         target_index: _,
         op_iter: _,
-      } => {}
+      } => {
+        todo!();
+      }
     }
   }
 
