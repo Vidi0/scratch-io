@@ -466,7 +466,7 @@ pub async fn download_game_cover(
 pub async fn download_upload(
   client: &ItchClient,
   upload_id: UploadID,
-  game_folder: Option<&Path>,
+  game_folder: &Path,
   skip_hash_verification: bool,
   upload_info: impl FnOnce(&Upload, &Game),
   progress_callback: impl Fn(DownloadStatus),
@@ -484,13 +484,6 @@ pub async fn download_upload(
 
   // Send to the caller the game and the upload info
   upload_info(&upload, &game);
-
-  // Set the game_folder and the file variables
-  // If the game_folder is unset, set it to ~/Games/{game_name}/
-  let game_folder = match game_folder {
-    Some(f) => f,
-    None => &game_files::get_game_folder(&game.game_info.title)?,
-  };
 
   // upload_archive is the location where the upload will be downloaded
   let upload_archive: PathBuf =
@@ -618,21 +611,12 @@ pub async fn import(
 pub async fn remove_partial_download(
   client: &ItchClient,
   upload_id: UploadID,
-  game_folder: Option<&Path>,
+  game_folder: &Path,
 ) -> Result<bool, String> {
   // Obtain information about the game and the upload
   let upload: Upload = get_upload_info(client, upload_id)
     .await
     .map_err(|e| e.to_string())?;
-  let game: Game = get_game_info(client, upload.game_id)
-    .await
-    .map_err(|e| e.to_string())?;
-
-  // If the game_folder is unset, set it to ~/Games/{game_name}/
-  let game_folder = match game_folder {
-    Some(f) => f,
-    None => &game_files::get_game_folder(&game.game_info.title)?,
-  };
 
   // Vector of files and folders to be removed
   let to_be_removed_folders: &[PathBuf] = &[

@@ -151,7 +151,7 @@ enum WithApiCommands {
     ///
     /// Defaults to ~/Games/{game_name}/
     #[arg(long, env = "SCRATCH_INSTALL_PATH")]
-    install_path: Option<PathBuf>,
+    install_path: PathBuf,
     /// Skip the hash verification and allow installing modified files (unsafe)
     #[arg(long, env = "SCRATCH_SKIP_HASH_VERIFICATION")]
     skip_hash_verification: bool,
@@ -180,7 +180,7 @@ enum WithApiCommands {
     ///
     /// Defaults to ~/Games/{game_name}/
     #[arg(long, env = "SCRATCH_INSTALL_PATH")]
-    install_path: Option<PathBuf>,
+    install_path: PathBuf,
   },
   /// Imports an already installed game given its upload ID and the game folder
   Import {
@@ -556,7 +556,7 @@ async fn print_scanned_build(client: &ItchClient, build_id: BuildID) {
 async fn download(
   client: &ItchClient,
   upload_id: UploadID,
-  dest: Option<&Path>,
+  dest: &Path,
   skip_hash_verification: bool,
   installed_uploads: &mut HashMap<UploadID, InstalledUpload>,
 ) {
@@ -626,11 +626,7 @@ async fn download_cover(
 }
 
 // Remove partially downloaded game files
-async fn remove_partial_download(
-  client: &ItchClient,
-  upload_id: UploadID,
-  game_folder: Option<&Path>,
-) {
+async fn remove_partial_download(client: &ItchClient, upload_id: UploadID, game_folder: &Path) {
   let was_something_deleted = scratch_io::remove_partial_download(client, upload_id, game_folder)
     .await
     .unwrap_or_else(|e| eprintln_exit!("Couldn't remove partial download: {e}"));
@@ -905,7 +901,7 @@ async fn main() {
           download(
             &client,
             upload_id,
-            install_path.as_deref(),
+            &install_path,
             skip_hash_verification,
             &mut config.installed_uploads,
           )
@@ -931,7 +927,7 @@ async fn main() {
           upload_id,
           install_path,
         } => {
-          remove_partial_download(&client, upload_id, install_path.as_deref()).await;
+          remove_partial_download(&client, upload_id, &install_path).await;
         }
         WithApiCommands::Import {
           upload_id,

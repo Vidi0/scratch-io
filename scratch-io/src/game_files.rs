@@ -6,7 +6,6 @@ use std::path::{Path, PathBuf};
 
 pub const UPLOAD_ARCHIVE_NAME: &str = "download";
 pub const COVER_IMAGE_DEFAULT_FILENAME: &str = "cover.png";
-pub const GAME_FOLDER: &str = "Games";
 
 /// Get the upload folder based on its game folder
 pub fn get_upload_folder(game_folder: &Path, upload_id: UploadID) -> PathBuf {
@@ -28,19 +27,6 @@ pub fn get_upload_archive_path(
 pub fn add_part_extension(file: &Path) -> Result<PathBuf, FilesystemError> {
   let filename = get_file_name(file)?;
   Ok(file.with_file_name(format!("{filename}.part")))
-}
-
-/// The game folder is the home directory + `Games` + `game_title`
-///
-/// # Errors
-///
-/// If the home directory couldn't be determined
-pub fn get_game_folder(game_title: &str) -> Result<PathBuf, FilesystemError> {
-  let mut game_folder = get_basedirs()?.home_dir().join(GAME_FOLDER);
-
-  game_folder.push(game_title);
-
-  Ok(game_folder)
 }
 
 /// Remove a folder if it is empty
