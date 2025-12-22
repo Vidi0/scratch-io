@@ -39,7 +39,7 @@ struct Cli {
 enum GamePlatform {
   Linux,
   Windows,
-  OSX,
+  Osx,
   Android,
   Web,
   Flash,
@@ -52,7 +52,7 @@ impl From<GamePlatform> for scratch_io::GamePlatform {
     match value {
       GamePlatform::Linux => scratch_io::GamePlatform::Linux,
       GamePlatform::Windows => scratch_io::GamePlatform::Windows,
-      GamePlatform::OSX => scratch_io::GamePlatform::OSX,
+      GamePlatform::Osx => scratch_io::GamePlatform::OSX,
       GamePlatform::Android => scratch_io::GamePlatform::Android,
       GamePlatform::Web => scratch_io::GamePlatform::Web,
       GamePlatform::Flash => scratch_io::GamePlatform::Flash,
