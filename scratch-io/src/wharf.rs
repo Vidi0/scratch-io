@@ -652,7 +652,7 @@ pub fn apply_patch(
                   std::fs::File::open(&old_file_path).map_err(|e| {
                     format!(
                       "Couldn't open old file for reading: \"{}\"\n{e}",
-                      new_file_path.to_string_lossy()
+                      old_file_path.to_string_lossy()
                     )
                   })
                 })?;
@@ -722,7 +722,7 @@ pub fn apply_patch(
           std::fs::File::open(&old_file_path).map_err(|e| {
             format!(
               "Couldn't open old file for reading: \"{}\"\n{e}",
-              new_file_path.to_string_lossy()
+              old_file_path.to_string_lossy()
             )
           })
         })?;
