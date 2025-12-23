@@ -14,7 +14,7 @@ The first protobuf message is a header that determines the compression
 used for the remaining data. Currently, the only supported compressions
 in wharf are:
 
- - Brotli (used on default patches),
+ - Brotli (used on default patches)
  - Zstandard (used on optimized patches)
  - gzip (not currently in use in itch.io, but supported anyways)
 
