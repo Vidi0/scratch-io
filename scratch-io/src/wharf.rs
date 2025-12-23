@@ -627,10 +627,11 @@ pub fn apply_patch(
 ) -> Result<(), String> {
   // Iterate over the folders in the new container and create them
   for folder in &patch.container_new.dirs {
-    std::fs::create_dir_all(new_build_folder.join(&folder.path)).map_err(|e| {
+    let new_folder = new_build_folder.join(&folder.path);
+    std::fs::create_dir_all(&new_folder).map_err(|e| {
       format!(
         "Couldn't create folder: \"{}\"\n{e}",
-        new_build_folder.join(&folder.path).to_string_lossy()
+        new_folder.to_string_lossy()
       )
     })?;
   }
