@@ -413,6 +413,86 @@ pub fn read_signature(reader: &mut impl BufRead) -> Result<Signature<impl BufRea
   })
 }
 
+fn set_permissions(path: &std::path::Path, mode: u32) -> Result<(), String> {
+  #[cfg(unix)]
+  {
+    use std::os::unix::fs::PermissionsExt;
+
+    let mut permissions = std::fs::metadata(path)
+      .map_err(|e| {
+        format!(
+          "Couldn't read path metadata: \"{}\"\n{e}",
+          path.to_string_lossy()
+        )
+      })?
+      .permissions();
+
+    if permissions.mode() != mode {
+      permissions.set_mode(mode);
+
+      std::fs::set_permissions(path, permissions).map_err(|e| {
+        format!(
+          "Couldn't change path permissions: \"{}\"\n{e}",
+          path.to_string_lossy()
+        )
+      })?;
+    }
+  }
+
+  Ok(())
+}
+
+fn apply_container_permissions(
+  container: &tlc::Container,
+  build_folder: &std::path::Path,
+) -> Result<(), String> {
+  for file in &container.files {
+    set_permissions(&build_folder.join(&file.path), file.mode)?;
+  }
+
+  for dir in &container.dirs {
+    set_permissions(&build_folder.join(&dir.path), dir.mode)?;
+  }
+
+  for sym in &container.symlinks {
+    set_permissions(&build_folder.join(&sym.path), sym.mode)?;
+  }
+
+  Ok(())
+}
+
+fn create_container_symlinks(
+  container: &tlc::Container,
+  build_folder: &std::path::Path,
+) -> Result<(), String> {
+  #[cfg(unix)]
+  {
+    for sym in &container.symlinks {
+      let path = build_folder.join(&sym.path);
+      let original = build_folder.join(&sym.dest);
+
+      let exists_path = std::fs::exists(&path).map_err(|e| {
+        format!(
+          "Couldn't check is the path exists: \"{}\"\n{e}",
+          path.to_string_lossy()
+        )
+      })?;
+
+      if !exists_path {
+        std::os::unix::fs::symlink(&original, &path).map_err(|e| {
+          format!(
+            "Couldn't create symlink\n  Original: {}\n  Link: {}\n{e}",
+            original.to_string_lossy(),
+            path.to_string_lossy()
+          )
+        })?;
+      }
+    }
+  }
+
+  Ok(())
+}
+
 pub fn verify_files(
   build_folder: &std::path::Path,
   signature: &mut Signature<impl BufRead>,
@@ -492,6 +572,12 @@ pub fn verify_files(
       block_index += 1;
     }
   }
+
+  // Create the symlinks
+  create_container_symlinks(&signature.container_new, build_folder)?;
+
+  // Set the correct permissions for the files, folders and symlinks
+  apply_container_permissions(&signature.container_new, build_folder)?;
 
   Ok(())
 }
@@ -751,6 +837,12 @@ pub fn apply_patch(
       }
     }
   }
+
+  // Create the symlinks
+  create_container_symlinks(&patch.container_new, new_build_folder)?;
+
+  // Set the correct permissions for the files, folders and symlinks
+  apply_container_permissions(&patch.container_new, new_build_folder)?;
 
   Ok(())
 }
