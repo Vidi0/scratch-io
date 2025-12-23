@@ -18,7 +18,7 @@ const PATCH_MAGIC: u32 = 0x0FEF_5F00;
 const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L30>
-const _MODE_MASK: u32 = 0o644;
+const MODE_MASK: u32 = 0o644;
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L33>
 const BLOCK_SIZE: usize = 64 * 1024;
@@ -417,6 +417,9 @@ fn set_permissions(path: &std::path::Path, mode: u32) -> Result<(), String> {
   #[cfg(unix)]
   {
     use std::os::unix::fs::PermissionsExt;
+
+    // Apply the mode mask to set at least the mask permissions
+    let mode = mode | MODE_MASK;
 
     let mut permissions = std::fs::metadata(path)
       .map_err(|e| {
