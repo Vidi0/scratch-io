@@ -578,6 +578,48 @@ fn add_bytes(src: &mut std::fs::File, dst: &mut std::fs::File, add: &[u8]) -> Re
     .map_err(|e| format!("Couldn't save buffer data into new file!\n {e}"))
 }
 
+fn get_container_file(container: &tlc::Container, file_index: usize) -> Result<&tlc::File, String> {
+  container
+    .files
+    .get(file_index)
+    .ok_or_else(|| format!("Invalid old file index in patch file!\nIndex: {file_index}"))
+}
+
+fn get_old_container_file(
+  container: &tlc::Container,
+  file_index: usize,
+  build_folder: &std::path::Path,
+) -> Result<std::fs::File, String> {
+  let file_path = build_folder.join(&get_container_file(container, file_index)?.path);
+
+  std::fs::File::open(&file_path).map_err(|e| {
+    format!(
+      "Couldn't open old file for reading: \"{}\"\n{e}",
+      file_path.to_string_lossy()
+    )
+  })
+}
+
+fn get_new_container_file(
+  container: &tlc::Container,
+  file_index: usize,
+  build_folder: &std::path::Path,
+) -> Result<std::fs::File, String> {
+  let file_path = build_folder.join(&get_container_file(container, file_index)?.path);
+
+  std::fs::OpenOptions::new()
+    .create(true)
+    .write(true)
+    .truncate(true)
+    .open(&file_path)
+    .map_err(|e| {
+      format!(
+        "Couldn't open new file for writting: \"{}\"\n{e}",
+        file_path.to_string_lossy()
+      )
+    })
+}
+
 pub fn apply_patch(
   old_build_folder: &std::path::Path,
   new_build_folder: &std::path::Path,
@@ -607,26 +649,8 @@ pub fn apply_patch(
         file_index,
         mut op_iter,
       } => {
-        let new_file_path: std::path::PathBuf = new_build_folder.join(
-          &patch
-            .container_new
-            .files
-            .get(file_index as usize)
-            .ok_or_else(|| format!("Invalid new file index in patch file!\nIndex: {file_index}"))?
-            .path,
-        );
-
-        let mut new_file: std::fs::File = std::fs::OpenOptions::new()
-          .create(true)
-          .write(true)
-          .truncate(true)
-          .open(&new_file_path)
-          .map_err(|e| {
-            format!(
-              "Couldn't open new file for writting: \"{}\"\n{e}",
-              new_file_path.to_string_lossy()
-            )
-          })?;
+        let mut new_file =
+          get_new_container_file(&patch.container_new, file_index as usize, new_build_folder)?;
 
         for op in op_iter.by_ref() {
           let op: pwr::SyncOp = op?;
@@ -635,26 +659,11 @@ pub fn apply_patch(
             pwr::sync_op::Type::BlockRange => {
               let old_file =
                 old_files_cache.try_get_or_insert_mut(op.file_index as usize, || {
-                  let old_file_path: std::path::PathBuf = old_build_folder.join(
-                    &patch
-                      .container_old
-                      .files
-                      .get(op.file_index as usize)
-                      .ok_or_else(|| {
-                        format!(
-                          "Invalid old file index in patch file!\nIndex: {}",
-                          op.file_index
-                        )
-                      })?
-                      .path,
-                  );
-
-                  std::fs::File::open(&old_file_path).map_err(|e| {
-                    format!(
-                      "Couldn't open old file for reading: \"{}\"\n{e}",
-                      old_file_path.to_string_lossy()
-                    )
-                  })
+                  get_old_container_file(
+                    &patch.container_old,
+                    op.file_index as usize,
+                    old_build_folder,
+                  )
                 })?;
 
               // Rewind isn't needed because the copy_range function already seeks
@@ -683,48 +692,15 @@ pub fn apply_patch(
         target_index,
         mut op_iter,
       } => {
-        let new_file_path: std::path::PathBuf = new_build_folder.join(
-          &patch
-            .container_new
-            .files
-            .get(file_index as usize)
-            .ok_or_else(|| format!("Invalid new file index in patch file!\nIndex: {file_index}"))?
-            .path,
-        );
-
-        let mut new_file: std::fs::File = std::fs::OpenOptions::new()
-          .create(true)
-          .write(true)
-          .truncate(true)
-          .open(&new_file_path)
-          .map_err(|e| {
-            format!(
-              "Couldn't open new file for writting: \"{}\"\n{e}",
-              new_file_path.to_string_lossy()
-            )
-          })?;
+        let mut new_file =
+          get_new_container_file(&patch.container_new, file_index as usize, new_build_folder)?;
 
         let old_file = old_files_cache.try_get_or_insert_mut(target_index as usize, || {
-          let old_file_path: std::path::PathBuf = old_build_folder.join(
-            &patch
-              .container_old
-              .files
-              .get(target_index as usize)
-              .ok_or_else(|| {
-                format!(
-                  "Invalid old file index in patch file!\nIndex: {}",
-                  target_index
-                )
-              })?
-              .path,
-          );
-
-          std::fs::File::open(&old_file_path).map_err(|e| {
-            format!(
-              "Couldn't open old file for reading: \"{}\"\n{e}",
-              old_file_path.to_string_lossy()
-            )
-          })
+          get_old_container_file(
+            &patch.container_old,
+            target_index as usize,
+            old_build_folder,
+          )
         })?;
 
         // Rewind to the start because the file might have been in the cache
