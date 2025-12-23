@@ -642,22 +642,28 @@ pub fn apply_patch(
   let mut old_files_cache: lru::LruCache<usize, std::fs::File> =
     lru::LruCache::new(MAX_OPEN_FILES_PATCH);
 
+  // Patch all files in the iterator one by one
   while let Some(header) = patch.sync_op_iter.next_header() {
     let header = header.map_err(|e| format!("Couldn't get next patch sync operation!\n{e}"))?;
 
     match header {
+      // The current file will be updated using the Rsync method
       SyncHeader::Rsync {
         file_index,
         mut op_iter,
       } => {
+        // Open the new file
         let mut new_file =
           get_new_container_file(&patch.container_new, file_index as usize, new_build_folder)?;
 
+        // Now apply all the sync operations
         for op in op_iter.by_ref() {
           let op: pwr::SyncOp = op?;
 
           match op.r#type() {
+            // If the type is BlockRange, just copy the range from the old file to the new one
             pwr::sync_op::Type::BlockRange => {
+              // Open the old file
               let old_file =
                 old_files_cache.try_get_or_insert_mut(op.file_index as usize, || {
                   get_old_container_file(
@@ -670,6 +676,7 @@ pub fn apply_patch(
               // Rewind isn't needed because the copy_range function already seeks
               // into the correct (not relative) position
 
+              // Copy the specified range to the new file
               copy_range(
                 old_file,
                 &mut new_file,
@@ -677,25 +684,29 @@ pub fn apply_patch(
                 op.block_span as u64,
               )?;
             }
+            // If the type is Data, just copy the data from the patch to the new file
             pwr::sync_op::Type::Data => {
               new_file
                 .write_all(&op.data)
                 .map_err(|e| format!("Couldn't copy data from patch to new file!\n {e}"))?;
             }
-            // If the type was HeyYouDidIt, then the iterator would have returned None
+            // If the type is HeyYouDidIt, then the iterator would have returned None
             pwr::sync_op::Type::HeyYouDidIt => unreachable!(),
           }
         }
       }
 
+      // The current file will be updated using the Bsdiff method
       SyncHeader::Bsdiff {
         file_index,
         target_index,
         mut op_iter,
       } => {
+        // Open the new file
         let mut new_file =
           get_new_container_file(&patch.container_new, file_index as usize, new_build_folder)?;
 
+        // Open the old file
         let old_file = old_files_cache.try_get_or_insert_mut(target_index as usize, || {
           get_old_container_file(
             &patch.container_old,
@@ -704,25 +715,30 @@ pub fn apply_patch(
           )
         })?;
 
-        // Rewind to the start because the file might have been in the cache
-        // and seeked before
+        // Rewind the old file to the start because the file might
+        // have been in the cache and seeked before
         old_file
           .rewind()
           .map_err(|e| format!("Couldn't seek old file to start: {e}"))?;
 
+        // Now apply all the control operations
         for control in op_iter.by_ref() {
           let control = control?;
 
+          // Control operations must be applied in order
+          // First, add the diff bytes
           if !control.add.is_empty() {
             add_bytes(old_file, &mut new_file, &control.add)?;
           }
 
+          // Then, copy the extra bytes
           if !control.copy.is_empty() {
             new_file
               .write_all(&control.copy)
               .map_err(|e| format!("Couldn't copy data from patch to new file!\n {e}"))?;
           }
 
+          // Lastly, seek into the correct position in the old file
           if control.seek != 0 {
             old_file.seek_relative(control.seek).map_err(|e| {
               format!(
