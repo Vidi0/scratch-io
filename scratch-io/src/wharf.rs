@@ -672,7 +672,7 @@ pub fn apply_patch(
                 .write_all(&op.data)
                 .map_err(|e| format!("Couldn't copy data from patch to new file!\n {e}"))?;
             }
-            // If the type was HeyYouDidIt, then it would have returned None
+            // If the type was HeyYouDidIt, then the iterator would have returned None
             pwr::sync_op::Type::HeyYouDidIt => unreachable!(),
           }
         }
