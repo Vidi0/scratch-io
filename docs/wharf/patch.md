@@ -5,8 +5,8 @@ messages.
 
 ## Magic bytes
 
-The first four bytes of a wharf patch are the magic bytes: `0x0FEF_5F00`
-(in little endian)
+The first four bytes of a wharf patch are the magic bytes, which are
+represented as `0x0FEF_5F00` in little-endian format.
 
 ## Header
 
@@ -16,17 +16,17 @@ in wharf are:
 
  - Brotli (used on default patches)
  - Zstandard (used on optimized patches)
- - gzip (not currently in use in itch.io, but supported anyways)
+ - gzip (not currently used by itch.io, but still supported)
 
 Additionally, the header message also specifies the compression quality,
-but it isn't useful for decompressing the patch.
+but this information is not useful for decompressing the patch.
 
 ## Containers
 
-After the header, the two next protobuf messages are the old and the new
-containers. They indicate the files, folders and symlinks of the old and
-the new build folders, and their mode (permissions). Also, they indicate
-the size of each file.
+Following the header are the two protobuf messages indicating the old
+and new containers. These messages indicate the files, folders, and
+symlinks of the old and new build folders and their permissions. They
+also indicate the size of each file.
 
 ## Patch Operations Loop
 
