@@ -10,7 +10,7 @@ More documentation is available here:
 `https://api.itch.io/`
 
 To ensure the use of the V2 endpoint if a new version ever releases,
-set the Accept request header to application/vnd.itch.v2
+set the Accept request header to `application/vnd.itch.v2`
 [(go-itchio#4)](https://github.com/itchio/go-itchio/issues/4). 
 
 ## [Authentication](authentication.md)
