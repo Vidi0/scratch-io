@@ -3,19 +3,24 @@
 /// More information about bsdiff wharf patches:
 /// <https://web.archive.org/web/20211123032456/https://twitter.com/fasterthanlime/status/790617515009437701>
 pub mod bsdiff;
-
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/pwr.proto>
 pub mod pwr;
-
 /// <https://github.com/itchio/lake/blob/cc4284ec2b2a9ebc4735d7560ed8216de6ffac6f/tlc/tlc.proto>
 pub mod tlc;
 
+/// Funcions and structures for reading wharf patches
+pub mod patch;
+/// Funcions and structures for reading wharf signatures
+pub mod signature;
+
+mod common;
+mod protobuf;
+
+use patch::Patch;
+use signature::Signature;
+
 use md5::{Digest, Md5};
 use std::io::{BufRead, Read, Seek, Write};
-
-/// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L14>
-const PATCH_MAGIC: u32 = 0x0FEF_5F00;
-const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L30>
 const MODE_MASK: u32 = 0o644;
@@ -23,395 +28,7 @@ const MODE_MASK: u32 = 0o644;
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L33>
 const BLOCK_SIZE: usize = 64 * 1024;
 
-/// <https://protobuf.dev/programming-guides/encoding/#varints>
-const PROTOBUF_VARINT_MAX_LENGTH: usize = 10;
-
 const MAX_OPEN_FILES_PATCH: std::num::NonZeroUsize = std::num::NonZeroUsize::new(16).unwrap();
-
-/// Represents a decoded wharf signature file
-///
-/// <https://docs.itch.zone/wharf/master/file-formats/signatures.html>
-///
-/// Contains the header, the container describing the files/dirs/symlinks,
-/// and an iterator over the signature block hashes. The iterator reads
-/// from the underlying stream on the fly as items are requested.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Signature<R> {
-  pub header: pwr::SignatureHeader,
-  pub container_new: tlc::Container,
-  pub block_hash_iter: BlockHashIter<R>,
-}
-
-/// Represents a decoded wharf patch file
-///
-/// <https://docs.itch.zone/wharf/master/file-formats/patches.html>
-///
-/// Contains the header, the old and new containers describing file system
-/// state before and after the patch, and an iterator over the patch operations.
-/// The iterator reads from the underlying stream on the fly as items are requested.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Patch<R> {
-  pub header: pwr::PatchHeader,
-  pub container_old: tlc::Container,
-  pub container_new: tlc::Container,
-  pub sync_op_iter: SyncEntryIter<R>,
-}
-
-/// Iterator over independent, sequential length-delimited [`pwr::BlockHash`] Protobuf messages in a [`std::io::BufRead`] stream
-///
-/// Each message is of the same type, independent and follows directly after the previous one in the stream.
-/// The messages are read and decoded one by one, without loading the entire stream into memory.
-///
-/// The iterator finishes when reaching EOF
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BlockHashIter<R> {
-  reader: R,
-}
-
-impl<R> Iterator for BlockHashIter<R>
-where
-  R: BufRead,
-{
-  type Item = Result<pwr::BlockHash, String>;
-
-  fn next(&mut self) -> Option<Self::Item> {
-    match self.reader.fill_buf() {
-      // If it couldn't read from the stream, return an error
-      Err(e) => Some(Err(format!("Couldn't read from reader into buffer!\n{e}"))),
-
-      // If there isn't any data remaining, return None
-      Ok([]) => None,
-
-      // If there is data remaining, return the decoded BlockHash Protobuf message
-      Ok(_) => Some(decode_protobuf::<pwr::BlockHash>(&mut self.reader)),
-    }
-  }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct RsyncOpIter<'a, R> {
-  reader: &'a mut R,
-}
-
-impl<R> Iterator for RsyncOpIter<'_, R>
-where
-  R: BufRead,
-{
-  type Item = Result<pwr::SyncOp, String>;
-
-  fn next(&mut self) -> Option<Self::Item> {
-    match decode_protobuf::<pwr::SyncOp>(&mut self.reader) {
-      Err(e) => Some(Err(format!(
-        "Couldn't decode Rsync SyncOp message from reader!\n{e}"
-      ))),
-
-      Ok(sync_op) => {
-        if sync_op.r#type() == pwr::sync_op::Type::HeyYouDidIt {
-          None
-        } else {
-          Some(Ok(sync_op))
-        }
-      }
-    }
-  }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct BsdiffOpIter<'a, R> {
-  reader: &'a mut R,
-}
-
-impl<R> Iterator for BsdiffOpIter<'_, R>
-where
-  R: BufRead,
-{
-  type Item = Result<bsdiff::Control, String>;
-
-  fn next(&mut self) -> Option<Self::Item> {
-    match decode_protobuf::<bsdiff::Control>(&mut self.reader) {
-      Err(e) => Some(Err(format!(
-        "Couldn't decode Bsdiff Control message from reader!\n{e}"
-      ))),
-
-      Ok(control_op) => {
-        if control_op.eof {
-          // Wharf adds a Rsync HeyYouDidIt message after the Bsdiff EOF
-          match decode_protobuf::<pwr::SyncOp>(&mut self.reader) {
-            Err(e) => Some(Err(format!(
-              "Couldn't decode Rsync SyncOp message from reader!\n{e}"
-            ))),
-
-            Ok(sync_op) => {
-              if sync_op.r#type() == pwr::sync_op::Type::HeyYouDidIt {
-                None
-              } else {
-                Some(Err(
-                  "Expected a Rsync HeyYouDidIt sync operation, but did not found it!".to_string(),
-                ))
-              }
-            }
-          }
-        } else {
-          Some(Ok(control_op))
-        }
-      }
-    }
-  }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum SyncHeader<'a, R> {
-  Rsync {
-    file_index: i64,
-    op_iter: RsyncOpIter<'a, R>,
-  },
-  Bsdiff {
-    file_index: i64,
-    target_index: i64,
-    op_iter: BsdiffOpIter<'a, R>,
-  },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SyncEntryIter<R> {
-  reader: R,
-}
-
-impl<'a, R> SyncEntryIter<R>
-where
-  R: BufRead,
-{
-  pub fn next_header(&'a mut self) -> Option<Result<SyncHeader<'a, R>, String>> {
-    match self.reader.fill_buf() {
-      // If it couldn't read from the stream, return an error
-      Err(e) => Some(Err(format!("Couldn't read from reader into buffer!\n{e}"))),
-
-      // If there isn't any data remaining, return None
-      Ok([]) => None,
-
-      // If there is data remaining, return the decoded header
-      Ok(_) => {
-        // Decode the SyncHeader
-        let header = match decode_protobuf::<pwr::SyncHeader>(&mut self.reader) {
-          Err(e) => return Some(Err(e)),
-          Ok(sync_header) => sync_header,
-        };
-
-        // Decode the BsdiffHeader (if the header type is Bsdiff)
-        let bsdiff_header = match header.r#type() {
-          pwr::sync_header::Type::Rsync => None,
-          pwr::sync_header::Type::Bsdiff => {
-            match decode_protobuf::<pwr::BsdiffHeader>(&mut self.reader) {
-              Err(e) => return Some(Err(e)),
-              Ok(bsdiff_header) => Some(bsdiff_header),
-            }
-          }
-        };
-
-        // Pack the gathered data into a SyncHeader struct and return it
-        Some(Ok(match bsdiff_header {
-          None => SyncHeader::Rsync {
-            file_index: header.file_index,
-            op_iter: RsyncOpIter {
-              reader: &mut self.reader,
-            },
-          },
-          Some(bsdiff) => SyncHeader::Bsdiff {
-            file_index: header.file_index,
-            target_index: bsdiff.target_index,
-            op_iter: BsdiffOpIter {
-              reader: &mut self.reader,
-            },
-          },
-        }))
-      }
-    }
-  }
-}
-
-/// Read a Protobuf length delimiter encoded as a variable-width integer and consume its bytes
-///
-/// <https://protobuf.dev/programming-guides/encoding/#length-types>
-///
-/// <https://protobuf.dev/programming-guides/encoding/#varints>
-///
-/// # Errors
-///
-/// If the read operation from the buffer fails, an unexpected EOF is encountered, or the length delimiter is invalid
-fn read_length_delimiter(reader: &mut impl Read) -> Result<usize, String> {
-  // A Protobuf varint must be 10 bytes or less
-  let mut varint = [0u8; PROTOBUF_VARINT_MAX_LENGTH];
-
-  for current_byte in &mut varint {
-    // Read one byte
-    let mut byte = [0u8; 1];
-    reader
-      .read_exact(&mut byte)
-      .map_err(|e| format!("Couldn't read from reader into buffer!\n{e}"))?;
-
-    // Save the byte in the array
-    *current_byte = byte[0];
-
-    // The most significant bit indicates whether there are more bytes in the varint
-    if (byte[0] & 0x80) == 0 {
-      break;
-    }
-  }
-
-  // Decode the varint
-  prost::decode_length_delimiter(varint.as_slice())
-    .map_err(|e| format!("Couldn't decode the signature header length delimiter!\n{e}"))
-}
-
-/// Decode a length-delimited Protobuf message
-///
-/// Advance the reader to the end of the message
-///
-/// # Returns
-///
-/// The deserialized Protobuf message
-///
-/// # Errors
-///
-/// If the reader could not be read, or if the Protobuf message is invalid
-fn decode_protobuf<T: prost::Message + Default>(reader: &mut impl Read) -> Result<T, String> {
-  let length = read_length_delimiter(reader)?;
-
-  let mut bytes = vec![0u8; length];
-  reader
-    .read_exact(&mut bytes)
-    .map_err(|e| format!("Couldn't read from reader into buffer!\n{e}"))?;
-
-  T::decode(bytes.as_slice()).map_err(|e| format!("Couldn't decode Protobuf message!\n{e}"))
-}
-
-/// Verify that the next four bytes of the reader match the expected magic number
-///
-/// # Errors
-///
-/// If the bytes couldn't be read from the reader or the magic bytes don't match
-fn check_magic_bytes(reader: &mut impl Read, expected_magic: u32) -> Result<(), String> {
-  // Read the magic bytes
-  let mut magic_bytes = [0u8; _];
-  reader
-    .read_exact(&mut magic_bytes)
-    .map_err(|e| format!("Couldn't read magic bytes!\n{e}"))?;
-
-  // Compare the magic numbers
-  let actual_magic = u32::from_le_bytes(magic_bytes);
-  if actual_magic == expected_magic {
-    Ok(())
-  } else {
-    Err("The magic bytes don't match! The binary file is corrupted!".to_string())
-  }
-}
-
-/// Decompress a stream using the specified decompression algorithm
-///
-/// # Returns
-///
-/// The decompressed buffered stream
-///
-/// # Errors
-///
-///
-fn decompress_stream(
-  reader: &mut impl BufRead,
-  algorithm: pwr::CompressionAlgorithm,
-) -> Result<Box<dyn std::io::BufRead + '_>, String> {
-  match algorithm {
-    pwr::CompressionAlgorithm::None => Ok(Box::new(reader)),
-
-    pwr::CompressionAlgorithm::Brotli => {
-      #[cfg(feature = "brotli")]
-      {
-        Ok(Box::new(std::io::BufReader::new(
-          // Set the buffer size to zero to allow Brotli to select the correct size
-          brotli::Decompressor::new(reader, 0),
-        )))
-      }
-
-      #[cfg(not(feature = "brotli"))]
-      {
-        Err(
-          "This binary was built without Brotli support. Recompile with `--features brotli` to be able to decompress the stream",
-        )
-      }
-    }
-
-    pwr::CompressionAlgorithm::Gzip => {
-      #[cfg(feature = "gzip")]
-      {
-        Ok(Box::new(std::io::BufReader::new(
-          flate2::bufread::GzDecoder::new(reader),
-        )))
-      }
-
-      #[cfg(not(feature = "gzip"))]
-      {
-        Err(
-          "This binary was built without gzip support. Recompile with `--features gzip` to be able to decompress the stream",
-        )
-      }
-    }
-    pwr::CompressionAlgorithm::Zstd => {
-      #[cfg(feature = "zstd")]
-      {
-        Ok(Box::new(std::io::BufReader::new(
-          zstd::Decoder::with_buffer(reader)
-            .map_err(|e| format!("Couldn't create zstd decoder!\n{e}"))?,
-        )))
-      }
-
-      #[cfg(not(feature = "zstd"))]
-      {
-        Err(
-          "This binary was built without Zstd support. Recompile with `--features zstd` to be able to decompress the stream",
-        )
-      }
-    }
-  }
-}
-
-/// <https://docs.itch.zone/wharf/master/file-formats/signatures.html>
-///
-/// The signature structure is:
-///
-/// - [`SIGNATURE_MAGIC`]
-/// - [`pwr::SignatureHeader`]
-/// - decompressed stream follows:
-///   - [`tlc::Container`]    (target container)
-///   - repeated sequence:
-///     - [`pwr::BlockHash`]
-pub fn read_signature(reader: &mut impl BufRead) -> Result<Signature<impl BufRead>, String> {
-  // Check the magic bytes
-  check_magic_bytes(reader, SIGNATURE_MAGIC)?;
-
-  // Decode the signature header
-  let header = decode_protobuf::<pwr::SignatureHeader>(reader)?;
-
-  // Decompress the remaining stream
-  let compression_algorithm = header
-    .compression
-    .ok_or("Missing compressing field in Signature Header!")?
-    .algorithm();
-
-  let mut decompressed = decompress_stream(reader, compression_algorithm)?;
-
-  // Decode the container
-  let container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
-
-  // Decode the hashes
-  let block_hash_iter = BlockHashIter {
-    reader: decompressed,
-  };
-
-  Ok(Signature {
-    header,
-    container_new,
-    block_hash_iter,
-  })
-}
 
 fn set_permissions(path: &std::path::Path, mode: u32) -> Result<(), String> {
   #[cfg(unix)]
@@ -585,53 +202,6 @@ pub fn verify_files(
   Ok(())
 }
 
-/// <https://docs.itch.zone/wharf/master/file-formats/patches.html>
-///
-/// The patch structure is:
-///
-/// - [`PATCH_MAGIC`]
-/// - [`pwr::PatchHeader`]
-/// - decompressed stream follows:
-///   - [`tlc::Container`]    (target container)
-///   - [`tlc::Container`]    (source container)
-///   - repeated sequence:
-///     - [`pwr::SyncHeader`]
-///     - Optional [`pwr::BsdiffHeader`] if the previous header type is [`pwr::sync_header::Type::Bsdiff`]
-///       - repeated sequence:
-///       - [`pwr::SyncOp`]
-///     - [`pwr::SyncOp`] (Type = `HEY_YOU_DID_IT`)  // end of file’s series
-pub fn read_patch(reader: &mut impl BufRead) -> Result<Patch<impl BufRead>, String> {
-  // Check the magic bytes
-  check_magic_bytes(reader, PATCH_MAGIC)?;
-
-  // Decode the patch header
-  let header = decode_protobuf::<pwr::PatchHeader>(reader)?;
-
-  // Decompress the remaining stream
-  let compression_algorithm = header
-    .compression
-    .ok_or("Missing compressing field in Patch Header!")?
-    .algorithm();
-
-  let mut decompressed = decompress_stream(reader, compression_algorithm)?;
-
-  // Decode the containers
-  let container_old = decode_protobuf::<tlc::Container>(&mut decompressed)?;
-  let container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
-
-  // Decode the sync operations
-  let sync_op_iter = SyncEntryIter {
-    reader: decompressed,
-  };
-
-  Ok(Patch {
-    header,
-    container_old,
-    container_new,
-    sync_op_iter,
-  })
-}
-
 fn copy_range(
   src: &mut std::fs::File,
   dst: &mut std::fs::File,
@@ -737,7 +307,7 @@ pub fn apply_patch(
 
     match header {
       // The current file will be updated using the Rsync method
-      SyncHeader::Rsync {
+      patch::SyncHeader::Rsync {
         file_index,
         mut op_iter,
       } => {
@@ -786,7 +356,7 @@ pub fn apply_patch(
       }
 
       // The current file will be updated using the Bsdiff method
-      SyncHeader::Bsdiff {
+      patch::SyncHeader::Bsdiff {
         file_index,
         target_index,
         mut op_iter,
