@@ -1,8 +1,9 @@
 # Wharf Protocol
 
-The wharf protocol was created by [itch.io](https://itch.io/) with the objective of keeping games up to date.
-It specifies algorithms for diffing and patching old versions of games to newer ones. It also provides an
-algorithm to generate signatures for game versions, allowing users to check for corrupted installations.
+The wharf protocol was created by [Amos Wenger](https://docs.itch.zone/wharf/master/#authors) when working
+for [itch.io](https://itch.io/) with the objective of keeping games up to date. It specifies algorithms for
+diffing and patching old versions of games to newer ones. It also provides an algorithm to generate
+signatures for game versions, allowing users to check for corrupted installations.
 
 The official wharf protocol specification can be found here: <https://docs.itch.zone/wharf/master/>
 
