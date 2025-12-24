@@ -40,7 +40,6 @@ If login is successful:
 ```json
 {"key":{"created_at":"2025-11-02T15:39:00.000000000Z","key":"REDACTED","source":"desktop","revoked":false,"last_used_at":"2025-12-24T18:45:56.000000000Z","user_id":11681540,"source_version":"26.1.9","updated_at":"2025-11-30T21:19:37.000000000Z","id":3329825},"success":true,"cookie":{"itchio":"REDACTED"}}
 ```
-```
 
 If the username or password is incorrect:
 ```json
