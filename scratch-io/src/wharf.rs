@@ -2,11 +2,11 @@
 ///
 /// More information about bsdiff wharf patches:
 /// <https://web.archive.org/web/20211123032456/https://twitter.com/fasterthanlime/status/790617515009437701>
-pub mod bsdiff;
+mod bsdiff;
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/pwr.proto>
-pub mod pwr;
+mod pwr;
 /// <https://github.com/itchio/lake/blob/cc4284ec2b2a9ebc4735d7560ed8216de6ffac6f/tlc/tlc.proto>
-pub mod tlc;
+mod tlc;
 
 /// Funcions and structures for reading wharf patches
 pub mod patch;

@@ -17,7 +17,7 @@ pub struct Signature<R> {
   pub block_hash_iter: BlockHashIter<R>,
 }
 
-/// Iterator over independent, sequential length-delimited [`pwr::BlockHash`] Protobuf messages in a [`std::io::BufRead`] stream
+/// Iterator over independent, sequential length-delimited hash messages in a [`std::io::BufRead`] stream
 ///
 /// Each message is of the same type, independent and follows directly after the previous one in the stream.
 /// The messages are read and decoded one by one, without loading the entire stream into memory.
@@ -50,14 +50,7 @@ where
 
 /// <https://docs.itch.zone/wharf/master/file-formats/signatures.html>
 ///
-/// The signature structure is:
-///
-/// - [`SIGNATURE_MAGIC`]
-/// - [`pwr::SignatureHeader`]
-/// - decompressed stream follows:
-///   - [`tlc::Container`]    (target container)
-///   - repeated sequence:
-///     - [`pwr::BlockHash`]
+/// <https://github.com/Vidi0/scratch-io/blob/main/docs/wharf/patch.md>
 pub fn read_signature(reader: &mut impl BufRead) -> Result<Signature<impl BufRead>, String> {
   // Check the magic bytes
   check_magic_bytes(reader, SIGNATURE_MAGIC)?;

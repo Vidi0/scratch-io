@@ -161,19 +161,7 @@ where
 
 /// <https://docs.itch.zone/wharf/master/file-formats/patches.html>
 ///
-/// The patch structure is:
-///
-/// - [`PATCH_MAGIC`]
-/// - [`pwr::PatchHeader`]
-/// - decompressed stream follows:
-///   - [`tlc::Container`]    (target container)
-///   - [`tlc::Container`]    (source container)
-///   - repeated sequence:
-///     - [`pwr::SyncHeader`]
-///     - Optional [`pwr::BsdiffHeader`] if the previous header type is [`pwr::sync_header::Type::Bsdiff`]
-///       - repeated sequence:
-///       - [`pwr::SyncOp`]
-///     - [`pwr::SyncOp`] (Type = `HEY_YOU_DID_IT`)  // end of file’s series
+/// <https://github.com/Vidi0/scratch-io/blob/main/docs/wharf/patch.md>
 pub fn read_patch(reader: &mut impl BufRead) -> Result<Patch<impl BufRead>, String> {
   // Check the magic bytes
   check_magic_bytes(reader, PATCH_MAGIC)?;
