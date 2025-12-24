@@ -30,7 +30,7 @@ also indicate the size of each file.
 
 ## Patch Operations Loop
 
-At this point, the patch operations start. Each header indicates the file
+At this point, the patch operations begin. Each header indicates the file
 index in the new container to patch and the algorithm used for patching it.
 
 ### Rsync Patching
@@ -38,9 +38,11 @@ index in the new container to patch and the algorithm used for patching it.
 If the algorithm is rsync, a sync op loop begins. Each sync operation can
 be of three different types:
 
- - BlockRange: copy, from the file at the file_index in the old container,
-bytes from the block_index * BLOCK_SIZE byte, during block_span * BLOCK_SIZE
-bytes
+ - BlockRange:
+   - read the fields file_index, block_index and block_span
+   - open the file with index file_index in the old container
+   - copy from the old file into the new one the bytes from block_index *
+BLOCK_SIZE, the next block_span * BLOCK_SIZE bytes
  - Data: copy the raw bytes in the data field directly to the new file
  - HeyYouDidIt: this sync op loop has ended
 
