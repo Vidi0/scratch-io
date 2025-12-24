@@ -5,8 +5,8 @@ protobuf messages.
 
 ## Magic bytes
 
-The first four bytes of a wharf signature are the magic bytes:
-`0x0FEF_5F01` (in little endian)
+The first four bytes of a wharf signature are the magic bytes,
+which are represented as `0x0FEF_5F01` in little-endian format.
 
 This is the patch magic bytes plus one.
 
@@ -18,27 +18,27 @@ in wharf are:
 
  - Brotli (used on signatures)
  - Zstandard (not used on signatures)
- - gzip (not currently in use in itch.io, but supported anyways)
+ - gzip (not currently used by itch.io, but still supported)
 
 Additionally, the header message also specifies the compression quality,
-but it isn't useful for decompressing the signature.
+but this information is not useful for decompressing the signature.
 
 ## New Container
 
 After the header, the next protobuf message is the new container. It
 indicates the files, folders and symlinks of the build folder, and their
-mode (permissions). Also, it indicates the size of each file.
+mode (permissions). It also indicates the size of each file.
 
 ## Block Hash Loop
 
-At this point, the block hash operations start. Each message indicates
-the hash of the current block of bytes of size BLOCK_SIZE. The blocks
-have a fixed size and are read from the container files in order.
+At this point, the block hash operations begin. Each message contains
+the hash of the current block of BLOCK_SIZE bytes. The blocks have a
+fixed size and are read from the container files in order.
 
 Each block hash message contains:
 
- - A weak hash: the weak hashing algorithm used in the original RSync
-paper
+ - A weak hash, which is the weak hashing algorithm used in the original
+RSync paper
  - A strong hash: MD5
 
 ```mermaid
