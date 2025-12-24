@@ -14,7 +14,6 @@ The API key is the `key` field of the successful response.
 
 `POST https://api.itch.io/login`
 
-
 ### Parameters:
 
 - `username` (string): The username or email
