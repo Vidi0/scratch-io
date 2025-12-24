@@ -18,7 +18,7 @@ set the Accept request header to application/vnd.itch.v2
 ### Login
 
 Obtain an API key using a username and password.
-The API key is the `key` field of the successful response
+The API key is the `key` field of the successful response.
 
 #### Endpoint:
 
@@ -59,7 +59,8 @@ If TOTP verification is enabled:
 
 ### TOTP Verification
 
-Finish login when TOTP is required.
+Finish login when TOTP is required to obtain an API key.
+The API key is the `key` field of the successful response.
 
 #### Endpoint:
 
