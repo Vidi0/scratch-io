@@ -228,8 +228,8 @@ fn add_bytes(src: &mut std::fs::File, dst: &mut std::fs::File, add: &[u8]) -> Re
     .read_exact(&mut buffer)
     .map_err(|e| format!("Couldn't read data from old file into buffer!\n {e}"))?;
 
-  for (b, a) in buffer.iter_mut().zip(add) {
-    *b = b.wrapping_add(*a);
+  for i in 0..add.len() {
+    buffer[i] += add[i];
   }
 
   dst
