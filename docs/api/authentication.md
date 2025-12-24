@@ -57,7 +57,7 @@ The API key is the `key` field of the successful response.
 ### Parameters:
 
 - `token` (string): The TOTP token obtained from the login endpoint
-- `code` (string): The verification code from the TOTP app
+- `code` (int): The verification code from the TOTP app
 
 ### Response:
 
