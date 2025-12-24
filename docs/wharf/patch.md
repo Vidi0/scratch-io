@@ -30,9 +30,18 @@ also indicate the size of each file.
 
 ## Patch Operations Loop
 
-At this point, the patch operations begin. Each header indicates the
-file index in the new container to patch and the algorithm used for
-patching it.
+At this point, the patch operations begin. **Every file in the new
+container is fully reconstructed from scratch**. Files are not modified
+in place. Each patch header describes how to rebuild a single file in
+the new container using data from the old container and/or new embedded
+data.
+
+As a result, **each output file starts empty**, and all bytes written to
+it are produced exclusively by the operations described in its patch
+instructions.
+
+Each patch header specifies the index of the file in the new container to be
+rebuilt and the algorithm used for reconstruction.
 
 ### Rsync Patching
 
@@ -48,7 +57,8 @@ operation can be of three different types:
    - Copy the raw bytes contained in the `data` field directly into
 the new file
  - HeyYouDidIt
-   - Indicates the end of the sync operation loop for the current file
+   - Indicates that reconstruction of the current file is complete and
+terminates the sync operation loop
 
 ### Bsdiff Patching
 
@@ -69,11 +79,13 @@ result to the new file
    - Move the cursor in the old file forward (positive values) or backward
 (negative values)
  - eof (`bool`)
-   - When set to true, indicates the end of the control operation loop
+   - When set to true, indicates that no further control operations are
+present for the current file
 
 After the final control operation, a `SyncOp` protobuf message  with its
-`type` field set to `HEY_YOU_DID_IT` is emitted to terminate the patching
-process for the current file.
+`type` field set to `HEY_YOU_DID_IT` is emitted. This explicitly marks the
+end of reconstruction for the current file and concludes its patch
+operations.
 
 ```mermaid
 ---
