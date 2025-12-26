@@ -14,7 +14,7 @@ pub mod patch;
 pub mod signature;
 
 mod common;
-mod protobuf;
+mod protos;
 
 use patch::Patch;
 use signature::Signature;

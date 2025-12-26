@@ -1,5 +1,5 @@
 use super::common::{PATCH_MAGIC, check_magic_bytes, decompress_stream};
-use super::{bsdiff, protobuf::decode_protobuf, pwr, tlc};
+use super::{bsdiff, protos::decode_protobuf, pwr, tlc};
 
 use std::io::BufRead;
 
