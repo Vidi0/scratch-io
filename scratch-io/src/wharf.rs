@@ -20,7 +20,9 @@ use patch::Patch;
 use signature::Signature;
 
 use md5::{Digest, Md5};
-use std::io::{BufRead, Read, Seek, Write};
+use std::fs;
+use std::io::{self, BufRead, Read, Seek, Write};
+use std::path::Path;
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L30>
 const MODE_MASK: u32 = 0o644;
@@ -30,7 +32,7 @@ const BLOCK_SIZE: usize = 64 * 1024;
 
 const MAX_OPEN_FILES_PATCH: std::num::NonZeroUsize = std::num::NonZeroUsize::new(16).unwrap();
 
-fn set_permissions(path: &std::path::Path, mode: u32) -> Result<(), String> {
+fn set_permissions(path: &Path, mode: u32) -> Result<(), String> {
   #[cfg(unix)]
   {
     use std::os::unix::fs::PermissionsExt;
@@ -38,7 +40,7 @@ fn set_permissions(path: &std::path::Path, mode: u32) -> Result<(), String> {
     // Apply the mode mask to set at least the mask permissions
     let mode = mode | MODE_MASK;
 
-    let mut permissions = std::fs::metadata(path)
+    let mut permissions = fs::metadata(path)
       .map_err(|e| {
         format!(
           "Couldn't read path metadata: \"{}\"\n{e}",
@@ -50,7 +52,7 @@ fn set_permissions(path: &std::path::Path, mode: u32) -> Result<(), String> {
     if permissions.mode() != mode {
       permissions.set_mode(mode);
 
-      std::fs::set_permissions(path, permissions).map_err(|e| {
+      fs::set_permissions(path, permissions).map_err(|e| {
         format!(
           "Couldn't change path permissions: \"{}\"\n{e}",
           path.to_string_lossy()
@@ -64,7 +66,7 @@ fn set_permissions(path: &std::path::Path, mode: u32) -> Result<(), String> {
 
 fn apply_container_permissions(
   container: &tlc::Container,
-  build_folder: &std::path::Path,
+  build_folder: &Path,
 ) -> Result<(), String> {
   for file in &container.files {
     set_permissions(&build_folder.join(&file.path), file.mode)?;
@@ -83,7 +85,7 @@ fn apply_container_permissions(
 
 fn create_container_symlinks(
   container: &tlc::Container,
-  build_folder: &std::path::Path,
+  build_folder: &Path,
 ) -> Result<(), String> {
   #[cfg(unix)]
   {
@@ -91,7 +93,7 @@ fn create_container_symlinks(
       let path = build_folder.join(&sym.path);
       let original = build_folder.join(&sym.dest);
 
-      let exists_path = std::fs::exists(&path).map_err(|e| {
+      let exists_path = fs::exists(&path).map_err(|e| {
         format!(
           "Couldn't check is the path exists: \"{}\"\n{e}",
           path.to_string_lossy()
@@ -114,7 +116,7 @@ fn create_container_symlinks(
 }
 
 pub fn verify_files(
-  build_folder: &std::path::Path,
+  build_folder: &Path,
   signature: &mut Signature<impl BufRead>,
 ) -> Result<(), String> {
   // This buffer will hold the current block that is being hashed
@@ -126,7 +128,7 @@ pub fn verify_files(
   // Loop over all the files in the signature container
   for container_file in &signature.container_new.files {
     let file_path = build_folder.join(&container_file.path);
-    let file = std::fs::File::open(&file_path).map_err(|e| {
+    let file = fs::File::open(&file_path).map_err(|e| {
       format!(
         "Couldn't open file: \"{}\"\n{e}",
         file_path.to_string_lossy()
@@ -149,7 +151,7 @@ pub fn verify_files(
     }
 
     // For each block in the file, compare its hash with the one provided in the signature
-    let mut file_bufreader = std::io::BufReader::new(file);
+    let mut file_bufreader = io::BufReader::new(file);
     let mut block_index: usize = 0;
 
     loop {
@@ -212,12 +214,12 @@ fn copy_range(
   let len = block_span * BLOCK_SIZE as u64;
 
   src
-    .seek(std::io::SeekFrom::Start(start_pos))
+    .seek(io::SeekFrom::Start(start_pos))
     .map_err(|e| format!("Couldn't seek into old file at pos: {}\n{e}", start_pos))?;
 
   let mut limited = src.take(len);
 
-  std::io::copy(&mut limited, dst)
+  io::copy(&mut limited, dst)
     .map(|_| ())
     .map_err(|e| format!("Couldn't copy data from old file to new!\n {e}"))
 }
@@ -253,11 +255,11 @@ fn get_container_file(container: &tlc::Container, file_index: usize) -> Result<&
 fn get_old_container_file(
   container: &tlc::Container,
   file_index: usize,
-  build_folder: &std::path::Path,
-) -> Result<std::fs::File, String> {
+  build_folder: &Path,
+) -> Result<fs::File, String> {
   let file_path = build_folder.join(&get_container_file(container, file_index)?.path);
 
-  std::fs::File::open(&file_path).map_err(|e| {
+  fs::File::open(&file_path).map_err(|e| {
     format!(
       "Couldn't open old file for reading: \"{}\"\n{e}",
       file_path.to_string_lossy()
@@ -268,11 +270,11 @@ fn get_old_container_file(
 fn get_new_container_file(
   container: &tlc::Container,
   file_index: usize,
-  build_folder: &std::path::Path,
-) -> Result<std::fs::File, String> {
+  build_folder: &Path,
+) -> Result<fs::File, String> {
   let file_path = build_folder.join(&get_container_file(container, file_index)?.path);
 
-  std::fs::OpenOptions::new()
+  fs::OpenOptions::new()
     .create(true)
     .write(true)
     .truncate(true)
@@ -286,14 +288,14 @@ fn get_new_container_file(
 }
 
 pub fn apply_patch(
-  old_build_folder: &std::path::Path,
-  new_build_folder: &std::path::Path,
+  old_build_folder: &Path,
+  new_build_folder: &Path,
   patch: &mut Patch<impl BufRead>,
 ) -> Result<(), String> {
   // Iterate over the folders in the new container and create them
   for folder in &patch.container_new.dirs {
     let new_folder = new_build_folder.join(&folder.path);
-    std::fs::create_dir_all(&new_folder).map_err(|e| {
+    fs::create_dir_all(&new_folder).map_err(|e| {
       format!(
         "Couldn't create folder: \"{}\"\n{e}",
         new_folder.to_string_lossy()
@@ -304,7 +306,7 @@ pub fn apply_patch(
   // Create a cache of open file descriptors for the old files
   // The key is the file_index of the old file provided by the patch
   // The value is the open file descriptor
-  let mut old_files_cache: lru::LruCache<usize, std::fs::File> =
+  let mut old_files_cache: lru::LruCache<usize, fs::File> =
     lru::LruCache::new(MAX_OPEN_FILES_PATCH);
 
   // This buffer is used when applying bsdiff add operations
