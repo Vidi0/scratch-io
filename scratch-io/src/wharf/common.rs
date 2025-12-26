@@ -54,7 +54,7 @@ pub fn decompress_stream(
       #[cfg(not(feature = "brotli"))]
       {
         Err(
-          "This binary was built without Brotli support. Recompile with `--features brotli` to be able to decompress the stream",
+          "This binary was built without Brotli support. Recompile with `--features brotli` to be able to decompress the stream".to_string(),
         )
       }
     }
@@ -70,7 +70,7 @@ pub fn decompress_stream(
       #[cfg(not(feature = "gzip"))]
       {
         Err(
-          "This binary was built without gzip support. Recompile with `--features gzip` to be able to decompress the stream",
+          "This binary was built without gzip support. Recompile with `--features gzip` to be able to decompress the stream".to_string(),
         )
       }
     }
@@ -86,7 +86,7 @@ pub fn decompress_stream(
       #[cfg(not(feature = "zstd"))]
       {
         Err(
-          "This binary was built without Zstd support. Recompile with `--features zstd` to be able to decompress the stream",
+          "This binary was built without Zstd support. Recompile with `--features zstd` to be able to decompress the stream".to_string(),
         )
       }
     }
