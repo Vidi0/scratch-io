@@ -1,0 +1,24 @@
+[package]
+name = "wharf"
+description = "A rust library for updating and verifying games from itch.io"
+repository = "https://github.com/Vidi0/scratch-io"
+license = "GPL-3.0-or-later"
+readme = "../README.md"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+lru = "0.16.2"
+md-5 = "0.10.6"
+prost = "0.14.1"
+
+brotli = { version = "8.0.2", optional = true }
+flate2 = { version = "1.1.5", optional = true }
+zstd = { version = "0.13.3", optional = true }
+
+[features]
+default = ["brotli", "gzip", "zstd"]
+
+brotli = ["dep:brotli"]
+gzip = ["dep:flate2"]
+zstd = ["dep:zstd"]

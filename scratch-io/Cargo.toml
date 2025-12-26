@@ -9,7 +9,6 @@ edition = "2024"
 
 [dependencies]
 md-5 = "0.10.6"
-prost = "0.14.1"
 reqwest = { version = "0.12.26", default-features = false, features = ["rustls-tls", "http2", "system-proxy", "blocking"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
@@ -18,7 +17,6 @@ strsim = "0.11.1"
 thiserror = "2.0.17"
 time = { version = "0.3.44", features = ["formatting", "parsing", "serde"] }
 toml = "0.9.10"
-lru = "0.16.2"
 
 zip = { version = "7.0.0", optional = true }
 brotli = { version = "8.0.2", optional = true }
@@ -29,7 +27,7 @@ liblzma = { version = "0.4.5", optional = true }
 zstd = { version = "0.13.3", optional = true }
 
 [features]
-default = ["zip", "wharf", "tar"]
+default = ["zip", "tar", "gzip", "zstd"]
 
 zip = ["dep:zip"]
 tar = ["dep:tar"]
@@ -38,7 +36,3 @@ gzip = ["dep:flate2"]
 bzip2 = ["dep:bzip2"]
 xz = ["dep:liblzma"]
 zstd = ["dep:zstd"]
-
-# Wharf is the protocol used by itch.io to handle patches and signatures
-# This is a meta-feature that enables all compression formats supported by the protocol
-wharf = ["brotli", "gzip", "zstd"]

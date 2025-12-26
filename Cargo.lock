@@ -1589,9 +1589,7 @@ dependencies = [
  "bzip2",
  "flate2",
  "liblzma",
- "lru",
  "md-5",
- "prost",
  "reqwest",
  "serde",
  "serde_json",
@@ -1617,6 +1615,7 @@ dependencies = [
  "serde_with",
  "shell-words",
  "toml",
+ "wharf",
 ]
 
 [[package]]
@@ -2248,6 +2247,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b2878ef029c47c6e8cf779119f20fcf52bde7ad42a731b2a304bc221df17571e"
 dependencies = [
  "rustls-pki-types",
+]
+
+[[package]]
+name = "wharf"
+version = "0.1.0"
+dependencies = [
+ "brotli",
+ "flate2",
+ "lru",
+ "md-5",
+ "prost",
+ "zstd",
 ]
 
 [[package]]

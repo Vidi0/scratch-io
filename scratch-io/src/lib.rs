@@ -5,7 +5,6 @@ mod game_files;
 mod heuristics;
 pub mod itch_api;
 pub mod itch_manifest;
-pub mod wharf;
 
 pub use crate::itch_api::ItchClient;
 use crate::itch_api::{types::*, *};
