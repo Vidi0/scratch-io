@@ -203,8 +203,8 @@ pub fn verify_files(
 }
 
 fn copy_range(
-  src: &mut std::fs::File,
-  dst: &mut std::fs::File,
+  src: &mut (impl Read + Seek),
+  dst: &mut impl Write,
   block_index: u64,
   block_span: u64,
 ) -> Result<(), String> {
@@ -223,8 +223,8 @@ fn copy_range(
 }
 
 fn add_bytes(
-  src: &mut std::fs::File,
-  dst: &mut std::fs::File,
+  src: &mut impl Read,
+  dst: &mut impl Write,
   add: &[u8],
   add_buffer: &mut [u8],
 ) -> Result<(), String> {
