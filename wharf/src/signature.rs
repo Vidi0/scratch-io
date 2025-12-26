@@ -1,5 +1,5 @@
 use super::common::{SIGNATURE_MAGIC, check_magic_bytes, decompress_stream};
-use super::{protos::decode_protobuf, pwr, tlc};
+use super::protos::*;
 
 use std::io::BufRead;
 
