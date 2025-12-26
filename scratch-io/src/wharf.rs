@@ -222,18 +222,24 @@ fn copy_range(
     .map_err(|e| format!("Couldn't copy data from old file to new!\n {e}"))
 }
 
-fn add_bytes(src: &mut std::fs::File, dst: &mut std::fs::File, add: &[u8]) -> Result<(), String> {
-  let mut buffer = vec![0u8; add.len()];
+fn add_bytes(
+  src: &mut std::fs::File,
+  dst: &mut std::fs::File,
+  add: &[u8],
+  add_buffer: &mut [u8],
+) -> Result<(), String> {
+  assert_eq!(add.len(), add_buffer.len());
+
   src
-    .read_exact(&mut buffer)
+    .read_exact(add_buffer)
     .map_err(|e| format!("Couldn't read data from old file into buffer!\n {e}"))?;
 
   for i in 0..add.len() {
-    buffer[i] += add[i];
+    add_buffer[i] += add[i];
   }
 
   dst
-    .write_all(&buffer)
+    .write_all(add_buffer)
     .map_err(|e| format!("Couldn't save buffer data into new file!\n {e}"))
 }
 
@@ -300,6 +306,11 @@ pub fn apply_patch(
   // The value is the open file descriptor
   let mut old_files_cache: lru::LruCache<usize, std::fs::File> =
     lru::LruCache::new(MAX_OPEN_FILES_PATCH);
+
+  // This buffer is used when applying bsdiff add operations
+  // It is created here to avoid allocating and deallocating
+  // the buffer on each add operation
+  let mut add_buffer: Vec<u8> = Vec::new();
 
   // Patch all files in the iterator one by one
   while let Some(header) = patch.sync_op_iter.next_header() {
@@ -387,7 +398,10 @@ pub fn apply_patch(
           // Control operations must be applied in order
           // First, add the diff bytes
           if !control.add.is_empty() {
-            add_bytes(old_file, &mut new_file, &control.add)?;
+            // Resize the add buffer to match the size of the current add bytes
+            add_buffer.resize(control.add.len(), 0);
+
+            add_bytes(old_file, &mut new_file, &control.add, &mut add_buffer)?;
           }
 
           // Then, copy the extra bytes
