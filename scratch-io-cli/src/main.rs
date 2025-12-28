@@ -148,8 +148,6 @@ enum WithApiCommands {
     /// The ID of the upload to download
     upload_id: UploadID,
     /// The path where the download folder will be placed
-    ///
-    /// Defaults to ~/Games/{game_name}/
     #[arg(long, env = "SCRATCH_INSTALL_PATH")]
     install_path: PathBuf,
     /// Skip the hash verification and allow installing modified files (unsafe)
@@ -177,8 +175,6 @@ enum WithApiCommands {
     /// The ID of the upload which has been partially downloaded
     upload_id: UploadID,
     /// The path where the download folder has been placed
-    ///
-    /// Defaults to ~/Games/{game_name}/
     #[arg(long, env = "SCRATCH_INSTALL_PATH")]
     install_path: PathBuf,
   },
