@@ -392,6 +392,8 @@ pub fn apply_patch(
           // First, add the diff bytes
           if !control.add.is_empty() {
             // Resize the add buffer to match the size of the current add bytes
+            // The add operations are usually the same length, so allocation is almost never triggered
+            // If the new add bytes are smaller than the buffer size, allocation will also be avoided
             add_buffer.resize(control.add.len(), 0);
 
             add_bytes(old_file, &mut new_file, &control.add, &mut add_buffer)?;
