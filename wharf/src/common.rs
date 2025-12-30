@@ -34,10 +34,6 @@ pub fn check_magic_bytes(reader: &mut impl Read, expected_magic: u32) -> Result<
 /// # Returns
 ///
 /// The decompressed buffered stream
-///
-/// # Errors
-///
-///
 pub fn decompress_stream(
   reader: &mut impl BufRead,
   algorithm: pwr::CompressionAlgorithm,

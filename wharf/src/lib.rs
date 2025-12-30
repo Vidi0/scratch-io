@@ -13,7 +13,7 @@ use signature::Signature;
 
 use md5::{Digest, Md5};
 use std::fs;
-use std::io::{self, BufRead, Read, Seek, Write};
+use std::io::{self, Read, Seek, Write};
 use std::path::Path;
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L30>
@@ -106,7 +106,7 @@ fn create_container_symlinks(
 
 pub fn verify_files(
   build_folder: &Path,
-  signature: &mut Signature<impl BufRead>,
+  signature: &mut Signature<impl Read>,
 ) -> Result<(), String> {
   // This buffer will hold the current block that is being hashed
   let mut buffer = vec![0u8; BLOCK_SIZE as usize];
@@ -282,7 +282,7 @@ fn get_new_container_file(
 pub fn apply_patch(
   old_build_folder: &Path,
   new_build_folder: &Path,
-  patch: &mut Patch<impl BufRead>,
+  patch: &mut Patch<impl Read>,
 ) -> Result<(), String> {
   // Iterate over the folders in the new container and create them
   for folder in &patch.container_new.dirs {

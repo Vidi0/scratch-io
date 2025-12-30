@@ -1,7 +1,7 @@
 use super::common::{BLOCK_SIZE, SIGNATURE_MAGIC, check_magic_bytes, decompress_stream};
 use super::protos::*;
 
-use std::io::BufRead;
+use std::io::{BufRead, Read};
 
 /// Represents a decoded wharf signature file
 ///
@@ -17,7 +17,7 @@ pub struct Signature<R> {
   pub block_hash_iter: BlockHashIter<R>,
 }
 
-/// Iterator over independent, sequential length-delimited hash messages in a [`std::io::BufRead`] stream
+/// Iterator over independent, sequential length-delimited hash messages in a [`std::io::Read`] stream
 ///
 /// Each message is of the same type, independent and follows directly after the previous one in the stream.
 /// The messages are read and decoded one by one, without loading the entire stream into memory.
@@ -30,7 +30,7 @@ pub struct BlockHashIter<R> {
 
 impl<R> Iterator for BlockHashIter<R>
 where
-  R: BufRead,
+  R: Read,
 {
   type Item = Result<pwr::BlockHash, String>;
 

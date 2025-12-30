@@ -1,7 +1,7 @@
 use super::common::{PATCH_MAGIC, check_magic_bytes, decompress_stream};
 use super::protos::*;
 
-use std::io::BufRead;
+use std::io::{BufRead, Read};
 
 /// Represents a decoded wharf patch file
 ///
@@ -25,7 +25,7 @@ pub struct RsyncOpIter<'a, R> {
 
 impl<R> Iterator for RsyncOpIter<'_, R>
 where
-  R: BufRead,
+  R: Read,
 {
   type Item = Result<pwr::SyncOp, String>;
 
@@ -53,7 +53,7 @@ pub struct BsdiffOpIter<'a, R> {
 
 impl<R> Iterator for BsdiffOpIter<'_, R>
 where
-  R: BufRead,
+  R: Read,
 {
   type Item = Result<bsdiff::Control, String>;
 
@@ -111,7 +111,7 @@ pub struct SyncEntryIter<R> {
 
 impl<R> SyncEntryIter<R>
 where
-  R: BufRead,
+  R: Read,
 {
   pub fn next_header(&mut self) -> Option<Result<SyncHeader<'_, R>, String>> {
     if self.entries_read == self.total_entries {
