@@ -1,4 +1,4 @@
-use super::common::{SIGNATURE_MAGIC, check_magic_bytes, decompress_stream};
+use super::common::{BLOCK_SIZE, SIGNATURE_MAGIC, check_magic_bytes, decompress_stream};
 use super::protos::*;
 
 use std::io::BufRead;
@@ -21,11 +21,11 @@ pub struct Signature<R> {
 ///
 /// Each message is of the same type, independent and follows directly after the previous one in the stream.
 /// The messages are read and decoded one by one, without loading the entire stream into memory.
-///
-/// The iterator finishes when reaching EOF
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockHashIter<R> {
   reader: R,
+  total_blocks: u64,
+  blocks_read: u64,
 }
 
 impl<R> Iterator for BlockHashIter<R>
@@ -35,16 +35,12 @@ where
   type Item = Result<pwr::BlockHash, String>;
 
   fn next(&mut self) -> Option<Self::Item> {
-    match self.reader.fill_buf() {
-      // If it couldn't read from the stream, return an error
-      Err(e) => Some(Err(format!("Couldn't read from reader into buffer!\n{e}"))),
-
-      // If there isn't any data remaining, return None
-      Ok([]) => None,
-
-      // If there is data remaining, return the decoded BlockHash Protobuf message
-      Ok(_) => Some(decode_protobuf::<pwr::BlockHash>(&mut self.reader)),
+    if self.blocks_read == self.total_blocks {
+      return None;
     }
+
+    self.blocks_read += 1;
+    Some(decode_protobuf::<pwr::BlockHash>(&mut self.reader))
   }
 }
 
@@ -69,9 +65,18 @@ pub fn read_signature(reader: &mut impl BufRead) -> Result<Signature<impl BufRea
   // Decode the container
   let container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
 
+  // Get the number of hash blocks
+  let total_blocks = container_new.files.iter().fold(0, |acc, f| {
+    // For each file, compute how many blocks it occupies
+    // If the file is empty, still count one block for its empty hash
+    acc + (f.size as u64).div_ceil(BLOCK_SIZE).max(1)
+  });
+
   // Decode the hashes
   let block_hash_iter = BlockHashIter {
     reader: decompressed,
+    total_blocks,
+    blocks_read: 0,
   };
 
   Ok(Signature {
