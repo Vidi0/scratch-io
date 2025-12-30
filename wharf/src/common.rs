@@ -1,7 +1,7 @@
-use crate::protos::{pwr, tlc};
+use crate::protos::{pwr::CompressionAlgorithm, tlc};
 
 use std::fs;
-use std::io::{BufRead, Read};
+use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L33>
@@ -42,15 +42,15 @@ pub fn check_magic_bytes(reader: &mut impl Read, expected_magic: u32) -> Result<
 /// The decompressed buffered stream
 pub fn decompress_stream(
   reader: &mut impl BufRead,
-  algorithm: pwr::CompressionAlgorithm,
-) -> Result<Box<dyn std::io::BufRead + '_>, String> {
+  algorithm: CompressionAlgorithm,
+) -> Result<Box<dyn BufRead + '_>, String> {
   match algorithm {
-    pwr::CompressionAlgorithm::None => Ok(Box::new(reader)),
+    CompressionAlgorithm::None => Ok(Box::new(reader)),
 
-    pwr::CompressionAlgorithm::Brotli => {
+    CompressionAlgorithm::Brotli => {
       #[cfg(feature = "brotli")]
       {
-        Ok(Box::new(std::io::BufReader::new(
+        Ok(Box::new(BufReader::new(
           // Set the buffer size to zero to allow Brotli to select the correct size
           brotli::Decompressor::new(reader, 0),
         )))
@@ -64,12 +64,12 @@ pub fn decompress_stream(
       }
     }
 
-    pwr::CompressionAlgorithm::Gzip => {
+    CompressionAlgorithm::Gzip => {
       #[cfg(feature = "gzip")]
       {
-        Ok(Box::new(std::io::BufReader::new(
-          flate2::bufread::GzDecoder::new(reader),
-        )))
+        Ok(Box::new(BufReader::new(flate2::bufread::GzDecoder::new(
+          reader,
+        ))))
       }
 
       #[cfg(not(feature = "gzip"))]
@@ -79,10 +79,10 @@ pub fn decompress_stream(
         )
       }
     }
-    pwr::CompressionAlgorithm::Zstd => {
+    CompressionAlgorithm::Zstd => {
       #[cfg(feature = "zstd")]
       {
-        Ok(Box::new(std::io::BufReader::new(
+        Ok(Box::new(BufReader::new(
           zstd::Decoder::with_buffer(reader)
             .map_err(|e| format!("Couldn't create zstd decoder!\n{e}"))?,
         )))
