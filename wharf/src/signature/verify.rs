@@ -7,7 +7,7 @@ use std::io::Read;
 use std::path::Path;
 
 impl Signature<'_> {
-  pub fn verify_files(
+  pub fn verify(
     &mut self,
     build_folder: &Path,
     mut progress_callback: impl FnMut(),
