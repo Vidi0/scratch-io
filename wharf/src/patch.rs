@@ -1,5 +1,5 @@
-use super::common::{PATCH_MAGIC, check_magic_bytes, decompress_stream};
-use super::protos::*;
+use crate::common::{PATCH_MAGIC, check_magic_bytes, decompress_stream};
+use crate::protos::*;
 
 use std::io::{BufRead, Read};
 

@@ -1,5 +1,5 @@
-use super::common::{BLOCK_SIZE, SIGNATURE_MAGIC, check_magic_bytes, decompress_stream};
-use super::protos::*;
+use crate::common::{BLOCK_SIZE, SIGNATURE_MAGIC, check_magic_bytes, decompress_stream};
+use crate::protos::*;
 
 use std::io::{BufRead, Read};
 

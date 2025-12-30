@@ -1,4 +1,4 @@
-use super::pwr;
+use crate::protos::pwr;
 use std::io::{BufRead, Read};
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L33>
