@@ -142,17 +142,16 @@ pub fn verify_files(
     }
 
     // For each block in the file, compare its hash with the one provided in the signature
-    let mut block_index: usize = 0;
+    let mut block_index: u64 = 0;
 
     loop {
-      let block_start: usize = block_index * BLOCK_SIZE as usize;
-      let block_end: usize = std::cmp::min(
-        block_start + BLOCK_SIZE as usize,
-        container_file.size as usize,
-      );
+      // The size of the current block is BLOCK_SIZE,
+      // unless there are less remaining bytes on the file
+      let current_block_size =
+        BLOCK_SIZE.min(container_file.size as u64 - block_index * BLOCK_SIZE);
 
       // Read the current block
-      let buf = &mut buffer[..block_end - block_start];
+      let buf = &mut buffer[..current_block_size as usize];
       file.read_exact(buf).map_err(|e| {
         format!(
           "Couldn't read file data into buffer: \"{}\"\n{e}",
@@ -180,7 +179,7 @@ pub fn verify_files(
       }
 
       // If the file has been fully read, proceed to the next one
-      if block_end == container_file.size as usize {
+      if block_index * BLOCK_SIZE + current_block_size == container_file.size as u64 {
         break;
       }
 
