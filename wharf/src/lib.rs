@@ -287,6 +287,7 @@ pub fn apply_patch(
   old_build_folder: &Path,
   new_build_folder: &Path,
   patch: &mut Patch<impl Read>,
+  mut progress_callback: impl FnMut(),
 ) -> Result<(), String> {
   // Iterate over the folders in the new container and create them
   for folder in &patch.container_new.dirs {
@@ -423,6 +424,9 @@ pub fn apply_patch(
         }
       }
     }
+
+    // One new file has been patched, callback!
+    progress_callback();
   }
 
   // Create the symlinks

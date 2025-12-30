@@ -109,6 +109,12 @@ pub struct SyncEntryIter<R> {
   entries_read: u64,
 }
 
+impl<R> SyncEntryIter<R> {
+  pub fn total_entries(&self) -> u64 {
+    self.total_entries
+  }
+}
+
 impl<R> SyncEntryIter<R>
 where
   R: Read,
