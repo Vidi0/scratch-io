@@ -7,3 +7,6 @@ pub mod patch;
 pub mod signature;
 
 mod common;
+
+pub use patch::read::Patch;
+pub use signature::read::Signature;

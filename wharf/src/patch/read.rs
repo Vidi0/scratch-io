@@ -161,40 +161,42 @@ where
   }
 }
 
-/// <https://docs.itch.zone/wharf/master/file-formats/patches.html>
-///
-/// <https://github.com/Vidi0/scratch-io/blob/main/docs/wharf/patch.md>
-pub fn read(reader: &mut impl BufRead) -> Result<Patch<'_>, String> {
-  // Check the magic bytes
-  check_magic_bytes(reader, PATCH_MAGIC)?;
+impl<'a> Patch<'a> {
+  /// <https://docs.itch.zone/wharf/master/file-formats/patches.html>
+  ///
+  /// <https://github.com/Vidi0/scratch-io/blob/main/docs/wharf/patch.md>
+  pub fn read(reader: &'a mut impl BufRead) -> Result<Self, String> {
+    // Check the magic bytes
+    check_magic_bytes(reader, PATCH_MAGIC)?;
 
-  // Decode the patch header
-  let header = decode_protobuf::<pwr::PatchHeader>(reader)?;
+    // Decode the patch header
+    let header = decode_protobuf::<pwr::PatchHeader>(reader)?;
 
-  // Decompress the remaining stream
-  let compression_algorithm = header
-    .compression
-    .ok_or("Missing compressing field in Patch Header!")?
-    .algorithm();
+    // Decompress the remaining stream
+    let compression_algorithm = header
+      .compression
+      .ok_or("Missing compressing field in Patch Header!")?
+      .algorithm();
 
-  let mut decompressed = decompress_stream(reader, compression_algorithm)?;
+    let mut decompressed = decompress_stream(reader, compression_algorithm)?;
 
-  // Decode the containers
-  let container_old = decode_protobuf::<tlc::Container>(&mut decompressed)?;
-  let container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
+    // Decode the containers
+    let container_old = decode_protobuf::<tlc::Container>(&mut decompressed)?;
+    let container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
 
-  // Decode the sync operations
-  let sync_op_iter = SyncEntryIter {
-    reader: decompressed,
-    // An entry is provided for each file in the new container
-    total_entries: container_new.files.len() as u64,
-    entries_read: 0,
-  };
+    // Decode the sync operations
+    let sync_op_iter = SyncEntryIter {
+      reader: decompressed,
+      // An entry is provided for each file in the new container
+      total_entries: container_new.files.len() as u64,
+      entries_read: 0,
+    };
 
-  Ok(Patch {
-    header,
-    container_old,
-    container_new,
-    sync_op_iter,
-  })
+    Ok(Patch {
+      header,
+      container_old,
+      container_new,
+      sync_op_iter,
+    })
+  }
 }

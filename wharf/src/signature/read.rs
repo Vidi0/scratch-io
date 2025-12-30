@@ -49,44 +49,46 @@ where
   }
 }
 
-/// <https://docs.itch.zone/wharf/master/file-formats/signatures.html>
-///
-/// <https://github.com/Vidi0/scratch-io/blob/main/docs/wharf/patch.md>
-pub fn read(reader: &mut impl BufRead) -> Result<Signature<'_>, String> {
-  // Check the magic bytes
-  check_magic_bytes(reader, SIGNATURE_MAGIC)?;
+impl<'a> Signature<'a> {
+  /// <https://docs.itch.zone/wharf/master/file-formats/signatures.html>
+  ///
+  /// <https://github.com/Vidi0/scratch-io/blob/main/docs/wharf/patch.md>
+  pub fn read(reader: &'a mut impl BufRead) -> Result<Self, String> {
+    // Check the magic bytes
+    check_magic_bytes(reader, SIGNATURE_MAGIC)?;
 
-  // Decode the signature header
-  let header = decode_protobuf::<pwr::SignatureHeader>(reader)?;
+    // Decode the signature header
+    let header = decode_protobuf::<pwr::SignatureHeader>(reader)?;
 
-  // Decompress the remaining stream
-  let compression_algorithm = header
-    .compression
-    .ok_or("Missing compressing field in Signature Header!")?
-    .algorithm();
+    // Decompress the remaining stream
+    let compression_algorithm = header
+      .compression
+      .ok_or("Missing compressing field in Signature Header!")?
+      .algorithm();
 
-  let mut decompressed = decompress_stream(reader, compression_algorithm)?;
+    let mut decompressed = decompress_stream(reader, compression_algorithm)?;
 
-  // Decode the container
-  let container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
+    // Decode the container
+    let container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
 
-  // Get the number of hash blocks
-  let total_blocks = container_new.files.iter().fold(0, |acc, f| {
-    // For each file, compute how many blocks it occupies
-    // If the file is empty, still count one block for its empty hash
-    acc + (f.size as u64).div_ceil(BLOCK_SIZE).max(1)
-  });
+    // Get the number of hash blocks
+    let total_blocks = container_new.files.iter().fold(0, |acc, f| {
+      // For each file, compute how many blocks it occupies
+      // If the file is empty, still count one block for its empty hash
+      acc + (f.size as u64).div_ceil(BLOCK_SIZE).max(1)
+    });
 
-  // Decode the hashes
-  let block_hash_iter = BlockHashIter {
-    reader: decompressed,
-    total_blocks,
-    blocks_read: 0,
-  };
+    // Decode the hashes
+    let block_hash_iter = BlockHashIter {
+      reader: decompressed,
+      total_blocks,
+      blocks_read: 0,
+    };
 
-  Ok(Signature {
-    header,
-    container_new,
-    block_hash_iter,
-  })
+    Ok(Signature {
+      header,
+      container_new,
+      block_hash_iter,
+    })
+  }
 }
