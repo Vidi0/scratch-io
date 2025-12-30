@@ -10,12 +10,11 @@ use std::io::{BufRead, Read};
 /// Contains the header, the old and new containers describing file system
 /// state before and after the patch, and an iterator over the patch operations.
 /// The iterator reads from the underlying stream on the fly as items are requested.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Patch<R> {
+pub struct Patch<'a> {
   pub header: pwr::PatchHeader,
   pub container_old: tlc::Container,
   pub container_new: tlc::Container,
-  pub sync_op_iter: SyncEntryIter<R>,
+  pub sync_op_iter: SyncEntryIter<Box<dyn BufRead + 'a>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -165,7 +164,7 @@ where
 /// <https://docs.itch.zone/wharf/master/file-formats/patches.html>
 ///
 /// <https://github.com/Vidi0/scratch-io/blob/main/docs/wharf/patch.md>
-pub fn read(reader: &mut impl BufRead) -> Result<Patch<impl BufRead>, String> {
+pub fn read(reader: &mut impl BufRead) -> Result<Patch<'_>, String> {
   // Check the magic bytes
   check_magic_bytes(reader, PATCH_MAGIC)?;
 

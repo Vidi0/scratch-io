@@ -94,7 +94,7 @@ fn get_new_container_file(
 pub fn apply_patch(
   old_build_folder: &Path,
   new_build_folder: &Path,
-  patch: &mut Patch<impl Read>,
+  patch: &mut Patch,
   mut progress_callback: impl FnMut(),
 ) -> Result<(), String> {
   // Iterate over the folders in the new container and create them

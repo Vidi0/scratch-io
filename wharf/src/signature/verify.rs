@@ -8,7 +8,7 @@ use std::path::Path;
 
 pub fn verify_files(
   build_folder: &Path,
-  signature: &mut Signature<impl Read>,
+  signature: &mut Signature,
   mut progress_callback: impl FnMut(),
 ) -> Result<(), String> {
   // This buffer will hold the current block that is being hashed

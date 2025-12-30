@@ -10,11 +10,10 @@ use std::io::{BufRead, Read};
 /// Contains the header, the container describing the files/dirs/symlinks,
 /// and an iterator over the signature block hashes. The iterator reads
 /// from the underlying stream on the fly as items are requested.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Signature<R> {
+pub struct Signature<'a> {
   pub header: pwr::SignatureHeader,
   pub container_new: tlc::Container,
-  pub block_hash_iter: BlockHashIter<R>,
+  pub block_hash_iter: BlockHashIter<Box<dyn BufRead + 'a>>,
 }
 
 /// Iterator over independent, sequential length-delimited hash messages in a [`std::io::Read`] stream
@@ -53,7 +52,7 @@ where
 /// <https://docs.itch.zone/wharf/master/file-formats/signatures.html>
 ///
 /// <https://github.com/Vidi0/scratch-io/blob/main/docs/wharf/patch.md>
-pub fn read(reader: &mut impl BufRead) -> Result<Signature<impl BufRead>, String> {
+pub fn read(reader: &mut impl BufRead) -> Result<Signature<'_>, String> {
   // Check the magic bytes
   check_magic_bytes(reader, SIGNATURE_MAGIC)?;
 
