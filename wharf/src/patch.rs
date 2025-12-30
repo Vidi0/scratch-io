@@ -105,6 +105,8 @@ pub enum SyncHeader<'a, R> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncEntryIter<R> {
   reader: R,
+  total_entries: u64,
+  entries_read: u64,
 }
 
 impl<'a, R> SyncEntryIter<R>
@@ -112,50 +114,45 @@ where
   R: BufRead,
 {
   pub fn next_header(&'a mut self) -> Option<Result<SyncHeader<'a, R>, String>> {
-    match self.reader.fill_buf() {
-      // If it couldn't read from the stream, return an error
-      Err(e) => Some(Err(format!("Couldn't read from reader into buffer!\n{e}"))),
-
-      // If there isn't any data remaining, return None
-      Ok([]) => None,
-
-      // If there is data remaining, return the decoded header
-      Ok(_) => {
-        // Decode the SyncHeader
-        let header = match decode_protobuf::<pwr::SyncHeader>(&mut self.reader) {
-          Err(e) => return Some(Err(e)),
-          Ok(sync_header) => sync_header,
-        };
-
-        // Decode the BsdiffHeader (if the header type is Bsdiff)
-        let bsdiff_header = match header.r#type() {
-          pwr::sync_header::Type::Rsync => None,
-          pwr::sync_header::Type::Bsdiff => {
-            match decode_protobuf::<pwr::BsdiffHeader>(&mut self.reader) {
-              Err(e) => return Some(Err(e)),
-              Ok(bsdiff_header) => Some(bsdiff_header),
-            }
-          }
-        };
-
-        // Pack the gathered data into a SyncHeader struct and return it
-        Some(Ok(match bsdiff_header {
-          None => SyncHeader::Rsync {
-            file_index: header.file_index,
-            op_iter: RsyncOpIter {
-              reader: &mut self.reader,
-            },
-          },
-          Some(bsdiff) => SyncHeader::Bsdiff {
-            file_index: header.file_index,
-            target_index: bsdiff.target_index,
-            op_iter: BsdiffOpIter {
-              reader: &mut self.reader,
-            },
-          },
-        }))
-      }
+    if self.entries_read == self.total_entries {
+      return None;
     }
+
+    self.entries_read += 1;
+
+    // Decode the SyncHeader
+    let header = match decode_protobuf::<pwr::SyncHeader>(&mut self.reader) {
+      Err(e) => return Some(Err(e)),
+      Ok(sync_header) => sync_header,
+    };
+
+    // Decode the BsdiffHeader (if the header type is Bsdiff)
+    let bsdiff_header = match header.r#type() {
+      pwr::sync_header::Type::Rsync => None,
+      pwr::sync_header::Type::Bsdiff => {
+        match decode_protobuf::<pwr::BsdiffHeader>(&mut self.reader) {
+          Err(e) => return Some(Err(e)),
+          Ok(bsdiff_header) => Some(bsdiff_header),
+        }
+      }
+    };
+
+    // Pack the gathered data into a SyncHeader struct and return it
+    Some(Ok(match bsdiff_header {
+      None => SyncHeader::Rsync {
+        file_index: header.file_index,
+        op_iter: RsyncOpIter {
+          reader: &mut self.reader,
+        },
+      },
+      Some(bsdiff) => SyncHeader::Bsdiff {
+        file_index: header.file_index,
+        target_index: bsdiff.target_index,
+        op_iter: BsdiffOpIter {
+          reader: &mut self.reader,
+        },
+      },
+    }))
   }
 }
 
@@ -184,6 +181,9 @@ pub fn read_patch(reader: &mut impl BufRead) -> Result<Patch<impl BufRead>, Stri
   // Decode the sync operations
   let sync_op_iter = SyncEntryIter {
     reader: decompressed,
+    // An entry is provided for each file in the new container
+    total_entries: container_new.files.len() as u64,
+    entries_read: 0,
   };
 
   Ok(Patch {
