@@ -28,6 +28,12 @@ pub struct BlockHashIter<R> {
   blocks_read: u64,
 }
 
+impl<R> BlockHashIter<R> {
+  pub fn total_blocks(&self) -> u64 {
+    self.total_blocks
+  }
+}
+
 impl<R> Iterator for BlockHashIter<R>
 where
   R: Read,

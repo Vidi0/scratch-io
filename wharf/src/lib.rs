@@ -107,6 +107,7 @@ fn create_container_symlinks(
 pub fn verify_files(
   build_folder: &Path,
   signature: &mut Signature<impl Read>,
+  mut progress_callback: impl FnMut(),
 ) -> Result<(), String> {
   // This buffer will hold the current block that is being hashed
   let mut buffer = vec![0u8; BLOCK_SIZE as usize];
@@ -177,6 +178,9 @@ pub fn verify_files(
           signature_hash.strong_hash, hash,
         ));
       }
+
+      // One new hash has been verified, callback!
+      progress_callback();
 
       // If the file has been fully read, proceed to the next one
       if block_index * BLOCK_SIZE + current_block_size == container_file.size as u64 {
