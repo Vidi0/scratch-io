@@ -117,7 +117,9 @@ pub fn verify_files(
   // Loop over all the files in the signature container
   for container_file in &signature.container_new.files {
     let file_path = build_folder.join(&container_file.path);
-    let file = fs::File::open(&file_path).map_err(|e| {
+    // Wrapping the file inside a BufReader isn't needed because
+    // BLOCK_SIZE is already large
+    let mut file = fs::File::open(&file_path).map_err(|e| {
       format!(
         "Couldn't open file: \"{}\"\n{e}",
         file_path.to_string_lossy()
@@ -140,7 +142,6 @@ pub fn verify_files(
     }
 
     // For each block in the file, compare its hash with the one provided in the signature
-    let mut file_bufreader = io::BufReader::new(file);
     let mut block_index: usize = 0;
 
     loop {
@@ -152,7 +153,7 @@ pub fn verify_files(
 
       // Read the current block
       let buf = &mut buffer[..block_end - block_start];
-      file_bufreader.read_exact(buf).map_err(|e| {
+      file.read_exact(buf).map_err(|e| {
         format!(
           "Couldn't read file data into buffer: \"{}\"\n{e}",
           file_path.to_string_lossy()
