@@ -109,11 +109,11 @@ pub struct SyncEntryIter<R> {
   entries_read: u64,
 }
 
-impl<'a, R> SyncEntryIter<R>
+impl<R> SyncEntryIter<R>
 where
   R: BufRead,
 {
-  pub fn next_header(&'a mut self) -> Option<Result<SyncHeader<'a, R>, String>> {
+  pub fn next_header(&mut self) -> Option<Result<SyncHeader<'_, R>, String>> {
     if self.entries_read == self.total_entries {
       return None;
     }
