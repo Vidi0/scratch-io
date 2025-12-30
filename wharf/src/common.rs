@@ -1,5 +1,8 @@
-use crate::protos::pwr;
+use crate::protos::{pwr, tlc};
+
+use std::fs;
 use std::io::{BufRead, Read};
+use std::path::Path;
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L33>
 pub const BLOCK_SIZE: u64 = 64 * 1024;
@@ -7,6 +10,9 @@ pub const BLOCK_SIZE: u64 = 64 * 1024;
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L14>
 pub const PATCH_MAGIC: u32 = 0x0FEF_5F00;
 pub const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
+
+/// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L30>
+const MODE_MASK: u32 = 0o644;
 
 /// Verify that the next four bytes of the reader match the expected magic number
 ///
@@ -90,4 +96,87 @@ pub fn decompress_stream(
       }
     }
   }
+}
+
+fn set_permissions(path: &Path, mode: u32) -> Result<(), String> {
+  #[cfg(unix)]
+  {
+    use std::os::unix::fs::PermissionsExt;
+
+    // Apply the mode mask to set at least the mask permissions
+    let mode = mode | MODE_MASK;
+
+    let mut permissions = fs::metadata(path)
+      .map_err(|e| {
+        format!(
+          "Couldn't read path metadata: \"{}\"\n{e}",
+          path.to_string_lossy()
+        )
+      })?
+      .permissions();
+
+    if permissions.mode() != mode {
+      permissions.set_mode(mode);
+
+      fs::set_permissions(path, permissions).map_err(|e| {
+        format!(
+          "Couldn't change path permissions: \"{}\"\n{e}",
+          path.to_string_lossy()
+        )
+      })?;
+    }
+  }
+
+  Ok(())
+}
+
+pub fn apply_container_permissions(
+  container: &tlc::Container,
+  build_folder: &Path,
+) -> Result<(), String> {
+  for file in &container.files {
+    set_permissions(&build_folder.join(&file.path), file.mode)?;
+  }
+
+  for dir in &container.dirs {
+    set_permissions(&build_folder.join(&dir.path), dir.mode)?;
+  }
+
+  for sym in &container.symlinks {
+    set_permissions(&build_folder.join(&sym.path), sym.mode)?;
+  }
+
+  Ok(())
+}
+
+pub fn create_container_symlinks(
+  container: &tlc::Container,
+  build_folder: &Path,
+) -> Result<(), String> {
+  #[cfg(unix)]
+  {
+    for sym in &container.symlinks {
+      let path = build_folder.join(&sym.path);
+      let original = build_folder.join(&sym.dest);
+
+      let exists_path = fs::exists(&path).map_err(|e| {
+        format!(
+          "Couldn't check is the path exists: \"{}\"\n{e}",
+          path.to_string_lossy()
+        )
+      })?;
+
+      if !exists_path {
+        std::os::unix::fs::symlink(&original, &path).map_err(|e| {
+          format!(
+            "Couldn't create symlink\n  Original: {}\n  Link: {}\n{e}",
+            original.to_string_lossy(),
+            path.to_string_lossy()
+          )
+        })?;
+      }
+    }
+  }
+
+  Ok(())
 }

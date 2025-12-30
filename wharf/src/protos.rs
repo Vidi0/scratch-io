@@ -58,7 +58,9 @@ fn read_length_delimiter(reader: &mut impl Read) -> Result<usize, String> {
 /// # Errors
 ///
 /// If the reader could not be read, or if the Protobuf message is invalid
-pub fn decode_protobuf<T: prost::Message + Default>(reader: &mut impl Read) -> Result<T, String> {
+pub(crate) fn decode_protobuf<T: prost::Message + Default>(
+  reader: &mut impl Read,
+) -> Result<T, String> {
   let length = read_length_delimiter(reader)?;
 
   let mut bytes = vec![0u8; length];
