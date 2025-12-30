@@ -6,6 +6,7 @@ pub mod signature;
 mod common;
 mod protos;
 
+use common::BLOCK_SIZE;
 use patch::Patch;
 use protos::{pwr, tlc};
 use signature::Signature;
@@ -17,9 +18,6 @@ use std::path::Path;
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L30>
 const MODE_MASK: u32 = 0o644;
-
-/// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L33>
-const BLOCK_SIZE: usize = 64 * 1024;
 
 const MAX_OPEN_FILES_PATCH: std::num::NonZeroUsize = std::num::NonZeroUsize::new(16).unwrap();
 
@@ -111,7 +109,7 @@ pub fn verify_files(
   signature: &mut Signature<impl BufRead>,
 ) -> Result<(), String> {
   // This buffer will hold the current block that is being hashed
-  let mut buffer = vec![0u8; BLOCK_SIZE];
+  let mut buffer = vec![0u8; BLOCK_SIZE as usize];
 
   // Create a MD5 hasher
   let mut hasher = Md5::new();
@@ -146,8 +144,11 @@ pub fn verify_files(
     let mut block_index: usize = 0;
 
     loop {
-      let block_start: usize = block_index * BLOCK_SIZE;
-      let block_end: usize = std::cmp::min(block_start + BLOCK_SIZE, container_file.size as usize);
+      let block_start: usize = block_index * BLOCK_SIZE as usize;
+      let block_end: usize = std::cmp::min(
+        block_start + BLOCK_SIZE as usize,
+        container_file.size as usize,
+      );
 
       // Read the current block
       let buf = &mut buffer[..block_end - block_start];
@@ -201,8 +202,8 @@ fn copy_range(
   block_index: u64,
   block_span: u64,
 ) -> Result<(), String> {
-  let start_pos = block_index * BLOCK_SIZE as u64;
-  let len = block_span * BLOCK_SIZE as u64;
+  let start_pos = block_index * BLOCK_SIZE;
+  let len = block_span * BLOCK_SIZE;
 
   src
     .seek(io::SeekFrom::Start(start_pos))
