@@ -176,3 +176,45 @@ pub fn create_container_symlinks(
 
   Ok(())
 }
+
+fn get_container_file(container: &tlc::Container, file_index: usize) -> Result<&tlc::File, String> {
+  container
+    .files
+    .get(file_index)
+    .ok_or_else(|| format!("Invalid old file index in patch file!\nIndex: {file_index}"))
+}
+
+pub fn get_container_file_read(
+  container: &tlc::Container,
+  file_index: usize,
+  build_folder: &Path,
+) -> Result<fs::File, String> {
+  let file_path = build_folder.join(&get_container_file(container, file_index)?.path);
+
+  fs::File::open(&file_path).map_err(|e| {
+    format!(
+      "Couldn't open file for reading: \"{}\"\n{e}",
+      file_path.to_string_lossy()
+    )
+  })
+}
+
+pub fn get_container_file_write(
+  container: &tlc::Container,
+  file_index: usize,
+  build_folder: &Path,
+) -> Result<fs::File, String> {
+  let file_path = build_folder.join(&get_container_file(container, file_index)?.path);
+
+  fs::OpenOptions::new()
+    .create(true)
+    .write(true)
+    .truncate(true)
+    .open(&file_path)
+    .map_err(|e| {
+      format!(
+        "Couldn't open file for writting: \"{}\"\n{e}",
+        file_path.to_string_lossy()
+      )
+    })
+}

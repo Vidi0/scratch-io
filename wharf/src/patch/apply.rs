@@ -1,5 +1,8 @@
 use super::read::{Patch, SyncHeader};
-use crate::common::{BLOCK_SIZE, apply_container_permissions, create_container_symlinks};
+use crate::common::{
+  BLOCK_SIZE, apply_container_permissions, create_container_symlinks, get_container_file_read,
+  get_container_file_write,
+};
 use crate::protos::*;
 
 use std::fs;
@@ -49,48 +52,6 @@ fn add_bytes(
     .map_err(|e| format!("Couldn't save buffer data into new file!\n {e}"))
 }
 
-fn get_container_file(container: &tlc::Container, file_index: usize) -> Result<&tlc::File, String> {
-  container
-    .files
-    .get(file_index)
-    .ok_or_else(|| format!("Invalid old file index in patch file!\nIndex: {file_index}"))
-}
-
-fn get_old_container_file(
-  container: &tlc::Container,
-  file_index: usize,
-  build_folder: &Path,
-) -> Result<fs::File, String> {
-  let file_path = build_folder.join(&get_container_file(container, file_index)?.path);
-
-  fs::File::open(&file_path).map_err(|e| {
-    format!(
-      "Couldn't open old file for reading: \"{}\"\n{e}",
-      file_path.to_string_lossy()
-    )
-  })
-}
-
-fn get_new_container_file(
-  container: &tlc::Container,
-  file_index: usize,
-  build_folder: &Path,
-) -> Result<fs::File, String> {
-  let file_path = build_folder.join(&get_container_file(container, file_index)?.path);
-
-  fs::OpenOptions::new()
-    .create(true)
-    .write(true)
-    .truncate(true)
-    .open(&file_path)
-    .map_err(|e| {
-      format!(
-        "Couldn't open new file for writting: \"{}\"\n{e}",
-        file_path.to_string_lossy()
-      )
-    })
-}
-
 impl Patch<'_> {
   pub fn apply(
     &mut self,
@@ -132,7 +93,7 @@ impl Patch<'_> {
         } => {
           // Open the new file
           let mut new_file =
-            get_new_container_file(&self.container_new, file_index as usize, new_build_folder)?;
+            get_container_file_write(&self.container_new, file_index as usize, new_build_folder)?;
 
           // Now apply all the sync operations
           for op in op_iter.by_ref() {
@@ -144,7 +105,7 @@ impl Patch<'_> {
                 // Open the old file
                 let old_file =
                   old_files_cache.try_get_or_insert_mut(op.file_index as usize, || {
-                    get_old_container_file(
+                    get_container_file_read(
                       &self.container_old,
                       op.file_index as usize,
                       old_build_folder,
@@ -182,11 +143,11 @@ impl Patch<'_> {
         } => {
           // Open the new file
           let mut new_file =
-            get_new_container_file(&self.container_new, file_index as usize, new_build_folder)?;
+            get_container_file_write(&self.container_new, file_index as usize, new_build_folder)?;
 
           // Open the old file
           let old_file = old_files_cache.try_get_or_insert_mut(target_index as usize, || {
-            get_old_container_file(&self.container_old, target_index as usize, old_build_folder)
+            get_container_file_read(&self.container_old, target_index as usize, old_build_folder)
           })?;
 
           // Rewind the old file to the start because the file might
