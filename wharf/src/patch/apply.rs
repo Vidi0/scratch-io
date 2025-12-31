@@ -1,4 +1,4 @@
-use super::read::{Patch, SyncHeader};
+use super::read::{BsdiffOpIter, Patch, SyncHeader};
 use crate::common::{
   BLOCK_SIZE, apply_container_permissions, create_container_symlinks, get_container_file_read,
   get_container_file_write,
@@ -50,6 +50,48 @@ fn add_bytes(
   dst
     .write_all(add_buffer)
     .map_err(|e| format!("Couldn't save buffer data into new file!\n {e}"))
+}
+
+fn apply_bsdiff(
+  old_file: &mut fs::File,
+  new_file: &mut fs::File,
+  op_iter: BsdiffOpIter<impl Read>,
+  add_buffer: &mut Vec<u8>,
+) -> Result<(), String> {
+  // Apply all the control operations
+  for control in op_iter {
+    let control = control?;
+
+    // Control operations must be applied in order
+    // First, add the diff bytes
+    if !control.add.is_empty() {
+      // Resize the add buffer to match the size of the current add bytes
+      // The add operations are usually the same length, so allocation is almost never triggered
+      // If the new add bytes are smaller than the buffer size, allocation will also be avoided
+      add_buffer.resize(control.add.len(), 0);
+
+      add_bytes(old_file, new_file, &control.add, add_buffer)?;
+    }
+
+    // Then, copy the extra bytes
+    if !control.copy.is_empty() {
+      new_file
+        .write_all(&control.copy)
+        .map_err(|e| format!("Couldn't copy data from patch to new file!\n {e}"))?;
+    }
+
+    // Lastly, seek into the correct position in the old file
+    if control.seek != 0 {
+      old_file.seek_relative(control.seek).map_err(|e| {
+        format!(
+          "Couldn't seek into old file at relative pos: {}\n{e}",
+          control.seek
+        )
+      })?;
+    }
+  }
+
+  Ok(())
 }
 
 impl Patch<'_> {
@@ -139,7 +181,7 @@ impl Patch<'_> {
         SyncHeader::Bsdiff {
           file_index,
           target_index,
-          mut op_iter,
+          op_iter,
         } => {
           // Open the new file
           let mut new_file =
@@ -156,38 +198,8 @@ impl Patch<'_> {
             .rewind()
             .map_err(|e| format!("Couldn't seek old file to start: {e}"))?;
 
-          // Now apply all the control operations
-          for control in op_iter.by_ref() {
-            let control = control?;
-
-            // Control operations must be applied in order
-            // First, add the diff bytes
-            if !control.add.is_empty() {
-              // Resize the add buffer to match the size of the current add bytes
-              // The add operations are usually the same length, so allocation is almost never triggered
-              // If the new add bytes are smaller than the buffer size, allocation will also be avoided
-              add_buffer.resize(control.add.len(), 0);
-
-              add_bytes(old_file, &mut new_file, &control.add, &mut add_buffer)?;
-            }
-
-            // Then, copy the extra bytes
-            if !control.copy.is_empty() {
-              new_file
-                .write_all(&control.copy)
-                .map_err(|e| format!("Couldn't copy data from patch to new file!\n {e}"))?;
-            }
-
-            // Lastly, seek into the correct position in the old file
-            if control.seek != 0 {
-              old_file.seek_relative(control.seek).map_err(|e| {
-                format!(
-                  "Couldn't seek into old file at relative pos: {}\n{e}",
-                  control.seek
-                )
-              })?;
-            }
-          }
+          // Finally, apply all the bsdiff operations
+          apply_bsdiff(old_file, &mut new_file, op_iter, &mut add_buffer)?;
         }
       }
 
