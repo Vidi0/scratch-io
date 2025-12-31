@@ -1,7 +1,11 @@
-use crate::common::{BLOCK_SIZE, SIGNATURE_MAGIC, check_magic_bytes, decompress_stream};
+use crate::common::{BLOCK_SIZE, check_magic_bytes, decompress_stream};
+use crate::patch::read::PATCH_MAGIC;
 use crate::protos::*;
 
 use std::io::{BufRead, Read};
+
+/// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L17>
+pub const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
 
 /// Represents a decoded wharf signature file
 ///

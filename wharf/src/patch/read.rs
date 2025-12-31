@@ -1,7 +1,10 @@
-use crate::common::{PATCH_MAGIC, check_magic_bytes, decompress_stream};
+use crate::common::{check_magic_bytes, decompress_stream};
 use crate::protos::*;
 
 use std::io::{BufRead, Read};
+
+/// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L14>
+pub const PATCH_MAGIC: u32 = 0x0FEF_5F00;
 
 /// Represents a decoded wharf patch file
 ///

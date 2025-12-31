@@ -7,10 +7,6 @@ use std::path::Path;
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L33>
 pub const BLOCK_SIZE: u64 = 64 * 1024;
 
-/// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L14>
-pub const PATCH_MAGIC: u32 = 0x0FEF_5F00;
-pub const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
-
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L30>
 const MODE_MASK: u32 = 0o644;
 
