@@ -10,3 +10,5 @@ mod common;
 
 pub use patch::read::Patch;
 pub use signature::read::Signature;
+
+pub use common::BLOCK_SIZE;
