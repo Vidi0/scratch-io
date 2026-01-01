@@ -10,6 +10,15 @@ pub const BLOCK_SIZE: u64 = 64 * 1024;
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L30>
 const MODE_MASK: u32 = 0o644;
 
+/// Get the number of blocks that a file of a given size occupies
+/// 
+/// If the file is empty, still count one block for its empty hash
+#[inline]
+#[must_use]
+pub fn file_blocks(size: u64) -> u64 {
+  size.div_ceil(BLOCK_SIZE).max(1)
+}
+
 /// Verify that the next four bytes of the reader match the expected magic number
 ///
 /// # Errors

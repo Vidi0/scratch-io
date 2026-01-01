@@ -1,4 +1,4 @@
-use crate::common::{BLOCK_SIZE, check_magic_bytes, decompress_stream};
+use crate::common::{check_magic_bytes, decompress_stream, file_blocks};
 use crate::patch::read::PATCH_MAGIC;
 use crate::protos::*;
 
@@ -76,11 +76,10 @@ impl<'a> Signature<'a> {
     let container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
 
     // Get the number of hash blocks
-    let total_blocks = container_new.files.iter().fold(0, |acc, f| {
-      // For each file, compute how many blocks it occupies
-      // If the file is empty, still count one block for its empty hash
-      acc + (f.size as u64).div_ceil(BLOCK_SIZE).max(1)
-    });
+    let total_blocks = container_new
+      .files
+      .iter()
+      .fold(0, |acc, f| acc + file_blocks(f.size as u64));
 
     // Decode the hashes
     let block_hash_iter = BlockHashIter {
