@@ -23,7 +23,7 @@ fn copy_range(
 
   src
     .seek(io::SeekFrom::Start(start_pos))
-    .map_err(|e| format!("Couldn't seek into old file at pos: {}\n{e}", start_pos))?;
+    .map_err(|e| format!("Couldn't seek into old file at pos: {start_pos}\n{e}"))?;
 
   let mut limited = src.take(len);
 
