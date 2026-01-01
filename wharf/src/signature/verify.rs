@@ -50,7 +50,7 @@ impl Signature<'_> {
         let buf = &mut buffer[..current_block_size as usize];
         file
           .read_exact(buf)
-          .map_err(|e| format!("Couldn't read file data into buffer!\n{e}",))?;
+          .map_err(|e| format!("Couldn't read file data into buffer!\n{e}"))?;
 
         // Hash the current block
         hasher.update(buf);
