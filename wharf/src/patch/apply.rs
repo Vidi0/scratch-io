@@ -11,6 +11,7 @@ use std::path::Path;
 
 const MAX_OPEN_FILES_PATCH: std::num::NonZeroUsize = std::num::NonZeroUsize::new(16).unwrap();
 
+/// Copy blocks of bytes from `src` into `dst`
 fn copy_range(
   src: &mut (impl Read + Seek),
   dst: &mut impl Write,
@@ -31,6 +32,8 @@ fn copy_range(
     .map_err(|e| format!("Couldn't copy data from old file to new!\n {e}"))
 }
 
+/// Apply all `op_iter` rsync operations to regenerate `new_file`
+/// from the files in the old container
 fn apply_rsync(
   op_iter: RsyncOpIter<impl io::BufRead>,
   new_file: &mut fs::File,
@@ -75,6 +78,7 @@ fn apply_rsync(
   Ok(())
 }
 
+/// Read a block from `src`, add corresponding bytes from `add`, and write the result to `dst`
 fn add_bytes(
   src: &mut impl Read,
   dst: &mut impl Write,
@@ -96,6 +100,7 @@ fn add_bytes(
     .map_err(|e| format!("Couldn't save buffer data into new file!\n {e}"))
 }
 
+/// Apply all `op_iter` bsdiff operations to regenerate `new_file` from `old_file`
 fn apply_bsdiff(
   op_iter: BsdiffOpIter<impl Read>,
   new_file: &mut fs::File,
