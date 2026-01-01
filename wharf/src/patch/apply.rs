@@ -32,11 +32,11 @@ fn copy_range(
 }
 
 fn apply_rsync(
+  op_iter: RsyncOpIter<impl io::BufRead>,
+  new_file: &mut fs::File,
   old_files_cache: &mut lru::LruCache<usize, fs::File>,
   old_container: &tlc::Container,
   old_build_folder: &Path,
-  new_file: &mut fs::File,
-  op_iter: RsyncOpIter<impl io::BufRead>,
 ) -> Result<(), String> {
   // Apply all the sync operations
   for op in op_iter {
@@ -97,9 +97,9 @@ fn add_bytes(
 }
 
 fn apply_bsdiff(
-  old_file: &mut fs::File,
-  new_file: &mut fs::File,
   op_iter: BsdiffOpIter<impl Read>,
+  new_file: &mut fs::File,
+  old_file: &mut fs::File,
   add_buffer: &mut Vec<u8>,
 ) -> Result<(), String> {
   // Apply all the control operations
@@ -183,11 +183,11 @@ impl Patch<'_> {
 
           // Finally, apply all the rsync operations
           apply_rsync(
+            op_iter,
+            &mut new_file,
             &mut old_files_cache,
             &self.container_old,
             old_build_folder,
-            &mut new_file,
-            op_iter,
           )?;
         }
 
@@ -213,7 +213,7 @@ impl Patch<'_> {
             .map_err(|e| format!("Couldn't seek old file to start: {e}"))?;
 
           // Finally, apply all the bsdiff operations
-          apply_bsdiff(old_file, &mut new_file, op_iter, &mut add_buffer)?;
+          apply_bsdiff(op_iter, &mut new_file, old_file, &mut add_buffer)?;
         }
       }
 
