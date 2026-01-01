@@ -11,7 +11,7 @@ pub const BLOCK_SIZE: u64 = 64 * 1024;
 const MODE_MASK: u32 = 0o644;
 
 /// Get the number of blocks that a file of a given size occupies
-/// 
+///
 /// If the file is empty, still count one block for its empty hash
 #[inline]
 #[must_use]

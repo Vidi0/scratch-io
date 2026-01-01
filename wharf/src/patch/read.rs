@@ -112,7 +112,7 @@ pub struct SyncEntryIter<R> {
 }
 
 impl<R> SyncEntryIter<R> {
-  pub fn total_entries(&self) -> u64 {
+  pub const fn total_entries(&self) -> u64 {
     self.total_entries
   }
 }
