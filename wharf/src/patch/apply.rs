@@ -1,8 +1,5 @@
 use super::read::{BsdiffOpIter, Patch, RsyncOpIter, SyncHeader};
-use crate::common::{
-  BLOCK_SIZE, apply_container_permissions, create_container_symlinks, get_container_file_read,
-  get_container_file_write,
-};
+use crate::common::{BLOCK_SIZE, apply_container_permissions, create_container_symlinks};
 use crate::protos::*;
 
 use std::fs;
@@ -50,7 +47,7 @@ fn apply_rsync(
       pwr::sync_op::Type::BlockRange => {
         // Open the old file
         let old_file = old_files_cache.try_get_or_insert_mut(op.file_index as usize, || {
-          get_container_file_read(old_container, op.file_index as usize, old_build_folder)
+          old_container.get_file_read(op.file_index as usize, old_build_folder.to_owned())
         })?;
 
         // Rewind isn't needed because the copy_range function already seeks
@@ -183,8 +180,9 @@ impl Patch<'_> {
           op_iter,
         } => {
           // Open the new file
-          let mut new_file =
-            get_container_file_write(&self.container_new, file_index as usize, new_build_folder)?;
+          let mut new_file = self
+            .container_new
+            .get_file_write(file_index as usize, new_build_folder.to_owned())?;
 
           // Finally, apply all the rsync operations
           apply_rsync(
@@ -203,12 +201,15 @@ impl Patch<'_> {
           op_iter,
         } => {
           // Open the new file
-          let mut new_file =
-            get_container_file_write(&self.container_new, file_index as usize, new_build_folder)?;
+          let mut new_file = self
+            .container_new
+            .get_file_write(file_index as usize, new_build_folder.to_owned())?;
 
           // Open the old file
           let old_file = old_files_cache.try_get_or_insert_mut(target_index as usize, || {
-            get_container_file_read(&self.container_old, target_index as usize, old_build_folder)
+            self
+              .container_old
+              .get_file_read(target_index as usize, old_build_folder.to_owned())
           })?;
 
           // Rewind the old file to the start because the file might

@@ -1,7 +1,5 @@
 use super::read::Signature;
-use crate::common::{
-  BLOCK_SIZE, apply_container_permissions, create_container_symlinks, get_container_file_read,
-};
+use crate::common::{BLOCK_SIZE, apply_container_permissions, create_container_symlinks};
 use md5::{Digest, Md5};
 
 use std::io::Read;
@@ -23,7 +21,9 @@ impl Signature<'_> {
     'file: for file_index in 0..self.container_new.files.len() {
       // Wrapping the file inside a BufReader isn't needed because
       // BLOCK_SIZE is already large
-      let mut file = get_container_file_read(&self.container_new, file_index, build_folder)?;
+      let mut file = &self
+        .container_new
+        .get_file_read(file_index, build_folder.to_owned())?;
 
       // Check if the file length matches
       let file_size = self.container_new.files[file_index].size as u64;

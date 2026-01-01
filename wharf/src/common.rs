@@ -2,7 +2,7 @@ use crate::protos::{pwr::CompressionAlgorithm, tlc};
 
 use std::fs;
 use std::io::{BufRead, BufReader, Read};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L33>
 pub const BLOCK_SIZE: u64 = 64 * 1024;
@@ -186,44 +186,57 @@ pub fn create_container_symlinks(
   Ok(())
 }
 
-fn get_container_file(container: &tlc::Container, file_index: usize) -> Result<&tlc::File, String> {
-  container
-    .files
-    .get(file_index)
-    .ok_or_else(|| format!("Invalid old file index in patch file!\nIndex: {file_index}"))
+fn path_safe_push(base: &mut PathBuf, extension: &Path) -> Result<(), String> {
+  for comp in extension.components() {
+    match comp {
+      std::path::Component::Normal(p) => base.push(p),
+      std::path::Component::CurDir => (),
+
+      // Any other component is not safe!
+      _ => return Err(format!("The extension is not safe! It contains: {comp:?}")),
+    }
+  }
+
+  Ok(())
 }
 
-pub fn get_container_file_read(
-  container: &tlc::Container,
-  file_index: usize,
-  build_folder: &Path,
-) -> Result<fs::File, String> {
-  let file_path = build_folder.join(&get_container_file(container, file_index)?.path);
+impl tlc::Container {
+  fn get_file(&self, index: usize) -> Result<&tlc::File, String> {
+    self
+      .files
+      .get(index)
+      .ok_or_else(|| format!("Invalid old file index: {index}!"))
+  }
 
-  fs::File::open(&file_path).map_err(|e| {
-    format!(
-      "Couldn't open file for reading: \"{}\"\n{e}",
-      file_path.to_string_lossy()
-    )
-  })
-}
+  pub fn get_file_path(&self, index: usize, mut build_folder: PathBuf) -> Result<PathBuf, String> {
+    path_safe_push(&mut build_folder, Path::new(&self.get_file(index)?.path))?;
+    Ok(build_folder)
+  }
 
-pub fn get_container_file_write(
-  container: &tlc::Container,
-  file_index: usize,
-  build_folder: &Path,
-) -> Result<fs::File, String> {
-  let file_path = build_folder.join(&get_container_file(container, file_index)?.path);
+  pub fn get_file_read(&self, index: usize, build_folder: PathBuf) -> Result<fs::File, String> {
+    let file_path = self.get_file_path(index, build_folder)?;
 
-  fs::OpenOptions::new()
-    .create(true)
-    .write(true)
-    .truncate(true)
-    .open(&file_path)
-    .map_err(|e| {
+    fs::File::open(&file_path).map_err(|e| {
       format!(
-        "Couldn't open file for writting: \"{}\"\n{e}",
+        "Couldn't open file for reading: \"{}\"\n{e}",
         file_path.to_string_lossy()
       )
     })
+  }
+
+  pub fn get_file_write(&self, index: usize, build_folder: PathBuf) -> Result<fs::File, String> {
+    let file_path = self.get_file_path(index, build_folder)?;
+
+    fs::OpenOptions::new()
+      .create(true)
+      .write(true)
+      .truncate(true)
+      .open(&file_path)
+      .map_err(|e| {
+        format!(
+          "Couldn't open file for writting: \"{}\"\n{e}",
+          file_path.to_string_lossy()
+        )
+      })
+  }
 }
