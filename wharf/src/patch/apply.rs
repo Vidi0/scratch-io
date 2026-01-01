@@ -29,7 +29,7 @@ fn copy_range(
 
   io::copy(&mut limited, dst)
     .map(|_| ())
-    .map_err(|e| format!("Couldn't copy data from old file to new!\n {e}"))
+    .map_err(|e| format!("Couldn't copy data from old file to new!\n{e}"))
 }
 
 /// Apply all `op_iter` rsync operations to regenerate `new_file`
@@ -68,7 +68,7 @@ fn apply_rsync(
       pwr::sync_op::Type::Data => {
         new_file
           .write_all(&op.data)
-          .map_err(|e| format!("Couldn't copy data from patch to new file!\n {e}"))?;
+          .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
       }
       // If the type is HeyYouDidIt, then the iterator would have returned None
       pwr::sync_op::Type::HeyYouDidIt => unreachable!(),
@@ -89,7 +89,7 @@ fn add_bytes(
 
   src
     .read_exact(add_buffer)
-    .map_err(|e| format!("Couldn't read data from old file into buffer!\n {e}"))?;
+    .map_err(|e| format!("Couldn't read data from old file into buffer!\n{e}"))?;
 
   for i in 0..add.len() {
     add_buffer[i] += add[i];
@@ -97,7 +97,7 @@ fn add_bytes(
 
   dst
     .write_all(add_buffer)
-    .map_err(|e| format!("Couldn't save buffer data into new file!\n {e}"))
+    .map_err(|e| format!("Couldn't save buffer data into new file!\n{e}"))
 }
 
 /// Apply all `op_iter` bsdiff operations to regenerate `new_file` from `old_file`
@@ -126,7 +126,7 @@ fn apply_bsdiff(
     if !control.copy.is_empty() {
       new_file
         .write_all(&control.copy)
-        .map_err(|e| format!("Couldn't copy data from patch to new file!\n {e}"))?;
+        .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
     }
 
     // Lastly, seek into the correct position in the old file
@@ -215,7 +215,7 @@ impl Patch<'_> {
           // have been in the cache and seeked before
           old_file
             .rewind()
-            .map_err(|e| format!("Couldn't seek old file to start: {e}"))?;
+            .map_err(|e| format!("Couldn't seek old file to start!\n{e}"))?;
 
           // Finally, apply all the bsdiff operations
           apply_bsdiff(op_iter, &mut new_file, old_file, &mut add_buffer)?;
