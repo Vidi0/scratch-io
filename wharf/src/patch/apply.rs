@@ -1,4 +1,4 @@
-use super::read::{BsdiffOpIter, Patch, SyncHeader};
+use super::read::{BsdiffOpIter, Patch, RsyncOpIter, SyncHeader};
 use crate::common::{
   BLOCK_SIZE, apply_container_permissions, create_container_symlinks, get_container_file_read,
   get_container_file_write,
@@ -29,6 +29,50 @@ fn copy_range(
   io::copy(&mut limited, dst)
     .map(|_| ())
     .map_err(|e| format!("Couldn't copy data from old file to new!\n {e}"))
+}
+
+fn apply_rsync(
+  old_files_cache: &mut lru::LruCache<usize, fs::File>,
+  old_container: &tlc::Container,
+  old_build_folder: &Path,
+  new_file: &mut fs::File,
+  op_iter: RsyncOpIter<impl io::BufRead>,
+) -> Result<(), String> {
+  // Apply all the sync operations
+  for op in op_iter {
+    let op = op?;
+
+    match op.r#type() {
+      // If the type is BlockRange, copy the range from the old file to the new one
+      pwr::sync_op::Type::BlockRange => {
+        // Open the old file
+        let old_file = old_files_cache.try_get_or_insert_mut(op.file_index as usize, || {
+          get_container_file_read(old_container, op.file_index as usize, old_build_folder)
+        })?;
+
+        // Rewind isn't needed because the copy_range function already seeks
+        // into the correct (not relative) position
+
+        // Copy the specified range to the new file
+        copy_range(
+          old_file,
+          new_file,
+          op.block_index as u64,
+          op.block_span as u64,
+        )?;
+      }
+      // If the type is Data, just copy the data from the patch to the new file
+      pwr::sync_op::Type::Data => {
+        new_file
+          .write_all(&op.data)
+          .map_err(|e| format!("Couldn't copy data from patch to new file!\n {e}"))?;
+      }
+      // If the type is HeyYouDidIt, then the iterator would have returned None
+      pwr::sync_op::Type::HeyYouDidIt => unreachable!(),
+    }
+  }
+
+  Ok(())
 }
 
 fn add_bytes(
@@ -131,50 +175,20 @@ impl Patch<'_> {
         // The current file will be updated using the Rsync method
         SyncHeader::Rsync {
           file_index,
-          mut op_iter,
+          op_iter,
         } => {
           // Open the new file
           let mut new_file =
             get_container_file_write(&self.container_new, file_index as usize, new_build_folder)?;
 
-          // Now apply all the sync operations
-          for op in op_iter.by_ref() {
-            let op: pwr::SyncOp = op?;
-
-            match op.r#type() {
-              // If the type is BlockRange, just copy the range from the old file to the new one
-              pwr::sync_op::Type::BlockRange => {
-                // Open the old file
-                let old_file =
-                  old_files_cache.try_get_or_insert_mut(op.file_index as usize, || {
-                    get_container_file_read(
-                      &self.container_old,
-                      op.file_index as usize,
-                      old_build_folder,
-                    )
-                  })?;
-
-                // Rewind isn't needed because the copy_range function already seeks
-                // into the correct (not relative) position
-
-                // Copy the specified range to the new file
-                copy_range(
-                  old_file,
-                  &mut new_file,
-                  op.block_index as u64,
-                  op.block_span as u64,
-                )?;
-              }
-              // If the type is Data, just copy the data from the patch to the new file
-              pwr::sync_op::Type::Data => {
-                new_file
-                  .write_all(&op.data)
-                  .map_err(|e| format!("Couldn't copy data from patch to new file!\n {e}"))?;
-              }
-              // If the type is HeyYouDidIt, then the iterator would have returned None
-              pwr::sync_op::Type::HeyYouDidIt => unreachable!(),
-            }
-          }
+          // Finally, apply all the rsync operations
+          apply_rsync(
+            &mut old_files_cache,
+            &self.container_old,
+            old_build_folder,
+            &mut new_file,
+            op_iter,
+          )?;
         }
 
         // The current file will be updated using the Bsdiff method
