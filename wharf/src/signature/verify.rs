@@ -20,7 +20,7 @@ impl Signature<'_> {
     let mut hasher = Md5::new();
 
     // Loop over all the files in the signature container
-    for file_index in 0..self.container_new.files.len() {
+    'file: for file_index in 0..self.container_new.files.len() {
       // Wrapping the file inside a BufReader isn't needed because
       // BLOCK_SIZE is already large
       let mut file = get_container_file_read(&self.container_new, file_index, build_folder)?;
@@ -76,7 +76,7 @@ impl Signature<'_> {
 
         // If the file has been fully read, proceed to the next one
         if block_index * BLOCK_SIZE + current_block_size == file_size {
-          break;
+          continue 'file;
         }
 
         block_index += 1;
