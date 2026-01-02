@@ -32,6 +32,7 @@ pub struct BlockHashIter<R> {
 }
 
 impl<R> BlockHashIter<R> {
+  #[must_use]
   pub const fn total_blocks(&self) -> u64 {
     self.total_blocks
   }
