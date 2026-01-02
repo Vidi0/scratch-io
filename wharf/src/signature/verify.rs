@@ -1,7 +1,7 @@
 use super::read::Signature;
 use crate::common::{BLOCK_SIZE, apply_container_permissions, create_container_symlinks};
-use md5::{Digest, Md5};
 
+use md5::{Digest, Md5};
 use std::io::Read;
 use std::path::Path;
 
