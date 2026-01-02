@@ -70,3 +70,18 @@ pub(crate) fn decode_protobuf<T: prost::Message + Default>(
 
   T::decode(bytes.as_slice()).map_err(|e| format!("Couldn't decode Protobuf message!\n{e}"))
 }
+
+/// Skip the next length-delimited Protobuf message
+///
+/// Advance the reader to the end of the message
+///
+/// # Errors
+///
+/// If the reader could not be read
+pub(crate) fn skip_protobuf(reader: &mut impl Read) -> Result<(), String> {
+  let length = read_length_delimiter(reader)?;
+
+  std::io::copy(&mut reader.take(length as u64), &mut std::io::sink())
+    .map(|_| ())
+    .map_err(|e| format!("Couldn't read from reader into a sink!\n{e}"))
+}

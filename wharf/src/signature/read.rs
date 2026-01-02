@@ -37,6 +37,23 @@ impl<R> BlockHashIter<R> {
   }
 }
 
+impl<R> BlockHashIter<R>
+where
+  R: Read,
+{
+  pub fn skip_file(&mut self, file_size: u64, blocks_read: u64) -> Result<(), String> {
+    let blocks_to_skip = file_blocks(file_size) - blocks_read;
+
+    for _ in 0..blocks_to_skip {
+      skip_protobuf(&mut self.reader)?;
+    }
+
+    self.blocks_read += blocks_to_skip;
+
+    Ok(())
+  }
+}
+
 impl<R> Iterator for BlockHashIter<R>
 where
   R: Read,
