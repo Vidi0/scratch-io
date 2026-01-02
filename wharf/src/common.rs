@@ -231,7 +231,7 @@ impl tlc::File {
 }
 
 impl tlc::Container {
-  fn get_file(&self, index: usize) -> Result<&tlc::File, String> {
+  pub fn get_file(&self, index: usize) -> Result<&tlc::File, String> {
     self
       .files
       .get(index)
