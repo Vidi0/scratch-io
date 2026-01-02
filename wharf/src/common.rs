@@ -108,6 +108,17 @@ fn set_permissions(path: &Path, mode: u32) -> Result<(), String> {
   {
     use std::os::unix::fs::PermissionsExt;
 
+    let exists = fs::exists(path).map_err(|e| {
+      format!(
+        "Couldn't check if the path exists: \"{}\"\n{e}",
+        path.to_string_lossy()
+      )
+    })?;
+
+    if !exists {
+      return Ok(());
+    }
+
     // Apply the mode mask to set at least the mask permissions
     let mode = mode | MODE_MASK;
 
