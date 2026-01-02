@@ -9,8 +9,11 @@ impl Signature<'_> {
   pub fn verify(
     &mut self,
     build_folder: &Path,
-    mut progress_callback: impl FnMut(),
-  ) -> Result<(), String> {
+    mut progress_callback: impl FnMut(u64),
+  ) -> Result<Vec<usize>, String> {
+    // This vector holds the indexes of the broken files
+    let mut broken_files: Vec<usize> = Vec::new();
+
     // This buffer will hold the current block that is being hashed
     let mut buffer = vec![0u8; BLOCK_SIZE as usize];
 
@@ -22,22 +25,35 @@ impl Signature<'_> {
       // Get file path
       let file_path = container_file.get_path(build_folder.to_owned())?;
 
-      // Wrapping the file inside a BufReader isn't needed because
-      // BLOCK_SIZE is already large
-      let mut file = container_file.open_read(&file_path)?;
-
-      // Check if the file length matches
       let file_size = container_file.size as u64;
 
-      let metadata = file
+      // Check if the file exists
+      let exists = file_path
+        .try_exists()
+        .map_err(|e| format!("Couldn't check if the file exists!\n{e}"))?;
+
+      if !exists {
+        broken_files.push(file_index);
+        let skipped_blocks = self.block_hash_iter.skip_file(file_size, 0)?;
+        progress_callback(skipped_blocks);
+        continue 'file;
+      }
+
+      // Check if the file length matches
+      let metadata = file_path
         .metadata()
         .map_err(|e| format!("Couldn't get file metadata!\n{e}"))?;
 
       if metadata.len() != file_size {
-        return Err(format!(
-          "The signature and the in-disk size of the file with index \"{file_index}\" don't match!",
-        ));
+        broken_files.push(file_index);
+        let skipped_blocks = self.block_hash_iter.skip_file(file_size, 0)?;
+        progress_callback(skipped_blocks);
+        continue 'file;
       }
+
+      // Wrapping the file inside a BufReader isn't needed because
+      // BLOCK_SIZE is already large
+      let mut file = container_file.open_read(&file_path)?;
 
       // For each block in the file, compare its hash with the one provided in the signature
       let mut block_index: u64 = 0;
@@ -62,18 +78,16 @@ impl Signature<'_> {
           "Expected a block hash message in the signature, but EOF was encountered!".to_string()
         })??;
 
+        // One new hash has been read, callback!
+        progress_callback(1);
+
         // Compare the hashes
         if *signature_hash.strong_hash != *hash {
-          return Err(format!(
-            "Hash mismatch!
-  Signature: {:X?}
-  In-disk: {:X?}",
-            signature_hash.strong_hash, hash,
-          ));
+          broken_files.push(file_index);
+          let skipped_blocks = self.block_hash_iter.skip_file(file_size, block_index + 1)?;
+          progress_callback(skipped_blocks);
+          continue 'file;
         }
-
-        // One new hash has been verified, callback!
-        progress_callback();
 
         // If the file has been fully read, proceed to the next one
         if block_index * BLOCK_SIZE + current_block_size == file_size {
@@ -90,6 +104,6 @@ impl Signature<'_> {
     // Set the correct permissions for the files, folders and symlinks
     apply_container_permissions(&self.container_new, build_folder)?;
 
-    Ok(())
+    Ok(broken_files)
   }
 }
