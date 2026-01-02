@@ -47,7 +47,7 @@ fn apply_rsync(
       pwr::sync_op::Type::BlockRange => {
         // Open the old file
         let old_file = old_files_cache.try_get_or_insert_mut(op.file_index as usize, || {
-          old_container.get_file_read(op.file_index as usize, old_build_folder.to_owned())
+          old_container.open_file_read(op.file_index as usize, old_build_folder.to_owned())
         })?;
 
         // Rewind isn't needed because the copy_range function already seeks
@@ -182,7 +182,7 @@ impl Patch<'_> {
           // Open the new file
           let mut new_file = self
             .container_new
-            .get_file_write(file_index as usize, new_build_folder.to_owned())?;
+            .open_file_write(file_index as usize, new_build_folder.to_owned())?;
 
           // Finally, apply all the rsync operations
           apply_rsync(
@@ -203,13 +203,13 @@ impl Patch<'_> {
           // Open the new file
           let mut new_file = self
             .container_new
-            .get_file_write(file_index as usize, new_build_folder.to_owned())?;
+            .open_file_write(file_index as usize, new_build_folder.to_owned())?;
 
           // Open the old file
           let old_file = old_files_cache.try_get_or_insert_mut(target_index as usize, || {
             self
               .container_old
-              .get_file_read(target_index as usize, old_build_folder.to_owned())
+              .open_file_read(target_index as usize, old_build_folder.to_owned())
           })?;
 
           // Rewind the old file to the start because the file might

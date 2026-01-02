@@ -200,21 +200,14 @@ fn path_safe_push(base: &mut PathBuf, extension: &Path) -> Result<(), String> {
   Ok(())
 }
 
-impl tlc::Container {
-  fn get_file(&self, index: usize) -> Result<&tlc::File, String> {
-    self
-      .files
-      .get(index)
-      .ok_or_else(|| format!("Invalid old file index: {index}!"))
-  }
-
-  pub fn get_file_path(&self, index: usize, mut build_folder: PathBuf) -> Result<PathBuf, String> {
-    path_safe_push(&mut build_folder, Path::new(&self.get_file(index)?.path))?;
+impl tlc::File {
+  pub fn get_path(&self, mut build_folder: PathBuf) -> Result<PathBuf, String> {
+    path_safe_push(&mut build_folder, Path::new(&self.path))?;
     Ok(build_folder)
   }
 
-  pub fn get_file_read(&self, index: usize, build_folder: PathBuf) -> Result<fs::File, String> {
-    let file_path = self.get_file_path(index, build_folder)?;
+  pub fn open_read(&self, build_folder: PathBuf) -> Result<fs::File, String> {
+    let file_path = self.get_path(build_folder)?;
 
     fs::File::open(&file_path).map_err(|e| {
       format!(
@@ -224,8 +217,8 @@ impl tlc::Container {
     })
   }
 
-  pub fn get_file_write(&self, index: usize, build_folder: PathBuf) -> Result<fs::File, String> {
-    let file_path = self.get_file_path(index, build_folder)?;
+  pub fn open_write(&self, build_folder: PathBuf) -> Result<fs::File, String> {
+    let file_path = self.get_path(build_folder)?;
 
     fs::OpenOptions::new()
       .create(true)
@@ -238,5 +231,26 @@ impl tlc::Container {
           file_path.to_string_lossy()
         )
       })
+  }
+}
+
+impl tlc::Container {
+  fn get_file(&self, index: usize) -> Result<&tlc::File, String> {
+    self
+      .files
+      .get(index)
+      .ok_or_else(|| format!("Invalid old file index: {index}!"))
+  }
+
+  pub fn get_file_path(&self, index: usize, build_folder: PathBuf) -> Result<PathBuf, String> {
+    self.get_file(index)?.get_path(build_folder)
+  }
+
+  pub fn open_file_read(&self, index: usize, build_folder: PathBuf) -> Result<fs::File, String> {
+    self.get_file(index)?.open_read(build_folder)
+  }
+
+  pub fn open_file_write(&self, index: usize, build_folder: PathBuf) -> Result<fs::File, String> {
+    self.get_file(index)?.open_write(build_folder)
   }
 }

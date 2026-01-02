@@ -23,7 +23,7 @@ impl Signature<'_> {
       // BLOCK_SIZE is already large
       let mut file = &self
         .container_new
-        .get_file_read(file_index, build_folder.to_owned())?;
+        .open_file_read(file_index, build_folder.to_owned())?;
 
       // Check if the file length matches
       let file_size = self.container_new.files[file_index].size as u64;
