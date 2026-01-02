@@ -18,15 +18,16 @@ impl Signature<'_> {
     let mut hasher = Md5::new();
 
     // Loop over all the files in the signature container
-    'file: for file_index in 0..self.container_new.files.len() {
+    'file: for (file_index, container_file) in self.container_new.files.iter().enumerate() {
+      // Get file path
+      let file_path = container_file.get_path(build_folder.to_owned())?;
+
       // Wrapping the file inside a BufReader isn't needed because
       // BLOCK_SIZE is already large
-      let mut file = &self
-        .container_new
-        .open_file_read(file_index, build_folder.to_owned())?;
+      let mut file = container_file.open_read(&file_path)?;
 
       // Check if the file length matches
-      let file_size = self.container_new.files[file_index].size as u64;
+      let file_size = container_file.size as u64;
 
       let metadata = file
         .metadata()
