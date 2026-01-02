@@ -206,10 +206,8 @@ impl tlc::File {
     Ok(build_folder)
   }
 
-  pub fn open_read(&self, build_folder: PathBuf) -> Result<fs::File, String> {
-    let file_path = self.get_path(build_folder)?;
-
-    fs::File::open(&file_path).map_err(|e| {
+  pub fn open_read(&self, file_path: &Path) -> Result<fs::File, String> {
+    fs::File::open(file_path).map_err(|e| {
       format!(
         "Couldn't open file for reading: \"{}\"\n{e}",
         file_path.to_string_lossy()
@@ -217,14 +215,12 @@ impl tlc::File {
     })
   }
 
-  pub fn open_write(&self, build_folder: PathBuf) -> Result<fs::File, String> {
-    let file_path = self.get_path(build_folder)?;
-
+  pub fn open_write(&self, file_path: &Path) -> Result<fs::File, String> {
     fs::OpenOptions::new()
       .create(true)
       .write(true)
       .truncate(true)
-      .open(&file_path)
+      .open(file_path)
       .map_err(|e| {
         format!(
           "Couldn't open file for writting: \"{}\"\n{e}",
@@ -247,10 +243,12 @@ impl tlc::Container {
   }
 
   pub fn open_file_read(&self, index: usize, build_folder: PathBuf) -> Result<fs::File, String> {
-    self.get_file(index)?.open_read(build_folder)
+    let file = self.get_file(index)?;
+    file.open_read(&file.get_path(build_folder)?)
   }
 
   pub fn open_file_write(&self, index: usize, build_folder: PathBuf) -> Result<fs::File, String> {
-    self.get_file(index)?.open_write(build_folder)
+    let file = self.get_file(index)?;
+    file.open_write(&file.get_path(build_folder)?)
   }
 }
