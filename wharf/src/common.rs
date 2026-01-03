@@ -8,7 +8,17 @@ use std::path::{Path, PathBuf};
 pub const BLOCK_SIZE: u64 = 64 * 1024;
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L30>
-const MODE_MASK: u32 = 0o644;
+const MIN_MODE: u32 = 0o644;
+const MAX_MODE: u32 = 0o777;
+
+/// Clamp the given mode between the minimum and maximum
+///
+/// Clamping the mode ensures that it is valid
+#[inline]
+#[must_use]
+pub fn mask_mode(mode: u32) -> u32 {
+  (mode & MAX_MODE) | MIN_MODE
+}
 
 /// Get the number of blocks that a file of a given size occupies
 ///
@@ -120,7 +130,7 @@ fn set_permissions(path: &Path, mode: u32) -> Result<(), String> {
     }
 
     // Apply the mode mask to set at least the mask permissions
-    let mode = mode | MODE_MASK;
+    let mode = mask_mode(mode);
 
     let mut permissions = fs::metadata(path)
       .map_err(|e| {
