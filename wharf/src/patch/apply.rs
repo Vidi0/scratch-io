@@ -147,16 +147,8 @@ impl Patch<'_> {
     new_build_folder: &Path,
     mut progress_callback: impl FnMut(),
   ) -> Result<(), String> {
-    // Iterate over the folders in the new container and create them
-    for folder in &self.container_new.dirs {
-      let new_folder = new_build_folder.join(&folder.path);
-      fs::create_dir_all(&new_folder).map_err(|e| {
-        format!(
-          "Couldn't create folder: \"{}\"\n{e}",
-          new_folder.to_string_lossy()
-        )
-      })?;
-    }
+    // Create the folders in the new container
+    self.container_new.create_directories(new_build_folder)?;
 
     // Create a cache of open file descriptors for the old files
     // The key is the file_index of the old file provided by the patch

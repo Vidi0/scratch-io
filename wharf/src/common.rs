@@ -221,6 +221,13 @@ fn path_safe_push(base: &mut PathBuf, extension: &Path) -> Result<(), String> {
   Ok(())
 }
 
+impl tlc::Dir {
+  pub fn get_path(&self, mut build_folder: PathBuf) -> Result<PathBuf, String> {
+    path_safe_push(&mut build_folder, Path::new(&self.path))?;
+    Ok(build_folder)
+  }
+}
+
 impl tlc::File {
   pub fn get_path(&self, mut build_folder: PathBuf) -> Result<PathBuf, String> {
     path_safe_push(&mut build_folder, Path::new(&self.path))?;
@@ -271,5 +278,25 @@ impl tlc::Container {
   pub fn open_file_write(&self, index: usize, build_folder: PathBuf) -> Result<fs::File, String> {
     let file = self.get_file(index)?;
     file.open_write(&file.get_path(build_folder)?)
+  }
+
+  pub fn create_directories(&self, build_folder: &Path) -> Result<(), String> {
+    // Iterate over the folders in the container and create them
+    for dir in &self.dirs {
+      let dir_path = dir.get_path(build_folder.to_owned())?;
+
+      // This function call will do nothing if the directory already exists
+      fs::create_dir_all(&dir_path).map_err(|e| {
+        format!(
+          "Couldn't create directory: \"{}\"\n{e}",
+          dir_path.to_string_lossy()
+        )
+      })?;
+
+      // Change the permissions
+      set_permissions(&dir_path, dir.mode)?;
+    }
+
+    Ok(())
   }
 }
