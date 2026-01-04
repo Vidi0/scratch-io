@@ -42,7 +42,7 @@ impl Signature<'_> {
   /// * `build_folder` - The path to the build folder
   ///
   /// * `progress_callback` - A callback that is called with the number of
-  /// blocks processed since the last one
+  ///   blocks processed since the last one
   ///
   /// # Returns
   ///
