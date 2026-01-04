@@ -1,5 +1,5 @@
 use super::read::Signature;
-use crate::common::{BLOCK_SIZE, apply_container_permissions, create_container_symlinks};
+use crate::common::BLOCK_SIZE;
 use crate::protos::tlc;
 
 use md5::{Digest, Md5};
@@ -13,11 +13,6 @@ pub struct IntegrityIssues<'a> {
 }
 
 impl IntegrityIssues<'_> {
-  #[must_use]
-  pub fn is_intact(&self) -> bool {
-    self.files.is_empty()
-  }
-
   #[must_use]
   pub fn bytes_to_fix(&self) -> u64 {
     self
@@ -119,12 +114,6 @@ impl Signature<'_> {
         block_index += 1;
       }
     }
-
-    // Create the symlinks
-    create_container_symlinks(&self.container_new, build_folder)?;
-
-    // Set the correct permissions for the files, folders and symlinks
-    apply_container_permissions(&self.container_new, build_folder)?;
 
     Ok(integrity_issues)
   }
