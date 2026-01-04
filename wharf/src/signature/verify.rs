@@ -1,18 +1,40 @@
 use super::read::Signature;
 use crate::common::{BLOCK_SIZE, apply_container_permissions, create_container_symlinks};
+use crate::protos::tlc;
 
 use md5::{Digest, Md5};
 use std::io::Read;
 use std::path::Path;
 
-impl Signature<'_> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IntegrityIssues<'a> {
+  // This vector must NOT contain duplicates!
+  pub files: Vec<&'a tlc::File>,
+}
+
+impl IntegrityIssues<'_> {
+  #[must_use]
+  pub fn is_intact(&self) -> bool {
+    self.files.is_empty()
+  }
+
+  #[must_use]
+  pub fn bytes_to_fix(&self) -> u64 {
+    self
+      .files
+      .iter()
+      .fold(0, |acc, file| acc + file.size as u64)
+  }
+}
+
+impl<'a> Signature<'a> {
   pub fn verify(
-    &mut self,
+    &'a mut self,
     build_folder: &Path,
     mut progress_callback: impl FnMut(u64),
-  ) -> Result<Vec<usize>, String> {
-    // This vector holds the indexes of the broken files
-    let mut broken_files: Vec<usize> = Vec::new();
+  ) -> Result<IntegrityIssues<'a>, String> {
+    // This vector holds all the integrity issues found in the build folder
+    let mut integrity_issues = IntegrityIssues { files: Vec::new() };
 
     // This buffer will hold the current block that is being hashed
     let mut buffer = vec![0u8; BLOCK_SIZE as usize];
@@ -21,7 +43,7 @@ impl Signature<'_> {
     let mut hasher = Md5::new();
 
     // Loop over all the files in the signature container
-    'file: for (file_index, container_file) in self.container_new.files.iter().enumerate() {
+    'file: for container_file in &self.container_new.files {
       // Get file path
       let file_path = container_file.get_path(build_folder.to_owned())?;
 
@@ -33,7 +55,7 @@ impl Signature<'_> {
         .map_err(|e| format!("Couldn't check if the file exists!\n{e}"))?;
 
       if !exists {
-        broken_files.push(file_index);
+        integrity_issues.files.push(container_file);
         let skipped_blocks = self.block_hash_iter.skip_file(file_size, 0)?;
         progress_callback(skipped_blocks);
         continue 'file;
@@ -45,7 +67,7 @@ impl Signature<'_> {
         .map_err(|e| format!("Couldn't get file metadata!\n{e}"))?;
 
       if metadata.len() != file_size {
-        broken_files.push(file_index);
+        integrity_issues.files.push(container_file);
         let skipped_blocks = self.block_hash_iter.skip_file(file_size, 0)?;
         progress_callback(skipped_blocks);
         continue 'file;
@@ -83,7 +105,7 @@ impl Signature<'_> {
 
         // Compare the hashes
         if *signature_hash.strong_hash != *hash {
-          broken_files.push(file_index);
+          integrity_issues.files.push(container_file);
           let skipped_blocks = self.block_hash_iter.skip_file(file_size, block_index + 1)?;
           progress_callback(skipped_blocks);
           continue 'file;
@@ -104,6 +126,6 @@ impl Signature<'_> {
     // Set the correct permissions for the files, folders and symlinks
     apply_container_permissions(&self.container_new, build_folder)?;
 
-    Ok(broken_files)
+    Ok(integrity_issues)
   }
 }
