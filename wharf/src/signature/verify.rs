@@ -23,6 +23,35 @@ impl IntegrityIssues<'_> {
 }
 
 impl Signature<'_> {
+  /// Verify the integrity of all files in the container
+  ///
+  /// This function iterates over every file in the container and checks if
+  /// it exists and is not corrupted.
+  ///
+  /// For each verified block, `progress_callback` is called with the number
+  /// of blocks processed since the last callback. Files that are missing,
+  /// have mismatched sizes, or contain corrupted blocks are collected and
+  /// returned in the [`IntegrityIssues`] structure.
+  ///
+  /// This function does NOT check if the folders and symlinks in the container
+  /// exist on the disk or if the modes (permissions) of the files, folders,
+  /// and symlinks are correct.
+  ///
+  /// # Arguments
+  ///
+  /// * `build_folder` - The path to the build folder
+  ///
+  /// * `progress_callback` - A callback that is called with the number of
+  /// blocks processed since the last one
+  ///
+  /// # Returns
+  ///
+  /// A [`IntegrityIssues`] struct that contains all files that failed verification.
+  ///
+  /// # Errors
+  ///
+  /// If there is an I/O failure while reading files or metadata.
+  ///
   pub fn verify_files(
     &'_ mut self,
     build_folder: &Path,
