@@ -23,7 +23,7 @@ impl IntegrityIssues<'_> {
 }
 
 impl Signature<'_> {
-  pub fn verify(
+  pub fn verify_files(
     &'_ mut self,
     build_folder: &Path,
     mut progress_callback: impl FnMut(u64),
