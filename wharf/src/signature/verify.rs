@@ -27,12 +27,12 @@ impl IntegrityIssues<'_> {
   }
 }
 
-impl<'a> Signature<'a> {
+impl Signature<'_> {
   pub fn verify(
-    &'a mut self,
+    &'_ mut self,
     build_folder: &Path,
     mut progress_callback: impl FnMut(u64),
-  ) -> Result<IntegrityIssues<'a>, String> {
+  ) -> Result<IntegrityIssues<'_>, String> {
     // This vector holds all the integrity issues found in the build folder
     let mut integrity_issues = IntegrityIssues { files: Vec::new() };
 
