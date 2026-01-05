@@ -39,7 +39,7 @@ impl Signature<'_> {
   /// returned in the [`IntegrityIssues`] structure.
   ///
   /// This function does NOT check if the folders and symlinks in the container
-  /// exist on the disk or if the modes (permissions) of the files, folders,
+  /// exist on the disk or if the modes (permissions) of the files, folders
   /// and symlinks are correct.
   ///
   /// # Arguments
