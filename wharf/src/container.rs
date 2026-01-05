@@ -201,9 +201,7 @@ impl tlc::File {
 
   pub fn open_write(&self, file_path: &Path) -> Result<fs::File, String> {
     fs::OpenOptions::new()
-      .create(true)
       .write(true)
-      .truncate(true)
       .open(file_path)
       .map_err(|e| {
         format!(
@@ -249,6 +247,24 @@ impl tlc::Container {
     Ok(())
   }
 
+  pub fn create_files(&self, build_folder: &Path) -> Result<(), String> {
+    // Iterate over the files in the container and create them
+    for file in &self.files {
+      let file_path = file.get_path(build_folder.to_owned())?;
+
+      // The file handle will be dropped just after creating the file
+      // If the file already exists, it will be truncated
+      fs::File::create(&file_path).map_err(|e| {
+        format!(
+          "Couldn't create file: \"{}\"\n{e}",
+          file_path.to_string_lossy()
+        )
+      })?;
+    }
+
+    Ok(())
+  }
+
   pub fn create_symlinks(&self, build_folder: &Path) -> Result<(), String> {
     // Iterate over the symlinks in the container and create them
     for sym in &self.symlinks {
@@ -275,5 +291,13 @@ impl tlc::Container {
     }
 
     Ok(())
+  }
+
+  pub fn create(&self, build_folder: &Path) -> Result<(), String> {
+    self.create_directories(build_folder)?;
+    self.create_files(build_folder)?;
+    self.create_symlinks(build_folder)?;
+
+    self.apply_permissions(build_folder)
   }
 }
