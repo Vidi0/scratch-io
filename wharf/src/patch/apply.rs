@@ -147,11 +147,9 @@ impl Patch<'_> {
     new_build_folder: &Path,
     mut progress_callback: impl FnMut(),
   ) -> Result<(), String> {
-    // Create the folders in the new container
-    self.container_new.create_directories(new_build_folder)?;
-
-    // Create the symlinks in the new container
-    self.container_new.create_symlinks(new_build_folder)?;
+    // Create the new container folders, files and symlinks,
+    // applying all the correct permissions
+    self.container_new.create(new_build_folder)?;
 
     // Create a cache of open file descriptors for the old files
     // The key is the file_index of the old file provided by the patch
@@ -221,9 +219,6 @@ impl Patch<'_> {
       // One new file has been patched, callback!
       progress_callback();
     }
-
-    // Set the correct permissions for the files, folders and symlinks
-    self.container_new.apply_permissions(new_build_folder)?;
 
     Ok(())
   }
