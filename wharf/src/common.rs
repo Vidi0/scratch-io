@@ -221,19 +221,37 @@ fn path_safe_push(base: &mut PathBuf, extension: &Path) -> Result<(), String> {
   Ok(())
 }
 
-impl tlc::Dir {
-  pub fn get_path(&self, mut build_folder: PathBuf) -> Result<PathBuf, String> {
-    path_safe_push(&mut build_folder, Path::new(&self.path))?;
+pub trait ContainerItem {
+  fn mode(&self) -> u32;
+  fn path(&self) -> &str;
+
+  fn get_path(&self, mut build_folder: PathBuf) -> Result<PathBuf, String> {
+    path_safe_push(&mut build_folder, Path::new(self.path()))?;
     Ok(build_folder)
   }
 }
 
-impl tlc::File {
-  pub fn get_path(&self, mut build_folder: PathBuf) -> Result<PathBuf, String> {
-    path_safe_push(&mut build_folder, Path::new(&self.path))?;
-    Ok(build_folder)
+impl ContainerItem for tlc::Dir {
+  fn mode(&self) -> u32 {
+    self.mode
   }
 
+  fn path(&self) -> &str {
+    &self.path
+  }
+}
+
+impl ContainerItem for tlc::File {
+  fn mode(&self) -> u32 {
+    self.mode
+  }
+
+  fn path(&self) -> &str {
+    &self.path
+  }
+}
+
+impl tlc::File {
   pub fn open_read(&self, file_path: &Path) -> Result<fs::File, String> {
     fs::File::open(file_path).map_err(|e| {
       format!(

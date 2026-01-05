@@ -1,5 +1,5 @@
 use super::read::Signature;
-use crate::common::BLOCK_SIZE;
+use crate::common::{BLOCK_SIZE, ContainerItem};
 use crate::protos::tlc;
 
 use md5::{Digest, Md5};
