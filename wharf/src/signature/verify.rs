@@ -14,6 +14,11 @@ pub struct IntegrityIssues<'a> {
 
 impl IntegrityIssues<'_> {
   #[must_use]
+  pub fn are_files_intact(&self) -> bool {
+    self.files.is_empty()
+  }
+
+  #[must_use]
   pub fn bytes_to_fix(&self) -> u64 {
     self
       .files
