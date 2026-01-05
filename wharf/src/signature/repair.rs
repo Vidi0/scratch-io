@@ -87,4 +87,49 @@ impl Signature<'_> {
 
     Ok(())
   }
+
+  /// Prepare the build folder and repair the broken files
+  ///
+  /// This function will:
+  /// 1. Create all directories, files, and symlinks described in
+  ///    [`Self::container_new`] and set their modes (permissions)
+  /// 2. Call [`Self::repair_files`] to repair the broken files
+  ///
+  /// After this function is called, the build folder will contain all the
+  /// files, directories and symlinks described in the container with the
+  /// correct permissions, and all files will have the correct contents.
+  ///
+  ///  # Arguments
+  ///
+  /// * `build_folder` - The path to the build folder
+  ///
+  /// * `container` - A container describing the filesystem state of the build
+  ///   folder
+  ///
+  /// * `build_zip_archive` - A reference to a ZIP archive handle containing the
+  ///   source files. Each file in `integrity_issues.files` must exist in the
+  ///   archive
+  ///
+  /// * `progress_callback` - A callback that is called with the number of
+  ///   bytes written since the last one
+  ///
+  /// # Errors
+  ///
+  /// If a file listed in the container is missing in the ZIP archive or
+  /// there is an I/O failure while reading files or metadata.
+  pub fn repair(
+    &self,
+    integrity_issues: &IntegrityIssues,
+    build_folder: &Path,
+    build_zip_archive: &ArchiveHandle<'_, impl HasCursor>,
+    progress_callback: impl FnMut(u64),
+  ) -> Result<(), String> {
+    self.container_new.create(build_folder)?;
+    self.repair_files(
+      integrity_issues,
+      build_folder,
+      build_zip_archive,
+      progress_callback,
+    )
+  }
 }
