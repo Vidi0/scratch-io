@@ -1,5 +1,5 @@
 use super::read::{BsdiffOpIter, Patch, RsyncOpIter, SyncHeader};
-use crate::common::{BLOCK_SIZE, apply_container_permissions, create_container_symlinks};
+use crate::common::{BLOCK_SIZE, apply_container_permissions};
 use crate::protos::*;
 
 use std::fs;
@@ -150,6 +150,9 @@ impl Patch<'_> {
     // Create the folders in the new container
     self.container_new.create_directories(new_build_folder)?;
 
+    // Create the symlinks in the new container
+    self.container_new.create_symlinks(new_build_folder)?;
+
     // Create a cache of open file descriptors for the old files
     // The key is the file_index of the old file provided by the patch
     // The value is the open file descriptor
@@ -218,9 +221,6 @@ impl Patch<'_> {
       // One new file has been patched, callback!
       progress_callback();
     }
-
-    // Create the symlinks
-    create_container_symlinks(&self.container_new, new_build_folder)?;
 
     // Set the correct permissions for the files, folders and symlinks
     apply_container_permissions(&self.container_new, new_build_folder)?;

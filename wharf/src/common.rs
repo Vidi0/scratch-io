@@ -156,6 +156,70 @@ fn set_permissions(path: &Path, mode: u32) -> Result<(), String> {
   Ok(())
 }
 
+fn symlink(path: &Path, destination: &str) -> Result<(), String> {
+  let exists = fs::exists(path).map_err(|e| {
+    format!(
+      "Couldn't check if the symlink exists: \"{}\"\n{e}",
+      path.to_string_lossy()
+    )
+  })?;
+
+  if exists {
+    fs::remove_file(path).map_err(|e| {
+      format!(
+        "Couldn't remove old symlink: \"{}\"\n{e}",
+        path.to_string_lossy()
+      )
+    })?;
+  }
+
+  #[cfg(unix)]
+  {
+    std::os::unix::fs::symlink(destination, path).map_err(|e| {
+      format!(
+        "Couldn't create symlink
+  Link: {}
+  Original: {}
+{e}",
+        path.to_string_lossy(),
+        destination,
+      )
+    })?;
+  }
+
+  #[cfg(windows)]
+  {
+    let metadata = fs::metadata(destination)
+      .map_err(|e| format!("Couldn't get symlink destination metadata"))?;
+
+    if metadata.is_dir() {
+      std::os::windows::fs::symlink_dir(destination, path).map_err(|e| {
+        format!(
+          "Couldn't create directory symlink
+  Link: {}
+  Original: {}
+{e}",
+          path.to_string_lossy(),
+          destination,
+        )
+      })?;
+    } else {
+      std::os::windows::fs::symlink_file(destination, path).map_err(|e| {
+        format!(
+          "Couldn't create file symlink
+  Link: {}
+  Original: {}
+{e}",
+          path.to_string_lossy(),
+          destination,
+        )
+      })?;
+    }
+  }
+
+  Ok(())
+}
+
 pub fn apply_container_permissions(
   container: &tlc::Container,
   build_folder: &Path,
@@ -170,38 +234,6 @@ pub fn apply_container_permissions(
 
   for sym in &container.symlinks {
     set_permissions(&sym.get_path(build_folder.to_owned())?, sym.mode())?;
-  }
-
-  Ok(())
-}
-
-pub fn create_container_symlinks(
-  container: &tlc::Container,
-  build_folder: &Path,
-) -> Result<(), String> {
-  #[cfg(unix)]
-  {
-    for sym in &container.symlinks {
-      let path = build_folder.join(&sym.path);
-      let original = build_folder.join(&sym.dest);
-
-      let exists_path = fs::exists(&path).map_err(|e| {
-        format!(
-          "Couldn't check is the path exists: \"{}\"\n{e}",
-          path.to_string_lossy()
-        )
-      })?;
-
-      if !exists_path {
-        std::os::unix::fs::symlink(&original, &path).map_err(|e| {
-          format!(
-            "Couldn't create symlink\n  Original: {}\n  Link: {}\n{e}",
-            original.to_string_lossy(),
-            path.to_string_lossy()
-          )
-        })?;
-      }
-    }
   }
 
   Ok(())
@@ -323,6 +355,21 @@ impl tlc::Container {
 
       // Change the permissions
       set_permissions(&dir_path, dir.mode)?;
+    }
+
+    Ok(())
+  }
+
+  pub fn create_symlinks(&self, build_folder: &Path) -> Result<(), String> {
+    // Iterate over the symlinks in the container and create them
+    for sym in &self.symlinks {
+      let sym_path = sym.get_path(build_folder.to_owned())?;
+
+      // Create the symlink
+      symlink(&sym_path, &sym.dest)?;
+
+      // Change the permissions
+      set_permissions(&sym_path, sym.mode)?;
     }
 
     Ok(())
