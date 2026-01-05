@@ -1,5 +1,5 @@
 use super::read::{BsdiffOpIter, Patch, RsyncOpIter, SyncHeader};
-use crate::container::{BLOCK_SIZE, apply_container_permissions};
+use crate::container::BLOCK_SIZE;
 use crate::protos::*;
 
 use std::fs;
@@ -223,7 +223,7 @@ impl Patch<'_> {
     }
 
     // Set the correct permissions for the files, folders and symlinks
-    apply_container_permissions(&self.container_new, new_build_folder)?;
+    self.container_new.apply_permissions(new_build_folder)?;
 
     Ok(())
   }

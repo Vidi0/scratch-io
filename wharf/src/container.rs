@@ -135,25 +135,6 @@ fn symlink(path: &Path, destination: &str) -> Result<(), String> {
   Ok(())
 }
 
-pub fn apply_container_permissions(
-  container: &tlc::Container,
-  build_folder: &Path,
-) -> Result<(), String> {
-  for file in &container.files {
-    set_permissions(&file.get_path(build_folder.to_owned())?, file.mode())?;
-  }
-
-  for dir in &container.dirs {
-    set_permissions(&dir.get_path(build_folder.to_owned())?, dir.mode())?;
-  }
-
-  for sym in &container.symlinks {
-    set_permissions(&sym.get_path(build_folder.to_owned())?, sym.mode())?;
-  }
-
-  Ok(())
-}
-
 fn path_safe_push(base: &mut PathBuf, extension: &Path) -> Result<(), String> {
   for comp in extension.components() {
     match comp {
@@ -285,6 +266,22 @@ impl tlc::Container {
 
       // Change the permissions
       set_permissions(&sym_path, sym.mode)?;
+    }
+
+    Ok(())
+  }
+
+  pub fn apply_permissions(&self, build_folder: &Path) -> Result<(), String> {
+    for file in &self.files {
+      set_permissions(&file.get_path(build_folder.to_owned())?, file.mode())?;
+    }
+
+    for dir in &self.dirs {
+      set_permissions(&dir.get_path(build_folder.to_owned())?, dir.mode())?;
+    }
+
+    for sym in &self.symlinks {
+      set_permissions(&sym.get_path(build_folder.to_owned())?, sym.mode())?;
     }
 
     Ok(())
