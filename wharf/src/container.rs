@@ -261,7 +261,7 @@ impl tlc::Container {
       // If the file already exists, it won't be touched
       fs::OpenOptions::new()
         .create(true)
-        .write(true)
+        .append(true)
         .open(&file_path)
         .map_err(|e| {
           format!(
