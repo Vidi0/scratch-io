@@ -222,10 +222,6 @@ impl tlc::Container {
       .ok_or_else(|| format!("Invalid old file index: {index}!"))
   }
 
-  pub fn get_file_path(&self, index: usize, build_folder: PathBuf) -> Result<PathBuf, String> {
-    self.get_file(index)?.get_path(build_folder)
-  }
-
   pub fn open_file_read(&self, index: usize, build_folder: PathBuf) -> Result<fs::File, String> {
     let file = self.get_file(index)?;
     file.open_read(&file.get_path(build_folder)?)
