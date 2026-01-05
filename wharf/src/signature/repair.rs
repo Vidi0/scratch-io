@@ -41,7 +41,7 @@ impl Signature<'_> {
   ///
   /// # Panics
   ///
-  /// If any index in `integrity_issues.filess` is out of bounds for the
+  /// If any index in `integrity_issues.files` is out of bounds for the
   /// container's file list.
   pub fn repair_files(
     &self,
