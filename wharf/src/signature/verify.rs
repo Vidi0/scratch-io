@@ -78,26 +78,16 @@ impl Signature<'_> {
       // Get file path
       let file_path = container_file.get_path(build_folder.to_owned())?;
 
+      // Get the file size
       let file_size = container_file.size as u64;
 
-      // Check if the file exists
-      let exists = file_path
-        .try_exists()
-        .map_err(|e| format!("Couldn't check if the file exists!\n{e}"))?;
-
-      if !exists {
-        broken_files.push(file_index);
-        let skipped_blocks = self.block_hash_iter.skip_file(file_size, 0)?;
-        progress_callback(skipped_blocks);
-        continue 'file;
-      }
-
-      // Check if the file length matches
-      let metadata = file_path
-        .metadata()
-        .map_err(|e| format!("Couldn't get file metadata!\n{e}"))?;
-
-      if metadata.len() != file_size {
+      // Check if the file exists and the length matches
+      if match file_path.metadata() {
+        // If the length doesn't match, then this file is broken
+        Ok(m) => m.len() != file_size,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => true,
+        Err(e) => return Err(format!("Couldn't get file metadata!\n{e}")),
+      } {
         broken_files.push(file_index);
         let skipped_blocks = self.block_hash_iter.skip_file(file_size, 0)?;
         progress_callback(skipped_blocks);
