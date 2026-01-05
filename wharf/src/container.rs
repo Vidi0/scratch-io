@@ -236,6 +236,14 @@ impl tlc::Container {
   }
 
   pub fn create_directories(&self, build_folder: &Path) -> Result<(), String> {
+    // Create build root directory
+    fs::create_dir_all(build_folder).map_err(|e| {
+      format!(
+        "Couldn't create build directory: \"{}\"\n{e}",
+        build_folder.to_string_lossy()
+      )
+    })?;
+
     // Iterate over the folders in the container and create them
     for dir in &self.dirs {
       let dir_path = dir.get_path(build_folder.to_owned())?;
