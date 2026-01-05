@@ -248,9 +248,6 @@ impl tlc::Container {
           dir_path.to_string_lossy()
         )
       })?;
-
-      // Change the permissions
-      set_permissions(&dir_path, dir.mode)?;
     }
 
     Ok(())
@@ -263,9 +260,6 @@ impl tlc::Container {
 
       // Create the symlink
       symlink(&sym_path, &sym.dest)?;
-
-      // Change the permissions
-      set_permissions(&sym_path, sym.mode)?;
     }
 
     Ok(())
