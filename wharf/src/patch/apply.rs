@@ -1,5 +1,5 @@
 use super::read::{BsdiffOpIter, Patch, RsyncOpIter, SyncHeader};
-use crate::common::{BLOCK_SIZE, apply_container_permissions};
+use crate::container::{BLOCK_SIZE, apply_container_permissions};
 use crate::protos::*;
 
 use std::fs;

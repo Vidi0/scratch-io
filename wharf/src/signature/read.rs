@@ -1,4 +1,5 @@
-use crate::common::{check_magic_bytes, decompress_stream, file_blocks};
+use crate::common::{check_magic_bytes, decompress_stream};
+use crate::container::file_blocks;
 use crate::patch::read::PATCH_MAGIC;
 use crate::protos::*;
 

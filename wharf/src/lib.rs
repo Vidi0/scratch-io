@@ -7,8 +7,9 @@ pub mod patch;
 pub mod signature;
 
 mod common;
+mod container;
 
 pub use patch::read::Patch;
 pub use signature::read::Signature;
 
-pub use common::BLOCK_SIZE;
+pub use container::BLOCK_SIZE;
