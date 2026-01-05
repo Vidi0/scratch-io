@@ -2,9 +2,12 @@ use super::read::Signature;
 use crate::container::{BLOCK_SIZE, ContainerItem};
 use crate::protos::tlc;
 
+use md5::digest::{OutputSizeUser, generic_array::GenericArray, typenum::Unsigned};
 use md5::{Digest, Md5};
 use std::io::Read;
 use std::path::Path;
+
+const MD5_HASH_LENGTH: usize = <Md5 as OutputSizeUser>::OutputSize::USIZE;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IntegrityIssues {
@@ -27,6 +30,22 @@ impl IntegrityIssues {
       .iter()
       .fold(0, |acc, &i| acc + container.files[i].size as u64)
   }
+}
+
+/// Hash `buffer` and compare the hash with the expected one
+///
+/// Returns true if the hashes are equal, false otherwise
+fn hash_block(
+  hasher: &mut Md5,
+  hash_buffer: &mut [u8; MD5_HASH_LENGTH],
+  expected_hash: &[u8],
+  buffer: &[u8],
+) -> bool {
+  // Hash the current block
+  hasher.update(buffer);
+  hasher.finalize_into_reset(GenericArray::from_mut_slice(hash_buffer));
+
+  *hash_buffer == *expected_hash
 }
 
 impl Signature<'_> {
@@ -72,6 +91,7 @@ impl Signature<'_> {
 
     // Create a MD5 hasher
     let mut hasher = Md5::new();
+    let mut hash_buffer = [0u8; MD5_HASH_LENGTH];
 
     // Loop over all the files in the signature container
     'file: for (file_index, container_file) in self.container_new.files.iter().enumerate() {
@@ -112,20 +132,23 @@ impl Signature<'_> {
           .read_exact(buf)
           .map_err(|e| format!("Couldn't read file data into buffer!\n{e}"))?;
 
-        // Hash the current block
-        hasher.update(buf);
-        let hash = hasher.finalize_reset();
-
         // Get the expected hash from the signature
         let signature_hash = self.block_hash_iter.next().ok_or_else(|| {
           "Expected a block hash message in the signature, but EOF was encountered!".to_string()
         })??;
 
+        let equal = hash_block(
+          &mut hasher,
+          &mut hash_buffer,
+          &signature_hash.strong_hash,
+          buf,
+        );
+
         // One new hash has been read, callback!
         progress_callback(1);
 
         // Compare the hashes
-        if *signature_hash.strong_hash != *hash {
+        if !equal {
           broken_files.push(file_index);
           let skipped_blocks = self.block_hash_iter.skip_file(file_size, block_index + 1)?;
           progress_callback(skipped_blocks);
