@@ -206,6 +206,7 @@ impl tlc::File {
 
     fs::OpenOptions::new()
       .write(true)
+      .truncate(true)
       .open(&file_path)
       .map_err(|e| {
         format!(
@@ -257,13 +258,17 @@ impl tlc::Container {
       let file_path = file.get_path(build_folder.to_owned())?;
 
       // The file handle will be dropped just after creating the file
-      // If the file already exists, it will be truncated
-      fs::File::create(&file_path).map_err(|e| {
-        format!(
-          "Couldn't create file: \"{}\"\n{e}",
-          file_path.to_string_lossy()
-        )
-      })?;
+      // If the file already exists, it won't be touched
+      fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .open(&file_path)
+        .map_err(|e| {
+          format!(
+            "Couldn't open file for writting: \"{}\"\n{e}",
+            file_path.to_string_lossy()
+          )
+        })?;
     }
 
     Ok(())
