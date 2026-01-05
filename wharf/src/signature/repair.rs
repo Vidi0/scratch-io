@@ -15,7 +15,7 @@ impl IntegrityIssues<'_> {
   /// 3. Write the contents to the corresponding location in `build_folder`.
   /// 4. Report progress through the `progress_callback` for each chunk
   ///    written, returning the number of bytes written since the last call.
-  /// 
+  ///
   /// This function will NOT create missing folders, symlinks, or check if
   /// the modes (permissions) of the files, folders, and symlinks are correct.
   /// It will fail if a file's parent folder does not exist.
