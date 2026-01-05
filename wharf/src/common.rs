@@ -161,15 +161,15 @@ pub fn apply_container_permissions(
   build_folder: &Path,
 ) -> Result<(), String> {
   for file in &container.files {
-    set_permissions(&build_folder.join(&file.path), file.mode)?;
+    set_permissions(&file.get_path(build_folder.to_owned())?, file.mode())?;
   }
 
   for dir in &container.dirs {
-    set_permissions(&build_folder.join(&dir.path), dir.mode)?;
+    set_permissions(&dir.get_path(build_folder.to_owned())?, dir.mode())?;
   }
 
   for sym in &container.symlinks {
-    set_permissions(&build_folder.join(&sym.path), sym.mode)?;
+    set_permissions(&sym.get_path(build_folder.to_owned())?, sym.mode())?;
   }
 
   Ok(())
@@ -242,6 +242,16 @@ impl ContainerItem for tlc::Dir {
 }
 
 impl ContainerItem for tlc::File {
+  fn mode(&self) -> u32 {
+    self.mode
+  }
+
+  fn path(&self) -> &str {
+    &self.path
+  }
+}
+
+impl ContainerItem for tlc::Symlink {
   fn mode(&self) -> u32 {
     self.mode
   }
