@@ -9,7 +9,7 @@ impl IntegrityIssues<'_> {
   /// Repair the files in a build folder using a [ZIP archive][ArchiveHandle]
   /// as the source
   ///
-  /// For each broken file listed in this [`IntegrityIssues`] struct:
+  /// For each missing or broken file listed in this [`IntegrityIssues`] struct:
   /// 1. Look up the file in the provided `build_zip_archive`.
   /// 2. Read its contents in a streaming, buffered fashion.
   /// 3. Write the contents to the corresponding location in `build_folder`.
