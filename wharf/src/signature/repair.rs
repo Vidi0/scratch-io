@@ -1,6 +1,5 @@
 use super::read::Signature;
 use super::verify::IntegrityIssues;
-use crate::container::ContainerItem;
 
 use rc_zip_sync::{ArchiveHandle, HasCursor};
 use std::io::{BufRead, BufReader, Write};
@@ -63,8 +62,7 @@ impl Signature<'_> {
         })?;
       let mut zip_file_reader = BufReader::new(zip_file.reader());
 
-      let file_path = container_file.get_path(build_folder.to_owned())?;
-      let mut file = container_file.open_write(&file_path)?;
+      let mut file = container_file.open_write(build_folder.to_owned())?;
 
       loop {
         let buffer = zip_file_reader

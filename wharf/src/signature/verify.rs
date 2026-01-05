@@ -96,7 +96,7 @@ impl Signature<'_> {
 
       // Wrapping the file inside a BufReader isn't needed because
       // BLOCK_SIZE is already large
-      let mut file = container_file.open_read(&file_path)?;
+      let mut file = container_file.open_read(build_folder.to_owned())?;
 
       // For each block in the file, compare its hash with the one provided in the signature
       let mut block_index: u64 = 0;
