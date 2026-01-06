@@ -1,5 +1,4 @@
 use crate::common::{check_magic_bytes, decompress_stream};
-use crate::container::file_blocks;
 use crate::patch::read::PATCH_MAGIC;
 use crate::protos::*;
 
@@ -43,16 +42,14 @@ impl<R> BlockHashIter<R>
 where
   R: Read,
 {
-  pub fn skip_file(&mut self, file_size: u64, blocks_read: u64) -> Result<u64, String> {
-    let blocks_to_skip = file_blocks(file_size) - blocks_read;
-
+  pub fn skip_blocks(&mut self, blocks_to_skip: u64) -> Result<(), String> {
     for _ in 0..blocks_to_skip {
       skip_protobuf(&mut self.reader)?;
     }
 
     self.blocks_read += blocks_to_skip;
 
-    Ok(blocks_to_skip)
+    Ok(())
   }
 }
 
@@ -98,7 +95,7 @@ impl<'a> Signature<'a> {
     let total_blocks = container_new
       .files
       .iter()
-      .fold(0, |acc, f| acc + file_blocks(f.size as u64));
+      .fold(0, |acc, f| acc + f.block_count());
 
     // Decode the hashes
     let block_hash_iter = BlockHashIter {

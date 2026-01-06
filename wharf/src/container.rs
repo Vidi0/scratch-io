@@ -19,15 +19,6 @@ pub fn mask_mode(mode: u32) -> u32 {
   (mode & MAX_MODE) | MIN_MODE
 }
 
-/// Get the number of blocks that a file of a given size occupies
-///
-/// If the file is empty, still count one block for its empty hash
-#[inline]
-#[must_use]
-pub fn file_blocks(size: u64) -> u64 {
-  size.div_ceil(BLOCK_SIZE).max(1)
-}
-
 fn set_permissions(path: &Path, mode: u32) -> Result<(), String> {
   #[cfg(unix)]
   {
@@ -190,6 +181,15 @@ impl ContainerItem for tlc::Symlink {
 }
 
 impl tlc::File {
+  /// Get the number of blocks that the file occupies
+  ///
+  /// If the file is empty, still count one block for its empty hash
+  #[inline]
+  #[must_use]
+  pub fn block_count(&self) -> u64 {
+    (self.size as u64).div_ceil(BLOCK_SIZE).max(1)
+  }
+
   pub fn open_read(&self, build_folder: PathBuf) -> Result<fs::File, String> {
     let file_path = self.get_path(build_folder)?;
 

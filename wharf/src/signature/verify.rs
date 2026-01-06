@@ -109,8 +109,9 @@ impl Signature<'_> {
         Err(e) => return Err(format!("Couldn't get file metadata!\n{e}")),
       } {
         broken_files.push(file_index);
-        let skipped_blocks = self.block_hash_iter.skip_file(file_size, 0)?;
-        progress_callback(skipped_blocks);
+        let blocks_to_skip = container_file.block_count();
+        self.block_hash_iter.skip_blocks(blocks_to_skip)?;
+        progress_callback(blocks_to_skip);
         continue 'file;
       }
 
@@ -150,8 +151,9 @@ impl Signature<'_> {
         // Compare the hashes
         if !equal {
           broken_files.push(file_index);
-          let skipped_blocks = self.block_hash_iter.skip_file(file_size, block_index + 1)?;
-          progress_callback(skipped_blocks);
+          let blocks_to_skip = container_file.block_count() - (block_index + 1);
+          self.block_hash_iter.skip_blocks(blocks_to_skip)?;
+          progress_callback(blocks_to_skip);
           continue 'file;
         }
 
