@@ -92,13 +92,17 @@ where
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum SyncHeader<'a, R> {
+pub struct SyncHeader<'a, R> {
+  pub file_index: i64,
+  pub kind: SyncHeaderKind<'a, R>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum SyncHeaderKind<'a, R> {
   Rsync {
-    file_index: i64,
     op_iter: RsyncOpIter<'a, R>,
   },
   Bsdiff {
-    file_index: i64,
     target_index: i64,
     op_iter: BsdiffOpIter<'a, R>,
   },
@@ -147,18 +151,19 @@ where
     };
 
     // Pack the gathered data into a SyncHeader struct and return it
-    Some(Ok(match bsdiff_header {
-      None => SyncHeader::Rsync {
-        file_index: header.file_index,
-        op_iter: RsyncOpIter {
-          reader: &mut self.reader,
+    Some(Ok(SyncHeader {
+      file_index: header.file_index,
+      kind: match bsdiff_header {
+        None => SyncHeaderKind::Rsync {
+          op_iter: RsyncOpIter {
+            reader: &mut self.reader,
+          },
         },
-      },
-      Some(bsdiff) => SyncHeader::Bsdiff {
-        file_index: header.file_index,
-        target_index: bsdiff.target_index,
-        op_iter: BsdiffOpIter {
-          reader: &mut self.reader,
+        Some(bsdiff) => SyncHeaderKind::Bsdiff {
+          target_index: bsdiff.target_index,
+          op_iter: BsdiffOpIter {
+            reader: &mut self.reader,
+          },
         },
       },
     }))

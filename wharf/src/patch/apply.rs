@@ -1,4 +1,4 @@
-use super::read::{BsdiffOpIter, Patch, RsyncOpIter, SyncHeader};
+use super::read::{BsdiffOpIter, Patch, RsyncOpIter, SyncHeaderKind};
 use crate::container::BLOCK_SIZE;
 use crate::protos::*;
 
@@ -166,17 +166,14 @@ impl Patch<'_> {
     while let Some(header) = self.sync_op_iter.next_header() {
       let header = header.map_err(|e| format!("Couldn't get next patch sync operation!\n{e}"))?;
 
-      match header {
-        // The current file will be updated using the Rsync method
-        SyncHeader::Rsync {
-          file_index,
-          op_iter,
-        } => {
-          // Open the new file
-          let mut new_file = self
-            .container_new
-            .open_file_write(file_index as usize, new_build_folder.to_owned())?;
+      // Open the new file
+      let mut new_file = self
+        .container_new
+        .open_file_write(header.file_index as usize, new_build_folder.to_owned())?;
 
+      match header.kind {
+        // The current file will be updated using the Rsync method
+        SyncHeaderKind::Rsync { op_iter } => {
           // Finally, apply all the rsync operations
           apply_rsync(
             op_iter,
@@ -188,16 +185,10 @@ impl Patch<'_> {
         }
 
         // The current file will be updated using the Bsdiff method
-        SyncHeader::Bsdiff {
-          file_index,
+        SyncHeaderKind::Bsdiff {
           target_index,
           op_iter,
         } => {
-          // Open the new file
-          let mut new_file = self
-            .container_new
-            .open_file_write(file_index as usize, new_build_folder.to_owned())?;
-
           // Open the old file
           let old_file = old_files_cache.try_get_or_insert_mut(target_index as usize, || {
             self
