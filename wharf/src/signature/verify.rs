@@ -1,13 +1,12 @@
 use super::read::Signature;
 use crate::container::{BLOCK_SIZE, ContainerItem};
+use crate::hasher::MD5_HASH_LENGTH;
 use crate::protos::tlc;
 
-use md5::digest::{OutputSizeUser, generic_array::GenericArray, typenum::Unsigned};
+use md5::digest::generic_array::GenericArray;
 use md5::{Digest, Md5};
 use std::io::Read;
 use std::path::Path;
-
-const MD5_HASH_LENGTH: usize = <Md5 as OutputSizeUser>::OutputSize::USIZE;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IntegrityIssues {

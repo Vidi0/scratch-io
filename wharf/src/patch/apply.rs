@@ -1,6 +1,8 @@
 use super::read::{BsdiffOpIter, Patch, RsyncOpIter, SyncHeaderKind};
 use crate::container::BLOCK_SIZE;
+use crate::hasher::writer::HashWriter;
 use crate::protos::*;
+use crate::signature::read::BlockHashIter;
 
 use std::fs;
 use std::io::{self, Read, Seek, Write};
@@ -29,11 +31,11 @@ fn copy_range(
     .map_err(|e| format!("Couldn't copy data from old file to new!\n{e}"))
 }
 
-/// Apply all `op_iter` rsync operations to regenerate `new_file`
-/// from the files in the old container
+/// Apply all `op_iter` rsync operations to regenerate the new file
+/// into `writer` from the files in the old container
 fn apply_rsync(
   op_iter: RsyncOpIter<impl io::BufRead>,
-  new_file: &mut fs::File,
+  writer: &mut impl Write,
   old_files_cache: &mut lru::LruCache<usize, fs::File>,
   old_container: &tlc::Container,
   old_build_folder: &Path,
@@ -56,14 +58,14 @@ fn apply_rsync(
         // Copy the specified range to the new file
         copy_range(
           old_file,
-          new_file,
+          writer,
           op.block_index as u64,
           op.block_span as u64,
         )?;
       }
       // If the type is Data, just copy the data from the patch to the new file
       pwr::sync_op::Type::Data => {
-        new_file
+        writer
           .write_all(&op.data)
           .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
       }
@@ -97,10 +99,11 @@ fn add_bytes(
     .map_err(|e| format!("Couldn't save buffer data into new file!\n{e}"))
 }
 
-/// Apply all `op_iter` bsdiff operations to regenerate `new_file` from `old_file`
+/// Apply all `op_iter` bsdiff operations to regenerate the new file
+/// into `writer` from `old_file`
 fn apply_bsdiff(
   op_iter: BsdiffOpIter<impl Read>,
-  new_file: &mut fs::File,
+  writer: &mut impl Write,
   old_file: &mut fs::File,
   add_buffer: &mut Vec<u8>,
 ) -> Result<(), String> {
@@ -116,12 +119,12 @@ fn apply_bsdiff(
       // If the new add bytes are smaller than the buffer size, allocation will also be avoided
       add_buffer.resize(control.add.len(), 0);
 
-      add_bytes(old_file, new_file, &control.add, add_buffer)?;
+      add_bytes(old_file, writer, &control.add, add_buffer)?;
     }
 
     // Then, copy the extra bytes
     if !control.copy.is_empty() {
-      new_file
+      writer
         .write_all(&control.copy)
         .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
     }
@@ -145,6 +148,7 @@ impl Patch<'_> {
     &mut self,
     old_build_folder: &Path,
     new_build_folder: &Path,
+    hash_iter: &mut BlockHashIter<impl Read>,
     mut progress_callback: impl FnMut(),
   ) -> Result<(), String> {
     // Create the new container folders, files and symlinks,
@@ -171,13 +175,16 @@ impl Patch<'_> {
         .container_new
         .open_file_write(header.file_index as usize, new_build_folder.to_owned())?;
 
+      // Wrap the new file in a hasher to verify the patch
+      let mut new_file_hasher = HashWriter::new(&mut new_file, hash_iter);
+
       match header.kind {
         // The current file will be updated using the Rsync method
         SyncHeaderKind::Rsync { op_iter } => {
           // Finally, apply all the rsync operations
           apply_rsync(
             op_iter,
-            &mut new_file,
+            &mut new_file_hasher,
             &mut old_files_cache,
             &self.container_old,
             old_build_folder,
@@ -203,9 +210,13 @@ impl Patch<'_> {
             .map_err(|e| format!("Couldn't seek old file to start!\n{e}"))?;
 
           // Finally, apply all the bsdiff operations
-          apply_bsdiff(op_iter, &mut new_file, old_file, &mut add_buffer)?;
+          apply_bsdiff(op_iter, &mut new_file_hasher, old_file, &mut add_buffer)?;
         }
       }
+
+      // VERY IMPORTANT!
+      // If the file doesn't finish with a full block, hash it anyways!
+      new_file_hasher.finalize_block()?;
 
       // One new file has been patched, callback!
       progress_callback();
