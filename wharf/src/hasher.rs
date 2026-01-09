@@ -39,8 +39,8 @@ impl<'a, R: Read> BlockHasher<'a, R> {
 
     while offset < buf.len() {
       // Get the next buffer slice
-      let remaining = BLOCK_SIZE as usize - self.written_bytes;
-      let to_take = remaining.min(buf.len() - offset);
+      let block_remaining = BLOCK_SIZE as usize - self.written_bytes;
+      let to_take = block_remaining.min(buf.len() - offset);
       let slice = &buf[offset..offset + to_take];
 
       // Update the hasher
