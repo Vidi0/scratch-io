@@ -1,6 +1,6 @@
 use super::read::{BsdiffOpIter, Patch, RsyncOpIter, SyncHeaderKind};
 use crate::container::BLOCK_SIZE;
-use crate::hasher::writer::HashWriter;
+use crate::hasher::HashWriter;
 use crate::protos::*;
 use crate::signature::read::BlockHashIter;
 

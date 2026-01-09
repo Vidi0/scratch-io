@@ -1,4 +1,6 @@
-pub mod writer;
+mod writer;
+
+pub use writer::HashWriter;
 
 use crate::container::BLOCK_SIZE;
 use crate::signature::read::BlockHashIter;
