@@ -13,6 +13,15 @@ impl<'h, 'h_iter, 'w, H, W> HashWriter<'h, 'h_iter, 'w, H, W> {
   }
 }
 
+impl<'h_iter, H> BlockHasher<'h_iter, H> {
+  pub fn wrap_writer<'h, 'w, W>(
+    &'h mut self,
+    writer: &'w mut W,
+  ) -> HashWriter<'h, 'h_iter, 'w, H, W> {
+    HashWriter::new(writer, self)
+  }
+}
+
 impl<'h, 'h_iter, 'w, H: Read, W> HashWriter<'h, 'h_iter, 'w, H, W> {
   pub fn finalize_block_and_reset(&mut self) -> Result<(), String> {
     self.hasher.finalize_block_and_reset()

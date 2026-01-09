@@ -1,6 +1,6 @@
 use super::read::{BsdiffOpIter, Patch, RsyncOpIter, SyncHeaderKind};
 use crate::container::BLOCK_SIZE;
-use crate::hasher::{BlockHasher, HashWriter};
+use crate::hasher::BlockHasher;
 use crate::protos::*;
 use crate::signature::read::BlockHashIter;
 
@@ -180,7 +180,7 @@ impl Patch<'_> {
         .open_file_write(header.file_index as usize, new_build_folder.to_owned())?;
 
       // Wrap the new file in the hasher
-      let mut new_file_hasher = HashWriter::new(&mut new_file, &mut hasher);
+      let mut new_file_hasher = hasher.wrap_writer(&mut new_file);
 
       match header.kind {
         // The current file will be updated using the Rsync method
