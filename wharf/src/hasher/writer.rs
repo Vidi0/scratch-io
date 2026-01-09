@@ -37,4 +37,11 @@ impl<HR: Read, W: Write> Write for HashWriter<'_, '_, HR, W> {
     self.hasher.update(buf).map_err(io::Error::other)?;
     self.writer.write_all(buf)
   }
+
+  fn write_vectored(&mut self, bufs: &[io::IoSlice<'_>]) -> io::Result<usize> {
+    for buf in bufs {
+      self.hasher.update(buf).map_err(io::Error::other)?;
+    }
+    self.writer.write_vectored(bufs)
+  }
 }
