@@ -1,29 +1,25 @@
 use super::BlockHasher;
-use crate::signature::read::BlockHashIter;
 
 use std::io::{self, Read, Write};
 
-pub struct HashWriter<'hr, 'w, HR, W> {
+pub struct HashWriter<'h, 'h_iter, 'w, H, W> {
   writer: &'w mut W,
-  hasher: BlockHasher<'hr, HR>,
+  hasher: &'h mut BlockHasher<'h_iter, H>,
 }
 
-impl<'hr, 'w, HR, W> HashWriter<'hr, 'w, HR, W> {
-  pub fn new(writer: &'w mut W, hash_iter: &'hr mut BlockHashIter<HR>) -> Self {
-    Self {
-      writer,
-      hasher: BlockHasher::new(hash_iter),
-    }
+impl<'h, 'h_iter, 'w, H, W> HashWriter<'h, 'h_iter, 'w, H, W> {
+  pub fn new(writer: &'w mut W, hasher: &'h mut BlockHasher<'h_iter, H>) -> Self {
+    Self { writer, hasher }
   }
 }
 
-impl<'hr, 'w, HR: Read, W> HashWriter<'hr, 'w, HR, W> {
-  pub fn finalize_block(&mut self) -> Result<(), String> {
-    self.hasher.finalize_block()
+impl<'h, 'h_iter, 'w, H: Read, W> HashWriter<'h, 'h_iter, 'w, H, W> {
+  pub fn finalize_block_and_reset(&mut self) -> Result<(), String> {
+    self.hasher.finalize_block_and_reset()
   }
 }
 
-impl<HR: Read, W: Write> Write for HashWriter<'_, '_, HR, W> {
+impl<HR: Read, W: Write> Write for HashWriter<'_, '_, '_, HR, W> {
   fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
     self.hasher.update(buf).map_err(io::Error::other)?;
     self.writer.write(buf)

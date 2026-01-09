@@ -1,6 +1,6 @@
 use super::read::{BsdiffOpIter, Patch, RsyncOpIter, SyncHeaderKind};
 use crate::container::BLOCK_SIZE;
-use crate::hasher::HashWriter;
+use crate::hasher::{BlockHasher, HashWriter};
 use crate::protos::*;
 use crate::signature::read::BlockHashIter;
 
@@ -166,6 +166,10 @@ impl Patch<'_> {
     // the buffer on each add operation
     let mut add_buffer: Vec<u8> = Vec::new();
 
+    // Create a reusable hasher instance to verify that the new
+    // game files are intact
+    let mut hasher = BlockHasher::new(hash_iter);
+
     // Patch all files in the iterator one by one
     while let Some(header) = self.sync_op_iter.next_header() {
       let header = header.map_err(|e| format!("Couldn't get next patch sync operation!\n{e}"))?;
@@ -175,8 +179,8 @@ impl Patch<'_> {
         .container_new
         .open_file_write(header.file_index as usize, new_build_folder.to_owned())?;
 
-      // Wrap the new file in a hasher to verify the patch
-      let mut new_file_hasher = HashWriter::new(&mut new_file, hash_iter);
+      // Wrap the new file in the hasher
+      let mut new_file_hasher = HashWriter::new(&mut new_file, &mut hasher);
 
       match header.kind {
         // The current file will be updated using the Rsync method
@@ -216,7 +220,7 @@ impl Patch<'_> {
 
       // VERY IMPORTANT!
       // If the file doesn't finish with a full block, hash it anyways!
-      new_file_hasher.finalize_block()?;
+      new_file_hasher.finalize_block_and_reset()?;
 
       // One new file has been patched, callback!
       progress_callback();

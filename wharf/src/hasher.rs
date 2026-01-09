@@ -98,4 +98,19 @@ The hashes are not equal! The game files are going to be corrupted!
 
     Ok(())
   }
+
+  pub fn finalize_block_and_reset(&mut self) -> Result<(), String> {
+    self.finalize_block()?;
+
+    // Reset the hasher variables
+    self.first_block = true;
+
+    // Setting these variables isn't needed because calling
+    // self.finalize_block already sets them:
+
+    //self.written_bytes = 0;
+    //self.hasher.reset();
+
+    Ok(())
+  }
 }
