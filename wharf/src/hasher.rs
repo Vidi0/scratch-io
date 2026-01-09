@@ -13,6 +13,9 @@ use std::io::Read;
 type Md5HashSize = <md5::Md5 as OutputSizeUser>::OutputSize;
 pub const MD5_HASH_LENGTH: usize = Md5HashSize::USIZE;
 
+pub const MISSING_HASH_ERROR: &str = "missing hash";
+pub const HASH_MISMATCH_ERROR: &str = "hash mismatch";
+
 pub struct BlockHasher<'a, R> {
   hash_iter: &'a mut BlockHashIter<R>,
   written_bytes: usize,
@@ -71,15 +74,18 @@ impl<'a, R: Read> BlockHasher<'a, R> {
     self.hasher.finalize_into_reset(&mut self.hash_buffer);
 
     // Get the next hash from the iterator
-    let next_hash = self
-      .hash_iter
-      .next()
-      .ok_or_else(|| "Expected hash block, got EOF!".to_string())??;
+    let next_hash = self.hash_iter.next().ok_or_else(|| {
+      format!(
+        "{MISSING_HASH_ERROR}
+Expected hash block, got EOF!"
+      )
+    })??;
 
     // Compare the hashes
     if *self.hash_buffer != *next_hash.strong_hash {
       return Err(format!(
-        "The hashes are not equal! The game files are going to be corrupted!
+        "{HASH_MISMATCH_ERROR}
+The hashes are not equal! The game files are going to be corrupted!
   Expected: {:X?}
   Got: {:X?}",
         next_hash.strong_hash, self.hash_buffer
