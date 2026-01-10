@@ -33,8 +33,13 @@ impl<'a, R> BlockHasher<'a, R> {
 }
 
 impl<'a, R: Read> BlockHasher<'a, R> {
-  pub fn update(&mut self, buf: &[u8]) -> Result<(), BlockHasherError> {
+  /// Update the hahser with new data
+  ///
+  /// # Returns
+  /// The number of blocks hashed with the provided data
+  pub fn update(&mut self, buf: &[u8]) -> Result<u64, BlockHasherError> {
     let mut offset: usize = 0;
+    let mut hashed_blocks: u64 = 0;
 
     while offset < buf.len() {
       // Get the next buffer slice
@@ -51,19 +56,26 @@ impl<'a, R: Read> BlockHasher<'a, R> {
 
       if self.written_bytes == BLOCK_SIZE as usize {
         // Chunk completed
+        hashed_blocks += 1;
         self.finalize_block()?;
       }
     }
 
-    Ok(())
+    Ok(hashed_blocks)
   }
 
-  pub fn finalize_block(&mut self) -> Result<(), BlockHasherError> {
+  /// Finalize the current data in the hasher and check the current block
+  ///
+  /// Don't hash the block if it's empty AND it isn't the first one
+  ///
+  /// # Returns
+  /// Whether the block was hashed or not
+  pub fn finalize_block(&mut self) -> Result<bool, BlockHasherError> {
     // Skip hashing if the current block is empty
     // However, wharf saves an empty hash for an empty file,
     // so ensure this is not the first block before skipping
     if self.written_bytes == 0 && !self.first_block {
-      return Ok(());
+      return Ok(false);
     }
 
     // Calculate the hash
@@ -88,11 +100,18 @@ impl<'a, R: Read> BlockHasher<'a, R> {
     self.first_block = false;
     self.written_bytes = 0;
 
-    Ok(())
+    Ok(true)
   }
 
-  pub fn finalize_block_and_reset(&mut self) -> Result<(), BlockHasherError> {
-    self.finalize_block()?;
+  /// Finalize the current data and reset the hasher to allow
+  /// hashing the next file
+  ///
+  /// Don't hash the block if it's empty AND it isn't the first one
+  ///
+  /// # Returns
+  /// Whether the block was hashed or not
+  pub fn finalize_block_and_reset(&mut self) -> Result<bool, BlockHasherError> {
+    let result = self.finalize_block()?;
 
     // Reset the hasher variables
     self.first_block = true;
@@ -103,6 +122,6 @@ impl<'a, R: Read> BlockHasher<'a, R> {
     //self.written_bytes = 0;
     //self.hasher.reset();
 
-    Ok(())
+    Ok(result)
   }
 }
