@@ -3,7 +3,7 @@ pub mod writer;
 
 use crate::container::BLOCK_SIZE;
 use crate::signature::read::BlockHashIter;
-use errors::BlockHasherError;
+pub use errors::BlockHasherError;
 
 use md5::digest::{OutputSizeUser, generic_array::GenericArray, typenum::Unsigned};
 use md5::{Digest, Md5};
