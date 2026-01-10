@@ -2387,6 +2387,7 @@ dependencies = [
  "md-5",
  "prost",
  "rc-zip-sync",
+ "thiserror",
  "zstd",
 ]
 

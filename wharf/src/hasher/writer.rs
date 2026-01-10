@@ -1,4 +1,4 @@
-use super::BlockHasher;
+use super::{BlockHasher, BlockHasherError};
 
 use std::io::{self, Read, Write};
 
@@ -23,7 +23,7 @@ impl<'h_iter, H> BlockHasher<'h_iter, H> {
 }
 
 impl<'h, 'h_iter, 'w, H: Read, W> HashWriter<'h, 'h_iter, 'w, H, W> {
-  pub fn finalize_block_and_reset(&mut self) -> Result<(), String> {
+  pub fn finalize_block_and_reset(&mut self) -> Result<(), BlockHasherError> {
     self.hasher.finalize_block_and_reset()
   }
 }

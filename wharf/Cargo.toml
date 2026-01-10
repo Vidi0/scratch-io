@@ -17,6 +17,7 @@ flate2 = { version = "1.1.5", optional = true }
 zstd = { version = "0.13.3", optional = true }
 
 rc-zip-sync = "4.4.2"
+thiserror = "2.0.17"
 
 [features]
 default = ["brotli", "gzip", "zstd"]

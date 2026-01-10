@@ -1,7 +1,9 @@
+mod errors;
 pub mod writer;
 
 use crate::container::BLOCK_SIZE;
 use crate::signature::read::BlockHashIter;
+use errors::BlockHasherError;
 
 use md5::digest::generic_array::GenericArray;
 use md5::digest::{OutputSizeUser, typenum::Unsigned};
@@ -10,9 +12,6 @@ use std::io::Read;
 
 type Md5HashSize = <md5::Md5 as OutputSizeUser>::OutputSize;
 pub const MD5_HASH_LENGTH: usize = Md5HashSize::USIZE;
-
-pub const MISSING_HASH_ERROR: &str = "missing hash";
-pub const HASH_MISMATCH_ERROR: &str = "hash mismatch";
 
 pub struct BlockHasher<'a, R> {
   hash_iter: &'a mut BlockHashIter<R>,
@@ -35,7 +34,7 @@ impl<'a, R> BlockHasher<'a, R> {
 }
 
 impl<'a, R: Read> BlockHasher<'a, R> {
-  pub fn update(&mut self, buf: &[u8]) -> Result<(), String> {
+  pub fn update(&mut self, buf: &[u8]) -> Result<(), BlockHasherError> {
     let mut offset: usize = 0;
 
     while offset < buf.len() {
@@ -60,7 +59,7 @@ impl<'a, R: Read> BlockHasher<'a, R> {
     Ok(())
   }
 
-  pub fn finalize_block(&mut self) -> Result<(), String> {
+  pub fn finalize_block(&mut self) -> Result<(), BlockHasherError> {
     // Skip hashing if the current block is empty
     // However, wharf saves an empty hash for an empty file,
     // so ensure this is not the first block before skipping
@@ -72,22 +71,18 @@ impl<'a, R: Read> BlockHasher<'a, R> {
     self.hasher.finalize_into_reset(&mut self.hash_buffer);
 
     // Get the next hash from the iterator
-    let next_hash = self.hash_iter.next().ok_or_else(|| {
-      format!(
-        "{MISSING_HASH_ERROR}
-Expected hash block, got EOF!"
-      )
-    })??;
+    let next_hash = self
+      .hash_iter
+      .next()
+      .ok_or(BlockHasherError::MissingHashFromIter)?
+      .map_err(BlockHasherError::IterReturnedError)?;
 
     // Compare the hashes
     if *self.hash_buffer != *next_hash.strong_hash {
-      return Err(format!(
-        "{HASH_MISMATCH_ERROR}
-The hashes are not equal! The game files are going to be corrupted!
-  Expected: {:X?}
-  Got: {:X?}",
-        next_hash.strong_hash, self.hash_buffer
-      ));
+      return Err(BlockHasherError::HashMismatch {
+        expected: next_hash.strong_hash,
+        found: self.hash_buffer.into(),
+      });
     }
 
     // Reset hasher variables
@@ -97,7 +92,7 @@ The hashes are not equal! The game files are going to be corrupted!
     Ok(())
   }
 
-  pub fn finalize_block_and_reset(&mut self) -> Result<(), String> {
+  pub fn finalize_block_and_reset(&mut self) -> Result<(), BlockHasherError> {
     self.finalize_block()?;
 
     // Reset the hasher variables
