@@ -5,8 +5,7 @@ use crate::container::BLOCK_SIZE;
 use crate::signature::read::BlockHashIter;
 use errors::BlockHasherError;
 
-use md5::digest::generic_array::GenericArray;
-use md5::digest::{OutputSizeUser, typenum::Unsigned};
+use md5::digest::{OutputSizeUser, generic_array::GenericArray, typenum::Unsigned};
 use md5::{Digest, Md5};
 use std::io::Read;
 
