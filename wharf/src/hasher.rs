@@ -97,6 +97,10 @@ impl<'a, R: Read> BlockHasher<'a, R> {
       return Ok(());
     }
 
+    // Reset hasher variables
+    self.first_block = false;
+    self.written_bytes = 0;
+
     // Calculate the hash
     self.hasher.finalize_into_reset(&mut self.hash_buffer);
 
@@ -114,10 +118,6 @@ impl<'a, R: Read> BlockHasher<'a, R> {
         found: self.hash_buffer.into(),
       });
     }
-
-    // Reset hasher variables
-    self.first_block = false;
-    self.written_bytes = 0;
 
     Ok(())
   }
