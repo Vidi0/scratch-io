@@ -190,15 +190,18 @@ impl tlc::File {
     (self.size as u64).div_ceil(BLOCK_SIZE).max(1)
   }
 
-  pub fn open_read(&self, build_folder: PathBuf) -> Result<fs::File, String> {
-    let file_path = self.get_path(build_folder)?;
-
-    fs::File::open(&file_path).map_err(|e| {
+  pub fn open_read_from_path(&self, file_path: &Path) -> Result<fs::File, String> {
+    fs::File::open(file_path).map_err(|e| {
       format!(
         "Couldn't open file for reading: \"{}\"\n{e}",
         file_path.to_string_lossy()
       )
     })
+  }
+
+  pub fn open_read(&self, build_folder: PathBuf) -> Result<fs::File, String> {
+    let file_path = self.get_path(build_folder)?;
+    self.open_read_from_path(&file_path)
   }
 
   pub fn open_write(&self, build_folder: PathBuf) -> Result<fs::File, String> {
