@@ -33,18 +33,18 @@ impl<'a, R> BlockHasher<'a, R> {
     }
   }
 
-  /// Return the number of blocks hashed since this hasher
-  /// was last reset
-  pub fn blocks_since_reset(&self) -> u64 {
-    self.blocks_since_reset
-  }
-
   /// Reset this hasher, allowing it to hash another file
   pub fn reset(&mut self) {
     self.hasher.reset();
     self.written_bytes = 0;
     self.first_block = true;
     self.blocks_since_reset = 0;
+  }
+
+  /// Return the number of blocks hashed since this hasher
+  /// was last reset
+  pub fn blocks_since_reset(&self) -> u64 {
+    self.blocks_since_reset
   }
 }
 
