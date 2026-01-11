@@ -1,10 +1,8 @@
 use super::read::Signature;
 use crate::container::{BLOCK_SIZE, ContainerItem};
-use crate::hasher::MD5_HASH_LENGTH;
+use crate::hasher::{BlockHasher, BlockHasherError};
 use crate::protos::tlc;
 
-use md5::digest::generic_array::GenericArray;
-use md5::{Digest, Md5};
 use std::io::Read;
 use std::path::Path;
 
@@ -29,22 +27,6 @@ impl IntegrityIssues {
       .iter()
       .fold(0, |acc, &i| acc + container.files[i].size as u64)
   }
-}
-
-/// Hash `buffer` and compare the hash with the expected one
-///
-/// Returns true if the hashes are equal, false otherwise
-fn hash_block(
-  hasher: &mut Md5,
-  hash_buffer: &mut [u8; MD5_HASH_LENGTH],
-  expected_hash: &[u8],
-  buffer: &[u8],
-) -> bool {
-  // Hash the current block
-  hasher.update(buffer);
-  hasher.finalize_into_reset(GenericArray::from_mut_slice(hash_buffer));
-
-  *hash_buffer == *expected_hash
 }
 
 impl Signature<'_> {
@@ -85,15 +67,19 @@ impl Signature<'_> {
     // This vector holds all the broken file indexes found in the build folder
     let mut broken_files: Vec<usize> = Vec::new();
 
-    // This buffer will hold the current block that is being hashed
-    let mut buffer = vec![0u8; BLOCK_SIZE as usize];
+    // Create the hasher that will verify the files' integrity
+    let mut hasher = BlockHasher::new(&mut self.block_hash_iter);
 
-    // Create a MD5 hasher
-    let mut hasher = Md5::new();
-    let mut hash_buffer = [0u8; MD5_HASH_LENGTH];
+    // This buffer will hold some data for the hasher to verify
+    // The length of the buffer doesn't need to be BLOCK_SIZE, any
+    // value is valid
+    let mut buffer = vec![0u8; BLOCK_SIZE as usize];
 
     // Loop over all the files in the signature container
     'file: for (file_index, container_file) in self.container_new.files.iter().enumerate() {
+      // Reset the hasher to clean all the remaining data
+      hasher.reset();
+
       // Get file path
       let file_path = container_file.get_path(build_folder.to_owned())?;
 
@@ -109,59 +95,56 @@ impl Signature<'_> {
       } {
         broken_files.push(file_index);
         let blocks_to_skip = container_file.block_count();
-        self.block_hash_iter.skip_blocks(blocks_to_skip)?;
+        hasher.skip_blocks(blocks_to_skip)?;
         progress_callback(blocks_to_skip);
         continue 'file;
       }
 
       // Wrapping the file inside a BufReader isn't needed because
-      // BLOCK_SIZE is already large
+      // the buffer is large
       let mut file = container_file.open_read(build_folder.to_owned())?;
 
-      // For each block in the file, compare its hash with the one provided in the signature
-      let mut block_index: u64 = 0;
-
+      // Hash the whole file
       loop {
-        // The size of the current block is BLOCK_SIZE,
-        // unless there are less remaining bytes on the file
-        let current_block_size = BLOCK_SIZE.min(file_size - block_index * BLOCK_SIZE);
-
-        // Read the current block
-        let buf = &mut buffer[..current_block_size as usize];
-        file
-          .read_exact(buf)
+        let read_bytes = file
+          .read(&mut *buffer)
           .map_err(|e| format!("Couldn't read file data into buffer!\n{e}"))?;
 
-        // Get the expected hash from the signature
-        let signature_hash = self.block_hash_iter.next().ok_or_else(|| {
-          "Expected a block hash message in the signature, but EOF was encountered!".to_string()
-        })??;
+        if read_bytes == 0 {
+          break;
+        }
 
-        let equal = hash_block(
-          &mut hasher,
-          &mut hash_buffer,
-          &signature_hash.strong_hash,
-          buf,
-        );
+        // Update hasher and handle the error
+        match hasher.update(&buffer[..read_bytes]) {
+          Ok(hashed_blocks) => progress_callback(hashed_blocks),
+          // If the error is due to the file being broken, set it as broken
+          // and continue with the next one
+          Err(BlockHasherError::HashMismatch { .. }) => {
+            broken_files.push(file_index);
+            let blocks_to_skip = container_file.block_count() - hasher.blocks_since_reset();
+            hasher.skip_blocks(blocks_to_skip)?;
+            progress_callback(blocks_to_skip);
+            continue 'file;
+          }
+          // Else, return the error
+          Err(e) => return Err(e.to_string()),
+        };
+      }
 
-        // One new hash has been read, callback!
-        progress_callback(1);
-
-        // Compare the hashes
-        if !equal {
+      // Hash the last block and handle the error
+      match hasher.finalize_block() {
+        // If the block was checked, callback!
+        Ok(true) => progress_callback(1),
+        // If not, don't
+        Ok(false) => (),
+        // If the error is due to the file being broken, set it as broken
+        Err(BlockHasherError::HashMismatch { .. }) => {
+          // All the blocks have been checked, don't skip
           broken_files.push(file_index);
-          let blocks_to_skip = container_file.block_count() - (block_index + 1);
-          self.block_hash_iter.skip_blocks(blocks_to_skip)?;
-          progress_callback(blocks_to_skip);
           continue 'file;
         }
-
-        // If the file has been fully read, proceed to the next one
-        if block_index * BLOCK_SIZE + current_block_size == file_size {
-          continue 'file;
-        }
-
-        block_index += 1;
+        // Else, return the error
+        Err(e) => return Err(e.to_string()),
       }
     }
 

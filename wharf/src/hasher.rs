@@ -35,7 +35,6 @@ impl<'a, R> BlockHasher<'a, R> {
 
   /// Return the number of blocks hashed since this hasher
   /// was last reset
-  #[allow(unused)]
   pub fn blocks_since_reset(&self) -> u64 {
     self.blocks_since_reset
   }
@@ -119,5 +118,13 @@ impl<'a, R: Read> BlockHasher<'a, R> {
     self.written_bytes = 0;
 
     Ok(true)
+  }
+
+  /// Skip the provied number of blocks and reset the hasher to
+  /// allow hashing the next file
+  ///
+  /// This function should be called after a failed call to update
+  pub fn skip_blocks(&mut self, blocks_to_skip: u64) -> Result<(), String> {
+    self.hash_iter.skip_blocks(blocks_to_skip)
   }
 }
