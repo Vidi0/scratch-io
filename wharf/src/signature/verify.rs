@@ -29,6 +29,85 @@ impl IntegrityIssues {
   }
 }
 
+/// Check if the provided file is intact or broken
+///
+/// # Returns
+///
+/// If the file is intact, returns `true`
+fn check_file_integrity<R: Read>(
+  file_path: &Path,
+  container_file: &tlc::File,
+  hasher: &mut BlockHasher<'_, R>,
+  buffer: &mut [u8],
+  progress_callback: &mut impl FnMut(u64),
+) -> Result<bool, String> {
+  // Reset the hasher to clean all the leftover data
+  hasher.reset();
+
+  // Get the file size
+  let file_size = container_file.size as u64;
+
+  // Check if the file exists and the length matches
+  if match file_path.metadata() {
+    // If the length doesn't match, then this file is broken
+    Ok(m) => m.len() != file_size,
+    Err(e) if e.kind() == std::io::ErrorKind::NotFound => true,
+    Err(e) => return Err(format!("Couldn't get file metadata!\n{e}")),
+  } {
+    let blocks_to_skip = container_file.block_count();
+    hasher.skip_blocks(blocks_to_skip)?;
+    progress_callback(blocks_to_skip);
+    return Ok(false);
+  }
+
+  // Wrapping the file inside a BufReader isn't needed because
+  // the buffer is already large
+  let mut file = container_file.open_read_from_path(file_path)?;
+
+  // Hash the whole file
+  loop {
+    let read_bytes = file
+      .read(buffer)
+      .map_err(|e| format!("Couldn't read file data into buffer!\n{e}"))?;
+
+    if read_bytes == 0 {
+      break;
+    }
+
+    // Update hasher and handle the error
+    match hasher.update(&buffer[..read_bytes]) {
+      Ok(hashed_blocks) => progress_callback(hashed_blocks),
+      // If the error is due to the file being broken, set it as broken
+      // and continue with the next one
+      Err(BlockHasherError::HashMismatch { .. }) => {
+        let blocks_to_skip = container_file.block_count() - hasher.blocks_since_reset();
+        hasher.skip_blocks(blocks_to_skip)?;
+        progress_callback(blocks_to_skip);
+        return Ok(false);
+      }
+      // Else, return the error
+      Err(e) => return Err(e.to_string()),
+    };
+  }
+
+  // Hash the last block and handle the error
+  match hasher.finalize_block() {
+    // If the block was checked, callback!
+    Ok(true) => progress_callback(1),
+    // If not, don't
+    Ok(false) => (),
+    // If the error is due to the file being broken, set it as broken
+    Err(BlockHasherError::HashMismatch { .. }) => {
+      // All the blocks have been checked, don't skip
+      return Ok(false);
+    }
+    // Else, return the error
+    Err(e) => return Err(e.to_string()),
+  }
+
+  Ok(true)
+}
+
 impl Signature<'_> {
   /// Verify the integrity of all files in the container
   ///
@@ -76,75 +155,22 @@ impl Signature<'_> {
     let mut buffer = vec![0u8; BLOCK_SIZE as usize];
 
     // Loop over all the files in the signature container
-    'file: for (file_index, container_file) in self.container_new.files.iter().enumerate() {
-      // Reset the hasher to clean all the remaining data
-      hasher.reset();
-
+    for (file_index, container_file) in self.container_new.files.iter().enumerate() {
       // Get file path
       let file_path = container_file.get_path(build_folder.to_owned())?;
 
-      // Get the file size
-      let file_size = container_file.size as u64;
+      // Check if the file is intact
+      let is_intact = check_file_integrity(
+        &file_path,
+        container_file,
+        &mut hasher,
+        &mut buffer,
+        &mut progress_callback,
+      )?;
 
-      // Check if the file exists and the length matches
-      if match file_path.metadata() {
-        // If the length doesn't match, then this file is broken
-        Ok(m) => m.len() != file_size,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => true,
-        Err(e) => return Err(format!("Couldn't get file metadata!\n{e}")),
-      } {
+      // If not, add it to the broken files vector
+      if !is_intact {
         broken_files.push(file_index);
-        let blocks_to_skip = container_file.block_count();
-        hasher.skip_blocks(blocks_to_skip)?;
-        progress_callback(blocks_to_skip);
-        continue 'file;
-      }
-
-      // Wrapping the file inside a BufReader isn't needed because
-      // the buffer is large
-      let mut file = container_file.open_read(build_folder.to_owned())?;
-
-      // Hash the whole file
-      loop {
-        let read_bytes = file
-          .read(&mut *buffer)
-          .map_err(|e| format!("Couldn't read file data into buffer!\n{e}"))?;
-
-        if read_bytes == 0 {
-          break;
-        }
-
-        // Update hasher and handle the error
-        match hasher.update(&buffer[..read_bytes]) {
-          Ok(hashed_blocks) => progress_callback(hashed_blocks),
-          // If the error is due to the file being broken, set it as broken
-          // and continue with the next one
-          Err(BlockHasherError::HashMismatch { .. }) => {
-            broken_files.push(file_index);
-            let blocks_to_skip = container_file.block_count() - hasher.blocks_since_reset();
-            hasher.skip_blocks(blocks_to_skip)?;
-            progress_callback(blocks_to_skip);
-            continue 'file;
-          }
-          // Else, return the error
-          Err(e) => return Err(e.to_string()),
-        };
-      }
-
-      // Hash the last block and handle the error
-      match hasher.finalize_block() {
-        // If the block was checked, callback!
-        Ok(true) => progress_callback(1),
-        // If not, don't
-        Ok(false) => (),
-        // If the error is due to the file being broken, set it as broken
-        Err(BlockHasherError::HashMismatch { .. }) => {
-          // All the blocks have been checked, don't skip
-          broken_files.push(file_index);
-          continue 'file;
-        }
-        // Else, return the error
-        Err(e) => return Err(e.to_string()),
       }
     }
 
