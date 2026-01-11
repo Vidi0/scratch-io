@@ -18,6 +18,7 @@ pub struct BlockHasher<'a, R> {
   hasher: Md5,
   hash_buffer: GenericArray<u8, Md5HashSize>,
   first_block: bool,
+  blocks_since_reset: u64,
 }
 
 impl<'a, R> BlockHasher<'a, R> {
@@ -28,7 +29,15 @@ impl<'a, R> BlockHasher<'a, R> {
       hasher: Md5::new(),
       hash_buffer: GenericArray::<u8, Md5HashSize>::default(),
       first_block: true,
+      blocks_since_reset: 0,
     }
+  }
+
+  /// Return the number of blocks hashed since this hasher
+  /// was last reset
+  #[allow(unused)]
+  pub fn blocks_since_reset(&self) -> u64 {
+    self.blocks_since_reset
   }
 }
 
@@ -38,8 +47,9 @@ impl<'a, R: Read> BlockHasher<'a, R> {
   /// # Returns
   /// The number of blocks hashed with the provided data
   pub fn update(&mut self, buf: &[u8]) -> Result<u64, BlockHasherError> {
+    let previously_hashed_blocks = self.blocks_since_reset;
+
     let mut offset: usize = 0;
-    let mut hashed_blocks: u64 = 0;
 
     while offset < buf.len() {
       // Get the next buffer slice
@@ -56,12 +66,12 @@ impl<'a, R: Read> BlockHasher<'a, R> {
 
       if self.written_bytes == BLOCK_SIZE as usize {
         // Chunk completed
-        hashed_blocks += 1;
+        self.blocks_since_reset += 1;
         self.finalize_block()?;
       }
     }
 
-    Ok(hashed_blocks)
+    Ok(self.blocks_since_reset - previously_hashed_blocks)
   }
 
   /// Finalize the current data in the hasher and check the current block
@@ -115,6 +125,7 @@ impl<'a, R: Read> BlockHasher<'a, R> {
 
     // Reset the hasher variables
     self.first_block = true;
+    self.blocks_since_reset = 0;
 
     // Setting these variables isn't needed because calling
     // self.finalize_block already sets them:
