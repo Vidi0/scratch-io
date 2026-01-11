@@ -14,9 +14,9 @@ pub const MD5_HASH_LENGTH: usize = Md5HashSize::USIZE;
 
 pub struct BlockHasher<'a, R> {
   hash_iter: &'a mut BlockHashIter<R>,
-  written_bytes: usize,
   hasher: Md5,
   hash_buffer: GenericArray<u8, Md5HashSize>,
+  written_bytes: usize,
   first_block: bool,
   blocks_since_reset: u64,
 }
@@ -25,9 +25,9 @@ impl<'a, R> BlockHasher<'a, R> {
   pub fn new(hash_iter: &'a mut BlockHashIter<R>) -> Self {
     Self {
       hash_iter,
-      written_bytes: 0,
       hasher: Md5::new(),
       hash_buffer: GenericArray::<u8, Md5HashSize>::default(),
+      written_bytes: 0,
       first_block: true,
       blocks_since_reset: 0,
     }
@@ -41,8 +41,8 @@ impl<'a, R> BlockHasher<'a, R> {
 
   /// Reset this hasher, allowing it to hash another file
   pub fn reset(&mut self) {
-    self.written_bytes = 0;
     self.hasher.reset();
+    self.written_bytes = 0;
     self.first_block = true;
     self.blocks_since_reset = 0;
   }
