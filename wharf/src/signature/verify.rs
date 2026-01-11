@@ -56,7 +56,7 @@ fn check_file_integrity<R: Read>(
   } {
     let blocks_to_skip = container_file.block_count();
     hasher.skip_blocks(blocks_to_skip)?;
-    progress_callback(blocks_to_skip);
+    progress_callback(container_file.size as u64);
     return Ok(false);
   }
 
@@ -74,15 +74,22 @@ fn check_file_integrity<R: Read>(
       break;
     }
 
+    // Callback with the number of bytes read
+    progress_callback(read_bytes as u64);
+
     // Update hasher and handle the error
     match hasher.update(&buffer[..read_bytes]) {
-      Ok(hashed_blocks) => progress_callback(hashed_blocks),
+      Ok(()) => (),
       // If the error is due to the file being broken, set it as broken
       // and continue with the next one
       Err(BlockHasherError::HashMismatch { .. }) => {
         let blocks_to_skip = container_file.block_count() - hasher.blocks_since_reset();
         hasher.skip_blocks(blocks_to_skip)?;
-        progress_callback(blocks_to_skip);
+        // Calculating the written bytes this way works because
+        // the hasher hasn't been finalized since the last reset
+        let written_file_bytes =
+          hasher.blocks_since_reset() * BLOCK_SIZE + hasher.written_bytes() as u64;
+        progress_callback(container_file.size as u64 - written_file_bytes);
         return Ok(false);
       }
       // Else, return the error
@@ -92,10 +99,7 @@ fn check_file_integrity<R: Read>(
 
   // Hash the last block and handle the error
   match hasher.finalize_block() {
-    // If the block was checked, callback!
-    Ok(true) => progress_callback(1),
-    // If not, don't
-    Ok(false) => (),
+    Ok(()) => (),
     // If the error is due to the file being broken, set it as broken
     Err(BlockHasherError::HashMismatch { .. }) => {
       // All the blocks have been checked, don't skip
@@ -114,10 +118,8 @@ impl Signature<'_> {
   /// This function iterates over every file in the container and checks if
   /// it exists and is not corrupted.
   ///
-  /// For each verified block, `progress_callback` is called with the number
-  /// of blocks processed since the last callback. Files that are missing,
-  /// have mismatched sizes, or contain corrupted blocks are collected and
-  /// returned in the [`IntegrityIssues`] structure.
+  /// Files that are missing, have mismatched sizes, or contain corrupted
+  /// blocks are collected and returned in the [`IntegrityIssues`] structure.
   ///
   /// This function does NOT check if the folders and symlinks in the container
   /// exist on the disk or if the modes (permissions) of the files, folders
@@ -128,7 +130,7 @@ impl Signature<'_> {
   /// * `build_folder` - The path to the build folder
   ///
   /// * `progress_callback` - A callback that is called with the number of
-  ///   blocks processed since the last one
+  ///   bytes processed since the last one
   ///
   /// # Returns
   ///

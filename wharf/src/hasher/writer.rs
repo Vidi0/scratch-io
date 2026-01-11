@@ -23,7 +23,7 @@ impl<'h_iter, H> BlockHasher<'h_iter, H> {
 }
 
 impl<'h, 'h_iter, 'w, H: Read, W> HashWriter<'h, 'h_iter, 'w, H, W> {
-  pub fn finalize_block(&mut self) -> Result<bool, BlockHasherError> {
+  pub fn finalize_block(&mut self) -> Result<(), BlockHasherError> {
     self.hasher.finalize_block()
   }
 }

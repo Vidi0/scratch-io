@@ -43,19 +43,24 @@ impl<'a, R> BlockHasher<'a, R> {
 
   /// Return the number of blocks hashed since this hasher
   /// was last reset
+  #[inline]
+  #[must_use]
   pub fn blocks_since_reset(&self) -> u64 {
     self.blocks_since_reset
+  }
+
+  /// Return the number of bytes that were passed into the
+  /// hasher but didn't fill the current block
+  #[inline]
+  #[must_use]
+  pub fn written_bytes(&self) -> usize {
+    self.written_bytes
   }
 }
 
 impl<'a, R: Read> BlockHasher<'a, R> {
   /// Update the hahser with new data
-  ///
-  /// # Returns
-  /// The number of blocks hashed with the provided data
-  pub fn update(&mut self, buf: &[u8]) -> Result<u64, BlockHasherError> {
-    let previously_hashed_blocks = self.blocks_since_reset;
-
+  pub fn update(&mut self, buf: &[u8]) -> Result<(), BlockHasherError> {
     let mut offset: usize = 0;
 
     while offset < buf.len() {
@@ -78,21 +83,18 @@ impl<'a, R: Read> BlockHasher<'a, R> {
       }
     }
 
-    Ok(self.blocks_since_reset - previously_hashed_blocks)
+    Ok(())
   }
 
   /// Finalize the current data in the hasher and check the current block
   ///
   /// Don't hash the block if it's empty AND it isn't the first one
-  ///
-  /// # Returns
-  /// Whether the block was hashed or not
-  pub fn finalize_block(&mut self) -> Result<bool, BlockHasherError> {
+  pub fn finalize_block(&mut self) -> Result<(), BlockHasherError> {
     // Skip hashing if the current block is empty
     // However, wharf saves an empty hash for an empty file,
     // so ensure this is not the first block before skipping
     if self.written_bytes == 0 && !self.first_block {
-      return Ok(false);
+      return Ok(());
     }
 
     // Calculate the hash
@@ -117,7 +119,7 @@ impl<'a, R: Read> BlockHasher<'a, R> {
     self.first_block = false;
     self.written_bytes = 0;
 
-    Ok(true)
+    Ok(())
   }
 
   /// Skip the provied number of blocks and reset the hasher to
