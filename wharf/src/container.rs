@@ -223,7 +223,7 @@ impl tlc::File {
 impl tlc::Container {
   /// Get the number of blocks every file in this container
   /// combined occupies
-  /// 
+  ///
   /// If a file is empty, still count one block for its empty hash
   #[inline]
   #[must_use]
