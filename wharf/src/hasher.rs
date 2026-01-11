@@ -39,6 +39,14 @@ impl<'a, R> BlockHasher<'a, R> {
   pub fn blocks_since_reset(&self) -> u64 {
     self.blocks_since_reset
   }
+
+  /// Reset this hasher, allowing it to hash another file
+  pub fn reset(&mut self) {
+    self.written_bytes = 0;
+    self.hasher.reset();
+    self.first_block = true;
+    self.blocks_since_reset = 0;
+  }
 }
 
 impl<'a, R: Read> BlockHasher<'a, R> {
@@ -111,28 +119,5 @@ impl<'a, R: Read> BlockHasher<'a, R> {
     self.written_bytes = 0;
 
     Ok(true)
-  }
-
-  /// Finalize the current data and reset the hasher to allow
-  /// hashing the next file
-  ///
-  /// Don't hash the block if it's empty AND it isn't the first one
-  ///
-  /// # Returns
-  /// Whether the block was hashed or not
-  pub fn finalize_block_and_reset(&mut self) -> Result<bool, BlockHasherError> {
-    let result = self.finalize_block()?;
-
-    // Reset the hasher variables
-    self.first_block = true;
-    self.blocks_since_reset = 0;
-
-    // Setting these variables isn't needed because calling
-    // self.finalize_block already sets them:
-
-    //self.written_bytes = 0;
-    //self.hasher.reset();
-
-    Ok(result)
   }
 }

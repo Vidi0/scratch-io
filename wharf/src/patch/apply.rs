@@ -180,6 +180,7 @@ impl Patch<'_> {
         .open_file_write(header.file_index as usize, new_build_folder.to_owned())?;
 
       // Wrap the new file in the hasher
+      hasher.reset();
       let mut new_file_hasher = hasher.wrap_writer(&mut new_file);
 
       match header.kind {
@@ -220,7 +221,7 @@ impl Patch<'_> {
 
       // VERY IMPORTANT!
       // If the file doesn't finish with a full block, hash it anyways!
-      new_file_hasher.finalize_block_and_reset()?;
+      new_file_hasher.finalize_block()?;
 
       // One new file has been patched, callback!
       progress_callback();
