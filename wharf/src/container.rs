@@ -221,6 +221,16 @@ impl tlc::File {
 }
 
 impl tlc::Container {
+  /// Get the number of blocks every file in this container
+  /// combined occupies
+  /// 
+  /// If a file is empty, still count one block for its empty hash
+  #[inline]
+  #[must_use]
+  pub fn file_blocks(&self) -> u64 {
+    self.files.iter().fold(0, |acc, f| acc + f.block_count())
+  }
+
   pub fn get_file(&self, index: usize) -> Result<&tlc::File, String> {
     self
       .files

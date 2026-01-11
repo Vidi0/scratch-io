@@ -91,16 +91,10 @@ impl<'a> Signature<'a> {
     // Decode the container
     let container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
 
-    // Get the number of hash blocks
-    let total_blocks = container_new
-      .files
-      .iter()
-      .fold(0, |acc, f| acc + f.block_count());
-
     // Decode the hashes
     let block_hash_iter = BlockHashIter {
       reader: decompressed,
-      total_blocks,
+      total_blocks: container_new.file_blocks(),
       blocks_read: 0,
     };
 
