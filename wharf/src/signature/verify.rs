@@ -64,6 +64,9 @@ fn check_file_integrity<R: Read>(
   // the buffer is already large
   let mut file = container_file.open_read_from_path(file_path)?;
 
+  // The total number of bytes that have been read
+  let mut total_read_bytes: u64 = 0;
+
   // Hash the whole file
   loop {
     let read_bytes = file
@@ -76,6 +79,7 @@ fn check_file_integrity<R: Read>(
 
     // Callback with the number of bytes read
     progress_callback(read_bytes as u64);
+    total_read_bytes += read_bytes as u64;
 
     // Update hasher and handle the error
     match hasher.update(&buffer[..read_bytes]) {
@@ -85,10 +89,8 @@ fn check_file_integrity<R: Read>(
       Err(BlockHasherError::HashMismatch { .. }) => {
         let blocks_to_skip = container_file.block_count() - hasher.blocks_since_reset();
         hasher.skip_blocks(blocks_to_skip)?;
-        // Calculating the written bytes this way works because
-        // the hasher hasn't been finalized since the last reset
-        let written_file_bytes = hasher.blocks_since_reset() * BLOCK_SIZE;
-        progress_callback(container_file.size as u64 - written_file_bytes);
+        // Callback the number of bytes that have not been called back before
+        progress_callback(container_file.size as u64 - total_read_bytes);
         return Ok(false);
       }
       // Else, return the error
