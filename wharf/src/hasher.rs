@@ -48,14 +48,6 @@ impl<'a, R> BlockHasher<'a, R> {
   pub fn blocks_since_reset(&self) -> u64 {
     self.blocks_since_reset
   }
-
-  /// Return the number of bytes that were passed into the
-  /// hasher but didn't fill the current block
-  #[inline]
-  #[must_use]
-  pub fn written_bytes(&self) -> usize {
-    self.written_bytes
-  }
 }
 
 impl<'a, R: Read> BlockHasher<'a, R> {

@@ -87,8 +87,7 @@ fn check_file_integrity<R: Read>(
         hasher.skip_blocks(blocks_to_skip)?;
         // Calculating the written bytes this way works because
         // the hasher hasn't been finalized since the last reset
-        let written_file_bytes =
-          hasher.blocks_since_reset() * BLOCK_SIZE + hasher.written_bytes() as u64;
+        let written_file_bytes = hasher.blocks_since_reset() * BLOCK_SIZE;
         progress_callback(container_file.size as u64 - written_file_bytes);
         return Ok(false);
       }
