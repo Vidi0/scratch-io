@@ -16,7 +16,7 @@ fn copy_range(
   dst: &mut impl Write,
   block_index: u64,
   block_span: u64,
-) -> Result<(), String> {
+) -> Result<u64, String> {
   let start_pos = block_index * BLOCK_SIZE;
   let len = block_span * BLOCK_SIZE;
 
@@ -26,9 +26,7 @@ fn copy_range(
 
   let mut limited = src.take(len);
 
-  io::copy(&mut limited, dst)
-    .map(|_| ())
-    .map_err(|e| format!("Couldn't copy data from old file to new!\n{e}"))
+  io::copy(&mut limited, dst).map_err(|e| format!("Couldn't copy data from old file to new!\n{e}"))
 }
 
 /// Apply all `op_iter` rsync operations to regenerate the new file
@@ -39,6 +37,7 @@ fn apply_rsync(
   old_files_cache: &mut lru::LruCache<usize, fs::File>,
   old_container: &tlc::Container,
   old_build_folder: &Path,
+  progress_callback: &mut impl FnMut(u64),
 ) -> Result<(), String> {
   // Apply all the sync operations
   for op in op_iter {
@@ -56,18 +55,24 @@ fn apply_rsync(
         // into the correct (not relative) position
 
         // Copy the specified range to the new file
-        copy_range(
+        let written_bytes = copy_range(
           old_file,
           writer,
           op.block_index as u64,
           op.block_span as u64,
         )?;
+
+        // Return the number of bytes copied into the new file
+        progress_callback(written_bytes)
       }
       // If the type is Data, just copy the data from the patch to the new file
       pwr::sync_op::Type::Data => {
         writer
           .write_all(&op.data)
           .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
+
+        // Return the number of bytes written into the new file
+        progress_callback(op.data.len() as u64)
       }
       // If the type is HeyYouDidIt, then the iterator would have returned None
       pwr::sync_op::Type::HeyYouDidIt => unreachable!(),
@@ -106,6 +111,7 @@ fn apply_bsdiff(
   writer: &mut impl Write,
   old_file: &mut fs::File,
   add_buffer: &mut Vec<u8>,
+  progress_callback: &mut impl FnMut(u64),
 ) -> Result<(), String> {
   // Apply all the control operations
   for control in op_iter {
@@ -120,6 +126,9 @@ fn apply_bsdiff(
       add_buffer.resize(control.add.len(), 0);
 
       add_bytes(old_file, writer, &control.add, add_buffer)?;
+
+      // Return the number of bytes added into the new file
+      progress_callback(control.add.len() as u64);
     }
 
     // Then, copy the extra bytes
@@ -127,6 +136,9 @@ fn apply_bsdiff(
       writer
         .write_all(&control.copy)
         .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
+
+      // Return the number of bytes copied into the new file
+      progress_callback(control.copy.len() as u64);
     }
 
     // Lastly, seek into the correct position in the old file
@@ -149,7 +161,7 @@ impl Patch<'_> {
     old_build_folder: &Path,
     new_build_folder: &Path,
     hash_iter: &mut BlockHashIter<impl Read>,
-    mut progress_callback: impl FnMut(),
+    mut progress_callback: impl FnMut(u64),
   ) -> Result<(), String> {
     // Create the new container folders, files and symlinks,
     // applying all the correct permissions
@@ -193,6 +205,7 @@ impl Patch<'_> {
             &mut old_files_cache,
             &self.container_old,
             old_build_folder,
+            &mut progress_callback,
           )?;
         }
 
@@ -215,16 +228,19 @@ impl Patch<'_> {
             .map_err(|e| format!("Couldn't seek old file to start!\n{e}"))?;
 
           // Finally, apply all the bsdiff operations
-          apply_bsdiff(op_iter, &mut new_file_hasher, old_file, &mut add_buffer)?;
+          apply_bsdiff(
+            op_iter,
+            &mut new_file_hasher,
+            old_file,
+            &mut add_buffer,
+            &mut progress_callback,
+          )?;
         }
       }
 
       // VERY IMPORTANT!
       // If the file doesn't finish with a full block, hash it anyways!
       new_file_hasher.finalize_block()?;
-
-      // One new file has been patched, callback!
-      progress_callback();
     }
 
     Ok(())
