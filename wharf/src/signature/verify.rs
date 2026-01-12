@@ -140,7 +140,6 @@ impl Signature<'_> {
   /// # Errors
   ///
   /// If there is an I/O failure while reading files or metadata.
-  ///
   pub fn verify_files(
     &'_ mut self,
     build_folder: &Path,
