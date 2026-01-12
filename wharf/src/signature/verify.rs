@@ -56,7 +56,7 @@ fn check_file_integrity<R: Read>(
   } {
     let blocks_to_skip = container_file.block_count();
     hasher.skip_blocks(blocks_to_skip)?;
-    progress_callback(container_file.size as u64);
+    progress_callback(file_size);
     return Ok(false);
   }
 
@@ -90,7 +90,7 @@ fn check_file_integrity<R: Read>(
         let blocks_to_skip = container_file.block_count() - hasher.blocks_since_reset();
         hasher.skip_blocks(blocks_to_skip)?;
         // Callback the number of bytes that have not been called back before
-        progress_callback(container_file.size as u64 - total_read_bytes);
+        progress_callback(file_size - total_read_bytes);
         return Ok(false);
       }
       // Else, return the error
