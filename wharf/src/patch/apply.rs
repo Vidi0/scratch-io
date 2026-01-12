@@ -156,6 +156,30 @@ fn apply_bsdiff(
 }
 
 impl Patch<'_> {
+  /// Apply the patch operations to produce the new build.
+  ///
+  /// This creates all files, directories, and symlinks in `new_build_folder`,
+  /// then applies each sync operation (rsync or bsdiff) using data from
+  /// `old_build_folder`. Written data is hashed on the fly and verified against
+  /// `hash_iter`. `progress_callback` is invoked with the number of processed
+  /// bytes as the patch is applied.
+  ///
+  /// # Arguments
+  ///
+  /// * `old_build_folder` - The path to the old build folder
+  ///
+  /// * `new_build_folder` - The path to the new build folder
+  ///
+  /// * `hash_iter` - Iterator over expected block hashes used to verify the
+  ///   integrity of the written files
+  ///
+  /// * `progress_callback` - A callback that is called with the number of
+  ///   bytes processed since the last one
+  ///
+  /// # Errors
+  ///
+  /// If there is an I/O failure while reading files or metadata, or if hash
+  /// verification of the generated files fails
   pub fn apply(
     &mut self,
     old_build_folder: &Path,
