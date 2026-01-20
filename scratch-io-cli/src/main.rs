@@ -64,20 +64,17 @@ impl From<GamePlatform> for scratch_io::GamePlatform {
 
 #[derive(Subcommand)]
 enum Commands {
+  #[clap(subcommand)]
+  Api(ApiCalls),
   #[clap(flatten)]
   WithApi(WithApiCommands),
   #[clap(flatten)]
   WithoutApi(WithoutApiCommands),
 }
 
-// These commands will receive a valid API key and its profile
+// These are the raw itch.io API calls
 #[derive(Subcommand)]
-enum WithApiCommands {
-  /// Log in with an API key to use in the other commands
-  Auth {
-    /// The API key to save
-    api_key: String,
-  },
+enum ApiCalls {
   /// Retrieve information about a user
   UserInfo {
     /// The ID of the user to retrieve information about
@@ -142,6 +139,16 @@ enum WithApiCommands {
   BuildScannedArchive {
     /// The ID of the build to retrieve information about
     build_id: BuildID,
+  },
+}
+
+// These commands will receive a valid API key and its profile
+#[derive(Subcommand)]
+enum WithApiCommands {
+  /// Log in with an API key to use in the other commands
+  Auth {
+    /// The API key to save
+    api_key: String,
   },
   /// Download the upload with the given ID
   Download {
@@ -785,6 +792,61 @@ fn main() {
   /**** COMMANDS ****/
 
   match cli.command {
+    Commands::Api(command) => {
+      let client = client.unwrap_or_else(|e| eprintln_exit!("{e}"));
+
+      match command {
+        ApiCalls::UserInfo { user_id } => {
+          print_user_info(&client, user_id);
+        }
+        ApiCalls::ProfileInfo => {
+          print_profile_info(&client);
+        }
+        ApiCalls::CreatedGames => {
+          print_created_games(&client);
+        }
+        ApiCalls::OwnedKeys => {
+          print_owned_keys(&client);
+        }
+        ApiCalls::ProfileCollections => {
+          print_profile_collections(&client);
+        }
+        ApiCalls::CollectionInfo { collection_id } => {
+          print_collection_info(&client, collection_id);
+        }
+        ApiCalls::CollectionGames { collection_id } => {
+          print_collection_games(&client, collection_id);
+        }
+        ApiCalls::GameInfo { game_id } => {
+          print_game_info(&client, game_id);
+        }
+        ApiCalls::GameUploads { game_id } => {
+          print_game_uploads(&client, game_id);
+        }
+        ApiCalls::UploadInfo { upload_id } => {
+          print_upload_info(&client, upload_id);
+        }
+        ApiCalls::UploadBuilds { upload_id } => {
+          print_upload_builds(&client, upload_id);
+        }
+        ApiCalls::BuildInfo { build_id } => {
+          print_build_info(&client, build_id);
+        }
+        ApiCalls::UpgradePath {
+          current_build_id,
+          target_build_id,
+        } => {
+          print_upgrade_path(&client, current_build_id, target_build_id);
+        }
+        ApiCalls::UploadScannedArchive { upload_id } => {
+          print_scanned_upload(&client, upload_id);
+        }
+        ApiCalls::BuildScannedArchive { build_id } => {
+          print_scanned_build(&client, build_id);
+        }
+      }
+    }
+
     Commands::WithApi(command) => {
       let client = client.unwrap_or_else(|e| eprintln_exit!("{e}"));
 
@@ -792,54 +854,6 @@ fn main() {
         WithApiCommands::Auth { .. } => {
           auth(&client, &mut config.api_key);
           config.save_unwrap(custom_config_file);
-        }
-        WithApiCommands::UserInfo { user_id } => {
-          print_user_info(&client, user_id);
-        }
-        WithApiCommands::ProfileInfo => {
-          print_profile_info(&client);
-        }
-        WithApiCommands::CreatedGames => {
-          print_created_games(&client);
-        }
-        WithApiCommands::OwnedKeys => {
-          print_owned_keys(&client);
-        }
-        WithApiCommands::ProfileCollections => {
-          print_profile_collections(&client);
-        }
-        WithApiCommands::CollectionInfo { collection_id } => {
-          print_collection_info(&client, collection_id);
-        }
-        WithApiCommands::CollectionGames { collection_id } => {
-          print_collection_games(&client, collection_id);
-        }
-        WithApiCommands::GameInfo { game_id } => {
-          print_game_info(&client, game_id);
-        }
-        WithApiCommands::GameUploads { game_id } => {
-          print_game_uploads(&client, game_id);
-        }
-        WithApiCommands::UploadInfo { upload_id } => {
-          print_upload_info(&client, upload_id);
-        }
-        WithApiCommands::UploadBuilds { upload_id } => {
-          print_upload_builds(&client, upload_id);
-        }
-        WithApiCommands::BuildInfo { build_id } => {
-          print_build_info(&client, build_id);
-        }
-        WithApiCommands::UpgradePath {
-          current_build_id,
-          target_build_id,
-        } => {
-          print_upgrade_path(&client, current_build_id, target_build_id);
-        }
-        WithApiCommands::UploadScannedArchive { upload_id } => {
-          print_scanned_upload(&client, upload_id);
-        }
-        WithApiCommands::BuildScannedArchive { build_id } => {
-          print_scanned_build(&client, build_id);
         }
         WithApiCommands::Download {
           upload_id,
