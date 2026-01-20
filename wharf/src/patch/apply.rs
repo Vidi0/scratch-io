@@ -32,7 +32,7 @@ fn copy_range(
 /// Apply all `op_iter` rsync operations to regenerate the new file
 /// into `writer` from the files in the old container
 fn apply_rsync(
-  op_iter: RsyncOpIter<impl io::BufRead>,
+  op_iter: RsyncOpIter<impl Read>,
   writer: &mut impl Write,
   old_files_cache: &mut lru::LruCache<usize, fs::File>,
   old_container: &tlc::Container,
