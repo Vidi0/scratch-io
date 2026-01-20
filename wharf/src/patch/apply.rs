@@ -264,7 +264,7 @@ impl Patch<'_> {
 
       // VERY IMPORTANT!
       // If the file doesn't finish with a full block, hash it anyways!
-      new_file_hasher.finalize_block()?;
+      hasher.finalize_block()?;
     }
 
     Ok(())
