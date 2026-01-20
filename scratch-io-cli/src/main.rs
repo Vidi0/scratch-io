@@ -641,83 +641,85 @@ fn launch_upload(
 }
 
 fn handle_api_command(command: ApiCalls, client: &ItchClient) {
+  use ApiCalls as C;
+
   match command {
-    ApiCalls::UserInfo { user_id } => {
+    C::UserInfo { user_id } => {
       println!(
         "{:#?}",
         itch_api::get_user_info(client, user_id).unwrap_or_else(|e| eprintln_exit!("{e}"))
       );
     }
-    ApiCalls::ProfileInfo => {
+    C::ProfileInfo => {
       println!(
         "{:#?}",
         itch_api::get_profile(client).unwrap_or_else(|e| eprintln_exit!("{e}"))
       );
     }
-    ApiCalls::CreatedGames => {
+    C::CreatedGames => {
       println!(
         "{:#?}",
         itch_api::get_created_games(client).unwrap_or_else(|e| eprintln_exit!("{e}"))
       )
     }
-    ApiCalls::OwnedKeys => {
+    C::OwnedKeys => {
       println!(
         "{:#?}",
         itch_api::get_owned_keys(client).unwrap_or_else(|e| eprintln_exit!("{e}"))
       );
     }
-    ApiCalls::ProfileCollections => {
+    C::ProfileCollections => {
       println!(
         "{:#?}",
         itch_api::get_profile_collections(client).unwrap_or_else(|e| eprintln_exit!("{e}"))
       );
     }
-    ApiCalls::CollectionInfo { collection_id } => {
+    C::CollectionInfo { collection_id } => {
       println!(
         "{:#?}",
         itch_api::get_collection_info(client, collection_id)
           .unwrap_or_else(|e| eprintln_exit!("{e}"))
       );
     }
-    ApiCalls::CollectionGames { collection_id } => {
+    C::CollectionGames { collection_id } => {
       println!(
         "{:#?}",
         itch_api::get_collection_games(client, collection_id)
           .unwrap_or_else(|e| eprintln_exit!("{e}"))
       )
     }
-    ApiCalls::GameInfo { game_id } => {
+    C::GameInfo { game_id } => {
       println!(
         "{:#?}",
         itch_api::get_game_info(client, game_id).unwrap_or_else(|e| eprintln_exit!("{e}"))
       );
     }
-    ApiCalls::GameUploads { game_id } => {
+    C::GameUploads { game_id } => {
       let uploads =
         itch_api::get_game_uploads(client, game_id).unwrap_or_else(|e| eprintln_exit!("{e}"));
       println!("{uploads:#?}");
 
       println!("{:#?}", scratch_io::get_game_platforms(&uploads));
     }
-    ApiCalls::UploadInfo { upload_id } => {
+    C::UploadInfo { upload_id } => {
       println!(
         "{:#?}",
         itch_api::get_upload_info(client, upload_id).unwrap_or_else(|e| eprintln_exit!("{e}"))
       );
     }
-    ApiCalls::UploadBuilds { upload_id } => {
+    C::UploadBuilds { upload_id } => {
       println!(
         "{:#?}",
         itch_api::get_upload_builds(client, upload_id).unwrap_or_else(|e| eprintln_exit!("{e}"))
       );
     }
-    ApiCalls::BuildInfo { build_id } => {
+    C::BuildInfo { build_id } => {
       println!(
         "{:#?}",
         itch_api::get_build_info(client, build_id).unwrap_or_else(|e| eprintln_exit!("{e}"))
       );
     }
-    ApiCalls::UpgradePath {
+    C::UpgradePath {
       current_build_id,
       target_build_id,
     } => {
@@ -727,14 +729,14 @@ fn handle_api_command(command: ApiCalls, client: &ItchClient) {
           .unwrap_or_else(|e| eprintln_exit!("{e}"))
       );
     }
-    ApiCalls::UploadScannedArchive { upload_id } => {
+    C::UploadScannedArchive { upload_id } => {
       println!(
         "{:#?}",
         itch_api::get_upload_scanned_archive(client, upload_id)
           .unwrap_or_else(|e| eprintln_exit!("{e}"))
       );
     }
-    ApiCalls::BuildScannedArchive { build_id } => {
+    C::BuildScannedArchive { build_id } => {
       println!(
         "{:#?}",
         itch_api::get_build_scanned_archive(client, build_id)
