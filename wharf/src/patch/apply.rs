@@ -1,4 +1,4 @@
-use super::read::{BsdiffOpIter, Patch, RsyncOpIter, SyncHeaderKind};
+use super::read::{BsdiffOpIter, Patch, RsyncOpIter, SyncHeader, SyncHeaderKind};
 use crate::container::BLOCK_SIZE;
 use crate::hasher::BlockHasher;
 use crate::protos::*;
@@ -155,6 +155,55 @@ fn apply_bsdiff(
   Ok(())
 }
 
+/// Apply all the patch operations in the given header and
+/// write them into `writer`
+fn patch_file<R: Read>(
+  header: &mut SyncHeader<'_, R>,
+  writer: &mut impl Write,
+  old_files_cache: &mut lru::LruCache<usize, fs::File>,
+  old_container: &tlc::Container,
+  old_build_folder: &Path,
+  add_buffer: &mut Vec<u8>,
+  progress_callback: &mut impl FnMut(u64),
+) -> Result<(), String> {
+  match header.kind {
+    // The current file will be updated using the Rsync method
+    SyncHeaderKind::Rsync { ref mut op_iter } => {
+      // Finally, apply all the rsync operations
+      apply_rsync(
+        op_iter,
+        writer,
+        old_files_cache,
+        old_container,
+        old_build_folder,
+        progress_callback,
+      )?;
+    }
+
+    // The current file will be updated using the Bsdiff method
+    SyncHeaderKind::Bsdiff {
+      target_index,
+      ref mut op_iter,
+    } => {
+      // Open the old file
+      let old_file = old_files_cache.try_get_or_insert_mut(target_index as usize, || {
+        old_container.open_file_read(target_index as usize, old_build_folder.to_owned())
+      })?;
+
+      // Rewind the old file to the start because the file might
+      // have been in the cache and seeked before
+      old_file
+        .rewind()
+        .map_err(|e| format!("Couldn't seek old file to start!\n{e}"))?;
+
+      // Finally, apply all the bsdiff operations
+      apply_bsdiff(op_iter, writer, old_file, add_buffer, progress_callback)?;
+    }
+  }
+
+  Ok(())
+}
+
 impl Patch<'_> {
   /// Apply the patch operations to produce the new build.
   ///
@@ -208,7 +257,8 @@ impl Patch<'_> {
 
     // Patch all files in the iterator one by one
     while let Some(header) = self.sync_op_iter.next_header() {
-      let header = header.map_err(|e| format!("Couldn't get next patch sync operation!\n{e}"))?;
+      let mut header =
+        header.map_err(|e| format!("Couldn't get next patch sync operation!\n{e}"))?;
 
       // Open the new file
       let mut new_file = self
@@ -217,50 +267,16 @@ impl Patch<'_> {
 
       // Wrap the new file in the hasher
       hasher.reset();
-      let mut new_file_hasher = hasher.wrap_writer(&mut new_file);
 
-      match header.kind {
-        // The current file will be updated using the Rsync method
-        SyncHeaderKind::Rsync { op_iter } => {
-          // Finally, apply all the rsync operations
-          apply_rsync(
-            op_iter,
-            &mut new_file_hasher,
-            &mut old_files_cache,
-            &self.container_old,
-            old_build_folder,
-            &mut progress_callback,
-          )?;
-        }
-
-        // The current file will be updated using the Bsdiff method
-        SyncHeaderKind::Bsdiff {
-          target_index,
-          op_iter,
-        } => {
-          // Open the old file
-          let old_file = old_files_cache.try_get_or_insert_mut(target_index as usize, || {
-            self
-              .container_old
-              .open_file_read(target_index as usize, old_build_folder.to_owned())
-          })?;
-
-          // Rewind the old file to the start because the file might
-          // have been in the cache and seeked before
-          old_file
-            .rewind()
-            .map_err(|e| format!("Couldn't seek old file to start!\n{e}"))?;
-
-          // Finally, apply all the bsdiff operations
-          apply_bsdiff(
-            op_iter,
-            &mut new_file_hasher,
-            old_file,
-            &mut add_buffer,
-            &mut progress_callback,
-          )?;
-        }
-      }
+      patch_file(
+        &mut header,
+        &mut hasher.wrap_writer(&mut new_file),
+        &mut old_files_cache,
+        &self.container_old,
+        old_build_folder,
+        &mut add_buffer,
+        &mut progress_callback,
+      )?;
 
       // VERY IMPORTANT!
       // If the file doesn't finish with a full block, hash it anyways!
