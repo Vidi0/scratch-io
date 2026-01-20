@@ -64,6 +64,7 @@ impl From<GamePlatform> for scratch_io::GamePlatform {
 
 #[derive(Subcommand)]
 enum Commands {
+  /// Make an API call to the itch.io servers
   #[clap(subcommand)]
   Api(ApiCalls),
   #[clap(flatten)]
