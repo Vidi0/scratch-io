@@ -210,8 +210,8 @@ impl Patch<'_> {
   /// This creates all files, directories, and symlinks in `new_build_folder`,
   /// then applies each sync operation (rsync or bsdiff) using data from
   /// `old_build_folder`. Written data is hashed on the fly and verified against
-  /// `hash_iter`. `progress_callback` is invoked with the number of processed
-  /// bytes as the patch is applied.
+  /// `hash_iter` (if provided). `progress_callback` is invoked with the number
+  /// of processed bytes as the patch is applied.
   ///
   /// # Arguments
   ///
@@ -220,7 +220,7 @@ impl Patch<'_> {
   /// * `new_build_folder` - The path to the new build folder
   ///
   /// * `hash_iter` - Iterator over expected block hashes used to verify the
-  ///   integrity of the written files
+  ///   integrity of the written files (optional)
   ///
   /// * `progress_callback` - A callback that is called with the number of
   ///   bytes processed since the last one
@@ -233,7 +233,7 @@ impl Patch<'_> {
     &mut self,
     old_build_folder: &Path,
     new_build_folder: &Path,
-    hash_iter: &mut BlockHashIter<impl Read>,
+    hash_iter: Option<&mut BlockHashIter<impl Read>>,
     mut progress_callback: impl FnMut(u64),
   ) -> Result<(), String> {
     // Create the new container folders, files and symlinks,
@@ -251,9 +251,9 @@ impl Patch<'_> {
     // the buffer on each add operation
     let mut add_buffer: Vec<u8> = Vec::new();
 
-    // Create a reusable hasher instance to verify that the new
-    // game files are intact
-    let mut hasher = BlockHasher::new(hash_iter);
+    // If a hash_iter was provided, create a reusable hasher
+    // instance to verify that the new game files are intact
+    let mut hasher = hash_iter.map(|iter| BlockHasher::new(iter));
 
     // Patch all files in the iterator one by one
     while let Some(header) = self.sync_op_iter.next_header() {
@@ -265,22 +265,43 @@ impl Patch<'_> {
         .container_new
         .open_file_write(header.file_index as usize, new_build_folder.to_owned())?;
 
-      // Wrap the new file in the hasher
-      hasher.reset();
+      // Write all the new data into the file
+      match &mut hasher {
+        // Wrap the new file in the hasher
+        Some(h) => {
+          h.reset();
+          let mut hash_writer = h.wrap_writer(&mut new_file);
 
-      patch_file(
-        &mut header,
-        &mut hasher.wrap_writer(&mut new_file),
-        &mut old_files_cache,
-        &self.container_old,
-        old_build_folder,
-        &mut add_buffer,
-        &mut progress_callback,
-      )?;
+          patch_file(
+            &mut header,
+            &mut hash_writer,
+            &mut old_files_cache,
+            &self.container_old,
+            old_build_folder,
+            &mut add_buffer,
+            &mut progress_callback,
+          )?;
+        }
+
+        // Patch into the file directly without checking
+        None => {
+          patch_file(
+            &mut header,
+            &mut new_file,
+            &mut old_files_cache,
+            &self.container_old,
+            old_build_folder,
+            &mut add_buffer,
+            &mut progress_callback,
+          )?;
+        }
+      }
 
       // VERY IMPORTANT!
       // If the file doesn't finish with a full block, hash it anyways!
-      hasher.finalize_block()?;
+      if let Some(h) = &mut hasher {
+        h.finalize_block()?;
+      }
     }
 
     Ok(())
