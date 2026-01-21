@@ -482,7 +482,7 @@ fn download(
   let progress_bar = indicatif::ProgressBar::hidden();
   progress_bar.set_style(
     indicatif::ProgressStyle::default_bar()
-      .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}) ({eta})").expect("Invalid indicatif template???")
+      .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}) ({eta})").unwrap()
       .progress_chars("#>-")
   );
 
@@ -839,7 +839,7 @@ fn handle_wharf_command(command: WharfCommands) {
       let progress_bar = indicatif::ProgressBar::hidden();
       progress_bar.set_style(
           indicatif::ProgressStyle::default_bar()
-            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}) ({eta})").expect("Invalid indicatif template???")
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}) ({eta})").unwrap()
             .progress_chars("#>-")
         );
       progress_bar.set_length(signature.container_new.file_bytes());
@@ -884,7 +884,7 @@ fn handle_wharf_command(command: WharfCommands) {
       let progress_bar = indicatif::ProgressBar::hidden();
       progress_bar.set_style(
           indicatif::ProgressStyle::default_bar()
-            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}) ({eta})").expect("Invalid indicatif template???")
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}) ({eta})").unwrap()
             .progress_chars("#>-")
         );
       progress_bar.set_length(signature.container_new.file_bytes());
@@ -916,7 +916,7 @@ fn handle_wharf_command(command: WharfCommands) {
       let progress_bar = indicatif::ProgressBar::hidden();
       progress_bar.set_style(
           indicatif::ProgressStyle::default_bar()
-            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}) ({eta})").expect("Invalid indicatif template???")
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}) ({eta})").unwrap()
             .progress_chars("#>-")
         );
       progress_bar.set_length(broken.bytes_to_fix(&signature.container_new));
@@ -969,7 +969,7 @@ fn handle_wharf_command(command: WharfCommands) {
       let progress_bar = indicatif::ProgressBar::hidden();
       progress_bar.set_style(
           indicatif::ProgressStyle::default_bar()
-            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}) ({eta})").expect("Invalid indicatif template???")
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}) ({eta})").unwrap()
             .progress_chars("#>-")
         );
       progress_bar.set_length(patch.container_new.file_bytes());
