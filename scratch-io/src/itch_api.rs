@@ -146,6 +146,11 @@ impl ItchClient {
   /// An [`ItchClient`] struct with the given key
   #[must_use]
   pub fn new(api_key: String) -> Self {
+    // Install the ring crypto provider
+    // The function call fails if the provider has already been installed.
+    // Ignore the error, because this function may be called more than once.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     Self {
       client: Client::new(),
       api_key,
