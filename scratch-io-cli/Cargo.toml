@@ -18,3 +18,4 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_with = "3.16.1"
 shell-words = "1.1.1"
 toml = "0.9.10"
+rc-zip-sync = "4.4.2"

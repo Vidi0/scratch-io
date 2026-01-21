@@ -67,8 +67,17 @@ enum Commands {
   /// Make an API call to the itch.io servers
   #[clap(subcommand)]
   Api(ApiCalls),
+
+  /// Run a wharf command directly (patch, verify, repair)
+  ///
+  /// Wharf is the protocol used by itch.io to allow updates
+  /// and game files verification
+  #[clap(subcommand)]
+  Wharf(WharfCommands),
+
   #[clap(flatten)]
   WithApi(WithApiCommands),
+
   #[clap(flatten)]
   WithoutApi(WithoutApiCommands),
 }
@@ -140,6 +149,68 @@ enum ApiCalls {
   BuildScannedArchive {
     /// The ID of the build to retrieve information about
     build_id: BuildID,
+  },
+}
+
+// These are calls to wharf commands (patch, verify)
+#[derive(Subcommand)]
+enum WharfCommands {
+  /// Verify that the provided build folder is intact
+  ///
+  /// Returns an struct containing the indexes in the signature
+  /// of the broken or missing files
+  Verify {
+    /// The path where the wharf signature file is placed
+    signature_file: PathBuf,
+    /// The path where the build folder is located
+    #[arg(long, env = "SCRATCH_BUILD_FOLDER")]
+    build_folder: PathBuf,
+  },
+  /// Verify and repair the provided build folder
+  ///
+  /// Runs the verification command, and then replaces all the
+  /// broken and missing files with the ones from the provided
+  /// ZIP archive.
+  ///
+  /// This command is usless by itself, because if the ZIP
+  /// archive has been fully downloaded, it is better to extract
+  /// it directly and replace the old build folder.
+  Repair {
+    /// The path where the wharf signature file is placed
+    signature_file: PathBuf,
+    /// The path where the build folder is located
+    #[arg(long, env = "SCRATCH_BUILD_FOLDER")]
+    build_folder: PathBuf,
+    /// The path to the build's ZIP archive
+    #[arg(long, env = "SCRATCH_ZIP_ARCHIVE")]
+    zip_archive: PathBuf,
+  },
+  /// Apply a wharf patch from an old build folder into a new one
+  ///
+  /// If a signature file is provided, verify the patch integrity
+  /// on the fly while it is beign applied and cancel the patching
+  /// if the new build folder is going to be corrupted.
+  Patch {
+    /// The path where the wharf patch file is placed
+    patch_file: PathBuf,
+    /// The path where the wharf signature file is placed
+    ///
+    /// If it isn't provided, don't check the patch integrity.
+    #[arg(long, env = "SCRATCH_SIGNATURE_FILE")]
+    signature_file: Option<PathBuf>,
+    /// The path where the old build folder is located
+    ///
+    /// All files in this folder will remain intact after
+    /// applying the patch.
+    #[arg(long, env = "SCRATCH_OLD_BUILD_FOLDER")]
+    old_build_folder: PathBuf,
+    /// The path where the new build folder will be placed
+    ///
+    /// Existing files will be overwritten by the new ones,
+    /// but those but not present on the patch file will
+    /// remain intact.
+    #[arg(long, env = "SCRATCH_NEW_BUILD_FOLDER")]
+    new_build_folder: PathBuf,
   },
 }
 
@@ -747,6 +818,184 @@ fn handle_api_command(command: ApiCalls, client: &ItchClient) {
   }
 }
 
+fn handle_wharf_command(command: WharfCommands) {
+  use WharfCommands as C;
+
+  match command {
+    C::Verify {
+      signature_file,
+      build_folder,
+    } => {
+      // Open the signature file
+      let mut file = std::io::BufReader::new(
+        std::fs::File::open(signature_file).unwrap_or_else(|e| eprintln_exit!("{e}")),
+      );
+
+      // Read the signature
+      let mut signature =
+        wharf::Signature::read(&mut file).unwrap_or_else(|e| eprintln_exit!("{e}"));
+
+      // Set up the progress bar
+      let progress_bar = indicatif::ProgressBar::hidden();
+      progress_bar.set_style(
+          indicatif::ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}) ({eta})").expect("Invalid indicatif template???")
+            .progress_chars("#>-")
+        );
+      progress_bar.set_length(signature.container_new.file_bytes());
+      progress_bar.set_draw_target(indicatif::ProgressDrawTarget::stderr());
+
+      // Do the files verification
+      let broken = signature
+        .verify_files(&build_folder, |b| progress_bar.inc(b))
+        .unwrap_or_else(|e| eprintln_exit!("{e}"));
+
+      // If the wharf verify logic is correct, the position of the progress
+      // bar and its length should be equal
+      //
+      // If this panics it is due to a fault in the wharf handling logic
+      // If there are missing blocks, the verify_files function call should fail
+      assert_eq!(progress_bar.position(), progress_bar.length().unwrap());
+
+      progress_bar.finish();
+
+      println!("{broken:#?}");
+    }
+
+    C::Repair {
+      signature_file,
+      build_folder,
+      zip_archive,
+    } => {
+      use rc_zip_sync::ReadZip;
+
+      // -- VERIFY FILES --
+
+      // Open the signature file
+      let mut file = std::io::BufReader::new(
+        std::fs::File::open(signature_file).unwrap_or_else(|e| eprintln_exit!("{e}")),
+      );
+
+      // Read the signature
+      let mut signature =
+        wharf::Signature::read(&mut file).unwrap_or_else(|e| eprintln_exit!("{e}"));
+
+      // Set up the progress bar
+      let progress_bar = indicatif::ProgressBar::hidden();
+      progress_bar.set_style(
+          indicatif::ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}) ({eta})").expect("Invalid indicatif template???")
+            .progress_chars("#>-")
+        );
+      progress_bar.set_length(signature.container_new.file_bytes());
+      progress_bar.set_draw_target(indicatif::ProgressDrawTarget::stderr());
+
+      // Do the files verification
+      let broken = signature
+        .verify_files(&build_folder, |b| progress_bar.inc(b))
+        .unwrap_or_else(|e| eprintln_exit!("{e}"));
+
+      // If the wharf verify logic is correct, the position of the progress
+      // bar and its length should be equal
+      //
+      // If this panics it is due to a fault in the wharf handling logic
+      // If there are missing blocks, the verify_files function call should fail
+      assert_eq!(progress_bar.position(), progress_bar.length().unwrap());
+
+      progress_bar.finish();
+
+      // -- REPAIR DAMAGED FILES --
+
+      // Open the ZIP file
+      let zip_file = std::fs::File::open(zip_archive).unwrap_or_else(|e| eprintln_exit!("{e}"));
+      let zip = zip_file
+        .read_zip()
+        .unwrap_or_else(|e| eprintln_exit!("{e}"));
+
+      // Set up the progress bar
+      let progress_bar = indicatif::ProgressBar::hidden();
+      progress_bar.set_style(
+          indicatif::ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}) ({eta})").expect("Invalid indicatif template???")
+            .progress_chars("#>-")
+        );
+      progress_bar.set_length(broken.bytes_to_fix(&signature.container_new));
+      progress_bar.set_draw_target(indicatif::ProgressDrawTarget::stderr());
+
+      // Repair the damaged files
+      signature
+        .repair(&broken, &build_folder, &zip, |b| progress_bar.inc(b))
+        .unwrap_or_else(|e| eprintln_exit!("{e}"));
+
+      // If the wharf verify logic is correct, the position of the progress
+      // bar and its length should be equal
+      //
+      // If this panics it is due to a fault in the wharf handling logic
+      // If there are missing files, the repair function call should fail
+      assert_eq!(progress_bar.position(), progress_bar.length().unwrap());
+
+      progress_bar.finish();
+    }
+
+    C::Patch {
+      patch_file,
+      signature_file,
+      old_build_folder,
+      new_build_folder,
+    } => {
+      // Open the patch file
+      let mut file = std::io::BufReader::new(
+        std::fs::File::open(patch_file).unwrap_or_else(|e| eprintln_exit!("{e}")),
+      );
+
+      // Read the patch
+      let mut patch = wharf::Patch::read(&mut file).unwrap_or_else(|e| eprintln_exit!("{e}"));
+
+      // Open the signature file
+      let mut signature_file = signature_file.map(|signature_file| {
+        std::io::BufReader::new(
+          std::fs::File::open(signature_file).unwrap_or_else(|e| eprintln_exit!("{e}")),
+        )
+      });
+
+      // Read the signature
+      let mut hash_iter = signature_file.as_mut().map(|signature_file| {
+        wharf::Signature::read(signature_file)
+          .unwrap_or_else(|e| eprintln_exit!("{e}"))
+          .block_hash_iter
+      });
+
+      // Set up the progress bar
+      let progress_bar = indicatif::ProgressBar::hidden();
+      progress_bar.set_style(
+          indicatif::ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}) ({eta})").expect("Invalid indicatif template???")
+            .progress_chars("#>-")
+        );
+      progress_bar.set_length(patch.container_new.file_bytes());
+      progress_bar.set_draw_target(indicatif::ProgressDrawTarget::stderr());
+
+      // Apply the patch
+      patch
+        .apply(
+          &old_build_folder,
+          &new_build_folder,
+          hash_iter.as_mut(),
+          |b| progress_bar.inc(b),
+        )
+        .unwrap_or_else(|e| eprintln_exit!("{e}"));
+
+      // If the wharf verify logic is correct, the position of the progress
+      // bar and its length should be equal
+      //
+      // If this panics it is due to a fault in the wharf handling logic
+      assert_eq!(progress_bar.position(), progress_bar.length().unwrap());
+
+      progress_bar.finish();
+    }
+  }
+}
+
 fn main() {
   // Read the user commands
   let cli: Cli = Cli::parse();
@@ -779,6 +1028,10 @@ fn main() {
     Commands::Api(command) => {
       let client = client.unwrap_or_else(|e| eprintln_exit!("{e}"));
       handle_api_command(command, &client);
+    }
+
+    Commands::Wharf(command) => {
+      handle_wharf_command(command);
     }
 
     Commands::WithApi(command) => {
