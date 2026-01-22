@@ -229,11 +229,14 @@ pub fn login(
 
 /// Complete the login with the TOTP two-factor verification
 ///
+/// The provided TOTP code must be either the six-digit code generated
+/// by the TOTP application or one of the eight-digit recovery codes.
+///
 /// # Arguments
 ///
 /// * `totp_token` - The TOTP token returned by the previous login step
 ///
-/// * `totp_code` - The 6-digit code returned by the TOTP application
+/// * `totp_code` - The TOTP verification code, as explained avobe
 ///
 /// # Returns
 ///
