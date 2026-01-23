@@ -70,6 +70,31 @@ where
 }
 
 impl<'a> Signature<'a> {
+  /// Dump the signature contents to standard output
+  ///
+  /// This prints the header, container metadata, and all block hash operations
+  /// for inspection by a human reader. The internal block hash iterator is
+  /// consumed during this call.
+  pub fn dump_stdout(&mut self) -> Result<(), String> {
+    // Print the header
+    println!("{:?}", self.header);
+
+    // Print the container
+    println!("\n--- START CONTAINER INFO ---\n");
+    self.container_new.dump_stdout();
+    println!("\n--- END CONTAINER INFO ---");
+
+    // Print the hashes
+    println!("--- START HASH BLOCKS ---\n");
+    for op in self.block_hash_iter.by_ref() {
+      println!("{:?}", op?);
+    }
+
+    println!("\n--- END HASH BLOCKS ---");
+
+    Ok(())
+  }
+
   /// <https://docs.itch.zone/wharf/master/file-formats/signatures.html>
   ///
   /// <https://github.com/Vidi0/scratch-io/blob/main/docs/wharf/patch.md>

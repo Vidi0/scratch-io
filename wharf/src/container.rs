@@ -221,6 +221,22 @@ impl tlc::File {
 }
 
 impl tlc::Container {
+  pub fn dump_stdout(&self) {
+    // Print the container size
+    println!("{}", self.size);
+
+    // Print every file, directory and symlink
+    for file in &self.files {
+      println!("{file:?}");
+    }
+    for dir in &self.dirs {
+      println!("{dir:?}");
+    }
+    for sym in &self.symlinks {
+      println!("{sym:?}");
+    }
+  }
+
   /// Get the number of blocks every file in this container
   /// combined occupies
   ///

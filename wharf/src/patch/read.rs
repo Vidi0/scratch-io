@@ -171,6 +171,63 @@ where
 }
 
 impl<'a> Patch<'a> {
+  /// Dump the patch contents to standard output
+  ///
+  /// This prints the header, container metadata, and all patch operations
+  /// for inspection by a human reader. The internal patch iterator is
+  /// consumed during this call.
+  pub fn dump_stdout(&mut self) -> Result<(), String> {
+    // Print the header
+    println!("{:?}", self.header);
+
+    // Print the old container
+    println!("\n--- START OLD CONTAINER INFO ---\n");
+    self.container_old.dump_stdout();
+    println!("\n--- END OLD CONTAINER INFO ---");
+
+    // Print the new container
+    println!("--- START NEW CONTAINER INFO ---\n");
+    self.container_new.dump_stdout();
+    println!("\n--- END NEW CONTAINER INFO ---");
+
+    // Print the patch operations
+    println!("--- START PATCH OPERATIONS ---");
+    while let Some(header) = self.sync_op_iter.next_header() {
+      let header = header?;
+
+      // Print the new file index
+      println!("\n{}", header.file_index);
+
+      match header.kind {
+        SyncHeaderKind::Rsync { op_iter } => {
+          // Print the kind of patch algorithm
+          println!("Rsync");
+
+          // Print the data
+          for op in op_iter {
+            println!("{:?}", op?);
+          }
+        }
+        SyncHeaderKind::Bsdiff {
+          target_index,
+          op_iter,
+        } => {
+          // Print the kind of patch algorithm
+          println!("Bsdiff: {target_index}");
+
+          // Print the data
+          for op in op_iter {
+            println!("{:?}", op?);
+          }
+        }
+      }
+    }
+
+    println!("\n--- END PATCH OPERATIONS ---");
+
+    Ok(())
+  }
+
   /// <https://docs.itch.zone/wharf/master/file-formats/patches.html>
   ///
   /// <https://github.com/Vidi0/scratch-io/blob/main/docs/wharf/patch.md>
