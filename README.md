@@ -113,5 +113,8 @@ scratch-io help
 
 ## 📝 License
 
-The code in this repository is released under the GPL-3.0-or-later license.  
+The code in this repository is released under the GPL-3.0-or-later license.
+
+The protobuf definitions in the `.proto` files located in the `wharf/src/protos` directory were obtained from the [wharf GitHub repository](https://github.com/itchio/wharf), so they are licensed by itch.io under the MIT license, which can be found in the LICENSE file in `wharf/src/protos/LICENSE`.
+
 This project uses many third-party crates; their licenses are listed in `LICENSE-THIRD-PARTY.html`.
