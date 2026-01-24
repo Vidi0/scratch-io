@@ -225,6 +225,10 @@ impl<'a> Patch<'a> {
     Ok(())
   }
 
+  /// Decode a binary wharf patch assuming the magic bytes
+  /// have already been consumed from the input stream
+  ///
+  /// For more information, see [`Patch::read`].
   pub fn read_without_magic(reader: &'a mut impl BufRead) -> Result<Self, String> {
     // Decode the patch header
     let header = decode_protobuf::<pwr::PatchHeader>(reader)?;
@@ -257,6 +261,12 @@ impl<'a> Patch<'a> {
     })
   }
 
+  /// Decode a binary wharf patch
+  ///
+  /// If the magic bytes have already been read, use [`Patch::read_without_magic`].
+  ///
+  /// # References
+  ///
   /// <https://docs.itch.zone/wharf/master/file-formats/signatures.html>
   ///
   /// <https://github.com/Vidi0/scratch-io/blob/main/docs/wharf/patch.md>

@@ -91,6 +91,10 @@ impl<'a> Signature<'a> {
     Ok(())
   }
 
+  /// Decode a binary wharf signature assuming the magic bytes
+  /// have already been consumed from the input stream
+  ///
+  /// For more information, see [`Signature::read`].
   pub fn read_without_magic(reader: &'a mut impl BufRead) -> Result<Self, String> {
     // Decode the signature header
     let header = decode_protobuf::<pwr::SignatureHeader>(reader)?;
@@ -120,6 +124,12 @@ impl<'a> Signature<'a> {
     })
   }
 
+  /// Decode a binary wharf signature
+  ///
+  /// If the magic bytes have already been read, use [`Signature::read_without_magic`].
+  ///
+  /// # References
+  ///
   /// <https://docs.itch.zone/wharf/master/file-formats/signatures.html>
   ///
   /// <https://github.com/Vidi0/scratch-io/blob/main/docs/wharf/patch.md>
