@@ -22,6 +22,19 @@ pub struct RsyncOpIter<'a, R> {
   reader: &'a mut R,
 }
 
+impl<R> RsyncOpIter<'_, R>
+where
+  R: Read,
+{
+  pub fn dump_stdout(&mut self) -> Result<(), String> {
+    for op in self {
+      println!("{:?}", op?);
+    }
+
+    Ok(())
+  }
+}
+
 impl<R> Iterator for RsyncOpIter<'_, R>
 where
   R: Read,
@@ -48,6 +61,19 @@ where
 #[derive(Debug, PartialEq, Eq)]
 pub struct BsdiffOpIter<'a, R> {
   reader: &'a mut R,
+}
+
+impl<R> BsdiffOpIter<'_, R>
+where
+  R: Read,
+{
+  pub fn dump_stdout(&mut self) -> Result<(), String> {
+    for op in self {
+      println!("{:?}", op?);
+    }
+
+    Ok(())
+  }
 }
 
 impl<R> Iterator for BsdiffOpIter<'_, R>
@@ -123,6 +149,32 @@ impl<R> SyncEntryIter<R>
 where
   R: Read,
 {
+  pub fn dump_stdout(&mut self) -> Result<(), String> {
+    while let Some(header) = self.next_header() {
+      let header = header?;
+
+      // Print the new file index
+      println!("\n{}", header.file_index);
+
+      // Print all the patch operations
+      match header.kind {
+        SyncHeaderKind::Rsync { mut op_iter } => {
+          println!("Rsync");
+          op_iter.dump_stdout()?;
+        }
+        SyncHeaderKind::Bsdiff {
+          target_index,
+          mut op_iter,
+        } => {
+          println!("Bsdiff: {target_index}");
+          op_iter.dump_stdout()?;
+        }
+      }
+    }
+
+    Ok(())
+  }
+
   pub fn next_header(&mut self) -> Option<Result<SyncHeader<'_, R>, String>> {
     if self.entries_read == self.total_entries {
       return None;
@@ -189,37 +241,7 @@ impl<'a> Patch<'a> {
 
     // Print the patch operations
     println!("--- START PATCH OPERATIONS ---");
-    while let Some(header) = self.sync_op_iter.next_header() {
-      let header = header?;
-
-      // Print the new file index
-      println!("\n{}", header.file_index);
-
-      match header.kind {
-        SyncHeaderKind::Rsync { op_iter } => {
-          // Print the kind of patch algorithm
-          println!("Rsync");
-
-          // Print the data
-          for op in op_iter {
-            println!("{:?}", op?);
-          }
-        }
-        SyncHeaderKind::Bsdiff {
-          target_index,
-          op_iter,
-        } => {
-          // Print the kind of patch algorithm
-          println!("Bsdiff: {target_index}");
-
-          // Print the data
-          for op in op_iter {
-            println!("{:?}", op?);
-          }
-        }
-      }
-    }
-
+    self.sync_op_iter.dump_stdout()?;
     println!("\n--- END PATCH OPERATIONS ---");
 
     Ok(())

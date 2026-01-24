@@ -38,6 +38,14 @@ impl<R> BlockHashIter<R>
 where
   R: Read,
 {
+  pub fn dump_stdout(&mut self) -> Result<(), String> {
+    for op in self {
+      println!("{:?}", op?);
+    }
+
+    Ok(())
+  }
+
   pub fn skip_blocks(&mut self, blocks_to_skip: u64) -> Result<(), String> {
     for _ in 0..blocks_to_skip {
       skip_protobuf(&mut self.reader)?;
@@ -82,10 +90,7 @@ impl<'a> Signature<'a> {
 
     // Print the hashes
     println!("--- START HASH BLOCKS ---\n");
-    for op in self.block_hash_iter.by_ref() {
-      println!("{:?}", op?);
-    }
-
+    self.block_hash_iter.dump_stdout()?;
     println!("\n--- END HASH BLOCKS ---");
 
     Ok(())
