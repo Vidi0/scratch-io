@@ -91,13 +91,7 @@ impl<'a> Signature<'a> {
     Ok(())
   }
 
-  /// <https://docs.itch.zone/wharf/master/file-formats/signatures.html>
-  ///
-  /// <https://github.com/Vidi0/scratch-io/blob/main/docs/wharf/patch.md>
-  pub fn read(reader: &'a mut impl BufRead) -> Result<Self, String> {
-    // Check the magic bytes
-    check_magic_bytes(reader, SIGNATURE_MAGIC)?;
-
+  pub fn read_without_magic(reader: &'a mut impl BufRead) -> Result<Self, String> {
     // Decode the signature header
     let header = decode_protobuf::<pwr::SignatureHeader>(reader)?;
 
@@ -124,5 +118,16 @@ impl<'a> Signature<'a> {
       container_new,
       block_hash_iter,
     })
+  }
+
+  /// <https://docs.itch.zone/wharf/master/file-formats/signatures.html>
+  ///
+  /// <https://github.com/Vidi0/scratch-io/blob/main/docs/wharf/patch.md>
+  pub fn read(reader: &'a mut impl BufRead) -> Result<Self, String> {
+    // Check the magic bytes
+    check_magic_bytes(reader, SIGNATURE_MAGIC)?;
+
+    // Decode the remaining data
+    Self::read_without_magic(reader)
   }
 }
