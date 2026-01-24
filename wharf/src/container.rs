@@ -1,4 +1,4 @@
-use crate::protos::tlc;
+use crate::protos::{pwr, tlc};
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -126,6 +126,12 @@ fn symlink(path: &Path, destination: &str) -> Result<(), String> {
   Ok(())
 }
 
+impl std::fmt::Display for pwr::CompressionSettings {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{:?}-q{}", self.algorithm(), self.quality)
+  }
+}
+
 fn path_safe_push(base: &mut PathBuf, extension: &Path) -> Result<(), String> {
   for comp in extension.components() {
     match comp {
@@ -235,6 +241,16 @@ impl tlc::Container {
     for sym in &self.symlinks {
       println!("{sym:?}");
     }
+  }
+
+  pub fn print_summary(&self, label: &str) {
+    println!(
+      "{label}: {} files, {} dirs, {} symlinks, total size: {} bytes",
+      self.files.len(),
+      self.dirs.len(),
+      self.symlinks.len(),
+      self.size,
+    );
   }
 
   /// Get the number of blocks every file in this container

@@ -96,6 +96,23 @@ impl<'a> Signature<'a> {
     Ok(())
   }
 
+  /// Print a concise summary of the signature to standard output
+  ///
+  /// Shows the compression settings and basic statistics of the
+  /// new container (size, number of files, directories, and symlinks).
+  pub fn print_summary(&self) {
+    // Print the kind of binary
+    println!(
+      "wharf signature file ({})",
+      // If the Signature was read using Signature::read or Signature::read_without_magic,
+      // then the compression field MUST be Some, because otherwise reading would have failed
+      self.header.compression.unwrap()
+    );
+
+    // Print the new container stats
+    self.container_new.print_summary("new");
+  }
+
   /// Decode a binary wharf signature assuming the magic bytes
   /// have already been consumed from the input stream
   ///

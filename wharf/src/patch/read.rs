@@ -247,6 +247,26 @@ impl<'a> Patch<'a> {
     Ok(())
   }
 
+  /// Print a concise summary of the patch to standard output
+  ///
+  /// Shows the compression settings and basic statistics of the
+  /// old and new containers (size, number of files, directories, and symlinks).
+  pub fn print_summary(&self) {
+    // Print the kind of binary
+    println!(
+      "wharf patch file ({})",
+      // If the Patch was read using Patch::read or Patch::read_without_magic,
+      // then the compression field MUST be Some, because otherwise reading would have failed
+      self.header.compression.unwrap()
+    );
+
+    // Print the old container stats
+    self.container_old.print_summary("old");
+
+    // Print the new container stats
+    self.container_new.print_summary("new");
+  }
+
   /// Decode a binary wharf patch assuming the magic bytes
   /// have already been consumed from the input stream
   ///
