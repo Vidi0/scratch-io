@@ -155,6 +155,28 @@ enum ApiCalls {
 // These are calls to wharf commands (patch, verify)
 #[derive(Subcommand)]
 enum WharfCommands {
+  /// Print info about a given wharf binary file
+  ///
+  /// The statistics printed by default are the kind of file (signature or
+  /// patch), the compression used on it and the number of files,
+  /// directories and symlinks present
+  ///
+  /// Calling it with the dump option could be useful to return all the
+  /// data inside the binary file into a human-readable output.
+  Info {
+    /// The path where the wharf binary file to identify is located
+    wharf_file: PathBuf,
+
+    /// Dump all the data in the binary file, not only the header
+    /// and container information
+    ///
+    /// Warning! If the binary file is large, dumping the data could lead
+    /// to an immense output, potentially 100× the size of the original file,
+    /// depending on the contents.
+    #[arg(long, env = "SCRATCH_DUMP")]
+    dump: bool,
+  },
+
   /// Verify that the provided build folder is intact
   ///
   /// Returns an struct containing the indexes in the signature
@@ -822,6 +844,23 @@ fn handle_wharf_command(command: WharfCommands) {
   use WharfCommands as C;
 
   match command {
+    C::Info { wharf_file, dump } => {
+      // Open the wharf file
+      let mut file = std::io::BufReader::new(
+        std::fs::File::open(wharf_file).unwrap_or_else(|e| eprintln_exit!("{e}")),
+      );
+
+      let mut binary = wharf::info::identify(&mut file).unwrap_or_else(|e| eprintln_exit!("{e}"));
+
+      if dump {
+        binary
+          .dump_stdout()
+          .unwrap_or_else(|e| eprintln_exit!("{e}"));
+      } else {
+        binary.print_summary();
+      }
+    }
+
     C::Verify {
       signature_file,
       build_folder,
