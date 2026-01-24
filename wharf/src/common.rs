@@ -3,10 +3,10 @@ use crate::protos::pwr::CompressionAlgorithm;
 use std::io::{BufRead, BufReader, Read};
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L14>
-pub const PATCH_MAGIC: u32 = 0x0FEF_5F00;
+pub const MAGIC_PATCH: u32 = 0x0FEF_5F00;
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L17>
-pub const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
+pub const MAGIC_SIGNATURE: u32 = MAGIC_PATCH + 1;
 
 /// Read the next 4 bytes of the reader and return its little endian u32 representation
 pub fn read_magic_bytes(reader: &mut impl Read) -> Result<u32, String> {

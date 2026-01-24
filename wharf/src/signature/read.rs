@@ -1,4 +1,4 @@
-use crate::common::{SIGNATURE_MAGIC, check_magic_bytes, decompress_stream};
+use crate::common::{MAGIC_SIGNATURE, check_magic_bytes, decompress_stream};
 use crate::protos::*;
 
 use std::io::{BufRead, Read};
@@ -135,7 +135,7 @@ impl<'a> Signature<'a> {
   /// <https://github.com/Vidi0/scratch-io/blob/main/docs/wharf/patch.md>
   pub fn read(reader: &'a mut impl BufRead) -> Result<Self, String> {
     // Check the magic bytes
-    check_magic_bytes(reader, SIGNATURE_MAGIC)?;
+    check_magic_bytes(reader, MAGIC_SIGNATURE)?;
 
     // Decode the remaining data
     Self::read_without_magic(reader)

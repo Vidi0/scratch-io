@@ -1,4 +1,4 @@
-use crate::common::{PATCH_MAGIC, SIGNATURE_MAGIC, read_magic_bytes};
+use crate::common::{MAGIC_PATCH, MAGIC_SIGNATURE, read_magic_bytes};
 use crate::{Patch, Signature};
 
 use std::io::BufRead;
@@ -14,8 +14,8 @@ pub fn identify<'a>(reader: &'a mut impl BufRead) -> Result<WharfBinary<'a>, Str
 
   let magic = read_magic_bytes(reader)?;
   match magic {
-    SIGNATURE_MAGIC => Ok(WB::Signature(Signature::read_without_magic(reader)?)),
-    PATCH_MAGIC => Ok(WB::Patch(Patch::read_without_magic(reader)?)),
+    MAGIC_SIGNATURE => Ok(WB::Signature(Signature::read_without_magic(reader)?)),
+    MAGIC_PATCH => Ok(WB::Patch(Patch::read_without_magic(reader)?)),
     _ => Err("The provided binary doesn't match with any known wharf binary format".to_string()),
   }
 }
