@@ -1,5 +1,5 @@
 use crate::common::{MAGIC_SIGNATURE, check_magic_bytes, decompress_stream};
-use crate::protos::*;
+use crate::protos::{decode_protobuf, pwr, skip_protobuf, tlc};
 
 use std::io::{BufRead, Read};
 
