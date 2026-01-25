@@ -1,159 +1,16 @@
-use super::{BsdiffOpIter, Patch, RsyncOpIter, SyncHeader, SyncHeaderKind};
-use crate::container::BLOCK_SIZE;
+mod bsdiff;
+mod rsync;
+
+use super::{Patch, SyncHeader, SyncHeaderKind};
 use crate::hasher::BlockHasher;
 use crate::protos::*;
 use crate::signature::BlockHashIter;
 
 use std::fs;
-use std::io::{self, Read, Seek, Write};
+use std::io::{Read, Seek, Write};
 use std::path::Path;
 
 const MAX_OPEN_FILES_PATCH: std::num::NonZeroUsize = std::num::NonZeroUsize::new(16).unwrap();
-
-/// Copy blocks of bytes from `src` into `dst`
-fn copy_range(
-  src: &mut (impl Read + Seek),
-  dst: &mut impl Write,
-  block_index: u64,
-  block_span: u64,
-) -> Result<u64, String> {
-  let start_pos = block_index * BLOCK_SIZE;
-  let len = block_span * BLOCK_SIZE;
-
-  src
-    .seek(io::SeekFrom::Start(start_pos))
-    .map_err(|e| format!("Couldn't seek into old file at pos: {start_pos}\n{e}"))?;
-
-  let mut limited = src.take(len);
-
-  io::copy(&mut limited, dst).map_err(|e| format!("Couldn't copy data from old file to new!\n{e}"))
-}
-
-/// Apply all `op_iter` rsync operations to regenerate the new file
-/// into `writer` from the files in the old container
-fn apply_rsync(
-  op_iter: &mut RsyncOpIter<impl Read>,
-  writer: &mut impl Write,
-  old_files_cache: &mut lru::LruCache<usize, fs::File>,
-  old_container: &tlc::Container,
-  old_build_folder: &Path,
-  progress_callback: &mut impl FnMut(u64),
-) -> Result<(), String> {
-  // Apply all the sync operations
-  for op in op_iter {
-    let op = op?;
-
-    match op.r#type() {
-      // If the type is BlockRange, copy the range from the old file to the new one
-      pwr::sync_op::Type::BlockRange => {
-        // Open the old file
-        let old_file = old_files_cache.try_get_or_insert_mut(op.file_index as usize, || {
-          old_container.open_file_read(op.file_index as usize, old_build_folder.to_owned())
-        })?;
-
-        // Rewind isn't needed because the copy_range function already seeks
-        // into the correct (not relative) position
-
-        // Copy the specified range to the new file
-        let written_bytes = copy_range(
-          old_file,
-          writer,
-          op.block_index as u64,
-          op.block_span as u64,
-        )?;
-
-        // Return the number of bytes copied into the new file
-        progress_callback(written_bytes)
-      }
-      // If the type is Data, just copy the data from the patch to the new file
-      pwr::sync_op::Type::Data => {
-        writer
-          .write_all(&op.data)
-          .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
-
-        // Return the number of bytes written into the new file
-        progress_callback(op.data.len() as u64)
-      }
-      // If the type is HeyYouDidIt, then the iterator would have returned None
-      pwr::sync_op::Type::HeyYouDidIt => unreachable!(),
-    }
-  }
-
-  Ok(())
-}
-
-/// Read a block from `src`, add corresponding bytes from `add`, and write the result to `dst`
-fn add_bytes(
-  src: &mut impl Read,
-  dst: &mut impl Write,
-  add: &[u8],
-  add_buffer: &mut [u8],
-) -> Result<(), String> {
-  assert_eq!(add.len(), add_buffer.len());
-
-  src
-    .read_exact(add_buffer)
-    .map_err(|e| format!("Couldn't read data from old file into buffer!\n{e}"))?;
-
-  for i in 0..add.len() {
-    add_buffer[i] += add[i];
-  }
-
-  dst
-    .write_all(add_buffer)
-    .map_err(|e| format!("Couldn't save buffer data into new file!\n{e}"))
-}
-
-/// Apply all `op_iter` bsdiff operations to regenerate the new file
-/// into `writer` from `old_file`
-fn apply_bsdiff(
-  op_iter: &mut BsdiffOpIter<impl Read>,
-  writer: &mut impl Write,
-  old_file: &mut fs::File,
-  add_buffer: &mut Vec<u8>,
-  progress_callback: &mut impl FnMut(u64),
-) -> Result<(), String> {
-  // Apply all the control operations
-  for control in op_iter {
-    let control = control?;
-
-    // Control operations must be applied in order
-    // First, add the diff bytes
-    if !control.add.is_empty() {
-      // Resize the add buffer to match the size of the current add bytes
-      // The add operations are usually the same length, so allocation is almost never triggered
-      // If the new add bytes are smaller than the buffer size, allocation will also be avoided
-      add_buffer.resize(control.add.len(), 0);
-
-      add_bytes(old_file, writer, &control.add, add_buffer)?;
-
-      // Return the number of bytes added into the new file
-      progress_callback(control.add.len() as u64);
-    }
-
-    // Then, copy the extra bytes
-    if !control.copy.is_empty() {
-      writer
-        .write_all(&control.copy)
-        .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
-
-      // Return the number of bytes copied into the new file
-      progress_callback(control.copy.len() as u64);
-    }
-
-    // Lastly, seek into the correct position in the old file
-    if control.seek != 0 {
-      old_file.seek_relative(control.seek).map_err(|e| {
-        format!(
-          "Couldn't seek into old file at relative pos: {}\n{e}",
-          control.seek
-        )
-      })?;
-    }
-  }
-
-  Ok(())
-}
 
 /// Apply all the patch operations in the given header and
 /// write them into `writer`
@@ -170,7 +27,7 @@ fn patch_file<R: Read>(
     // The current file will be updated using the Rsync method
     SyncHeaderKind::Rsync { ref mut op_iter } => {
       // Finally, apply all the rsync operations
-      apply_rsync(
+      rsync::apply_rsync(
         op_iter,
         writer,
         old_files_cache,
@@ -197,7 +54,7 @@ fn patch_file<R: Read>(
         .map_err(|e| format!("Couldn't seek old file to start!\n{e}"))?;
 
       // Finally, apply all the bsdiff operations
-      apply_bsdiff(op_iter, writer, old_file, add_buffer, progress_callback)?;
+      bsdiff::apply_bsdiff(op_iter, writer, old_file, add_buffer, progress_callback)?;
     }
   }
 
