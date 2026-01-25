@@ -27,7 +27,7 @@ fn add_bytes(
 
 /// Apply all `op_iter` bsdiff operations to regenerate the new file
 /// into `writer` from `old_file`
-pub fn apply_bsdiff(
+pub fn apply(
   op_iter: &mut BsdiffOpIter<impl Read>,
   writer: &mut impl Write,
   old_file: &mut fs::File,

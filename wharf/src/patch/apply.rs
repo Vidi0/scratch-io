@@ -27,7 +27,7 @@ fn patch_file<R: Read>(
     // The current file will be updated using the Rsync method
     SyncHeaderKind::Rsync { ref mut op_iter } => {
       // Finally, apply all the rsync operations
-      rsync::apply_rsync(
+      rsync::apply(
         op_iter,
         writer,
         old_files_cache,
@@ -54,7 +54,7 @@ fn patch_file<R: Read>(
         .map_err(|e| format!("Couldn't seek old file to start!\n{e}"))?;
 
       // Finally, apply all the bsdiff operations
-      bsdiff::apply_bsdiff(op_iter, writer, old_file, add_buffer, progress_callback)?;
+      bsdiff::apply(op_iter, writer, old_file, add_buffer, progress_callback)?;
     }
   }
 
