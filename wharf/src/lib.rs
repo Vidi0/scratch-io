@@ -14,7 +14,7 @@ mod container;
 mod hasher;
 
 pub use patch::Patch;
-pub use signature::read::Signature;
+pub use signature::Signature;
 
 pub use common::{MAGIC_PATCH, MAGIC_SIGNATURE};
 

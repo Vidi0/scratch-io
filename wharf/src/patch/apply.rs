@@ -2,7 +2,7 @@ use super::{BsdiffOpIter, Patch, RsyncOpIter, SyncHeader, SyncHeaderKind};
 use crate::container::BLOCK_SIZE;
 use crate::hasher::BlockHasher;
 use crate::protos::*;
-use crate::signature::read::BlockHashIter;
+use crate::signature::BlockHashIter;
 
 use std::fs;
 use std::io::{self, Read, Seek, Write};

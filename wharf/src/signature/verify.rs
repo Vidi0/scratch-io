@@ -1,4 +1,4 @@
-use super::read::Signature;
+use super::Signature;
 use crate::container::{BLOCK_SIZE, ContainerItem};
 use crate::hasher::{BlockHasher, BlockHasherError};
 use crate::protos::tlc;

@@ -1,4 +1,4 @@
-use super::read::Signature;
+use super::Signature;
 use super::verify::IntegrityIssues;
 
 use rc_zip_sync::{ArchiveHandle, HasCursor};
