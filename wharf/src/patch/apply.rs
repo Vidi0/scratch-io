@@ -1,4 +1,4 @@
-use super::read::{BsdiffOpIter, Patch, RsyncOpIter, SyncHeader, SyncHeaderKind};
+use super::{BsdiffOpIter, Patch, RsyncOpIter, SyncHeader, SyncHeaderKind};
 use crate::container::BLOCK_SIZE;
 use crate::hasher::BlockHasher;
 use crate::protos::*;

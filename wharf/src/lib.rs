@@ -13,7 +13,7 @@ mod common;
 mod container;
 mod hasher;
 
-pub use patch::read::Patch;
+pub use patch::Patch;
 pub use signature::read::Signature;
 
 pub use common::{MAGIC_PATCH, MAGIC_SIGNATURE};
