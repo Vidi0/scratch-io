@@ -1,6 +1,6 @@
 use super::{BsdiffOpIter, Patch, RsyncOpIter, SyncEntryIter, SyncHeader, SyncHeaderKind};
 use crate::common::{MAGIC_PATCH, check_magic_bytes, decompress_stream};
-use crate::protos::*;
+use crate::protos::{bsdiff, decode_protobuf, pwr, tlc};
 
 use std::io::{BufRead, Read};
 
