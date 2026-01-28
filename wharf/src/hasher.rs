@@ -1,7 +1,7 @@
 mod errors;
 pub mod writer;
 
-use crate::container::BLOCK_SIZE;
+use crate::common::BLOCK_SIZE;
 use crate::signature::BlockHashIter;
 pub use errors::BlockHasherError;
 

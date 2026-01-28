@@ -1,5 +1,6 @@
 use super::Signature;
-use crate::container::{BLOCK_SIZE, ContainerItem};
+use crate::common::BLOCK_SIZE;
+use crate::container::ContainerItem;
 use crate::hasher::{BlockHasher, BlockHasherError};
 use crate::protos::tlc;
 

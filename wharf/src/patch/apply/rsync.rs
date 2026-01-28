@@ -1,4 +1,4 @@
-use crate::container::BLOCK_SIZE;
+use crate::common::BLOCK_SIZE;
 use crate::patch::RsyncOpIter;
 use crate::protos::{pwr, tlc};
 

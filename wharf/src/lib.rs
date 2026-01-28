@@ -16,6 +16,4 @@ mod hasher;
 pub use patch::Patch;
 pub use signature::Signature;
 
-pub use common::{MAGIC_PATCH, MAGIC_SIGNATURE};
-
-pub use container::BLOCK_SIZE;
+pub use common::{BLOCK_SIZE, MAGIC_PATCH, MAGIC_SIGNATURE};

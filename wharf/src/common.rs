@@ -2,6 +2,9 @@ use crate::protos::pwr::CompressionAlgorithm;
 
 use std::io::{BufRead, BufReader, Read};
 
+/// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L33>
+pub const BLOCK_SIZE: u64 = 64 * 1024;
+
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L14>
 pub const MAGIC_PATCH: u32 = 0x0FEF_5F00;
 
