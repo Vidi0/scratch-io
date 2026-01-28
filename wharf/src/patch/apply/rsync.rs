@@ -31,7 +31,7 @@ pub fn apply(
   op_iter: &mut RsyncOpIter<impl Read>,
   writer: &mut impl Write,
   old_files_cache: &mut lru::LruCache<usize, fs::File>,
-  old_container: &tlc::Container,
+  container_old: &tlc::Container,
   old_build_folder: &Path,
   progress_callback: &mut impl FnMut(u64),
 ) -> Result<(), String> {
@@ -44,7 +44,7 @@ pub fn apply(
       pwr::sync_op::Type::BlockRange => {
         // Open the old file
         let old_file = old_files_cache.try_get_or_insert_mut(op.file_index as usize, || {
-          old_container.open_file_read(op.file_index as usize, old_build_folder.to_owned())
+          container_old.open_file_read(op.file_index as usize, old_build_folder.to_owned())
         })?;
 
         // Rewind isn't needed because the copy_range function already seeks

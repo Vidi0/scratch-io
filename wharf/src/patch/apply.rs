@@ -18,7 +18,7 @@ fn patch_file<R: Read>(
   header: &mut SyncHeader<'_, R>,
   writer: &mut impl Write,
   old_files_cache: &mut lru::LruCache<usize, fs::File>,
-  old_container: &tlc::Container,
+  container_old: &tlc::Container,
   old_build_folder: &Path,
   add_buffer: &mut Vec<u8>,
   progress_callback: &mut impl FnMut(u64),
@@ -31,7 +31,7 @@ fn patch_file<R: Read>(
         op_iter,
         writer,
         old_files_cache,
-        old_container,
+        container_old,
         old_build_folder,
         progress_callback,
       )?;
@@ -44,7 +44,7 @@ fn patch_file<R: Read>(
     } => {
       // Open the old file
       let old_file = old_files_cache.try_get_or_insert_mut(target_index as usize, || {
-        old_container.open_file_read(target_index as usize, old_build_folder.to_owned())
+        container_old.open_file_read(target_index as usize, old_build_folder.to_owned())
       })?;
 
       // Rewind the old file to the start because the file might
