@@ -24,7 +24,6 @@ fn patch_file<R: Read>(
   progress_callback: &mut impl FnMut(u64),
 ) -> Result<(), String> {
   match header.kind {
-    // The current file will be updated using the Rsync method
     SyncHeaderKind::Rsync { ref mut op_iter } => {
       // Finally, apply all the rsync operations
       for op in op_iter {
@@ -39,7 +38,6 @@ fn patch_file<R: Read>(
       }
     }
 
-    // The current file will be updated using the Bsdiff method
     SyncHeaderKind::Bsdiff {
       target_index,
       ref mut op_iter,
