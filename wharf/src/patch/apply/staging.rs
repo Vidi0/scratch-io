@@ -1,0 +1,102 @@
+use super::{SyncHeader, SyncHeaderKind};
+use crate::protos::*;
+
+use std::fs;
+use std::io::{Read, Seek, Write};
+use std::path::Path;
+
+// Whether the file to be patched was actually patched or was skipped
+// because it was an exact copy of an old file
+pub enum PatchFileStatus {
+  Patched,
+  Skipped,
+}
+
+impl<R: Read> SyncHeader<'_, R> {
+  /// Apply all the patch operations in the given header and
+  /// write them into `writer`
+  #[allow(clippy::too_many_arguments)]
+  pub fn patch_file(
+    &mut self,
+    writer: &mut impl Write,
+    new_file_size: u64,
+    old_files_cache: &mut lru::LruCache<usize, fs::File>,
+    container_old: &tlc::Container,
+    old_build_folder: &Path,
+    add_buffer: &mut Vec<u8>,
+    progress_callback: &mut impl FnMut(u64),
+  ) -> Result<PatchFileStatus, String> {
+    match self.kind {
+      SyncHeaderKind::Rsync { ref mut op_iter } => {
+        // Rsync operations can be used to determine literal copies of
+        // files into the new container.
+        //
+        // For that reason, check if the *first* operation represents a literal copy
+        let first = match op_iter.next() {
+          Some(op) => op?,
+          // If the first operation is None, something has gone wrong...
+          // Even if the file is empty, it is represented with an empty Data message.
+          None => {
+            return Err("Expected the first SyncOp for this file, but received None?".to_string());
+          }
+        };
+
+        if first.is_literal_copy(new_file_size, container_old)? {
+          // IMPORTANT! To not break the iterator, call next() one more time
+          // This way, the last message (HeyYouDidIt) for this file is read.
+          // Its type will not be HeyYouDidIt, because when the iterators reachs
+          // a message with this type, it returns None instead.
+          match op_iter.next() {
+            None => (),
+            _ => {
+              return Err(
+                "After detecting a literal copy in this SyncOp, another one was returned?"
+                  .to_string(),
+              );
+            }
+          }
+
+          progress_callback(new_file_size);
+          return Ok(PatchFileStatus::Skipped);
+        }
+
+        // Finally, apply all the rsync operations
+        // Don't forget the first one, which was obtained independently!
+        for op in std::iter::once(Ok(first)).chain(op_iter) {
+          let op = op?;
+          op.apply(
+            writer,
+            old_files_cache,
+            container_old,
+            old_build_folder,
+            progress_callback,
+          )?;
+        }
+      }
+
+      SyncHeaderKind::Bsdiff {
+        target_index,
+        ref mut op_iter,
+      } => {
+        // Open the old file
+        let old_file = old_files_cache.try_get_or_insert_mut(target_index as usize, || {
+          container_old.open_file_read(target_index as usize, old_build_folder.to_owned())
+        })?;
+
+        // Rewind the old file to the start because the file might
+        // have been in the cache and seeked before
+        old_file
+          .rewind()
+          .map_err(|e| format!("Couldn't seek old file to start!\n{e}"))?;
+
+        // Finally, apply all the bsdiff operations
+        for control in op_iter {
+          let control = control?;
+          control.apply(writer, old_file, add_buffer, progress_callback)?;
+        }
+      }
+    }
+
+    Ok(PatchFileStatus::Patched)
+  }
+}
