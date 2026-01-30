@@ -12,21 +12,63 @@ use std::path::Path;
 
 const MAX_OPEN_FILES_PATCH: std::num::NonZeroUsize = std::num::NonZeroUsize::new(16).unwrap();
 
+// Whether the file to be patched was actually patched or was skipped
+// because it was an exact copy of an old file
+enum PatchFileStatus {
+  Patched,
+  Skipped,
+}
+
 /// Apply all the patch operations in the given header and
 /// write them into `writer`
+#[allow(clippy::too_many_arguments)]
 fn patch_file<R: Read>(
   header: &mut SyncHeader<'_, R>,
   writer: &mut impl Write,
+  new_file_size: u64,
   old_files_cache: &mut lru::LruCache<usize, fs::File>,
   container_old: &tlc::Container,
   old_build_folder: &Path,
   add_buffer: &mut Vec<u8>,
   progress_callback: &mut impl FnMut(u64),
-) -> Result<(), String> {
+) -> Result<PatchFileStatus, String> {
   match header.kind {
     SyncHeaderKind::Rsync { ref mut op_iter } => {
+      // Rsync operations can be used to determine literal copies of
+      // files into the new container.
+      //
+      // For that reason, check if the *first* operation represents a literal copy
+      let first = match op_iter.next() {
+        Some(op) => op?,
+        // If the first operation is None, something has gone wrong...
+        // Even if the file is empty, it is represented with an empty Data message.
+        None => {
+          return Err("Expected the first SyncOp for this file, but received None?".to_string());
+        }
+      };
+
+      if first.is_literal_copy(new_file_size, container_old)? {
+        // IMPORTANT! To not break the iterator, call next() one more time
+        // This way, the last message (HeyYouDidIt) for this file is read.
+        // Its type will not be HeyYouDidIt, because when the iterators reachs
+        // a message with this type, it returns None instead.
+        match op_iter.next() {
+          None => (),
+          _ => {
+            return Err(
+              "After detecting a literal copy in this SyncOp, another one was returned?"
+                .to_string(),
+            );
+          }
+        }
+
+        progress_callback(new_file_size);
+        return Ok(PatchFileStatus::Skipped);
+      }
+
       // Finally, apply all the rsync operations
-      for op in op_iter {
+      // Don't forget the first one, which was obtained independently!
+      for op in std::iter::once(Ok(first)).chain(op_iter) {
         let op = op?;
         op.apply(
           writer,
@@ -61,7 +103,7 @@ fn patch_file<R: Read>(
     }
   }
 
-  Ok(())
+  Ok(PatchFileStatus::Patched)
 }
 
 impl Patch<'_> {
@@ -121,9 +163,8 @@ impl Patch<'_> {
         header.map_err(|e| format!("Couldn't get next patch sync operation!\n{e}"))?;
 
       // Open the new file
-      let mut new_file = self
-        .container_new
-        .open_file_write(header.file_index as usize, new_build_folder.to_owned())?;
+      let new_container_file = self.container_new.get_file(header.file_index as usize)?;
+      let mut new_file = new_container_file.open_write(new_build_folder.to_owned())?;
 
       // Write all the new data into the file
       match &mut hasher {
@@ -135,6 +176,7 @@ impl Patch<'_> {
           patch_file(
             &mut header,
             &mut hash_writer,
+            new_container_file.size as u64,
             &mut old_files_cache,
             &self.container_old,
             old_build_folder,
@@ -148,6 +190,7 @@ impl Patch<'_> {
           patch_file(
             &mut header,
             &mut new_file,
+            new_container_file.size as u64,
             &mut old_files_cache,
             &self.container_old,
             old_build_folder,
