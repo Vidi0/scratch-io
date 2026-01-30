@@ -1,4 +1,4 @@
-use crate::patch::BsdiffOpIter;
+use crate::protos::bsdiff;
 
 use std::fs;
 use std::io::{Read, Seek, Write};
@@ -25,52 +25,46 @@ fn add_bytes(
     .map_err(|e| format!("Couldn't save buffer data into new file!\n{e}"))
 }
 
-/// Apply all `op_iter` bsdiff operations to regenerate the new file
-/// into `writer` from `old_file`
+/// Apply the `control` bsdiff operation into the writer
 pub fn apply(
-  op_iter: &mut BsdiffOpIter<impl Read>,
+  control: bsdiff::Control,
   writer: &mut impl Write,
   old_file: &mut fs::File,
   add_buffer: &mut Vec<u8>,
   progress_callback: &mut impl FnMut(u64),
 ) -> Result<(), String> {
-  // Apply all the control operations
-  for control in op_iter {
-    let control = control?;
+  // Control operations must be applied in order
+  // First, add the diff bytes
+  if !control.add.is_empty() {
+    // Resize the add buffer to match the size of the current add bytes
+    // The add operations are usually the same length, so allocation is almost never triggered
+    // If the new add bytes are smaller than the buffer size, allocation will also be avoided
+    add_buffer.resize(control.add.len(), 0);
 
-    // Control operations must be applied in order
-    // First, add the diff bytes
-    if !control.add.is_empty() {
-      // Resize the add buffer to match the size of the current add bytes
-      // The add operations are usually the same length, so allocation is almost never triggered
-      // If the new add bytes are smaller than the buffer size, allocation will also be avoided
-      add_buffer.resize(control.add.len(), 0);
+    add_bytes(old_file, writer, &control.add, add_buffer)?;
 
-      add_bytes(old_file, writer, &control.add, add_buffer)?;
+    // Return the number of bytes added into the new file
+    progress_callback(control.add.len() as u64);
+  }
 
-      // Return the number of bytes added into the new file
-      progress_callback(control.add.len() as u64);
-    }
+  // Then, copy the extra bytes
+  if !control.copy.is_empty() {
+    writer
+      .write_all(&control.copy)
+      .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
 
-    // Then, copy the extra bytes
-    if !control.copy.is_empty() {
-      writer
-        .write_all(&control.copy)
-        .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
+    // Return the number of bytes copied into the new file
+    progress_callback(control.copy.len() as u64);
+  }
 
-      // Return the number of bytes copied into the new file
-      progress_callback(control.copy.len() as u64);
-    }
-
-    // Lastly, seek into the correct position in the old file
-    if control.seek != 0 {
-      old_file.seek_relative(control.seek).map_err(|e| {
-        format!(
-          "Couldn't seek into old file at relative pos: {}\n{e}",
-          control.seek
-        )
-      })?;
-    }
+  // Lastly, seek into the correct position in the old file
+  if control.seek != 0 {
+    old_file.seek_relative(control.seek).map_err(|e| {
+      format!(
+        "Couldn't seek into old file at relative pos: {}\n{e}",
+        control.seek
+      )
+    })?;
   }
 
   Ok(())
