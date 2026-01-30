@@ -29,8 +29,7 @@ fn patch_file<R: Read>(
       // Finally, apply all the rsync operations
       for op in op_iter {
         let op = op?;
-        rsync::apply(
-          &op,
+        op.apply(
           writer,
           old_files_cache,
           container_old,
@@ -59,7 +58,7 @@ fn patch_file<R: Read>(
       // Finally, apply all the bsdiff operations
       for control in op_iter {
         let control = control?;
-        bsdiff::apply(control, writer, old_file, add_buffer, progress_callback)?;
+        control.apply(writer, old_file, add_buffer, progress_callback)?;
       }
     }
   }
