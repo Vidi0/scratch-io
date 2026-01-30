@@ -19,91 +19,93 @@ enum PatchFileStatus {
   Skipped,
 }
 
-/// Apply all the patch operations in the given header and
-/// write them into `writer`
-#[allow(clippy::too_many_arguments)]
-fn patch_file<R: Read>(
-  header: &mut SyncHeader<'_, R>,
-  writer: &mut impl Write,
-  new_file_size: u64,
-  old_files_cache: &mut lru::LruCache<usize, fs::File>,
-  container_old: &tlc::Container,
-  old_build_folder: &Path,
-  add_buffer: &mut Vec<u8>,
-  progress_callback: &mut impl FnMut(u64),
-) -> Result<PatchFileStatus, String> {
-  match header.kind {
-    SyncHeaderKind::Rsync { ref mut op_iter } => {
-      // Rsync operations can be used to determine literal copies of
-      // files into the new container.
-      //
-      // For that reason, check if the *first* operation represents a literal copy
-      let first = match op_iter.next() {
-        Some(op) => op?,
-        // If the first operation is None, something has gone wrong...
-        // Even if the file is empty, it is represented with an empty Data message.
-        None => {
-          return Err("Expected the first SyncOp for this file, but received None?".to_string());
-        }
-      };
-
-      if first.is_literal_copy(new_file_size, container_old)? {
-        // IMPORTANT! To not break the iterator, call next() one more time
-        // This way, the last message (HeyYouDidIt) for this file is read.
-        // Its type will not be HeyYouDidIt, because when the iterators reachs
-        // a message with this type, it returns None instead.
-        match op_iter.next() {
-          None => (),
-          _ => {
-            return Err(
-              "After detecting a literal copy in this SyncOp, another one was returned?"
-                .to_string(),
-            );
+impl<R: Read> SyncHeader<'_, R> {
+  /// Apply all the patch operations in the given header and
+  /// write them into `writer`
+  #[allow(clippy::too_many_arguments)]
+  fn patch_file(
+    &mut self,
+    writer: &mut impl Write,
+    new_file_size: u64,
+    old_files_cache: &mut lru::LruCache<usize, fs::File>,
+    container_old: &tlc::Container,
+    old_build_folder: &Path,
+    add_buffer: &mut Vec<u8>,
+    progress_callback: &mut impl FnMut(u64),
+  ) -> Result<PatchFileStatus, String> {
+    match self.kind {
+      SyncHeaderKind::Rsync { ref mut op_iter } => {
+        // Rsync operations can be used to determine literal copies of
+        // files into the new container.
+        //
+        // For that reason, check if the *first* operation represents a literal copy
+        let first = match op_iter.next() {
+          Some(op) => op?,
+          // If the first operation is None, something has gone wrong...
+          // Even if the file is empty, it is represented with an empty Data message.
+          None => {
+            return Err("Expected the first SyncOp for this file, but received None?".to_string());
           }
+        };
+
+        if first.is_literal_copy(new_file_size, container_old)? {
+          // IMPORTANT! To not break the iterator, call next() one more time
+          // This way, the last message (HeyYouDidIt) for this file is read.
+          // Its type will not be HeyYouDidIt, because when the iterators reachs
+          // a message with this type, it returns None instead.
+          match op_iter.next() {
+            None => (),
+            _ => {
+              return Err(
+                "After detecting a literal copy in this SyncOp, another one was returned?"
+                  .to_string(),
+              );
+            }
+          }
+
+          progress_callback(new_file_size);
+          return Ok(PatchFileStatus::Skipped);
         }
 
-        progress_callback(new_file_size);
-        return Ok(PatchFileStatus::Skipped);
+        // Finally, apply all the rsync operations
+        // Don't forget the first one, which was obtained independently!
+        for op in std::iter::once(Ok(first)).chain(op_iter) {
+          let op = op?;
+          op.apply(
+            writer,
+            old_files_cache,
+            container_old,
+            old_build_folder,
+            progress_callback,
+          )?;
+        }
       }
 
-      // Finally, apply all the rsync operations
-      // Don't forget the first one, which was obtained independently!
-      for op in std::iter::once(Ok(first)).chain(op_iter) {
-        let op = op?;
-        op.apply(
-          writer,
-          old_files_cache,
-          container_old,
-          old_build_folder,
-          progress_callback,
-        )?;
-      }
-    }
+      SyncHeaderKind::Bsdiff {
+        target_index,
+        ref mut op_iter,
+      } => {
+        // Open the old file
+        let old_file = old_files_cache.try_get_or_insert_mut(target_index as usize, || {
+          container_old.open_file_read(target_index as usize, old_build_folder.to_owned())
+        })?;
 
-    SyncHeaderKind::Bsdiff {
-      target_index,
-      ref mut op_iter,
-    } => {
-      // Open the old file
-      let old_file = old_files_cache.try_get_or_insert_mut(target_index as usize, || {
-        container_old.open_file_read(target_index as usize, old_build_folder.to_owned())
-      })?;
+        // Rewind the old file to the start because the file might
+        // have been in the cache and seeked before
+        old_file
+          .rewind()
+          .map_err(|e| format!("Couldn't seek old file to start!\n{e}"))?;
 
-      // Rewind the old file to the start because the file might
-      // have been in the cache and seeked before
-      old_file
-        .rewind()
-        .map_err(|e| format!("Couldn't seek old file to start!\n{e}"))?;
-
-      // Finally, apply all the bsdiff operations
-      for control in op_iter {
-        let control = control?;
-        control.apply(writer, old_file, add_buffer, progress_callback)?;
+        // Finally, apply all the bsdiff operations
+        for control in op_iter {
+          let control = control?;
+          control.apply(writer, old_file, add_buffer, progress_callback)?;
+        }
       }
     }
+
+    Ok(PatchFileStatus::Patched)
   }
-
-  Ok(PatchFileStatus::Patched)
 }
 
 impl Patch<'_> {
@@ -173,8 +175,7 @@ impl Patch<'_> {
           h.reset();
           let mut hash_writer = h.wrap_writer(&mut new_file);
 
-          patch_file(
-            &mut header,
+          header.patch_file(
             &mut hash_writer,
             new_container_file.size as u64,
             &mut old_files_cache,
@@ -187,8 +188,7 @@ impl Patch<'_> {
 
         // Patch into the file directly without checking
         None => {
-          patch_file(
-            &mut header,
+          header.patch_file(
             &mut new_file,
             new_container_file.size as u64,
             &mut old_files_cache,
