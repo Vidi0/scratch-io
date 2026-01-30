@@ -75,18 +75,18 @@ impl pwr::SyncOp {
   /// Check if this `SyncOp` represents a file copy from the
   /// old container into the new without changing the data
   pub fn is_literal_copy(
-    op: &pwr::SyncOp,
+    &self,
     new_file_size: u64,
     container_old: &tlc::Container,
   ) -> Result<bool, String> {
     Ok(
       // The type must be BlockRange
-      op.r#type() == pwr::sync_op::Type::BlockRange
+      self.r#type() == pwr::sync_op::Type::BlockRange
       // It should copy from the first block until the end of the given file
-        && op.block_index == 0
-        && op.block_span as u64 * BLOCK_SIZE >= new_file_size
+        && self.block_index == 0
+        && self.block_span as u64 * BLOCK_SIZE >= new_file_size
       // The size of the old and the new file must be equal
-        && new_file_size == container_old.get_file(op.file_index as usize)?.size as u64,
+        && new_file_size == container_old.get_file(self.file_index as usize)?.size as u64,
     )
   }
 }
