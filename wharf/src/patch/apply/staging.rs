@@ -5,6 +5,19 @@ use std::fs;
 use std::io::{Read, Seek, Write};
 use std::path::Path;
 
+#[allow(dead_code)]
+pub enum FileCheckpoint {
+  Rsync {
+    new_file_size: u64,
+    op_index: u64,
+  },
+  Bsdiff {
+    new_file_size: u64,
+    op_index: u64,
+    old_file_seek_position: u64,
+  },
+}
+
 // Whether the file to be patched was actually patched or was skipped
 // because it was an exact copy of an old file
 pub enum PatchFileStatus {
@@ -25,6 +38,8 @@ impl<R: Read> SyncHeader<'_, R> {
     old_build_folder: &Path,
     add_buffer: &mut Vec<u8>,
     progress_callback: &mut impl FnMut(u64),
+    //load_checkpoint: Option<FileCheckpoint>,
+    //checkpoint: &mut impl FnMut(FileCheckpoint),
   ) -> Result<PatchFileStatus, String> {
     match self.kind {
       SyncHeaderKind::Rsync { ref mut op_iter } => {
