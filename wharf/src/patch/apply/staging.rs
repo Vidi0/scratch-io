@@ -1,4 +1,5 @@
 use super::{SyncHeader, SyncHeaderKind};
+use crate::hasher::{BlockHasher, BlockHasherStatus};
 use crate::protos::*;
 
 use std::fs;
@@ -25,6 +26,7 @@ pub enum FileCheckpoint {
 pub enum PatchFileStatus {
   Patched,
   Skipped,
+  Broken,
 }
 
 impl<R: Read> SyncHeader<'_, R> {
@@ -34,6 +36,7 @@ impl<R: Read> SyncHeader<'_, R> {
   pub fn patch_file(
     &mut self,
     writer: &mut impl Write,
+    hasher: &mut Option<BlockHasher<'_, impl Read>>,
     new_file_size: u64,
     old_files_cache: &mut lru::LruCache<usize, fs::File>,
     container_old: &tlc::Container,
@@ -83,6 +86,7 @@ impl<R: Read> SyncHeader<'_, R> {
           let op = op?;
           op.apply(
             writer,
+            hasher,
             old_files_cache,
             container_old,
             old_build_folder,
@@ -109,8 +113,17 @@ impl<R: Read> SyncHeader<'_, R> {
         // Finally, apply all the bsdiff operations
         for control in op_iter {
           let control = control?;
-          control.apply(writer, old_file, add_buffer, progress_callback)?;
+          control.apply(writer, hasher, old_file, add_buffer, progress_callback)?;
         }
+      }
+    }
+
+    // VERY IMPORTANT!
+    // If the file doesn't finish with a full block, hash it anyways!
+    if let Some(h) = hasher {
+      let status = h.finalize_block()?;
+      if let BlockHasherStatus::HashMismatch { .. } = status {
+        return Ok(PatchFileStatus::Broken);
       }
     }
 

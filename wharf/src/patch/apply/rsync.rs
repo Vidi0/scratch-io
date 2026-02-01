@@ -1,4 +1,6 @@
+use super::{OpStatus, verify_data};
 use crate::common::BLOCK_SIZE;
+use crate::hasher::BlockHasher;
 use crate::protos::{pwr, tlc};
 
 use std::fs;
@@ -9,6 +11,10 @@ use std::path::Path;
 fn copy_range(
   src: &mut (impl Read + Seek),
   dst: &mut impl Write,
+  //////////// TODO
+  //
+  // Make this hasher actually hash something
+  _hasher: &mut Option<BlockHasher<'_, impl Read>>,
   block_index: u64,
   block_span: u64,
 ) -> Result<u64, String> {
@@ -29,11 +35,12 @@ impl pwr::SyncOp {
   pub fn apply(
     &self,
     writer: &mut impl Write,
+    hasher: &mut Option<BlockHasher<'_, impl Read>>,
     old_files_cache: &mut lru::LruCache<usize, fs::File>,
     container_old: &tlc::Container,
     old_build_folder: &Path,
     progress_callback: &mut impl FnMut(u64),
-  ) -> Result<(), String> {
+  ) -> Result<OpStatus, String> {
     match self.r#type() {
       // If the type is BlockRange, copy the range from the old file to the new one
       pwr::sync_op::Type::BlockRange => {
@@ -49,9 +56,12 @@ impl pwr::SyncOp {
         let written_bytes = copy_range(
           old_file,
           writer,
+          hasher,
           self.block_index as u64,
           self.block_span as u64,
         )?;
+
+        // The copy_range function already verified the data
 
         // Return the number of bytes copied into the new file
         progress_callback(written_bytes)
@@ -62,6 +72,11 @@ impl pwr::SyncOp {
           .write_all(&self.data)
           .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
 
+        // Verify the written data
+        if let OpStatus::VerificationFailed = verify_data(hasher, &self.data)? {
+          return Ok(OpStatus::VerificationFailed);
+        }
+
         // Return the number of bytes written into the new file
         progress_callback(self.data.len() as u64)
       }
@@ -69,7 +84,7 @@ impl pwr::SyncOp {
       pwr::sync_op::Type::HeyYouDidIt => unreachable!(),
     }
 
-    Ok(())
+    Ok(OpStatus::Ok)
   }
 
   /// Check if this `SyncOp` represents a file copy from the

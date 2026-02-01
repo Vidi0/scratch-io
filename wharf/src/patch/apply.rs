@@ -3,7 +3,7 @@ mod rsync;
 mod staging;
 
 use super::{Patch, SyncHeader, SyncHeaderKind};
-use crate::hasher::BlockHasher;
+use crate::hasher::{BlockHasher, BlockHasherError, BlockHasherStatus};
 use crate::signature::BlockHashIter;
 
 use std::fs;
@@ -11,6 +11,25 @@ use std::io::Read;
 use std::path::Path;
 
 const MAX_OPEN_FILES_PATCH: std::num::NonZeroUsize = std::num::NonZeroUsize::new(16).unwrap();
+
+#[derive(Clone, Copy)]
+pub enum OpStatus {
+  Ok,
+  VerificationFailed,
+}
+
+fn verify_data(
+  hasher: &mut Option<BlockHasher<'_, impl Read>>,
+  data: &[u8],
+) -> Result<OpStatus, BlockHasherError> {
+  if let Some(hasher) = hasher
+    && let BlockHasherStatus::HashMismatch { .. } = hasher.update(data)?
+  {
+    return Ok(OpStatus::VerificationFailed);
+  }
+
+  Ok(OpStatus::Ok)
+}
 
 impl Patch<'_> {
   /// Apply the patch operations to produce the new build.
@@ -73,53 +92,16 @@ impl Patch<'_> {
       let mut new_file = new_container_file.open_write(new_build_folder.to_owned())?;
 
       // Write all the new data into the file
-      match &mut hasher {
-        // Wrap the new file in the hasher
-        Some(h) => {
-          h.reset();
-
-          todo!();
-          /////////////////// TODO
-          //
-          // MAKE APPLY PATCH VERIFICATION WORK AGAIN
-
-          /* let mut hash_writer = h.wrap_writer(&mut new_file);
-
-          header.patch_file(
-            &mut hash_writer,
-            new_container_file.size as u64,
-            &mut old_files_cache,
-            &self.container_old,
-            old_build_folder,
-            &mut add_buffer,
-            &mut progress_callback,
-          )?; */
-        }
-
-        // Patch into the file directly without checking
-        None => {
-          header.patch_file(
-            &mut new_file,
-            new_container_file.size as u64,
-            &mut old_files_cache,
-            &self.container_old,
-            old_build_folder,
-            &mut add_buffer,
-            &mut progress_callback,
-          )?;
-        }
-      }
-
-      // VERY IMPORTANT!
-      // If the file doesn't finish with a full block, hash it anyways!
-      if let Some(h) = &mut hasher {
-        ///////////// TODO
-        //
-        // HANDLE THE HASH ERROR
-
-        let _ = h.finalize_block()?;
-        todo!();
-      }
+      header.patch_file(
+        &mut new_file,
+        &mut hasher,
+        new_container_file.size as u64,
+        &mut old_files_cache,
+        &self.container_old,
+        old_build_folder,
+        &mut add_buffer,
+        &mut progress_callback,
+      )?;
     }
 
     Ok(())

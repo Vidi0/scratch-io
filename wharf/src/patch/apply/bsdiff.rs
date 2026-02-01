@@ -1,9 +1,14 @@
+use super::{OpStatus, verify_data};
+use crate::hasher::BlockHasher;
 use crate::protos::bsdiff;
 
 use std::fs;
 use std::io::{Read, Seek, Write};
 
 /// Read a block from `src`, add corresponding bytes from `add`, and write the result to `dst`
+///
+/// After this function is called, the bytes that have been written into the file
+/// will be in `add_buffer`
 fn add_bytes(
   src: &mut impl Read,
   dst: &mut impl Write,
@@ -30,10 +35,11 @@ impl bsdiff::Control {
   pub fn apply(
     &self,
     writer: &mut impl Write,
+    hasher: &mut Option<BlockHasher<'_, impl Read>>,
     old_file: &mut fs::File,
     add_buffer: &mut Vec<u8>,
     progress_callback: &mut impl FnMut(u64),
-  ) -> Result<(), String> {
+  ) -> Result<OpStatus, String> {
     // Control operations must be applied in order
     // First, add the diff bytes
     if !self.add.is_empty() {
@@ -44,6 +50,11 @@ impl bsdiff::Control {
 
       add_bytes(old_file, writer, &self.add, add_buffer)?;
 
+      // Verify the written data
+      if let OpStatus::VerificationFailed = verify_data(hasher, add_buffer)? {
+        return Ok(OpStatus::VerificationFailed);
+      }
+
       // Return the number of bytes added into the new file
       progress_callback(self.add.len() as u64);
     }
@@ -53,6 +64,11 @@ impl bsdiff::Control {
       writer
         .write_all(&self.copy)
         .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
+
+      // Verify the written data
+      if let OpStatus::VerificationFailed = verify_data(hasher, &self.copy)? {
+        return Ok(OpStatus::VerificationFailed);
+      }
 
       // Return the number of bytes copied into the new file
       progress_callback(self.copy.len() as u64);
@@ -68,6 +84,6 @@ impl bsdiff::Control {
       })?;
     }
 
-    Ok(())
+    Ok(OpStatus::Ok)
   }
 }
