@@ -20,6 +20,7 @@ pub enum FileCheckpoint {
 
 // Whether the file to be patched was actually patched or was skipped
 // because it was an exact copy of an old file
+//#[must_use]
 pub enum PatchFileStatus {
   Patched,
   Skipped,
