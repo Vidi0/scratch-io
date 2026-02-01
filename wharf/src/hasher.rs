@@ -1,9 +1,8 @@
 mod errors;
-pub mod writer;
 
 use crate::common::BLOCK_SIZE;
 use crate::signature::BlockHashIter;
-pub use errors::BlockHasherError;
+pub use errors::{BlockHasherError, BlockHasherStatus};
 
 use md5::digest::{OutputSizeUser, generic_array::GenericArray, typenum::Unsigned};
 use md5::{Digest, Md5};
@@ -52,7 +51,7 @@ impl<'a, R> BlockHasher<'a, R> {
 
 impl<'a, R: Read> BlockHasher<'a, R> {
   /// Update the hahser with new data
-  pub fn update(&mut self, buf: &[u8]) -> Result<(), BlockHasherError> {
+  pub fn update(&mut self, buf: &[u8]) -> Result<BlockHasherStatus, BlockHasherError> {
     let mut offset: usize = 0;
 
     while offset < buf.len() {
@@ -71,22 +70,26 @@ impl<'a, R: Read> BlockHasher<'a, R> {
       if self.written_bytes == BLOCK_SIZE as usize {
         // Chunk completed
         self.blocks_since_reset += 1;
-        self.finalize_block()?;
+
+        let status = self.finalize_block()?;
+        if let BlockHasherStatus::HashMismatch { expected, found } = status {
+          return Ok(BlockHasherStatus::HashMismatch { expected, found });
+        }
       }
     }
 
-    Ok(())
+    Ok(BlockHasherStatus::Ok)
   }
 
   /// Finalize the current data in the hasher and check the current block
   ///
   /// Don't hash the block if it's empty AND it isn't the first one
-  pub fn finalize_block(&mut self) -> Result<(), BlockHasherError> {
+  pub fn finalize_block(&mut self) -> Result<BlockHasherStatus, BlockHasherError> {
     // Skip hashing if the current block is empty
     // However, wharf saves an empty hash for an empty file,
     // so ensure this is not the first block before skipping
     if self.written_bytes == 0 && !self.first_block {
-      return Ok(());
+      return Ok(BlockHasherStatus::Ok);
     }
 
     // Reset hasher variables
@@ -105,13 +108,13 @@ impl<'a, R: Read> BlockHasher<'a, R> {
 
     // Compare the hashes
     if *self.hash_buffer != *next_hash.strong_hash {
-      return Err(BlockHasherError::HashMismatch {
+      return Ok(BlockHasherStatus::HashMismatch {
         expected: next_hash.strong_hash,
         found: self.hash_buffer.into(),
       });
     }
 
-    Ok(())
+    Ok(BlockHasherStatus::Ok)
   }
 
   /// Skip the provied number of blocks and reset the hasher to

@@ -1,7 +1,7 @@
 use super::Signature;
 use crate::common::BLOCK_SIZE;
 use crate::container::ContainerItem;
-use crate::hasher::{BlockHasher, BlockHasherError};
+use crate::hasher::{BlockHasher, BlockHasherStatus};
 use crate::protos::tlc;
 
 use std::io::Read;
@@ -82,33 +82,23 @@ fn check_file_integrity<R: Read>(
     progress_callback(read_bytes as u64);
     total_read_bytes += read_bytes as u64;
 
-    // Update hasher and handle the error
-    match hasher.update(&buffer[..read_bytes]) {
-      Ok(()) => (),
-      // If the error is due to the file being broken, set it as broken
-      // and continue with the next one
-      Err(BlockHasherError::HashMismatch { .. }) => {
-        let blocks_to_skip = container_file.block_count() - hasher.blocks_since_reset();
-        hasher.skip_blocks(blocks_to_skip)?;
-        // Callback the number of bytes that have not been called back before
-        progress_callback(file_size - total_read_bytes);
-        return Ok(false);
-      }
-      // Else, return the error
-      Err(e) => return Err(e.to_string()),
-    };
-  }
+    // Update hasher
+    let status = hasher.update(&buffer[..read_bytes])?;
 
-  // Hash the last block and handle the error
-  match hasher.finalize_block() {
-    Ok(()) => (),
-    // If the error is due to the file being broken, set it as broken
-    Err(BlockHasherError::HashMismatch { .. }) => {
-      // All the blocks have been checked, don't skip
+    // If the file is broken, return
+    if let BlockHasherStatus::HashMismatch { .. } = status {
+      let blocks_to_skip = container_file.block_count() - hasher.blocks_since_reset();
+      hasher.skip_blocks(blocks_to_skip)?;
+      // Callback the number of bytes that have not been called back before
+      progress_callback(file_size - total_read_bytes);
       return Ok(false);
     }
-    // Else, return the error
-    Err(e) => return Err(e.to_string()),
+  }
+
+  // Hash the last block
+  let status = hasher.finalize_block()?;
+  if let BlockHasherStatus::HashMismatch { .. } = status {
+    return Ok(false);
   }
 
   Ok(true)

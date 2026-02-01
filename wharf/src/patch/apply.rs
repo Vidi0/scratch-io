@@ -77,7 +77,13 @@ impl Patch<'_> {
         // Wrap the new file in the hasher
         Some(h) => {
           h.reset();
-          let mut hash_writer = h.wrap_writer(&mut new_file);
+
+          todo!();
+          /////////////////// TODO
+          //
+          // MAKE APPLY PATCH VERIFICATION WORK AGAIN
+
+          /* let mut hash_writer = h.wrap_writer(&mut new_file);
 
           header.patch_file(
             &mut hash_writer,
@@ -87,7 +93,7 @@ impl Patch<'_> {
             old_build_folder,
             &mut add_buffer,
             &mut progress_callback,
-          )?;
+          )?; */
         }
 
         // Patch into the file directly without checking
@@ -107,7 +113,12 @@ impl Patch<'_> {
       // VERY IMPORTANT!
       // If the file doesn't finish with a full block, hash it anyways!
       if let Some(h) = &mut hasher {
-        h.finalize_block()?;
+        ///////////// TODO
+        //
+        // HANDLE THE HASH ERROR
+
+        let _ = h.finalize_block()?;
+        todo!();
       }
     }
 
