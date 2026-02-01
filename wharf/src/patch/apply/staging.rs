@@ -6,6 +6,7 @@ use std::io::{Read, Seek, Write};
 use std::path::Path;
 
 #[allow(dead_code)]
+#[derive(Clone, Copy)]
 pub enum FileCheckpoint {
   Rsync {
     new_file_size: u64,
