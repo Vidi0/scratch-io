@@ -30,6 +30,20 @@ pub enum PatchFileStatus {
   Broken,
 }
 
+fn handle_verification_failure(
+  hasher: &mut Option<BlockHasher<'_, impl Read>>,
+  new_file_size: u64,
+) -> Result<PatchFileStatus, String> {
+  // It is safe to unwrap the hasher because this function will only be called
+  // after the verification has failed, and that means that it has been checked
+  // by the hasher.
+  let hasher = hasher.as_mut().unwrap();
+  let blocks_to_skip = file_blocks(new_file_size) - hasher.blocks_since_reset();
+  hasher.skip_blocks(blocks_to_skip)?;
+
+  Ok(PatchFileStatus::Broken)
+}
+
 impl<R: Read> SyncHeader<'_, R> {
   /// Apply all the patch operations in the given header and
   /// write them into `writer`
@@ -99,7 +113,7 @@ impl<R: Read> SyncHeader<'_, R> {
           )?;
 
           if let OpStatus::VerificationFailed = status {
-            return Ok(PatchFileStatus::Broken);
+            return handle_verification_failure(hasher, new_file_size);
           }
         }
       }
@@ -124,7 +138,7 @@ impl<R: Read> SyncHeader<'_, R> {
           let status = control?.apply(writer, hasher, old_file, add_buffer, progress_callback)?;
 
           if let OpStatus::VerificationFailed = status {
-            return Ok(PatchFileStatus::Broken);
+            return handle_verification_failure(hasher, new_file_size);
           }
         }
       }
