@@ -13,6 +13,7 @@ use std::path::Path;
 const MAX_OPEN_FILES_PATCH: std::num::NonZeroUsize = std::num::NonZeroUsize::new(16).unwrap();
 
 #[derive(Clone, Copy)]
+#[must_use]
 pub enum OpStatus {
   Ok,
   VerificationFailed,

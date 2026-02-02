@@ -1,4 +1,4 @@
-use super::{SyncHeader, SyncHeaderKind};
+use super::{OpStatus, SyncHeader, SyncHeaderKind};
 use crate::hasher::{BlockHasher, BlockHasherStatus};
 use crate::protos::*;
 
@@ -83,8 +83,7 @@ impl<R: Read> SyncHeader<'_, R> {
         // Finally, apply all the rsync operations
         // Don't forget the first one, which was obtained independently!
         for op in std::iter::once(Ok(first)).chain(op_iter) {
-          let op = op?;
-          op.apply(
+          let status = op?.apply(
             writer,
             hasher,
             old_files_cache,
@@ -92,6 +91,10 @@ impl<R: Read> SyncHeader<'_, R> {
             old_build_folder,
             progress_callback,
           )?;
+
+          if let OpStatus::VerificationFailed = status {
+            return Ok(PatchFileStatus::Broken);
+          }
         }
       }
 
@@ -112,8 +115,11 @@ impl<R: Read> SyncHeader<'_, R> {
 
         // Finally, apply all the bsdiff operations
         for control in op_iter {
-          let control = control?;
-          control.apply(writer, hasher, old_file, add_buffer, progress_callback)?;
+          let status = control?.apply(writer, hasher, old_file, add_buffer, progress_callback)?;
+
+          if let OpStatus::VerificationFailed = status {
+            return Ok(PatchFileStatus::Broken);
+          }
         }
       }
     }
