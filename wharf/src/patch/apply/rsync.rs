@@ -7,6 +7,13 @@ use std::fs;
 use std::io::{self, Read, Seek, Write};
 use std::path::Path;
 
+#[derive(Clone, Copy)]
+#[must_use]
+enum CopyRangeStatus {
+  Ok(u64),
+  VerificationFailed,
+}
+
 /// Copy blocks of bytes from `src` into `dst`
 fn copy_range(
   src: &mut (impl Read + Seek),
@@ -15,7 +22,7 @@ fn copy_range(
   block_index: u64,
   block_span: u64,
   buffer: &mut [u8],
-) -> Result<u64, String> {
+) -> Result<CopyRangeStatus, String> {
   let start_pos = block_index * BLOCK_SIZE;
   let len = block_span * BLOCK_SIZE;
 
@@ -28,6 +35,7 @@ fn copy_range(
   match hasher {
     // If the data won't be hashed, then copy directly
     None => io::copy(&mut limited, dst)
+      .map(CopyRangeStatus::Ok)
       .map_err(|e| format!("Couldn't copy data from old file to new!\n{e}")),
 
     // Else: read the data, write it, and then hash it
@@ -55,16 +63,13 @@ fn copy_range(
         // Update the hasher
         let status = hasher.update(&buffer[..read])?;
         if let BlockHasherStatus::HashMismatch { .. } = status {
-          ///////////////// TODO
-          //
-          // Handle the hash mismatch
-          todo!()
+          return Ok(CopyRangeStatus::VerificationFailed);
         }
 
         total_written += read as u64;
       }
 
-      Ok(total_written)
+      Ok(CopyRangeStatus::Ok(total_written))
     }
   }
 }
@@ -94,7 +99,7 @@ impl pwr::SyncOp {
         // into the correct (not relative) position
 
         // Copy the specified range to the new file
-        let written_bytes = copy_range(
+        let status = copy_range(
           old_file,
           writer,
           hasher,
@@ -105,8 +110,11 @@ impl pwr::SyncOp {
 
         // The copy_range function already verified the data
 
-        // Return the number of bytes copied into the new file
-        progress_callback(written_bytes)
+        // Return the number of bytes copied into the new file or the error
+        match status {
+          CopyRangeStatus::Ok(written_bytes) => progress_callback(written_bytes),
+          CopyRangeStatus::VerificationFailed => return Ok(OpStatus::VerificationFailed),
+        }
       }
       // If the type is Data, just copy the data from the patch to the new file
       pwr::sync_op::Type::Data => {
