@@ -1,4 +1,5 @@
 use super::{OpStatus, SyncHeader, SyncHeaderKind};
+use crate::container::file_blocks;
 use crate::hasher::{BlockHasher, BlockHasherStatus};
 use crate::protos::*;
 
@@ -74,6 +75,11 @@ impl<R: Read> SyncHeader<'_, R> {
                   .to_string(),
               );
             }
+          }
+
+          // Skip this file's blocks in the hash iter
+          if let Some(hasher) = hasher {
+            hasher.skip_blocks(file_blocks(new_file_size))?;
           }
 
           progress_callback(new_file_size);
