@@ -79,6 +79,12 @@ impl Patch<'_> {
     // the buffer on each add operation
     let mut add_buffer: Vec<u8> = Vec::new();
 
+    // This buffer is used when applying rsync block_range operations
+    // It is created here to avoid allocating and deallocating
+    // the buffer on each block_range operation
+    // It is only used when a hasher is provided
+    let mut block_buffer: Vec<u8> = Vec::new();
+
     // If a hash_iter was provided, create a reusable hasher
     // instance to verify that the new game files are intact
     let mut hasher = hash_iter.map(|iter| BlockHasher::new(iter));
@@ -101,6 +107,7 @@ impl Patch<'_> {
         &self.container_old,
         old_build_folder,
         &mut add_buffer,
+        &mut block_buffer,
         &mut progress_callback,
       )?;
     }

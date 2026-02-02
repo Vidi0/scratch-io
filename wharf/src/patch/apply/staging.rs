@@ -1,4 +1,5 @@
 use super::{OpStatus, SyncHeader, SyncHeaderKind};
+use crate::common::BLOCK_SIZE;
 use crate::container::file_blocks;
 use crate::hasher::{BlockHasher, BlockHasherStatus};
 use crate::protos::*;
@@ -57,6 +58,7 @@ impl<R: Read> SyncHeader<'_, R> {
     container_old: &tlc::Container,
     old_build_folder: &Path,
     add_buffer: &mut Vec<u8>,
+    block_buffer: &mut Vec<u8>,
     progress_callback: &mut impl FnMut(u64),
     //load_checkpoint: Option<FileCheckpoint>,
     //checkpoint: &mut impl FnMut(FileCheckpoint),
@@ -100,6 +102,15 @@ impl<R: Read> SyncHeader<'_, R> {
           return Ok(PatchFileStatus::Skipped);
         }
 
+        // Resize the block buffer, but only if a hasher was provided
+        // If the data doesn't need to be hashed, a more efficient method to copy
+        // blocks is used which doesn't require a buffer
+        if hasher.is_some() {
+          // The size of the new buffer doesn't need to be BLOCK_SIZE,
+          // but it makes sense to use it
+          block_buffer.resize(BLOCK_SIZE as usize, 0);
+        }
+
         // Finally, apply all the rsync operations
         // Don't forget the first one, which was obtained independently!
         for op in std::iter::once(Ok(first)).chain(op_iter) {
@@ -109,6 +120,7 @@ impl<R: Read> SyncHeader<'_, R> {
             old_files_cache,
             container_old,
             old_build_folder,
+            block_buffer,
             progress_callback,
           )?;
 
