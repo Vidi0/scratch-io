@@ -1,11 +1,9 @@
-use super::{OpStatus, verify_data};
+use super::{FilesCache, OpStatus, verify_data};
 use crate::common::BLOCK_SIZE;
 use crate::hasher::{BlockHasher, BlockHasherStatus};
 use crate::protos::{pwr, tlc};
 
-use std::fs;
 use std::io::{self, Read, Seek, Write};
-use std::path::Path;
 
 #[derive(Clone, Copy)]
 #[must_use]
@@ -76,14 +74,12 @@ fn copy_range(
 
 impl pwr::SyncOp {
   /// Apply the `op` rsync operation into the writer
-  #[allow(clippy::too_many_arguments)]
   pub fn apply(
     &self,
     writer: &mut impl Write,
     hasher: &mut Option<BlockHasher<'_, impl Read>>,
-    old_files_cache: &mut lru::LruCache<usize, fs::File>,
+    old_files_cache: &mut FilesCache,
     container_old: &tlc::Container,
-    old_build_folder: &Path,
     buffer: &mut [u8],
     progress_callback: &mut impl FnMut(u64),
   ) -> Result<OpStatus, String> {
@@ -91,9 +87,7 @@ impl pwr::SyncOp {
       // If the type is BlockRange, copy the range from the old file to the new one
       pwr::sync_op::Type::BlockRange => {
         // Open the old file
-        let old_file = old_files_cache.try_get_or_insert_mut(self.file_index as usize, || {
-          container_old.open_file_read(self.file_index as usize, old_build_folder.to_owned())
-        })?;
+        let old_file = old_files_cache.get_file(self.file_index as usize, container_old)?;
 
         // Rewind isn't needed because the copy_range function already seeks
         // into the correct (not relative) position

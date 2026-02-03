@@ -1,12 +1,10 @@
-use super::{OpStatus, SyncHeader, SyncHeaderKind};
+use super::{FilesCache, OpStatus, SyncHeader, SyncHeaderKind};
 use crate::common::BLOCK_SIZE;
 use crate::container::file_blocks;
 use crate::hasher::{BlockHasher, BlockHasherStatus};
-use crate::protos::*;
+use crate::protos::tlc;
 
-use std::fs;
 use std::io::{Read, Seek, Write};
-use std::path::Path;
 
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
@@ -55,9 +53,8 @@ impl<R: Read> SyncHeader<'_, R> {
     writer: &mut impl Write,
     hasher: &mut Option<BlockHasher<'_, impl Read>>,
     new_file_size: u64,
-    old_files_cache: &mut lru::LruCache<usize, fs::File>,
+    old_files_cache: &mut FilesCache,
     container_old: &tlc::Container,
-    old_build_folder: &Path,
     add_buffer: &mut Vec<u8>,
     block_buffer: &mut Vec<u8>,
     progress_callback: &mut impl FnMut(u64),
@@ -122,7 +119,6 @@ impl<R: Read> SyncHeader<'_, R> {
             hasher,
             old_files_cache,
             container_old,
-            old_build_folder,
             block_buffer,
             progress_callback,
           )?;
@@ -138,9 +134,7 @@ impl<R: Read> SyncHeader<'_, R> {
         ref mut op_iter,
       } => {
         // Open the old file
-        let old_file = old_files_cache.try_get_or_insert_mut(target_index as usize, || {
-          container_old.open_file_read(target_index as usize, old_build_folder.to_owned())
-        })?;
+        let old_file = old_files_cache.get_file(target_index as usize, container_old)?;
 
         // Rewind the old file to the start because the file might
         // have been in the cache and seeked before

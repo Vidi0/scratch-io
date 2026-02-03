@@ -4,6 +4,7 @@ mod staging;
 
 use super::{Patch, SyncHeader, SyncHeaderKind};
 use crate::hasher::{BlockHasher, BlockHasherError, BlockHasherStatus};
+use crate::protos::tlc;
 use crate::signature::BlockHashIter;
 
 use std::fs;
@@ -11,6 +12,30 @@ use std::io::Read;
 use std::path::Path;
 
 const MAX_OPEN_FILES_PATCH: std::num::NonZeroUsize = std::num::NonZeroUsize::new(16).unwrap();
+
+pub struct FilesCache<'a> {
+  cache: lru::LruCache<usize, fs::File>,
+  build_folder: &'a Path,
+}
+
+impl<'a> FilesCache<'a> {
+  pub fn new(build_folder: &'a Path) -> Self {
+    FilesCache {
+      cache: lru::LruCache::new(MAX_OPEN_FILES_PATCH),
+      build_folder,
+    }
+  }
+
+  pub fn get_file(
+    &mut self,
+    index: usize,
+    container: &tlc::Container,
+  ) -> Result<&mut fs::File, String> {
+    self.cache.try_get_or_insert_mut(index, || {
+      container.open_file_read(index, self.build_folder.to_owned())
+    })
+  }
+}
 
 #[derive(Clone, Copy)]
 #[must_use]
@@ -71,8 +96,7 @@ impl Patch<'_> {
     // Create a cache of open file descriptors for the old files
     // The key is the file_index of the old file provided by the patch
     // The value is the open file descriptor
-    let mut old_files_cache: lru::LruCache<usize, fs::File> =
-      lru::LruCache::new(MAX_OPEN_FILES_PATCH);
+    let mut old_files_cache = FilesCache::new(old_build_folder);
 
     // This buffer is used when applying bsdiff add operations
     // It is created here to avoid allocating and deallocating
@@ -105,7 +129,6 @@ impl Patch<'_> {
         new_container_file.size as u64,
         &mut old_files_cache,
         &self.container_old,
-        old_build_folder,
         &mut add_buffer,
         &mut block_buffer,
         &mut progress_callback,
