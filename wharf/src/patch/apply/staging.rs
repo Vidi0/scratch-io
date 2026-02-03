@@ -27,7 +27,7 @@ pub enum FileCheckpoint {
 //#[must_use]
 pub enum PatchFileStatus {
   Patched,
-  Skipped,
+  Skipped { old_index: u64 },
   Broken,
 }
 
@@ -99,7 +99,9 @@ impl<R: Read> SyncHeader<'_, R> {
           }
 
           progress_callback(new_file_size);
-          return Ok(PatchFileStatus::Skipped);
+          return Ok(PatchFileStatus::Skipped {
+            old_index: first.file_index as u64,
+          });
         }
 
         // Resize the block buffer, but only if a hasher was provided
