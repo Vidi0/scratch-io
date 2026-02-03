@@ -145,7 +145,7 @@ impl Patch<'_> {
       let mut new_file = new_container_file.open_write(new_build_folder.to_owned())?;
 
       // Write all the new data into the file
-      header.patch_file(
+      let status = header.patch_file(
         &mut new_file,
         &mut hasher,
         new_container_file.size as u64,
@@ -155,6 +155,9 @@ impl Patch<'_> {
         &mut block_buffer,
         &mut progress_callback,
       )?;
+
+      /////// TODO: DO SOMETHING WITH THE STATUS
+      println!("file {}: {:?}", header.file_index, status);
     }
 
     Ok(())

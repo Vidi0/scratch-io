@@ -24,7 +24,7 @@ pub enum FileCheckpoint {
 // Whether the file to be patched was actually patched or was skipped
 // because it was an exact copy of an old file
 #[derive(Clone, Copy, Debug)]
-//#[must_use]
+#[must_use]
 pub enum PatchFileStatus {
   Patched,
   Skipped { old_index: u64 },
