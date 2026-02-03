@@ -59,7 +59,7 @@ impl<'a> FilesCache<'a> {
   }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[must_use]
 pub enum OpStatus {
   Ok,

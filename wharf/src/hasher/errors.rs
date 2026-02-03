@@ -21,6 +21,7 @@ impl From<BlockHasherError> for String {
 }
 
 #[must_use]
+#[derive(Clone, Debug)]
 pub enum BlockHasherStatus {
   Ok,
   HashMismatch {
