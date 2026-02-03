@@ -51,8 +51,8 @@ impl bsdiff::Control {
       add_bytes(old_file, writer, &self.add, add_buffer)?;
 
       // Verify the written data
-      if let OpStatus::VerificationFailed = verify_data(hasher, add_buffer)? {
-        return Ok(OpStatus::VerificationFailed);
+      if let OpStatus::Broken = verify_data(hasher, add_buffer)? {
+        return Ok(OpStatus::Broken);
       }
 
       // Return the number of bytes added into the new file
@@ -66,8 +66,8 @@ impl bsdiff::Control {
         .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
 
       // Verify the written data
-      if let OpStatus::VerificationFailed = verify_data(hasher, &self.copy)? {
-        return Ok(OpStatus::VerificationFailed);
+      if let OpStatus::Broken = verify_data(hasher, &self.copy)? {
+        return Ok(OpStatus::Broken);
       }
 
       // Return the number of bytes copied into the new file

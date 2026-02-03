@@ -1,4 +1,4 @@
-use super::{FilesCache, OpStatus, verify_data};
+use super::{FilesCache, FilesCacheStatus, OpStatus, verify_data};
 use crate::common::BLOCK_SIZE;
 use crate::hasher::{BlockHasher, BlockHasherStatus};
 use crate::protos::{pwr, tlc};
@@ -87,7 +87,10 @@ impl pwr::SyncOp {
       // If the type is BlockRange, copy the range from the old file to the new one
       pwr::sync_op::Type::BlockRange => {
         // Open the old file
-        let old_file = old_files_cache.get_file(self.file_index as usize, container_old)?;
+        let old_file = match old_files_cache.get_file(self.file_index as usize, container_old)? {
+          FilesCacheStatus::Ok(f) => f,
+          FilesCacheStatus::NotFound => return Ok(OpStatus::Broken),
+        };
 
         // Rewind isn't needed because the copy_range function already seeks
         // into the correct (not relative) position
@@ -107,7 +110,7 @@ impl pwr::SyncOp {
         // Return the number of bytes copied into the new file or the error
         match status {
           CopyRangeStatus::Ok(written_bytes) => progress_callback(written_bytes),
-          CopyRangeStatus::VerificationFailed => return Ok(OpStatus::VerificationFailed),
+          CopyRangeStatus::VerificationFailed => return Ok(OpStatus::Broken),
         }
       }
       // If the type is Data, just copy the data from the patch to the new file
@@ -117,8 +120,8 @@ impl pwr::SyncOp {
           .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
 
         // Verify the written data
-        if let OpStatus::VerificationFailed = verify_data(hasher, &self.data)? {
-          return Ok(OpStatus::VerificationFailed);
+        if let OpStatus::Broken = verify_data(hasher, &self.data)? {
+          return Ok(OpStatus::Broken);
         }
 
         // Return the number of bytes written into the new file

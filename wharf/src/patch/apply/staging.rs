@@ -1,4 +1,4 @@
-use super::{FilesCache, OpStatus, SyncHeader, SyncHeaderKind};
+use super::{FilesCache, FilesCacheStatus, OpStatus, SyncHeader, SyncHeaderKind};
 use crate::common::BLOCK_SIZE;
 use crate::container::file_blocks;
 use crate::hasher::{BlockHasher, BlockHasherStatus};
@@ -123,7 +123,7 @@ impl<R: Read> SyncHeader<'_, R> {
             progress_callback,
           )?;
 
-          if let OpStatus::VerificationFailed = status {
+          if let OpStatus::Broken = status {
             return handle_verification_failure(hasher, new_file_size);
           }
         }
@@ -134,7 +134,10 @@ impl<R: Read> SyncHeader<'_, R> {
         ref mut op_iter,
       } => {
         // Open the old file
-        let old_file = old_files_cache.get_file(target_index as usize, container_old)?;
+        let old_file = match old_files_cache.get_file(target_index as usize, container_old)? {
+          FilesCacheStatus::Ok(f) => f,
+          FilesCacheStatus::NotFound => return Ok(PatchFileStatus::Broken),
+        };
 
         // Rewind the old file to the start because the file might
         // have been in the cache and seeked before
@@ -146,7 +149,7 @@ impl<R: Read> SyncHeader<'_, R> {
         for control in op_iter {
           let status = control?.apply(writer, hasher, old_file, add_buffer, progress_callback)?;
 
-          if let OpStatus::VerificationFailed = status {
+          if let OpStatus::Broken = status {
             return handle_verification_failure(hasher, new_file_size);
           }
         }

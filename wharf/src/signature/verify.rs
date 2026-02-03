@@ -1,6 +1,6 @@
 use super::Signature;
 use crate::common::BLOCK_SIZE;
-use crate::container::ContainerItem;
+use crate::container::{ContainerItem, OpenFileStatus};
 use crate::hasher::{BlockHasher, BlockHasherStatus};
 use crate::protos::tlc;
 
@@ -49,21 +49,26 @@ fn check_file_integrity<R: Read>(
   let file_size = container_file.size as u64;
 
   // Check if the file exists and the length matches
-  if match file_path.metadata() {
-    // If the length doesn't match, then this file is broken
-    Ok(m) => m.len() != file_size,
-    Err(e) if e.kind() == std::io::ErrorKind::NotFound => true,
-    Err(e) => return Err(format!("Couldn't get file metadata!\n{e}")),
-  } {
-    let blocks_to_skip = container_file.block_count();
-    hasher.skip_blocks(blocks_to_skip)?;
-    progress_callback(file_size);
-    return Ok(false);
-  }
+  let status = container_file.open_read_from_path(file_path)?;
+
+  let mut file = {
+    match status {
+      OpenFileStatus::Ok {
+        file,
+        file_size: current_file_size,
+      } if current_file_size == file_size => file,
+      // If the length doesn't match, then this file is broken
+      OpenFileStatus::NotFound | OpenFileStatus::Ok { .. } => {
+        let blocks_to_skip = container_file.block_count();
+        hasher.skip_blocks(blocks_to_skip)?;
+        progress_callback(file_size);
+        return Ok(false);
+      }
+    }
+  };
 
   // Wrapping the file inside a BufReader isn't needed because
   // the buffer is already large
-  let mut file = container_file.open_read_from_path(file_path)?;
 
   // The total number of bytes that have been read
   let mut total_read_bytes: u64 = 0;

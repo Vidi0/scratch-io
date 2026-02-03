@@ -188,6 +188,12 @@ pub fn file_blocks(size: u64) -> u64 {
   size.div_ceil(BLOCK_SIZE).max(1)
 }
 
+#[must_use]
+pub enum OpenFileStatus {
+  Ok { file: fs::File, file_size: u64 },
+  NotFound,
+}
+
 impl tlc::File {
   /// Get the number of blocks that the file occupies
   ///
@@ -198,16 +204,25 @@ impl tlc::File {
     file_blocks(self.size as u64)
   }
 
-  pub fn open_read_from_path(&self, file_path: &Path) -> Result<fs::File, String> {
-    fs::File::open(file_path).map_err(|e| {
-      format!(
-        "Couldn't open file for reading: \"{}\"\n{e}",
-        file_path.to_string_lossy()
-      )
-    })
+  pub fn open_read_from_path(&self, file_path: &Path) -> Result<OpenFileStatus, String> {
+    match file_path.metadata() {
+      Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(OpenFileStatus::NotFound),
+      Err(e) => Err(format!("Couldn't get file metadata!\n{e}")),
+      Ok(m) => fs::File::open(file_path)
+        .map(|file| OpenFileStatus::Ok {
+          file,
+          file_size: m.len(),
+        })
+        .map_err(|e| {
+          format!(
+            "Couldn't open file for reading: \"{}\"\n{e}",
+            file_path.to_string_lossy()
+          )
+        }),
+    }
   }
 
-  pub fn open_read(&self, build_folder: PathBuf) -> Result<fs::File, String> {
+  pub fn open_read(&self, build_folder: PathBuf) -> Result<OpenFileStatus, String> {
     let file_path = self.get_path(build_folder)?;
     self.open_read_from_path(&file_path)
   }
@@ -280,7 +295,11 @@ impl tlc::Container {
       .ok_or_else(|| format!("Invalid old file index: {index}!"))
   }
 
-  pub fn open_file_read(&self, index: usize, build_folder: PathBuf) -> Result<fs::File, String> {
+  pub fn open_file_read(
+    &self,
+    index: usize,
+    build_folder: PathBuf,
+  ) -> Result<OpenFileStatus, String> {
     let file = self.get_file(index)?;
     file.open_read(build_folder)
   }

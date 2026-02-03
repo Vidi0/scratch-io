@@ -3,6 +3,7 @@ mod rsync;
 mod staging;
 
 use super::{Patch, SyncHeader, SyncHeaderKind};
+use crate::container::OpenFileStatus;
 use crate::hasher::{BlockHasher, BlockHasherError, BlockHasherStatus};
 use crate::protos::tlc;
 use crate::signature::BlockHashIter;
@@ -12,6 +13,12 @@ use std::io::Read;
 use std::path::Path;
 
 const MAX_OPEN_FILES_PATCH: std::num::NonZeroUsize = std::num::NonZeroUsize::new(16).unwrap();
+
+#[must_use]
+pub enum FilesCacheStatus<'a> {
+  Ok(&'a mut fs::File),
+  NotFound,
+}
 
 pub struct FilesCache<'a> {
   cache: lru::LruCache<usize, fs::File>,
@@ -30,10 +37,25 @@ impl<'a> FilesCache<'a> {
     &mut self,
     index: usize,
     container: &tlc::Container,
-  ) -> Result<&mut fs::File, String> {
-    self.cache.try_get_or_insert_mut(index, || {
-      container.open_file_read(index, self.build_folder.to_owned())
-    })
+  ) -> Result<FilesCacheStatus<'_>, String> {
+    enum CacheResult {
+      Error(String),
+      NotFound,
+    }
+
+    let result = self.cache.try_get_or_insert_mut(index, || {
+      match container.open_file_read(index, self.build_folder.to_owned()) {
+        Err(e) => Err(CacheResult::Error(e)),
+        Ok(OpenFileStatus::NotFound) => Err(CacheResult::NotFound),
+        Ok(OpenFileStatus::Ok { file, file_size: _ }) => Ok(file),
+      }
+    });
+
+    match result {
+      Ok(f) => Ok(FilesCacheStatus::Ok(f)),
+      Err(CacheResult::NotFound) => Ok(FilesCacheStatus::NotFound),
+      Err(CacheResult::Error(e)) => Err(e),
+    }
   }
 }
 
@@ -41,7 +63,7 @@ impl<'a> FilesCache<'a> {
 #[must_use]
 pub enum OpStatus {
   Ok,
-  VerificationFailed,
+  Broken,
 }
 
 fn verify_data(
@@ -51,7 +73,7 @@ fn verify_data(
   if let Some(hasher) = hasher
     && let BlockHasherStatus::HashMismatch { .. } = hasher.update(data)?
   {
-    return Ok(OpStatus::VerificationFailed);
+    return Ok(OpStatus::Broken);
   }
 
   Ok(OpStatus::Ok)
