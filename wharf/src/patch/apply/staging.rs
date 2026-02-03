@@ -10,6 +10,7 @@ use std::path::Path;
 
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
+#[must_use]
 pub enum FileCheckpoint {
   Rsync {
     new_file_size: u64,
