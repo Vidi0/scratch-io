@@ -11,7 +11,7 @@ edition = "2024"
 scratch-io = { version = "0.1.4", path = "../scratch-io" }
 wharf = { version = "0.1.0", path = "../wharf" }
 
-clap = { version = "4.5.54", features = ["derive", "env"] }
+clap = { version = "4.5.57", features = ["derive", "env"] }
 directories = "6.0.0"
 indicatif = "0.18.3"
 serde = { version = "1.0.228", features = ["derive"] }
