@@ -43,6 +43,7 @@ fn handle_verification_failure(
   let blocks_to_skip = file_blocks(new_file_size) - hasher.blocks_since_reset();
   hasher.skip_blocks(blocks_to_skip)?;
 
+  // Consume all the remaining iterator items
   for _ in op_iter {}
 
   Ok(PatchFileStatus::Broken)
@@ -86,24 +87,13 @@ impl<R: Read> SyncHeader<'_, R> {
         };
 
         if first.is_literal_copy(new_file_size, container_old)? {
-          // IMPORTANT! To not break the iterator, call next() one more time
-          // This way, the last message (HeyYouDidIt) for this file is read.
-          // Its type will not be HeyYouDidIt, because when the iterators reachs
-          // a message with this type, it returns None instead.
-          match op_iter.next() {
-            None => (),
-            _ => {
-              return Err(
-                "After detecting a literal copy in this SyncOp, another one was returned?"
-                  .to_string(),
-              );
-            }
-          }
-
           // Skip this file's blocks in the hash iter
           if let Some(hasher) = hasher {
             hasher.skip_blocks(file_blocks(new_file_size))?;
           }
+
+          // Consume all the remaining iterator items
+          for _ in op_iter {}
 
           progress_callback(new_file_size);
           return Ok(PatchFileStatus::Skipped {
