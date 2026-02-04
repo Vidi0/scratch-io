@@ -62,6 +62,11 @@ impl<R: Read> SyncHeader<'_, R> {
     //load_checkpoint: Option<FileCheckpoint>,
     //checkpoint: &mut impl FnMut(FileCheckpoint),
   ) -> Result<PatchFileStatus, String> {
+    // Reset the hasher to clean all the leftover data
+    if let Some(hasher) = hasher {
+      hasher.reset();
+    }
+
     match self.kind {
       SyncHeaderKind::Rsync { ref mut op_iter } => {
         // Rsync operations can be used to determine literal copies of
