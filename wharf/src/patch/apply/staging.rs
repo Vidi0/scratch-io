@@ -33,6 +33,7 @@ pub enum PatchFileStatus {
 
 fn handle_verification_failure(
   hasher: &mut Option<BlockHasher<'_, impl Read>>,
+  op_iter: &mut impl Iterator,
   new_file_size: u64,
 ) -> Result<PatchFileStatus, String> {
   // It is safe to unwrap the hasher because this function will only be called
@@ -41,6 +42,8 @@ fn handle_verification_failure(
   let hasher = hasher.as_mut().unwrap();
   let blocks_to_skip = file_blocks(new_file_size) - hasher.blocks_since_reset();
   hasher.skip_blocks(blocks_to_skip)?;
+
+  for _ in op_iter {}
 
   Ok(PatchFileStatus::Broken)
 }
@@ -119,7 +122,7 @@ impl<R: Read> SyncHeader<'_, R> {
 
         // Finally, apply all the rsync operations
         // Don't forget the first one, which was obtained independently!
-        for op in std::iter::once(Ok(first)).chain(op_iter) {
+        for op in std::iter::once(Ok(first)).chain(&mut *op_iter) {
           let status = op?.apply(
             writer,
             hasher,
@@ -130,7 +133,7 @@ impl<R: Read> SyncHeader<'_, R> {
           )?;
 
           if let OpStatus::Broken = status {
-            return handle_verification_failure(hasher, new_file_size);
+            return handle_verification_failure(hasher, op_iter, new_file_size);
           }
         }
       }
@@ -152,11 +155,11 @@ impl<R: Read> SyncHeader<'_, R> {
           .map_err(|e| format!("Couldn't seek old file to start!\n{e}"))?;
 
         // Finally, apply all the bsdiff operations
-        for control in op_iter {
+        for control in &mut *op_iter {
           let status = control?.apply(writer, hasher, old_file, add_buffer, progress_callback)?;
 
           if let OpStatus::Broken = status {
-            return handle_verification_failure(hasher, new_file_size);
+            return handle_verification_failure(hasher, op_iter, new_file_size);
           }
         }
       }
