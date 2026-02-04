@@ -117,8 +117,7 @@ impl<'a, R: Read> BlockHasher<'a, R> {
     Ok(BlockHasherStatus::Ok)
   }
 
-  /// Skip the provied number of blocks and reset the hasher to
-  /// allow hashing the next file
+  /// Skip the provied number of blocks
   ///
   /// This function should be called after a failed call to update
   pub fn skip_blocks(&mut self, blocks_to_skip: u64) -> Result<(), String> {
