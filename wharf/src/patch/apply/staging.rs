@@ -26,7 +26,7 @@ pub enum FileCheckpoint {
 #[derive(Clone, Copy, Debug)]
 #[must_use]
 pub enum PatchFileStatus {
-  Patched,
+  Patched { written_bytes: u64 },
   Skipped { old_index: u64 },
   Broken,
 }
@@ -70,6 +70,8 @@ impl<R: Read> SyncHeader<'_, R> {
     if let Some(hasher) = hasher {
       hasher.reset();
     }
+
+    let mut written_bytes: u64 = 0;
 
     match self.kind {
       SyncHeaderKind::Rsync { ref mut op_iter } => {
@@ -122,8 +124,9 @@ impl<R: Read> SyncHeader<'_, R> {
             progress_callback,
           )?;
 
-          if let OpStatus::Broken = status {
-            return handle_verification_failure(hasher, op_iter, new_file_size);
+          match status {
+            OpStatus::Ok { written_bytes: b } => written_bytes += b,
+            OpStatus::Broken => return handle_verification_failure(hasher, op_iter, new_file_size),
           }
         }
       }
@@ -148,8 +151,9 @@ impl<R: Read> SyncHeader<'_, R> {
         for control in &mut *op_iter {
           let status = control?.apply(writer, hasher, old_file, add_buffer, progress_callback)?;
 
-          if let OpStatus::Broken = status {
-            return handle_verification_failure(hasher, op_iter, new_file_size);
+          match status {
+            OpStatus::Ok { written_bytes: b } => written_bytes += b,
+            OpStatus::Broken => return handle_verification_failure(hasher, op_iter, new_file_size),
           }
         }
       }
@@ -164,6 +168,6 @@ impl<R: Read> SyncHeader<'_, R> {
       }
     }
 
-    Ok(PatchFileStatus::Patched)
+    Ok(PatchFileStatus::Patched { written_bytes })
   }
 }

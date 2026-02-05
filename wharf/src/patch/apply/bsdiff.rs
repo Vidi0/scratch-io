@@ -40,6 +40,8 @@ impl bsdiff::Control {
     add_buffer: &mut Vec<u8>,
     progress_callback: &mut impl FnMut(u64),
   ) -> Result<OpStatus, String> {
+    let mut written_bytes: u64 = 0;
+
     // Control operations must be applied in order
     // First, add the diff bytes
     if !self.add.is_empty() {
@@ -51,12 +53,14 @@ impl bsdiff::Control {
       add_bytes(old_file, writer, &self.add, add_buffer)?;
 
       // Verify the written data
-      if let OpStatus::Broken = verify_data(hasher, add_buffer)? {
-        return Ok(OpStatus::Broken);
+      match verify_data(hasher, add_buffer)? {
+        OpStatus::Broken => return Ok(OpStatus::Broken),
+        OpStatus::Ok { written_bytes: b } => {
+          // Return the number of bytes written into the new file
+          progress_callback(b);
+          written_bytes += b;
+        }
       }
-
-      // Return the number of bytes added into the new file
-      progress_callback(self.add.len() as u64);
     }
 
     // Then, copy the extra bytes
@@ -66,12 +70,14 @@ impl bsdiff::Control {
         .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
 
       // Verify the written data
-      if let OpStatus::Broken = verify_data(hasher, &self.copy)? {
-        return Ok(OpStatus::Broken);
+      match verify_data(hasher, &self.copy)? {
+        OpStatus::Broken => return Ok(OpStatus::Broken),
+        OpStatus::Ok { written_bytes: b } => {
+          // Return the number of bytes written into the new file
+          progress_callback(b);
+          written_bytes += b;
+        }
       }
-
-      // Return the number of bytes copied into the new file
-      progress_callback(self.copy.len() as u64);
     }
 
     // Lastly, seek into the correct position in the old file
@@ -84,6 +90,6 @@ impl bsdiff::Control {
       })?;
     }
 
-    Ok(OpStatus::Ok)
+    Ok(OpStatus::Ok { written_bytes })
   }
 }

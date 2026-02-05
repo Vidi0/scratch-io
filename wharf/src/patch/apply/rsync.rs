@@ -83,6 +83,8 @@ impl pwr::SyncOp {
     buffer: &mut [u8],
     progress_callback: &mut impl FnMut(u64),
   ) -> Result<OpStatus, String> {
+    let mut written_bytes: u64 = 0;
+
     match self.r#type() {
       // If the type is BlockRange, copy the range from the old file to the new one
       pwr::sync_op::Type::BlockRange => {
@@ -109,7 +111,10 @@ impl pwr::SyncOp {
 
         // Return the number of bytes copied into the new file or the error
         match status {
-          CopyRangeStatus::Ok(written_bytes) => progress_callback(written_bytes),
+          CopyRangeStatus::Ok(b) => {
+            progress_callback(b);
+            written_bytes += b;
+          }
           CopyRangeStatus::VerificationFailed => return Ok(OpStatus::Broken),
         }
       }
@@ -120,18 +125,20 @@ impl pwr::SyncOp {
           .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
 
         // Verify the written data
-        if let OpStatus::Broken = verify_data(hasher, &self.data)? {
-          return Ok(OpStatus::Broken);
+        match verify_data(hasher, &self.data)? {
+          OpStatus::Broken => return Ok(OpStatus::Broken),
+          OpStatus::Ok { written_bytes: b } => {
+            // Return the number of bytes written into the new file
+            progress_callback(b);
+            written_bytes += b;
+          }
         }
-
-        // Return the number of bytes written into the new file
-        progress_callback(self.data.len() as u64)
       }
       // If the type is HeyYouDidIt, then the iterator would have returned None
       pwr::sync_op::Type::HeyYouDidIt => unreachable!(),
     }
 
-    Ok(OpStatus::Ok)
+    Ok(OpStatus::Ok { written_bytes })
   }
 
   /// Check if this `SyncOp` represents a file copy from the

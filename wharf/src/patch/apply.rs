@@ -62,7 +62,7 @@ impl<'a> FilesCache<'a> {
 #[derive(Clone, Copy, Debug)]
 #[must_use]
 pub enum OpStatus {
-  Ok,
+  Ok { written_bytes: u64 },
   Broken,
 }
 
@@ -76,7 +76,9 @@ fn verify_data(
     return Ok(OpStatus::Broken);
   }
 
-  Ok(OpStatus::Ok)
+  Ok(OpStatus::Ok {
+    written_bytes: data.len() as u64,
+  })
 }
 
 impl Patch<'_> {
