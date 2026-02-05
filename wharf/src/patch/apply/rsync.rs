@@ -81,7 +81,6 @@ impl pwr::SyncOp {
     old_files_cache: &mut FilesCache,
     container_old: &tlc::Container,
     buffer: &mut [u8],
-    progress_callback: &mut impl FnMut(u64),
   ) -> Result<OpStatus, String> {
     let mut written_bytes: u64 = 0;
 
@@ -111,10 +110,7 @@ impl pwr::SyncOp {
 
         // Return the number of bytes copied into the new file or the error
         match status {
-          CopyRangeStatus::Ok(b) => {
-            progress_callback(b);
-            written_bytes += b;
-          }
+          CopyRangeStatus::Ok(b) => written_bytes += b,
           CopyRangeStatus::VerificationFailed => return Ok(OpStatus::Broken),
         }
       }
@@ -126,12 +122,8 @@ impl pwr::SyncOp {
 
         // Verify the written data
         match verify_data(hasher, &self.data)? {
+          OpStatus::Ok { written_bytes: b } => written_bytes += b,
           OpStatus::Broken => return Ok(OpStatus::Broken),
-          OpStatus::Ok { written_bytes: b } => {
-            // Return the number of bytes written into the new file
-            progress_callback(b);
-            written_bytes += b;
-          }
         }
       }
       // If the type is HeyYouDidIt, then the iterator would have returned None

@@ -38,7 +38,6 @@ impl bsdiff::Control {
     hasher: &mut Option<BlockHasher<'_, impl Read>>,
     old_file: &mut fs::File,
     add_buffer: &mut Vec<u8>,
-    progress_callback: &mut impl FnMut(u64),
   ) -> Result<OpStatus, String> {
     let mut written_bytes: u64 = 0;
 
@@ -54,12 +53,8 @@ impl bsdiff::Control {
 
       // Verify the written data
       match verify_data(hasher, add_buffer)? {
+        OpStatus::Ok { written_bytes: b } => written_bytes += b,
         OpStatus::Broken => return Ok(OpStatus::Broken),
-        OpStatus::Ok { written_bytes: b } => {
-          // Return the number of bytes written into the new file
-          progress_callback(b);
-          written_bytes += b;
-        }
       }
     }
 
@@ -71,12 +66,8 @@ impl bsdiff::Control {
 
       // Verify the written data
       match verify_data(hasher, &self.copy)? {
+        OpStatus::Ok { written_bytes: b } => written_bytes += b,
         OpStatus::Broken => return Ok(OpStatus::Broken),
-        OpStatus::Ok { written_bytes: b } => {
-          // Return the number of bytes written into the new file
-          progress_callback(b);
-          written_bytes += b;
-        }
       }
     }
 

@@ -115,17 +115,13 @@ impl<R: Read> SyncHeader<'_, R> {
         // Finally, apply all the rsync operations
         // Don't forget the first one, which was obtained independently!
         for op in std::iter::once(Ok(first)).chain(&mut *op_iter) {
-          let status = op?.apply(
-            writer,
-            hasher,
-            old_files_cache,
-            container_old,
-            block_buffer,
-            progress_callback,
-          )?;
+          let status = op?.apply(writer, hasher, old_files_cache, container_old, block_buffer)?;
 
           match status {
-            OpStatus::Ok { written_bytes: b } => written_bytes += b,
+            OpStatus::Ok { written_bytes: b } => {
+              written_bytes += b;
+              progress_callback(b);
+            }
             OpStatus::Broken => return handle_verification_failure(hasher, op_iter, new_file_size),
           }
         }
@@ -149,10 +145,13 @@ impl<R: Read> SyncHeader<'_, R> {
 
         // Finally, apply all the bsdiff operations
         for control in &mut *op_iter {
-          let status = control?.apply(writer, hasher, old_file, add_buffer, progress_callback)?;
+          let status = control?.apply(writer, hasher, old_file, add_buffer)?;
 
           match status {
-            OpStatus::Ok { written_bytes: b } => written_bytes += b,
+            OpStatus::Ok { written_bytes: b } => {
+              written_bytes += b;
+              progress_callback(b);
+            }
             OpStatus::Broken => return handle_verification_failure(hasher, op_iter, new_file_size),
           }
         }
