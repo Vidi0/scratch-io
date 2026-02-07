@@ -134,7 +134,9 @@ impl<R: Read> SyncHeader<'_, R> {
         // Open the old file
         let old_file = match old_files_cache.get_file(target_index as usize, container_old)? {
           FilesCacheStatus::Ok(f) => f,
-          FilesCacheStatus::NotFound => return handle_verification_failure(hasher, op_iter, new_file_size),
+          FilesCacheStatus::NotFound => {
+            return handle_verification_failure(hasher, op_iter, new_file_size);
+          }
         };
 
         // Rewind the old file to the start because the file might
