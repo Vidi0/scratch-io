@@ -184,10 +184,6 @@ impl ContainerItem for tlc::Symlink {
   }
 }
 
-pub fn file_blocks(size: u64) -> u64 {
-  size.div_ceil(BLOCK_SIZE).max(1)
-}
-
 #[must_use]
 pub enum OpenFileStatus {
   Ok { file: fs::File, file_size: u64 },
@@ -201,7 +197,7 @@ impl tlc::File {
   #[inline]
   #[must_use]
   pub fn block_count(&self) -> u64 {
-    file_blocks(self.size as u64)
+    (self.size as u64).div_ceil(BLOCK_SIZE).max(1)
   }
 
   pub fn open_read_from_path(&self, file_path: &Path) -> Result<OpenFileStatus, String> {

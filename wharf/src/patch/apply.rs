@@ -4,7 +4,7 @@ mod staging;
 
 use super::{Patch, SyncHeader, SyncHeaderKind};
 use crate::container::OpenFileStatus;
-use crate::hasher::{BlockHasher, BlockHasherError, BlockHasherStatus};
+use crate::hasher::{BlockHasher, BlockHasherError, BlockHasherStatus, FileBlockHasher};
 use crate::protos::tlc;
 use crate::signature::BlockHashIter;
 
@@ -67,7 +67,7 @@ pub enum OpStatus {
 }
 
 fn verify_data(
-  hasher: &mut Option<BlockHasher<'_, impl Read>>,
+  hasher: &mut Option<FileBlockHasher<impl Read>>,
   data: &[u8],
 ) -> Result<OpStatus, BlockHasherError> {
   if let Some(hasher) = hasher
@@ -146,10 +146,16 @@ impl Patch<'_> {
       let new_container_file = self.container_new.get_file(header.file_index as usize)?;
       let mut new_file = new_container_file.open_write(new_build_folder.to_owned())?;
 
+      // Create a hasher for the current file
+      let mut file_hasher = match hasher.as_mut() {
+        Some(h) => Some(h.new_file_hasher(new_container_file.block_count())?),
+        None => None,
+      };
+
       // Write all the new data into the file
       let status = header.patch_file(
         &mut new_file,
-        &mut hasher,
+        &mut file_hasher,
         new_container_file.size as u64,
         &mut old_files_cache,
         &self.container_old,

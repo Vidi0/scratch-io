@@ -1,6 +1,6 @@
 use super::{FilesCache, FilesCacheStatus, OpStatus, verify_data};
 use crate::common::BLOCK_SIZE;
-use crate::hasher::{BlockHasher, BlockHasherStatus};
+use crate::hasher::{BlockHasherStatus, FileBlockHasher};
 use crate::protos::{pwr, tlc};
 
 use std::io::{self, Read, Seek, Write};
@@ -16,7 +16,7 @@ enum CopyRangeStatus {
 fn copy_range(
   src: &mut (impl Read + Seek),
   dst: &mut impl Write,
-  hasher: &mut Option<BlockHasher<'_, impl Read>>,
+  hasher: &mut Option<FileBlockHasher<impl Read>>,
   block_index: u64,
   block_span: u64,
   buffer: &mut [u8],
@@ -77,7 +77,7 @@ impl pwr::SyncOp {
   pub fn apply(
     &self,
     writer: &mut impl Write,
-    hasher: &mut Option<BlockHasher<'_, impl Read>>,
+    hasher: &mut Option<FileBlockHasher<impl Read>>,
     old_files_cache: &mut FilesCache,
     container_old: &tlc::Container,
     buffer: &mut [u8],

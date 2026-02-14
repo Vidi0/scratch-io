@@ -12,6 +12,9 @@ pub enum BlockHasherError {
 {0}"
   )]
   IterReturnedError(String),
+
+  #[error("All the current file blocks have been hashed. No more data for this file is allowed!")]
+  AllBlocksHashed,
 }
 
 impl From<BlockHasherError> for String {

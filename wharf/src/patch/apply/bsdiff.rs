@@ -1,5 +1,5 @@
 use super::{OpStatus, verify_data};
-use crate::hasher::BlockHasher;
+use crate::hasher::FileBlockHasher;
 use crate::protos::bsdiff;
 
 use std::fs;
@@ -35,7 +35,7 @@ impl bsdiff::Control {
   pub fn apply(
     &self,
     writer: &mut impl Write,
-    hasher: &mut Option<BlockHasher<'_, impl Read>>,
+    hasher: &mut Option<FileBlockHasher<impl Read>>,
     old_file: &mut fs::File,
     add_buffer: &mut Vec<u8>,
   ) -> Result<OpStatus, String> {

@@ -1,7 +1,7 @@
 use super::Signature;
 use crate::common::BLOCK_SIZE;
 use crate::container::{ContainerItem, OpenFileStatus};
-use crate::hasher::{BlockHasher, BlockHasherStatus};
+use crate::hasher::{BlockHasher, BlockHasherStatus, FileBlockHasher};
 use crate::protos::tlc;
 
 use std::io::Read;
@@ -38,13 +38,10 @@ impl IntegrityIssues {
 fn check_file_integrity<R: Read>(
   file_path: &Path,
   container_file: &tlc::File,
-  hasher: &mut BlockHasher<'_, R>,
+  hasher: &mut FileBlockHasher<R>,
   buffer: &mut [u8],
   progress_callback: &mut impl FnMut(u64),
 ) -> Result<bool, String> {
-  // Reset the hasher to clean all the leftover data
-  hasher.reset();
-
   // Get the file size
   let file_size = container_file.size as u64;
 
@@ -59,8 +56,6 @@ fn check_file_integrity<R: Read>(
       } if current_file_size == file_size => file,
       // If the length doesn't match, then this file is broken
       OpenFileStatus::NotFound | OpenFileStatus::Ok { .. } => {
-        let blocks_to_skip = container_file.block_count();
-        hasher.skip_blocks(blocks_to_skip)?;
         progress_callback(file_size);
         return Ok(false);
       }
@@ -92,8 +87,6 @@ fn check_file_integrity<R: Read>(
 
     // If the file is broken, return
     if let BlockHasherStatus::HashMismatch { .. } = status {
-      let blocks_to_skip = container_file.block_count() - hasher.blocks_since_reset();
-      hasher.skip_blocks(blocks_to_skip)?;
       // Callback the number of bytes that have not been called back before
       progress_callback(file_size - total_read_bytes);
       return Ok(false);
@@ -157,11 +150,14 @@ impl Signature<'_> {
       // Get file path
       let file_path = container_file.get_path(build_folder.to_owned())?;
 
+      // Create a hasher for the current file
+      let mut file_hasher = hasher.new_file_hasher(container_file.block_count())?;
+
       // Check if the file is intact
       let is_intact = check_file_integrity(
         &file_path,
         container_file,
-        &mut hasher,
+        &mut file_hasher,
         &mut buffer,
         &mut progress_callback,
       )?;

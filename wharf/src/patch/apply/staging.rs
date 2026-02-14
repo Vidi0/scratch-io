@@ -1,7 +1,6 @@
 use super::{FilesCache, FilesCacheStatus, OpStatus, SyncHeader, SyncHeaderKind};
 use crate::common::BLOCK_SIZE;
-use crate::container::file_blocks;
-use crate::hasher::{BlockHasher, BlockHasherStatus};
+use crate::hasher::{BlockHasherStatus, FileBlockHasher};
 use crate::protos::tlc;
 
 use std::io::{Read, Seek, Write};
@@ -31,18 +30,7 @@ pub enum PatchFileStatus {
   Broken,
 }
 
-fn handle_verification_failure(
-  hasher: &mut Option<BlockHasher<'_, impl Read>>,
-  op_iter: &mut impl Iterator,
-  new_file_size: u64,
-) -> Result<PatchFileStatus, String> {
-  // It is safe to unwrap the hasher because this function will only be called
-  // after the verification has failed, and that means that it has been checked
-  // by the hasher.
-  let hasher = hasher.as_mut().unwrap();
-  let blocks_to_skip = file_blocks(new_file_size) - hasher.blocks_since_reset();
-  hasher.skip_blocks(blocks_to_skip)?;
-
+fn handle_verification_failure(op_iter: &mut impl Iterator) -> Result<PatchFileStatus, String> {
   // Consume all the remaining iterator items
   for _ in op_iter {}
 
@@ -56,7 +44,7 @@ impl<R: Read> SyncHeader<'_, R> {
   pub fn patch_file(
     &mut self,
     writer: &mut impl Write,
-    hasher: &mut Option<BlockHasher<'_, impl Read>>,
+    hasher: &mut Option<FileBlockHasher<impl Read>>,
     new_file_size: u64,
     old_files_cache: &mut FilesCache,
     container_old: &tlc::Container,
@@ -66,11 +54,6 @@ impl<R: Read> SyncHeader<'_, R> {
     //load_checkpoint: Option<FileCheckpoint>,
     //checkpoint: &mut impl FnMut(FileCheckpoint),
   ) -> Result<PatchFileStatus, String> {
-    // Reset the hasher to clean all the leftover data
-    if let Some(hasher) = hasher {
-      hasher.reset();
-    }
-
     let mut written_bytes: u64 = 0;
 
     match self.kind {
@@ -89,11 +72,6 @@ impl<R: Read> SyncHeader<'_, R> {
         };
 
         if first.is_literal_copy(new_file_size, container_old)? {
-          // Skip this file's blocks in the hash iter
-          if let Some(hasher) = hasher {
-            hasher.skip_blocks(file_blocks(new_file_size))?;
-          }
-
           // Consume all the remaining iterator items
           for _ in op_iter {}
 
@@ -122,7 +100,7 @@ impl<R: Read> SyncHeader<'_, R> {
               written_bytes += b;
               progress_callback(b);
             }
-            OpStatus::Broken => return handle_verification_failure(hasher, op_iter, new_file_size),
+            OpStatus::Broken => return handle_verification_failure(op_iter),
           }
         }
       }
@@ -135,7 +113,7 @@ impl<R: Read> SyncHeader<'_, R> {
         let old_file = match old_files_cache.get_file(target_index as usize, container_old)? {
           FilesCacheStatus::Ok(f) => f,
           FilesCacheStatus::NotFound => {
-            return handle_verification_failure(hasher, op_iter, new_file_size);
+            return handle_verification_failure(op_iter);
           }
         };
 
@@ -154,7 +132,7 @@ impl<R: Read> SyncHeader<'_, R> {
               written_bytes += b;
               progress_callback(b);
             }
-            OpStatus::Broken => return handle_verification_failure(hasher, op_iter, new_file_size),
+            OpStatus::Broken => return handle_verification_failure(op_iter),
           }
         }
       }
