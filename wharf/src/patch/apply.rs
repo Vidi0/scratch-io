@@ -19,12 +19,13 @@ pub enum FilesCacheStatus<'a> {
   Ok {
     file: &'a mut fs::File,
     container_size: u64,
+    disk_size: u64,
   },
   NotFound,
 }
 
 pub struct FilesCache<'a> {
-  cache: lru::LruCache<usize, (fs::File, u64)>,
+  cache: lru::LruCache<usize, (fs::File, u64, u64)>,
   build_folder: &'a Path,
 }
 
@@ -53,15 +54,16 @@ impl<'a> FilesCache<'a> {
         Ok(OpenFileStatus::Ok {
           file,
           container_size,
-          disk_size: _,
-        }) => Ok((file, container_size)),
+          disk_size,
+        }) => Ok((file, container_size, disk_size)),
       }
     });
 
     match result {
-      Ok((file, size)) => Ok(FilesCacheStatus::Ok {
+      Ok((file, container_size, disk_size)) => Ok(FilesCacheStatus::Ok {
         file,
-        container_size: *size,
+        container_size: *container_size,
+        disk_size: *disk_size,
       }),
       Err(CacheResult::NotFound) => Ok(FilesCacheStatus::NotFound),
       Err(CacheResult::Error(e)) => Err(e),

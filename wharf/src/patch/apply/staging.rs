@@ -110,15 +110,17 @@ impl<R: Read> SyncHeader<'_, R> {
         ref mut op_iter,
       } => {
         // Open the old file
-        let old_file = match old_files_cache.get_file(target_index as usize, container_old)? {
-          FilesCacheStatus::Ok {
-            file,
-            container_size: _,
-          } => file,
-          FilesCacheStatus::NotFound => {
-            return handle_verification_failure(op_iter);
-          }
-        };
+        let (old_file, old_file_disk_size) =
+          match old_files_cache.get_file(target_index as usize, container_old)? {
+            FilesCacheStatus::Ok {
+              file,
+              container_size: _,
+              disk_size,
+            } => (file, disk_size),
+            FilesCacheStatus::NotFound => {
+              return handle_verification_failure(op_iter);
+            }
+          };
 
         // Rewind the old file to the start because the file might
         // have been in the cache and seeked before
@@ -136,6 +138,7 @@ impl<R: Read> SyncHeader<'_, R> {
             hasher,
             old_file,
             &mut old_file_seek_position,
+            old_file_disk_size,
             add_buffer,
           )?;
 

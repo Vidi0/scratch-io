@@ -38,6 +38,7 @@ impl bsdiff::Control {
     hasher: &mut Option<FileBlockHasher<impl Read>>,
     old_file: &mut fs::File,
     old_file_seek_position: &mut u64,
+    old_file_disk_size: u64,
     add_buffer: &mut Vec<u8>,
   ) -> Result<OpStatus, String> {
     let mut written_bytes: u64 = 0;
@@ -45,6 +46,13 @@ impl bsdiff::Control {
     // Control operations must be applied in order
     // First, add the diff bytes
     if !self.add.is_empty() {
+      // If there isn't enought data remaining in this file in the
+      // disk to complete the patch operation, set this file as broken
+      // (we won't be able to patch it)
+      if *old_file_seek_position + self.add.len() as u64 > old_file_disk_size {
+        return Ok(OpStatus::Broken);
+      }
+
       // Resize the add buffer to match the size of the current add bytes
       // The add operations are usually the same length, so allocation is almost never triggered
       // If the new add bytes are smaller than the buffer size, allocation will also be avoided

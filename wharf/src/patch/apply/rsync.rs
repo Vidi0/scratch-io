@@ -9,10 +9,11 @@ use std::io::{self, Read, Seek, Write};
 #[must_use]
 enum CopyRangeStatus {
   Ok(u64),
-  VerificationFailed,
+  Broken,
 }
 
 /// Copy blocks of bytes from `src` into `dst`
+#[allow(clippy::too_many_arguments)]
 fn copy_range(
   src: &mut (impl Read + Seek),
   dst: &mut impl Write,
@@ -20,12 +21,25 @@ fn copy_range(
   block_index: u64,
   block_span: u64,
   old_file_container_size: u64,
+  old_file_disk_size: u64,
   buffer: &mut [u8],
 ) -> Result<CopyRangeStatus, String> {
   let start_pos = block_index * BLOCK_SIZE;
-  let remaining_file_bytes = old_file_container_size - start_pos;
-  // Make sure that the number of bytes copied does not exceed the expected amount
-  let len = remaining_file_bytes.min(block_span * BLOCK_SIZE);
+  let len = {
+    // The patch operation will copy this number of bytes:
+    // the minimum between the range specified and the remaining number
+    // of bytes in the container file.
+    let remaining_file_bytes = old_file_container_size - start_pos;
+    let bytes_to_copy = (block_span * BLOCK_SIZE).min(remaining_file_bytes);
+
+    // If the file in disk doesn't have enought bytes, set
+    // the file as broken (we won't be able to patch it).
+    if start_pos + bytes_to_copy < old_file_disk_size {
+      return Ok(CopyRangeStatus::Broken);
+    }
+
+    bytes_to_copy
+  };
 
   src
     .seek(io::SeekFrom::Start(start_pos))
@@ -64,7 +78,7 @@ fn copy_range(
         // Update the hasher
         let status = hasher.update(&buffer[..read])?;
         if let BlockHasherStatus::HashMismatch { .. } = status {
-          return Ok(CopyRangeStatus::VerificationFailed);
+          return Ok(CopyRangeStatus::Broken);
         }
 
         total_written += read as u64;
@@ -91,12 +105,13 @@ impl pwr::SyncOp {
       // If the type is BlockRange, copy the range from the old file to the new one
       pwr::sync_op::Type::BlockRange => {
         // Open the old file
-        let (old_file, old_file_size) =
+        let (old_file, old_file_container_size, old_file_disk_size) =
           match old_files_cache.get_file(self.file_index as usize, container_old)? {
             FilesCacheStatus::Ok {
               file,
-              container_size: size,
-            } => (file, size),
+              container_size,
+              disk_size,
+            } => (file, container_size, disk_size),
             FilesCacheStatus::NotFound => return Ok(OpStatus::Broken),
           };
 
@@ -110,7 +125,8 @@ impl pwr::SyncOp {
           hasher,
           self.block_index as u64,
           self.block_span as u64,
-          old_file_size,
+          old_file_container_size,
+          old_file_disk_size,
           buffer,
         )?;
 
@@ -119,7 +135,7 @@ impl pwr::SyncOp {
         // Return the number of bytes copied into the new file or the error
         match status {
           CopyRangeStatus::Ok(b) => written_bytes += b,
-          CopyRangeStatus::VerificationFailed => return Ok(OpStatus::Broken),
+          CopyRangeStatus::Broken => return Ok(OpStatus::Broken),
         }
       }
       // If the type is Data, just copy the data from the patch to the new file
