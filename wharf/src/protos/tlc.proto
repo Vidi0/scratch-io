@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package io.itch.wharf.tlc;
-option go_package = "tlc";
+option go_package = "github.com/itchio/lake/tlc";
 
 message Container {
   repeated File files = 1;
