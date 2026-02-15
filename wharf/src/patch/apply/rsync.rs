@@ -24,6 +24,7 @@ fn copy_range(
 ) -> Result<CopyRangeStatus, String> {
   let start_pos = block_index * BLOCK_SIZE;
   let remaining_file_bytes = old_file_size - start_pos;
+  // Make sure that the number of bytes copied does not exceed the expected amount
   let len = remaining_file_bytes.min(block_span * BLOCK_SIZE);
 
   src
@@ -92,7 +93,10 @@ impl pwr::SyncOp {
         // Open the old file
         let (old_file, old_file_size) =
           match old_files_cache.get_file(self.file_index as usize, container_old)? {
-            FilesCacheStatus::Ok { file, size } => (file, size),
+            FilesCacheStatus::Ok {
+              file,
+              container_size: size,
+            } => (file, size),
             FilesCacheStatus::NotFound => return Ok(OpStatus::Broken),
           };
 

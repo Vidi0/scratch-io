@@ -111,7 +111,10 @@ impl<R: Read> SyncHeader<'_, R> {
       } => {
         // Open the old file
         let old_file = match old_files_cache.get_file(target_index as usize, container_old)? {
-          FilesCacheStatus::Ok { file, size: _ } => file,
+          FilesCacheStatus::Ok {
+            file,
+            container_size: _,
+          } => file,
           FilesCacheStatus::NotFound => {
             return handle_verification_failure(op_iter);
           }

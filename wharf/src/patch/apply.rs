@@ -16,7 +16,10 @@ const MAX_OPEN_FILES_PATCH: std::num::NonZeroUsize = std::num::NonZeroUsize::new
 
 #[must_use]
 pub enum FilesCacheStatus<'a> {
-  Ok { file: &'a mut fs::File, size: u64 },
+  Ok {
+    file: &'a mut fs::File,
+    container_size: u64,
+  },
   NotFound,
 }
 
@@ -49,14 +52,17 @@ impl<'a> FilesCache<'a> {
         Ok(OpenFileStatus::NotFound) => Err(CacheResult::NotFound),
         Ok(OpenFileStatus::Ok {
           file,
-          disk_size,
-          container_size: _,
-        }) => Ok((file, disk_size)),
+          container_size,
+          disk_size: _,
+        }) => Ok((file, container_size)),
       }
     });
 
     match result {
-      Ok((file, size)) => Ok(FilesCacheStatus::Ok { file, size: *size }),
+      Ok((file, size)) => Ok(FilesCacheStatus::Ok {
+        file,
+        container_size: *size,
+      }),
       Err(CacheResult::NotFound) => Ok(FilesCacheStatus::NotFound),
       Err(CacheResult::Error(e)) => Err(e),
     }
