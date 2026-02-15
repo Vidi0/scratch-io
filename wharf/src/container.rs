@@ -186,7 +186,7 @@ impl ContainerItem for tlc::Symlink {
 
 #[must_use]
 pub enum OpenFileStatus {
-  Ok { file: fs::File, file_size: u64 },
+  Ok { file: fs::File, disk_file_size: u64 },
   NotFound,
 }
 
@@ -207,7 +207,7 @@ impl tlc::File {
       Ok(m) => fs::File::open(file_path)
         .map(|file| OpenFileStatus::Ok {
           file,
-          file_size: m.len(),
+          disk_file_size: m.len(),
         })
         .map_err(|e| {
           format!(

@@ -47,7 +47,10 @@ impl<'a> FilesCache<'a> {
       match container.open_file_read(index, self.build_folder.to_owned()) {
         Err(e) => Err(CacheResult::Error(e)),
         Ok(OpenFileStatus::NotFound) => Err(CacheResult::NotFound),
-        Ok(OpenFileStatus::Ok { file, file_size }) => Ok((file, file_size)),
+        Ok(OpenFileStatus::Ok {
+          file,
+          disk_file_size,
+        }) => Ok((file, disk_file_size)),
       }
     });
 

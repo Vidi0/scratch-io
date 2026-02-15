@@ -52,7 +52,7 @@ fn check_file_integrity<R: Read>(
     match status {
       OpenFileStatus::Ok {
         file,
-        file_size: current_file_size,
+        disk_file_size: current_file_size,
       } if current_file_size == file_size => file,
       // If the length doesn't match, then this file is broken
       OpenFileStatus::NotFound | OpenFileStatus::Ok { .. } => {
