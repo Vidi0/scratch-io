@@ -186,7 +186,11 @@ impl ContainerItem for tlc::Symlink {
 
 #[must_use]
 pub enum OpenFileStatus {
-  Ok { file: fs::File, disk_file_size: u64 },
+  Ok {
+    file: fs::File,
+    container_size: u64,
+    disk_size: u64,
+  },
   NotFound,
 }
 
@@ -200,14 +204,18 @@ impl tlc::File {
     (self.size as u64).div_ceil(BLOCK_SIZE).max(1)
   }
 
-  pub fn open_read_from_path(&self, file_path: &Path) -> Result<OpenFileStatus, String> {
+  // This function should not be called directly because
+  // the container_size variable returned will be 0 instead of the correct value
+  fn open_read_from_path(&self, file_path: &Path) -> Result<OpenFileStatus, String> {
     match file_path.metadata() {
       Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(OpenFileStatus::NotFound),
       Err(e) => Err(format!("Couldn't get file metadata!\n{e}")),
       Ok(m) => fs::File::open(file_path)
         .map(|file| OpenFileStatus::Ok {
           file,
-          disk_file_size: m.len(),
+          // Set as 0 and fix in the parent function
+          container_size: 0,
+          disk_size: m.len(),
         })
         .map_err(|e| {
           format!(
@@ -220,7 +228,14 @@ impl tlc::File {
 
   pub fn open_read(&self, build_folder: PathBuf) -> Result<OpenFileStatus, String> {
     let file_path = self.get_path(build_folder)?;
-    self.open_read_from_path(&file_path)
+    self.open_read_from_path(&file_path).map(|mut status| {
+      // Fix the container size, open_read_from_path doesn't set it!
+      if let OpenFileStatus::Ok { container_size, .. } = &mut status {
+        *container_size = self.size as u64;
+      }
+
+      status
+    })
   }
 
   pub fn open_write(&self, build_folder: PathBuf) -> Result<fs::File, String> {

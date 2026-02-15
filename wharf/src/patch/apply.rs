@@ -49,8 +49,9 @@ impl<'a> FilesCache<'a> {
         Ok(OpenFileStatus::NotFound) => Err(CacheResult::NotFound),
         Ok(OpenFileStatus::Ok {
           file,
-          disk_file_size,
-        }) => Ok((file, disk_file_size)),
+          disk_size,
+          container_size: _,
+        }) => Ok((file, disk_size)),
       }
     });
 

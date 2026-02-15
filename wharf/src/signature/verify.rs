@@ -1,6 +1,6 @@
 use super::Signature;
 use crate::common::BLOCK_SIZE;
-use crate::container::{ContainerItem, OpenFileStatus};
+use crate::container::OpenFileStatus;
 use crate::hasher::{BlockHasher, BlockHasherStatus, FileBlockHasher};
 use crate::protos::tlc;
 
@@ -36,8 +36,8 @@ impl IntegrityIssues {
 ///
 /// If the file is intact, returns `true`
 fn check_file_integrity<R: Read>(
-  file_path: &Path,
   container_file: &tlc::File,
+  build_folder: &Path,
   hasher: &mut FileBlockHasher<R>,
   buffer: &mut [u8],
   progress_callback: &mut impl FnMut(u64),
@@ -46,14 +46,15 @@ fn check_file_integrity<R: Read>(
   let file_size = container_file.size as u64;
 
   // Check if the file exists and the length matches
-  let status = container_file.open_read_from_path(file_path)?;
+  let status = container_file.open_read(build_folder.to_owned())?;
 
   let mut file = {
     match status {
       OpenFileStatus::Ok {
         file,
-        disk_file_size: current_file_size,
-      } if current_file_size == file_size => file,
+        container_size,
+        disk_size,
+      } if container_size == disk_size => file,
       // If the length doesn't match, then this file is broken
       OpenFileStatus::NotFound | OpenFileStatus::Ok { .. } => {
         progress_callback(file_size);
@@ -147,16 +148,13 @@ impl Signature<'_> {
 
     // Loop over all the files in the signature container
     for (file_index, container_file) in self.container_new.files.iter().enumerate() {
-      // Get file path
-      let file_path = container_file.get_path(build_folder.to_owned())?;
-
       // Create a hasher for the current file
       let mut file_hasher = hasher.new_file_hasher(container_file.block_count())?;
 
       // Check if the file is intact
       let is_intact = check_file_integrity(
-        &file_path,
         container_file,
+        build_folder,
         &mut file_hasher,
         &mut buffer,
         &mut progress_callback,
