@@ -19,11 +19,11 @@ fn copy_range(
   hasher: &mut Option<FileBlockHasher<impl Read>>,
   block_index: u64,
   block_span: u64,
-  old_file_size: u64,
+  old_file_container_size: u64,
   buffer: &mut [u8],
 ) -> Result<CopyRangeStatus, String> {
   let start_pos = block_index * BLOCK_SIZE;
-  let remaining_file_bytes = old_file_size - start_pos;
+  let remaining_file_bytes = old_file_container_size - start_pos;
   // Make sure that the number of bytes copied does not exceed the expected amount
   let len = remaining_file_bytes.min(block_span * BLOCK_SIZE);
 
