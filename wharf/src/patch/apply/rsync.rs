@@ -19,10 +19,12 @@ fn copy_range(
   hasher: &mut Option<FileBlockHasher<impl Read>>,
   block_index: u64,
   block_span: u64,
+  old_file_size: u64,
   buffer: &mut [u8],
 ) -> Result<CopyRangeStatus, String> {
   let start_pos = block_index * BLOCK_SIZE;
-  let len = block_span * BLOCK_SIZE;
+  let remaining_file_bytes = old_file_size - start_pos;
+  let len = remaining_file_bytes.min(block_span * BLOCK_SIZE);
 
   src
     .seek(io::SeekFrom::Start(start_pos))
@@ -88,10 +90,11 @@ impl pwr::SyncOp {
       // If the type is BlockRange, copy the range from the old file to the new one
       pwr::sync_op::Type::BlockRange => {
         // Open the old file
-        let old_file = match old_files_cache.get_file(self.file_index as usize, container_old)? {
-          FilesCacheStatus::Ok(f) => f,
-          FilesCacheStatus::NotFound => return Ok(OpStatus::Broken),
-        };
+        let (old_file, old_file_size) =
+          match old_files_cache.get_file(self.file_index as usize, container_old)? {
+            FilesCacheStatus::Ok { file, size } => (file, size),
+            FilesCacheStatus::NotFound => return Ok(OpStatus::Broken),
+          };
 
         // Rewind isn't needed because the copy_range function already seeks
         // into the correct (not relative) position
@@ -103,6 +106,7 @@ impl pwr::SyncOp {
           hasher,
           self.block_index as u64,
           self.block_span as u64,
+          old_file_size,
           buffer,
         )?;
 

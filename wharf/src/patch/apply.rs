@@ -16,12 +16,12 @@ const MAX_OPEN_FILES_PATCH: std::num::NonZeroUsize = std::num::NonZeroUsize::new
 
 #[must_use]
 pub enum FilesCacheStatus<'a> {
-  Ok(&'a mut fs::File),
+  Ok { file: &'a mut fs::File, size: u64 },
   NotFound,
 }
 
 pub struct FilesCache<'a> {
-  cache: lru::LruCache<usize, fs::File>,
+  cache: lru::LruCache<usize, (fs::File, u64)>,
   build_folder: &'a Path,
 }
 
@@ -47,12 +47,12 @@ impl<'a> FilesCache<'a> {
       match container.open_file_read(index, self.build_folder.to_owned()) {
         Err(e) => Err(CacheResult::Error(e)),
         Ok(OpenFileStatus::NotFound) => Err(CacheResult::NotFound),
-        Ok(OpenFileStatus::Ok { file, file_size: _ }) => Ok(file),
+        Ok(OpenFileStatus::Ok { file, file_size }) => Ok((file, file_size)),
       }
     });
 
     match result {
-      Ok(f) => Ok(FilesCacheStatus::Ok(f)),
+      Ok((file, size)) => Ok(FilesCacheStatus::Ok { file, size: *size }),
       Err(CacheResult::NotFound) => Ok(FilesCacheStatus::NotFound),
       Err(CacheResult::Error(e)) => Err(e),
     }
