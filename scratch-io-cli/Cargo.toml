@@ -11,11 +11,11 @@ edition = "2024"
 scratch-io = { version = "0.1.4", path = "../scratch-io" }
 wharf = { version = "0.1.0", path = "../wharf" }
 
-clap = { version = "4.5.57", features = ["derive", "env"] }
+clap = { version = "4.5.58", features = ["derive", "env"] }
 directories = "6.0.0"
-indicatif = "0.18.3"
+indicatif = "0.18.4"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_with = "3.16.1"
 shell-words = "1.1.1"
-toml = "0.9.11"
+toml = "1.0.1"
 rc-zip-sync = "4.4.2"
