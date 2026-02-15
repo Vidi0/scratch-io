@@ -37,6 +37,7 @@ impl bsdiff::Control {
     writer: &mut impl Write,
     hasher: &mut Option<FileBlockHasher<impl Read>>,
     old_file: &mut fs::File,
+    old_file_seek_position: &mut u64,
     add_buffer: &mut Vec<u8>,
   ) -> Result<OpStatus, String> {
     let mut written_bytes: u64 = 0;
@@ -73,12 +74,17 @@ impl bsdiff::Control {
 
     // Lastly, seek into the correct position in the old file
     if self.seek != 0 {
-      old_file.seek_relative(self.seek).map_err(|e| {
-        format!(
-          "Couldn't seek into old file at relative pos: {}\n{e}",
-          self.seek
-        )
-      })?;
+      // Add the relative seek into the absolute seek
+      *old_file_seek_position = old_file_seek_position.strict_add_signed(self.seek);
+
+      old_file
+        .seek(std::io::SeekFrom::Start(*old_file_seek_position))
+        .map_err(|e| {
+          format!(
+            "Couldn't seek into old file at the absolute position: {}\n{e}",
+            *old_file_seek_position
+          )
+        })?;
     }
 
     Ok(OpStatus::Ok { written_bytes })

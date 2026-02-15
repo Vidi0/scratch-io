@@ -126,9 +126,18 @@ impl<R: Read> SyncHeader<'_, R> {
           .rewind()
           .map_err(|e| format!("Couldn't seek old file to start!\n{e}"))?;
 
+        // Store the old file seek position between apply calls
+        let mut old_file_seek_position: u64 = 0;
+
         // Finally, apply all the bsdiff operations
         for control in &mut *op_iter {
-          let status = control?.apply(writer, hasher, old_file, add_buffer)?;
+          let status = control?.apply(
+            writer,
+            hasher,
+            old_file,
+            &mut old_file_seek_position,
+            add_buffer,
+          )?;
 
           match status {
             OpStatus::Ok { written_bytes: b } => {
