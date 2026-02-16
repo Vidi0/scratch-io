@@ -46,7 +46,7 @@ impl bsdiff::Control {
     // Control operations must be applied in order
     // First, add the diff bytes
     if !self.add.is_empty() {
-      // If there isn't enought data remaining in this file in the
+      // If there isn't enough data remaining in this file in the
       // disk to complete the patch operation, set this file as broken
       // (we won't be able to patch it)
       if *old_file_seek_position + self.add.len() as u64 > old_file_disk_size {
