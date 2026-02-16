@@ -76,9 +76,6 @@ impl bsdiff::Control {
         .write_all(&self.copy)
         .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
 
-      // Move the old file seek cursor forward!
-      *old_file_seek_position += self.copy.len() as u64;
-
       // Verify the written data
       match verify_data(hasher, &self.copy)? {
         OpStatus::Ok { written_bytes: b } => written_bytes += b,
