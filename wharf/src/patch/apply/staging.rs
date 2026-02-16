@@ -81,14 +81,10 @@ impl<R: Read> SyncHeader<'_, R> {
           });
         }
 
-        // Resize the block buffer, but only if a hasher was provided
-        // If the data doesn't need to be hashed, a more efficient method to copy
-        // blocks is used which doesn't require a buffer
-        if hasher.is_some() {
-          // The size of the new buffer doesn't need to be BLOCK_SIZE,
-          // but it makes sense to use it
-          block_buffer.resize(BLOCK_SIZE as usize, 0);
-        }
+        // Resize the block buffer
+        // The size of the new buffer doesn't need to be BLOCK_SIZE,
+        // but it makes sense to use it
+        block_buffer.resize(BLOCK_SIZE as usize, 0);
 
         // Finally, apply all the rsync operations
         // Don't forget the first one, which was obtained independently!

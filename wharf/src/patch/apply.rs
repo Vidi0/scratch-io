@@ -142,7 +142,6 @@ impl Patch<'_> {
     // This buffer is used when applying rsync block_range operations
     // It is created here to avoid allocating and deallocating
     // the buffer on each block_range operation
-    // It is only used when a hasher is provided
     let mut block_buffer: Vec<u8> = Vec::new();
 
     // If a hash_iter was provided, create a reusable hasher

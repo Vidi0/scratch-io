@@ -47,46 +47,39 @@ fn copy_range(
 
   let mut limited = src.take(len);
 
-  match hasher {
-    // If the data won't be hashed, then copy directly
-    None => io::copy(&mut limited, dst)
-      .map(CopyRangeStatus::Ok)
-      .map_err(|e| format!("Couldn't copy data from old file to new!\n{e}")),
+  // Read the data, write it, and then hash it
+  let mut total_written: u64 = 0;
 
-    // Else: read the data, write it, and then hash it
-    Some(hasher) => {
-      // Check the buffer has been resized correctly
-      assert_ne!(buffer.len(), 0);
+  // Check the buffer has been resized correctly
+  assert_ne!(buffer.len(), 0);
 
-      let mut total_written: u64 = 0;
+  loop {
+    // Read the data into the buffer
+    let read = limited
+      .read(buffer)
+      .map_err(|e| format!("Couldn't read from old file\n{e}"))?;
 
-      loop {
-        // Read the data into the buffer
-        let read = limited
-          .read(buffer)
-          .map_err(|e| format!("Couldn't read from old file\n{e}"))?;
-
-        if read == 0 {
-          break;
-        }
-
-        // Write the data into the new file
-        dst
-          .write_all(&buffer[..read])
-          .map_err(|e| format!("Couldn't write to new file\n{e}"))?;
-
-        // Update the hasher
-        let status = hasher.update(&buffer[..read])?;
-        if let BlockHasherStatus::HashMismatch { .. } = status {
-          return Ok(CopyRangeStatus::Broken);
-        }
-
-        total_written += read as u64;
-      }
-
-      Ok(CopyRangeStatus::Ok(total_written))
+    if read == 0 {
+      break;
     }
+
+    // Write the data into the new file
+    dst
+      .write_all(&buffer[..read])
+      .map_err(|e| format!("Couldn't write to new file\n{e}"))?;
+
+    // Update the hasher
+    if let Some(hasher) = hasher {
+      let status = hasher.update(&buffer[..read])?;
+      if let BlockHasherStatus::HashMismatch { .. } = status {
+        return Ok(CopyRangeStatus::Broken);
+      }
+    }
+
+    total_written += read as u64;
   }
+
+  Ok(CopyRangeStatus::Ok(total_written))
 }
 
 impl pwr::SyncOp {
