@@ -48,8 +48,7 @@ impl<R: Read> SyncHeader<'_, R> {
     new_file_size: u64,
     old_files_cache: &mut FilesCache,
     container_old: &tlc::Container,
-    add_buffer: &mut Vec<u8>,
-    block_buffer: &mut Vec<u8>,
+    patch_op_buffer: &mut Vec<u8>,
     progress_callback: &mut impl FnMut(u64),
     //load_checkpoint: Option<FileCheckpoint>,
     //checkpoint: &mut impl FnMut(FileCheckpoint),
@@ -84,12 +83,21 @@ impl<R: Read> SyncHeader<'_, R> {
         // Resize the block buffer
         // The size of the new buffer doesn't need to be BLOCK_SIZE,
         // but it makes sense to use it
-        block_buffer.resize(BLOCK_SIZE as usize, 0);
+        // Don't resize it if it's already large enough
+        if patch_op_buffer.len() < BLOCK_SIZE as usize {
+          patch_op_buffer.resize(BLOCK_SIZE as usize, 0);
+        }
 
         // Finally, apply all the rsync operations
         // Don't forget the first one, which was obtained independently!
         for op in std::iter::once(Ok(first)).chain(&mut *op_iter) {
-          let status = op?.apply(writer, hasher, old_files_cache, container_old, block_buffer)?;
+          let status = op?.apply(
+            writer,
+            hasher,
+            old_files_cache,
+            container_old,
+            patch_op_buffer,
+          )?;
 
           match status {
             OpStatus::Ok { written_bytes: b } => {
@@ -135,7 +143,7 @@ impl<R: Read> SyncHeader<'_, R> {
             old_file,
             &mut old_file_seek_position,
             old_file_disk_size,
-            add_buffer,
+            patch_op_buffer,
           )?;
 
           match status {

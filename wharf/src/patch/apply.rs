@@ -134,15 +134,22 @@ impl Patch<'_> {
     // The value is the open file descriptor
     let mut old_files_cache = FilesCache::new(old_build_folder);
 
-    // This buffer is used when applying bsdiff add operations
-    // It is created here to avoid allocating and deallocating
-    // the buffer on each add operation
-    let mut add_buffer: Vec<u8> = Vec::new();
-
-    // This buffer is used when applying rsync block_range operations
-    // It is created here to avoid allocating and deallocating
-    // the buffer on each block_range operation
-    let mut block_buffer: Vec<u8> = Vec::new();
+    // This buffer is used when applying rsync block_range operations and
+    // bsdiff add operations. It is created here to avoid allocating and
+    // deallocating the buffer on each patch operation.
+    //
+    // If the buffer was used by the two operations at the same time, it
+    // would be very expensive to resize the vector every time the kind of
+    // operation changes: block_range operations use a fixed size set by us;
+    // while the add operations' length is provided by the patch (every
+    // operation should be the same size).
+    //
+    // However, the buffer can be shared between the two because the patch
+    // is either a rsync patch, and only block_range operations are used;
+    // or is a bsdiff patch, and then only add operations are used (the patch
+    // may contain block_range operations, but for copying whole files
+    // unchanged, so a buffer isn't needed anyways).
+    let mut patch_op_buffer: Vec<u8> = Vec::new();
 
     // If a hash_iter was provided, create a reusable hasher
     // instance to verify that the new game files are intact
@@ -170,8 +177,7 @@ impl Patch<'_> {
         new_container_file.size as u64,
         &mut old_files_cache,
         &self.container_old,
-        &mut add_buffer,
-        &mut block_buffer,
+        &mut patch_op_buffer,
         &mut progress_callback,
       )?;
 

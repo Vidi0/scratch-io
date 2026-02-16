@@ -56,7 +56,9 @@ impl bsdiff::Control {
       // Resize the add buffer to match the size of the current add bytes
       // The add operations are usually the same length, so allocation is almost never triggered
       // If the new add bytes are smaller than the buffer size, allocation will also be avoided
-      add_buffer.resize(self.add.len(), 0);
+      if add_buffer.len() != self.add.len() {
+        add_buffer.resize(self.add.len(), 0);
+      }
 
       add_bytes(old_file, writer, &self.add, add_buffer)?;
 
