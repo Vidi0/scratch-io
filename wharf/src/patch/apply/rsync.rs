@@ -34,7 +34,7 @@ fn copy_range(
 
     // If the file in disk doesn't have enought bytes, set
     // the file as broken (we won't be able to patch it).
-    if start_pos + bytes_to_copy < old_file_disk_size {
+    if start_pos + bytes_to_copy > old_file_disk_size {
       return Ok(CopyRangeStatus::Broken);
     }
 
