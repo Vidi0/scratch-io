@@ -88,7 +88,13 @@ impl bsdiff::Control {
     // Lastly, seek into the correct position in the old file
     if self.seek != 0 {
       // Add the relative seek into the absolute seek
-      *old_file_seek_position = old_file_seek_position.strict_add_signed(self.seek);
+      if let Some(seek) = old_file_seek_position.checked_add_signed(self.seek) {
+        *old_file_seek_position = seek;
+      } else {
+        return Err(
+          "The patch file contains an invalid seek position that causes an overflow!".to_string(),
+        );
+      };
 
       old_file
         .seek(std::io::SeekFrom::Start(*old_file_seek_position))
