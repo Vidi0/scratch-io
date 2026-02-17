@@ -1,6 +1,6 @@
 use super::{BsdiffOpIter, Patch, RsyncOpIter, SyncEntryIter, SyncHeader, SyncHeaderKind};
 use crate::common::{MAGIC_PATCH, check_magic_bytes, decompress_stream};
-use crate::protos::{bsdiff, decode_protobuf, pwr, tlc};
+use crate::protos::{bsdiff, decode_protobuf, pwr, skip_protobuf, tlc};
 
 use std::io::{BufRead, Read};
 
@@ -17,6 +17,14 @@ where
   pub fn drain(&mut self) -> Result<(), String> {
     for op in self {
       op?;
+    }
+
+    Ok(())
+  }
+
+  pub fn skip_operations(&mut self, operations_to_skip: u64) -> Result<(), String> {
+    for _ in 0..operations_to_skip {
+      skip_protobuf(&mut self.reader)?;
     }
 
     Ok(())
@@ -67,6 +75,14 @@ where
   pub fn drain(&mut self) -> Result<(), String> {
     for op in self {
       op?;
+    }
+
+    Ok(())
+  }
+
+  pub fn skip_operations(&mut self, operations_to_skip: u64) -> Result<(), String> {
+    for _ in 0..operations_to_skip {
+      skip_protobuf(&mut self.reader)?;
     }
 
     Ok(())

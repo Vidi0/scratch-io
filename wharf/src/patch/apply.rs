@@ -179,6 +179,8 @@ impl Patch<'_> {
         &self.container_old,
         &mut patch_op_buffer,
         &mut progress_callback,
+        /////// TODO: Store checkpoints somewhere
+        None,
         &mut |_checkpoint| (),
       )?;
 

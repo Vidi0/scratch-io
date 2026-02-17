@@ -5,6 +5,7 @@ use crate::protos::tlc;
 
 use std::io::{Read, Seek, Write};
 
+/////////////// TODO: Truncate file on checkpoint load
 #[derive(Clone, Copy, Debug)]
 #[must_use]
 pub enum FileCheckpoint {
@@ -42,7 +43,7 @@ impl<R: Read> SyncHeader<'_, R> {
     container_old: &tlc::Container,
     patch_op_buffer: &mut Vec<u8>,
     progress_callback: &mut impl FnMut(u64),
-    //checkpoint: Option<FileCheckpoint>,
+    checkpoint: Option<FileCheckpoint>,
     save_checkpoint: &mut impl FnMut(FileCheckpoint),
   ) -> Result<PatchFileStatus, String> {
     let mut written_bytes: u64 = 0;
@@ -56,23 +57,63 @@ impl<R: Read> SyncHeader<'_, R> {
         // Rsync operations can be used to determine literal copies of
         // files into the new container.
         //
-        // For that reason, check if the *first* operation represents a literal copy
-        let first = match op_iter.next() {
-          Some(op) => op?,
-          // If the first operation is None, something has gone wrong...
-          // Even if the file is empty, it is represented with an empty Data message.
-          None => {
-            return Err("Expected the first SyncOp for this file, but received None?".to_string());
+        // For that reason, check if the *first* operation represents a literal copy.
+        //
+        // Skip the check if there is a checkpoint, because a checkpoint means this
+        // patch operation represents actual changes in the file.
+        let first = if checkpoint.is_some() {
+          None
+        } else {
+          match op_iter.next() {
+            Some(op) => {
+              let first = op?;
+
+              // It it's a literal copy, then return early
+              if first.is_literal_copy(new_file_size, container_old)? {
+                progress_callback(new_file_size);
+
+                op_iter.drain()?;
+                return Ok(PatchFileStatus::Skipped {
+                  old_index: first.file_index as u64,
+                });
+              }
+
+              // If it's not, return the SyncOp to be able to apply it later
+              Some(first)
+            }
+            // If the first operation is None, something has gone wrong...
+            // Even if the file is empty, it is represented with an empty Data message.
+            None => {
+              return Err(
+                "Expected the first SyncOp for this file, but received None?".to_string(),
+              );
+            }
           }
         };
 
-        if first.is_literal_copy(new_file_size, container_old)? {
-          progress_callback(new_file_size);
+        // Load the checkpoint
+        if let Some(c) = checkpoint {
+          match c {
+            FileCheckpoint::Bsdiff { .. } => {
+              return Err("Can't load a bsdiff checkpoint for an rsync file patch!".to_string());
+            }
+            FileCheckpoint::Rsync {
+              written_bytes: c_bytes,
+              op_index,
+            } => {
+              written_bytes = c_bytes;
 
-          op_iter.drain()?;
-          return Ok(PatchFileStatus::Skipped {
-            old_index: first.file_index as u64,
-          });
+              // If there is a checkpoint, then the first operation was not
+              // obtained yet.
+              assert!(first.is_none());
+
+              // For that reason, it is possible to skip the iter operations:
+
+              // Add 1 to op_index: if the first operation was applied
+              // successfully (index 0), then skip 1 operation (0+1)
+              op_iter.skip_operations(op_index as u64 + 1)?;
+            }
+          }
         }
 
         // Resize the block buffer
@@ -85,8 +126,12 @@ impl<R: Read> SyncHeader<'_, R> {
 
         // Finally, apply all the rsync operations
         // Don't forget the first one, which was obtained independently!
+        let iter = std::iter::once(first)
+          .filter_map(|x| x.map(Ok))
+          .chain(&mut *op_iter);
+
         // Get the index of the operation to be able to store it in the checkpoint
-        for (op_index, op) in std::iter::once(Ok(first)).chain(&mut *op_iter).enumerate() {
+        for (op_index, op) in iter.enumerate() {
           let status = op?.apply(
             writer,
             hasher,
@@ -135,8 +180,31 @@ impl<R: Read> SyncHeader<'_, R> {
         // Store the old file seek position between apply calls
         let mut old_file_seek_position: u64 = 0;
 
+        // Load the checkpoint
+        if let Some(c) = checkpoint {
+          match c {
+            FileCheckpoint::Rsync { .. } => {
+              return Err("Can't load an rsync checkpoint for a bsdiff file patch!".to_string());
+            }
+            FileCheckpoint::Bsdiff {
+              written_bytes: c_bytes,
+              old_file_seek_position: c_seek,
+              op_index,
+            } => {
+              written_bytes = c_bytes;
+              old_file_seek_position = c_seek;
+
+              // Add 1 to op_index: if the first operation was applied
+              // successfully (index 0), then skip 1 operation (0+1)
+              op_iter.skip_operations(op_index as u64 + 1)?;
+            }
+          }
+        }
+
         // Rewind the old file to the start because the file might
         // have been in the cache and seeked before
+        //
+        // If there is a checkpoint, seek the file to the correct position
         old_file
           .seek(std::io::SeekFrom::Start(old_file_seek_position))
           .map_err(|e| format!("Couldn't seek old file to start!\n{e}"))?;
