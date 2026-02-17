@@ -179,6 +179,7 @@ impl Patch<'_> {
         &self.container_old,
         &mut patch_op_buffer,
         &mut progress_callback,
+        &mut |_checkpoint| (),
       )?;
 
       /////// TODO: DO SOMETHING WITH THE STATUS

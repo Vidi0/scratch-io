@@ -5,7 +5,6 @@ use crate::protos::tlc;
 
 use std::io::{Read, Seek, Write};
 
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug)]
 #[must_use]
 pub enum FileCheckpoint {
@@ -51,7 +50,7 @@ impl<R: Read> SyncHeader<'_, R> {
     patch_op_buffer: &mut Vec<u8>,
     progress_callback: &mut impl FnMut(u64),
     //load_checkpoint: Option<FileCheckpoint>,
-    //checkpoint: &mut impl FnMut(FileCheckpoint),
+    checkpoint: &mut impl FnMut(FileCheckpoint),
   ) -> Result<PatchFileStatus, String> {
     let mut written_bytes: u64 = 0;
 
@@ -90,7 +89,8 @@ impl<R: Read> SyncHeader<'_, R> {
 
         // Finally, apply all the rsync operations
         // Don't forget the first one, which was obtained independently!
-        for op in std::iter::once(Ok(first)).chain(&mut *op_iter) {
+        // Get the index of the operation to be able to store it in the checkpoint
+        for (op_index, op) in std::iter::once(Ok(first)).chain(&mut *op_iter).enumerate() {
           let status = op?.apply(
             writer,
             hasher,
@@ -106,6 +106,12 @@ impl<R: Read> SyncHeader<'_, R> {
             }
             OpStatus::Broken => return handle_verification_failure(op_iter),
           }
+
+          // Save a checkpoint after each successful patch operation
+          checkpoint(FileCheckpoint::Rsync {
+            written_bytes,
+            op_index,
+          })
         }
       }
 
@@ -136,7 +142,8 @@ impl<R: Read> SyncHeader<'_, R> {
         let mut old_file_seek_position: u64 = 0;
 
         // Finally, apply all the bsdiff operations
-        for control in &mut *op_iter {
+        // Get the index of the operation to be able to store it in the checkpoint
+        for (op_index, control) in op_iter.enumerate() {
           let status = control?.apply(
             writer,
             hasher,
@@ -153,6 +160,13 @@ impl<R: Read> SyncHeader<'_, R> {
             }
             OpStatus::Broken => return handle_verification_failure(op_iter),
           }
+
+          // Save a checkpoint after each successful patch operation
+          checkpoint(FileCheckpoint::Bsdiff {
+            written_bytes,
+            op_index,
+            old_file_seek_position,
+          })
         }
       }
     }
