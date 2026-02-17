@@ -10,12 +10,12 @@ use std::io::{Read, Seek, Write};
 #[must_use]
 pub enum FileCheckpoint {
   Rsync {
-    new_file_size: u64,
-    op_index: u64,
+    written_bytes: u64,
+    op_index: usize,
   },
   Bsdiff {
-    new_file_size: u64,
-    op_index: u64,
+    written_bytes: u64,
+    op_index: usize,
     old_file_seek_position: u64,
   },
 }
