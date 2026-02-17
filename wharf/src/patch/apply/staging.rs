@@ -42,8 +42,8 @@ impl<R: Read> SyncHeader<'_, R> {
     container_old: &tlc::Container,
     patch_op_buffer: &mut Vec<u8>,
     progress_callback: &mut impl FnMut(u64),
-    //load_checkpoint: Option<FileCheckpoint>,
-    checkpoint: &mut impl FnMut(FileCheckpoint),
+    //checkpoint: Option<FileCheckpoint>,
+    save_checkpoint: &mut impl FnMut(FileCheckpoint),
   ) -> Result<PatchFileStatus, String> {
     let mut written_bytes: u64 = 0;
 
@@ -107,7 +107,7 @@ impl<R: Read> SyncHeader<'_, R> {
           }
 
           // Save a checkpoint after each successful patch operation
-          checkpoint(FileCheckpoint::Rsync {
+          save_checkpoint(FileCheckpoint::Rsync {
             written_bytes,
             op_index,
           })
@@ -165,7 +165,7 @@ impl<R: Read> SyncHeader<'_, R> {
           }
 
           // Save a checkpoint after each successful patch operation
-          checkpoint(FileCheckpoint::Bsdiff {
+          save_checkpoint(FileCheckpoint::Bsdiff {
             written_bytes,
             op_index,
             old_file_seek_position,
