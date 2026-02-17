@@ -166,6 +166,15 @@ impl<R: Read> SyncHeader<'_, R> {
       }
     }
 
+    // If the patch is correct, the number of written bytes and the new
+    // file size should match.
+    //
+    // If the number of written bytes is lower because the file couldn't be
+    // patched or was skipped, then the function should have returned early.
+    if written_bytes != new_file_size {
+      return Err("After successfully patching a file, the number of written bytes does not equal the expected amount!".to_string());
+    }
+
     Ok(PatchFileStatus::Patched { written_bytes })
   }
 }
