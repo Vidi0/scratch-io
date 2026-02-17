@@ -132,14 +132,14 @@ impl<R: Read> SyncHeader<'_, R> {
             }
           };
 
+        // Store the old file seek position between apply calls
+        let mut old_file_seek_position: u64 = 0;
+
         // Rewind the old file to the start because the file might
         // have been in the cache and seeked before
         old_file
-          .rewind()
+          .seek(std::io::SeekFrom::Start(old_file_seek_position))
           .map_err(|e| format!("Couldn't seek old file to start!\n{e}"))?;
-
-        // Store the old file seek position between apply calls
-        let mut old_file_seek_position: u64 = 0;
 
         // Finally, apply all the bsdiff operations
         // Get the index of the operation to be able to store it in the checkpoint
