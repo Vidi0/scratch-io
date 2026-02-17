@@ -8,6 +8,20 @@ impl<R> RsyncOpIter<'_, R>
 where
   R: Read,
 {
+  /// Drain the rsync op iterator
+  ///
+  /// It is very important to drain the iterator before getting
+  /// the next one if it hasn't been fully consumed.
+  /// If the iterator isn't drained, the next [`SyncEntryIter::next_header`]
+  /// call will fail because of an invalid read offset.
+  pub fn drain(&mut self) -> Result<(), String> {
+    for op in self {
+      op?;
+    }
+
+    Ok(())
+  }
+
   pub fn dump_stdout(&mut self) -> Result<(), String> {
     for op in self {
       println!("{:?}", op?);
@@ -44,6 +58,20 @@ impl<R> BsdiffOpIter<'_, R>
 where
   R: Read,
 {
+  /// Drain the bsdiff op iterator
+  ///
+  /// It is very important to drain the iterator before getting
+  /// the next one if it hasn't been fully consumed.
+  /// If the iterator isn't drained, the next [`SyncEntryIter::next_header`]
+  /// call will fail because of an invalid read offset.
+  pub fn drain(&mut self) -> Result<(), String> {
+    for op in self {
+      op?;
+    }
+
+    Ok(())
+  }
+
   pub fn dump_stdout(&mut self) -> Result<(), String> {
     for op in self {
       println!("{:?}", op?);

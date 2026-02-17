@@ -29,13 +29,6 @@ pub enum PatchFileStatus {
   Broken,
 }
 
-fn handle_verification_failure(op_iter: &mut impl Iterator) -> Result<PatchFileStatus, String> {
-  // Consume all the remaining iterator items
-  for _ in op_iter {}
-
-  Ok(PatchFileStatus::Broken)
-}
-
 impl<R: Read> SyncHeader<'_, R> {
   /// Apply all the patch operations in the given header and
   /// write them into `writer`
@@ -54,6 +47,10 @@ impl<R: Read> SyncHeader<'_, R> {
   ) -> Result<PatchFileStatus, String> {
     let mut written_bytes: u64 = 0;
 
+    // WARNING: It is very important that, before any early Ok return
+    // inside the self.kind match for both rsync and bsdiff iterators,
+    // op_iter.drain() is called to ensure they aren't left in an invalid state
+
     match self.kind {
       SyncHeaderKind::Rsync { ref mut op_iter } => {
         // Rsync operations can be used to determine literal copies of
@@ -70,10 +67,9 @@ impl<R: Read> SyncHeader<'_, R> {
         };
 
         if first.is_literal_copy(new_file_size, container_old)? {
-          // Consume all the remaining iterator items
-          for _ in op_iter {}
-
           progress_callback(new_file_size);
+
+          op_iter.drain()?;
           return Ok(PatchFileStatus::Skipped {
             old_index: first.file_index as u64,
           });
@@ -104,7 +100,10 @@ impl<R: Read> SyncHeader<'_, R> {
               written_bytes += b;
               progress_callback(b);
             }
-            OpStatus::Broken => return handle_verification_failure(op_iter),
+            OpStatus::Broken => {
+              op_iter.drain()?;
+              return Ok(PatchFileStatus::Broken);
+            }
           }
 
           // Save a checkpoint after each successful patch operation
@@ -128,7 +127,8 @@ impl<R: Read> SyncHeader<'_, R> {
               disk_size,
             } => (file, disk_size),
             FilesCacheStatus::NotFound => {
-              return handle_verification_failure(op_iter);
+              op_iter.drain()?;
+              return Ok(PatchFileStatus::Broken);
             }
           };
 
@@ -158,7 +158,10 @@ impl<R: Read> SyncHeader<'_, R> {
               written_bytes += b;
               progress_callback(b);
             }
-            OpStatus::Broken => return handle_verification_failure(op_iter),
+            OpStatus::Broken => {
+              op_iter.drain()?;
+              return Ok(PatchFileStatus::Broken);
+            }
           }
 
           // Save a checkpoint after each successful patch operation
