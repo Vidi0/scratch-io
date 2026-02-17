@@ -3,9 +3,9 @@ use crate::common::BLOCK_SIZE;
 use crate::hasher::{BlockHasherStatus, FileBlockHasher};
 use crate::protos::tlc;
 
-use std::io::{Read, Seek, Write};
+use std::fs::File;
+use std::io::{Read, Seek};
 
-/////////////// TODO: Truncate file on checkpoint load
 #[derive(Clone, Copy, Debug)]
 #[must_use]
 pub enum FileCheckpoint {
@@ -30,13 +30,34 @@ pub enum PatchFileStatus {
   Broken,
 }
 
+/// Set the length of a file, but only to shrink it
+fn truncate_file(file: &mut File, new_len: u64) -> Result<(), String> {
+  // Get the metadata
+  let metadata = file
+    .metadata()
+    .map_err(|e| format!("Couldn't get new file metadata to truncate it!\n{e}"))?;
+
+  // Return an error if the file is smaller than the new lenth
+  if metadata.len() < new_len {
+    return Err(format!("While loading a checkpoint, the size of the new file in disk can't be smaller than the checkpoint file length!
+  File length: {}
+  Checkpoint file length: {new_len}",
+      metadata.len()
+    ));
+  }
+
+  file
+    .set_len(new_len)
+    .map_err(|e| format!("Couldn't truncate file to load checkpoint!\n{e}"))
+}
+
 impl<R: Read> SyncHeader<'_, R> {
   /// Apply all the patch operations in the given header and
   /// write them into `writer`
   #[allow(clippy::too_many_arguments)]
   pub fn patch_file(
     &mut self,
-    writer: &mut impl Write,
+    writer: &mut File,
     hasher: &mut Option<FileBlockHasher<impl Read>>,
     new_file_size: u64,
     old_files_cache: &mut FilesCache,
@@ -102,6 +123,9 @@ impl<R: Read> SyncHeader<'_, R> {
               op_index,
             } => {
               written_bytes = c_bytes;
+
+              // Truncate the new file to the correct size
+              truncate_file(writer, written_bytes)?;
 
               // If there is a checkpoint, then the first operation was not
               // obtained yet.
@@ -193,6 +217,9 @@ impl<R: Read> SyncHeader<'_, R> {
             } => {
               written_bytes = c_bytes;
               old_file_seek_position = c_seek;
+
+              // Truncate the new file to the correct size
+              truncate_file(writer, written_bytes)?;
 
               // Add 1 to op_index: if the first operation was applied
               // successfully (index 0), then skip 1 operation (0+1)
