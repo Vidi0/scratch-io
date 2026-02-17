@@ -14,8 +14,8 @@ pub enum FileCheckpoint {
   },
   Bsdiff {
     written_bytes: u64,
-    op_index: usize,
     old_file_seek_position: u64,
+    op_index: usize,
   },
 }
 
@@ -167,8 +167,8 @@ impl<R: Read> SyncHeader<'_, R> {
           // Save a checkpoint after each successful patch operation
           save_checkpoint(FileCheckpoint::Bsdiff {
             written_bytes,
-            op_index,
             old_file_seek_position,
+            op_index,
           })
         }
       }
