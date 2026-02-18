@@ -1,6 +1,7 @@
 use super::{FilesCache, FilesCacheStatus, OpStatus, SyncHeader, SyncHeaderKind};
 use crate::common::BLOCK_SIZE;
 use crate::hasher::{BlockHasherStatus, FileBlockHasher};
+use crate::patch::OpIter;
 use crate::protos::tlc;
 
 use std::fs::File;
@@ -49,6 +50,56 @@ fn truncate_file(file: &mut File, new_len: u64) -> Result<(), String> {
   file
     .set_len(new_len)
     .map_err(|e| format!("Couldn't truncate file to load checkpoint!\n{e}"))
+}
+
+impl FileCheckpoint {
+  /// Load a checkpoint
+  ///
+  /// If `old_file_seek_position` is provided, load it as a bsdiff checkpoint.
+  /// Else, load it as an rsync one.
+  pub fn load<K>(
+    &self,
+    written_bytes: &mut u64,
+    old_file_seek_position: Option<&mut u64>,
+    new_file: &mut File,
+    op_iter: &mut OpIter<impl Read, K>,
+  ) -> Result<(), String> {
+    let op_index: usize = match *self {
+      FileCheckpoint::Rsync {
+        written_bytes: c_bytes,
+        op_index,
+      } => {
+        // The old file seek position must not exist for an rsync checkpoint
+        let None = old_file_seek_position else {
+          return Err("Can't load a bsdiff checkpoint for an rsync file patch!".to_string());
+        };
+
+        *written_bytes = c_bytes;
+        op_index
+      }
+      FileCheckpoint::Bsdiff {
+        written_bytes: c_bytes,
+        old_file_seek_position: c_seek,
+        op_index,
+      } => {
+        // The old file seek position must exist for a bsdiff checkpoint
+        let Some(old_file_seek_position) = old_file_seek_position else {
+          return Err("Can't load an rsync checkpoint for a bsdiff file patch!".to_string());
+        };
+
+        *written_bytes = c_bytes;
+        *old_file_seek_position = c_seek;
+        op_index
+      }
+    };
+
+    // Truncate the new file to the correct size
+    truncate_file(new_file, *written_bytes)?;
+
+    // Add 1 to op_index: if the first operation was applied
+    // successfully (index 0), then skip 1 operation (0+1)
+    op_iter.skip_operations(op_index as u64 + 1)
+  }
 }
 
 impl<R: Read> SyncHeader<'_, R> {
@@ -114,30 +165,12 @@ impl<R: Read> SyncHeader<'_, R> {
 
         // Load the checkpoint
         if let Some(c) = checkpoint {
-          match c {
-            FileCheckpoint::Bsdiff { .. } => {
-              return Err("Can't load a bsdiff checkpoint for an rsync file patch!".to_string());
-            }
-            FileCheckpoint::Rsync {
-              written_bytes: c_bytes,
-              op_index,
-            } => {
-              written_bytes = c_bytes;
+          // If there is a checkpoint, then the first operation was not
+          // obtained yet.
+          assert!(first.is_none());
 
-              // Truncate the new file to the correct size
-              truncate_file(writer, written_bytes)?;
-
-              // If there is a checkpoint, then the first operation was not
-              // obtained yet.
-              assert!(first.is_none());
-
-              // For that reason, it is possible to skip the iter operations:
-
-              // Add 1 to op_index: if the first operation was applied
-              // successfully (index 0), then skip 1 operation (0+1)
-              op_iter.skip_operations(op_index as u64 + 1)?;
-            }
-          }
+          // For that reason, it is possible to load the checkpoint normally:
+          c.load(&mut written_bytes, None, writer, op_iter)?;
         }
 
         // Resize the block buffer
@@ -206,26 +239,12 @@ impl<R: Read> SyncHeader<'_, R> {
 
         // Load the checkpoint
         if let Some(c) = checkpoint {
-          match c {
-            FileCheckpoint::Rsync { .. } => {
-              return Err("Can't load an rsync checkpoint for a bsdiff file patch!".to_string());
-            }
-            FileCheckpoint::Bsdiff {
-              written_bytes: c_bytes,
-              old_file_seek_position: c_seek,
-              op_index,
-            } => {
-              written_bytes = c_bytes;
-              old_file_seek_position = c_seek;
-
-              // Truncate the new file to the correct size
-              truncate_file(writer, written_bytes)?;
-
-              // Add 1 to op_index: if the first operation was applied
-              // successfully (index 0), then skip 1 operation (0+1)
-              op_iter.skip_operations(op_index as u64 + 1)?;
-            }
-          }
+          c.load(
+            &mut written_bytes,
+            Some(&mut old_file_seek_position),
+            writer,
+            op_iter,
+          )?;
         }
 
         // Rewind the old file to the start because the file might
