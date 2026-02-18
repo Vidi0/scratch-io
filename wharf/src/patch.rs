@@ -5,6 +5,7 @@ mod read;
 use crate::protos::{pwr, tlc};
 
 use std::io::BufRead;
+use std::marker::PhantomData;
 
 /// Represents a decoded wharf patch file
 ///
@@ -20,16 +21,18 @@ pub struct Patch<'a> {
   pub sync_op_iter: SyncEntryIter<Box<dyn BufRead + 'a>>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct RsyncOpIter<'a, R> {
-  reader: &'a mut R,
-  finished: bool,
+pub mod op_kind {
+  #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+  pub struct Rsync;
+  #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+  pub struct Bsdiff;
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct BsdiffOpIter<'a, R> {
+pub struct OpIter<'a, R, K> {
   reader: &'a mut R,
   finished: bool,
+  _kind: PhantomData<K>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -41,11 +44,11 @@ pub struct SyncHeader<'a, R> {
 #[derive(Debug, PartialEq, Eq)]
 pub enum SyncHeaderKind<'a, R> {
   Rsync {
-    op_iter: RsyncOpIter<'a, R>,
+    op_iter: OpIter<'a, R, op_kind::Rsync>,
   },
   Bsdiff {
     target_index: i64,
-    op_iter: BsdiffOpIter<'a, R>,
+    op_iter: OpIter<'a, R, op_kind::Bsdiff>,
   },
 }
 

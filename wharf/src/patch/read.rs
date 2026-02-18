@@ -1,14 +1,17 @@
-use super::{BsdiffOpIter, Patch, RsyncOpIter, SyncEntryIter, SyncHeader, SyncHeaderKind};
+use super::{OpIter, Patch, SyncEntryIter, SyncHeader, SyncHeaderKind, op_kind};
 use crate::common::{MAGIC_PATCH, check_magic_bytes, decompress_stream};
 use crate::protos::{bsdiff, decode_protobuf, pwr, skip_protobuf, tlc};
 
 use std::io::{BufRead, Read};
+use std::marker::PhantomData;
 
-impl<R> RsyncOpIter<'_, R>
+impl<R, K, T> OpIter<'_, R, K>
 where
   R: Read,
+  Self: Iterator<Item = Result<T, String>>,
+  T: std::fmt::Debug,
 {
-  /// Drain the rsync op iterator
+  /// Drain the op iterator
   ///
   /// It is very important to drain the iterator before getting
   /// the next one if it hasn't been fully consumed.
@@ -43,7 +46,7 @@ where
   }
 }
 
-impl<R> Iterator for RsyncOpIter<'_, R>
+impl<R> Iterator for OpIter<'_, R, op_kind::Rsync>
 where
   R: Read,
 {
@@ -71,46 +74,7 @@ where
   }
 }
 
-impl<R> BsdiffOpIter<'_, R>
-where
-  R: Read,
-{
-  /// Drain the bsdiff op iterator
-  ///
-  /// It is very important to drain the iterator before getting
-  /// the next one if it hasn't been fully consumed.
-  /// If the iterator isn't drained, the next [`SyncEntryIter::next_header`]
-  /// call will fail because of an invalid read offset.
-  pub fn drain(&mut self) -> Result<(), String> {
-    if self.finished {
-      return Ok(());
-    }
-
-    for op in self {
-      op?;
-    }
-
-    Ok(())
-  }
-
-  pub fn skip_operations(&mut self, operations_to_skip: u64) -> Result<(), String> {
-    for _ in 0..operations_to_skip {
-      skip_protobuf(&mut self.reader)?;
-    }
-
-    Ok(())
-  }
-
-  pub fn dump_stdout(&mut self) -> Result<(), String> {
-    for op in self {
-      println!("{:?}", op?);
-    }
-
-    Ok(())
-  }
-}
-
-impl<R> Iterator for BsdiffOpIter<'_, R>
+impl<R> Iterator for OpIter<'_, R, op_kind::Bsdiff>
 where
   R: Read,
 {
@@ -212,16 +176,18 @@ where
       file_index: header.file_index,
       kind: match bsdiff_header {
         None => SyncHeaderKind::Rsync {
-          op_iter: RsyncOpIter {
+          op_iter: OpIter {
             reader: &mut self.reader,
             finished: false,
+            _kind: PhantomData::<op_kind::Rsync>,
           },
         },
         Some(bsdiff) => SyncHeaderKind::Bsdiff {
           target_index: bsdiff.target_index,
-          op_iter: BsdiffOpIter {
+          op_iter: OpIter {
             reader: &mut self.reader,
             finished: false,
+            _kind: PhantomData::<op_kind::Bsdiff>,
           },
         },
       },
