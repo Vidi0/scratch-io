@@ -71,7 +71,7 @@ impl<'a> FilesCache<'a> {
   }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[must_use]
 pub enum OpStatus {
   Ok { written_bytes: u64 },

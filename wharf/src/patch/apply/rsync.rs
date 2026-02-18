@@ -5,7 +5,7 @@ use crate::protos::{pwr, tlc};
 
 use std::io::{self, Read, Seek, Write};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[must_use]
 enum CopyRangeStatus {
   Ok(u64),

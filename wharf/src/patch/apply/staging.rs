@@ -6,7 +6,7 @@ use crate::protos::tlc;
 use std::fs::File;
 use std::io::{Read, Seek};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[must_use]
 pub enum FileCheckpoint {
   Rsync {
@@ -22,7 +22,7 @@ pub enum FileCheckpoint {
 
 // Whether the file to be patched was actually patched or was skipped
 // because it was an exact copy of an old file
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[must_use]
 pub enum PatchFileStatus {
   Patched { written_bytes: u64 },
