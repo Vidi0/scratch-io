@@ -15,6 +15,10 @@ where
   /// If the iterator isn't drained, the next [`SyncEntryIter::next_header`]
   /// call will fail because of an invalid read offset.
   pub fn drain(&mut self) -> Result<(), String> {
+    if self.finished {
+      return Ok(());
+    }
+
     for op in self {
       op?;
     }
@@ -46,6 +50,10 @@ where
   type Item = Result<pwr::SyncOp, String>;
 
   fn next(&mut self) -> Option<Self::Item> {
+    if self.finished {
+      return None;
+    }
+
     match decode_protobuf::<pwr::SyncOp>(&mut self.reader) {
       Err(e) => Some(Err(format!(
         "Couldn't decode Rsync SyncOp message from reader!\n{e}"
@@ -53,6 +61,7 @@ where
 
       Ok(sync_op) => {
         if sync_op.r#type() == pwr::sync_op::Type::HeyYouDidIt {
+          self.finished = true;
           None
         } else {
           Some(Ok(sync_op))
@@ -73,6 +82,10 @@ where
   /// If the iterator isn't drained, the next [`SyncEntryIter::next_header`]
   /// call will fail because of an invalid read offset.
   pub fn drain(&mut self) -> Result<(), String> {
+    if self.finished {
+      return Ok(());
+    }
+
     for op in self {
       op?;
     }
@@ -104,6 +117,10 @@ where
   type Item = Result<bsdiff::Control, String>;
 
   fn next(&mut self) -> Option<Self::Item> {
+    if self.finished {
+      return None;
+    }
+
     match decode_protobuf::<bsdiff::Control>(&mut self.reader) {
       Err(e) => Some(Err(format!(
         "Couldn't decode Bsdiff Control message from reader!\n{e}"
@@ -119,6 +136,7 @@ where
 
             Ok(sync_op) => {
               if sync_op.r#type() == pwr::sync_op::Type::HeyYouDidIt {
+                self.finished = true;
                 None
               } else {
                 Some(Err(
@@ -196,12 +214,14 @@ where
         None => SyncHeaderKind::Rsync {
           op_iter: RsyncOpIter {
             reader: &mut self.reader,
+            finished: false,
           },
         },
         Some(bsdiff) => SyncHeaderKind::Bsdiff {
           target_index: bsdiff.target_index,
           op_iter: BsdiffOpIter {
             reader: &mut self.reader,
+            finished: false,
           },
         },
       },

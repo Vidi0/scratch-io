@@ -23,11 +23,13 @@ pub struct Patch<'a> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct RsyncOpIter<'a, R> {
   reader: &'a mut R,
+  finished: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct BsdiffOpIter<'a, R> {
   reader: &'a mut R,
+  finished: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
