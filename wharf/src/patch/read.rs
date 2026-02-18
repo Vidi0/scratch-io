@@ -7,9 +7,7 @@ use std::marker::PhantomData;
 
 impl<R, K, T> OpIter<'_, R, K>
 where
-  R: Read,
   Self: Iterator<Item = Result<T, String>>,
-  T: std::fmt::Debug,
 {
   /// Drain the op iterator
   ///
@@ -28,7 +26,12 @@ where
 
     Ok(())
   }
+}
 
+impl<R, K> OpIter<'_, R, K>
+where
+  R: Read,
+{
   pub fn skip_operations(&mut self, operations_to_skip: u64) -> Result<(), String> {
     for _ in 0..operations_to_skip {
       skip_protobuf(&mut self.reader)?;
@@ -36,7 +39,13 @@ where
 
     Ok(())
   }
+}
 
+impl<R, K, T> OpIter<'_, R, K>
+where
+  Self: Iterator<Item = Result<T, String>>,
+  T: std::fmt::Debug,
+{
   pub fn dump_stdout(&mut self) -> Result<(), String> {
     for op in self {
       println!("{:?}", op?);
