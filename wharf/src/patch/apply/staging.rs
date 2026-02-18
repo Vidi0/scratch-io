@@ -1,7 +1,7 @@
-use super::{FilesCache, FilesCacheStatus, OpStatus, SyncHeader, SyncHeaderKind};
 use crate::common::BLOCK_SIZE;
 use crate::hasher::{BlockHasherStatus, FileBlockHasher};
-use crate::patch::OpIter;
+use crate::patch::operations::{FilesCache, FilesCacheStatus, OpStatus};
+use crate::patch::{OpIter, SyncHeader, SyncHeaderKind};
 use crate::protos::tlc;
 
 use std::fs::File;
