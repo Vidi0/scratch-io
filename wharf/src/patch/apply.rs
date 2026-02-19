@@ -77,7 +77,7 @@ impl Patch<'_> {
 
       // Open the new file
       let new_container_file = self.container_new.get_file(header.file_index as usize)?;
-      let mut new_file = new_container_file.open_write(new_build_folder.to_owned())?;
+      let new_file = || new_container_file.open_write(new_build_folder.to_owned());
 
       // Create a hasher for the current file
       let mut file_hasher = match hasher.as_mut() {
@@ -87,7 +87,7 @@ impl Patch<'_> {
 
       // Write all the new data into the file
       let status = header.patch_file(
-        &mut new_file,
+        new_file,
         &mut file_hasher,
         new_container_file.size as u64,
         &mut old_files_cache,

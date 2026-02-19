@@ -108,7 +108,9 @@ impl<R: Read> SyncHeader<'_, R> {
   #[allow(clippy::too_many_arguments)]
   pub fn patch_file(
     &mut self,
-    new_file: &mut File,
+    // `new_file` is a clousure because the new file won't not be needed
+    // if this patch represents a literal copy of an old file (the patch will be skipped)
+    new_file: impl FnOnce() -> Result<File, String>,
     hasher: &mut Option<FileBlockHasher<impl Read>>,
     new_file_size: u64,
     old_files_cache: &mut FilesCache,
@@ -162,6 +164,10 @@ impl<R: Read> SyncHeader<'_, R> {
             }
           }
         };
+
+        // Now that we know that this file will have to be patched,
+        // get the new file with the clousure
+        let new_file = &mut new_file()?;
 
         // Load the checkpoint
         if let Some(c) = checkpoint {
@@ -220,6 +226,9 @@ impl<R: Read> SyncHeader<'_, R> {
         target_index,
         ref mut op_iter,
       } => {
+        // If the header kind is bsdiff, the file will have to be patched
+        let new_file = &mut new_file()?;
+
         // Open the old file
         let (old_file, old_file_disk_size) =
           match old_files_cache.get_file(target_index as usize, container_old)? {
