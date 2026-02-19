@@ -22,7 +22,7 @@ fn add_bytes(
     .map_err(|e| format!("Couldn't read data from old file into buffer!\n{e}"))?;
 
   for i in 0..add.len() {
-    add_buffer[i] += add[i];
+    add_buffer[i] = add_buffer[i].wrapping_add(add[i]);
   }
 
   dst
