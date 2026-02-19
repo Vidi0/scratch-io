@@ -109,3 +109,40 @@ impl bsdiff::Control {
     Ok(OpStatus::Ok { written_bytes })
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::add_bytes;
+
+  #[test]
+  fn add() {
+    // This is example data:
+    let source_bytes: [u8; 8] = [46, 233, 19, 63, 195, 9, 45, 47];
+    let bytes_to_add: [u8; 8] = [78, 132, 89, 219, 209, 184, 78, 6];
+    let expected_result: [u8; 8] = [
+      /*46 + 78*/ 124, /*233 + 132 = 365 = 109 mod 256*/ 109, /*19 + 89*/ 108,
+      /*63 + 219 = 282 = 26 mod 256*/ 26, /*195 + 209 = 404 = 148 mod 256*/ 148,
+      /*9 + 184*/ 193, /*45 + 78*/ 123, /*47 + 6*/ 53,
+    ];
+
+    let mut add_buffer: [u8; 8] = [0; 8];
+    let mut dst: [u8; 8] = [0; 8];
+
+    add_bytes(
+      &mut &source_bytes[..],
+      &mut &mut dst[..],
+      &bytes_to_add,
+      &mut add_buffer,
+    )
+    .unwrap();
+
+    assert_eq!(
+      dst, add_buffer,
+      "The contents of the writer and the add_buffer buffer must be equal!"
+    );
+    assert_eq!(
+      add_buffer, expected_result,
+      "Adding the arrays did not achieve the expected result"
+    );
+  }
+}
