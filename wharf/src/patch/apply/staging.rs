@@ -104,11 +104,11 @@ impl FileCheckpoint {
 
 impl<R: Read> SyncHeader<'_, R> {
   /// Apply all the patch operations in the given header and
-  /// write them into `writer`
+  /// write them into `new_file`
   #[allow(clippy::too_many_arguments)]
   pub fn patch_file(
     &mut self,
-    writer: &mut File,
+    new_file: &mut File,
     hasher: &mut Option<FileBlockHasher<impl Read>>,
     new_file_size: u64,
     old_files_cache: &mut FilesCache,
@@ -170,7 +170,7 @@ impl<R: Read> SyncHeader<'_, R> {
           assert!(first.is_none());
 
           // For that reason, it is possible to load the checkpoint normally:
-          c.load(&mut written_bytes, None, writer, op_iter)?;
+          c.load(&mut written_bytes, None, new_file, op_iter)?;
         }
 
         // Resize the block buffer
@@ -190,7 +190,7 @@ impl<R: Read> SyncHeader<'_, R> {
         // Get the index of the operation to be able to store it in the checkpoint
         for (op_index, op) in iter.enumerate() {
           let status = op?.apply(
-            writer,
+            new_file,
             hasher,
             old_files_cache,
             container_old,
@@ -242,7 +242,7 @@ impl<R: Read> SyncHeader<'_, R> {
           c.load(
             &mut written_bytes,
             Some(&mut old_file_seek_position),
-            writer,
+            new_file,
             op_iter,
           )?;
         }
@@ -259,7 +259,7 @@ impl<R: Read> SyncHeader<'_, R> {
         // Get the index of the operation to be able to store it in the checkpoint
         for (op_index, control) in op_iter.enumerate() {
           let status = control?.apply(
-            writer,
+            new_file,
             hasher,
             old_file,
             &mut old_file_seek_position,
