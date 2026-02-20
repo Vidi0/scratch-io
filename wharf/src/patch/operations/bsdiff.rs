@@ -115,16 +115,16 @@ mod tests {
   use super::add_bytes;
 
   #[test]
-  fn add() {
-    const TEST_DATA_LENGTH: usize = 8;
+  fn add_wrapping() {
+    const TEST_DATA_LENGTH: usize = 4;
 
-    // This is example data:
-    let source_bytes: [u8; TEST_DATA_LENGTH] = [46, 233, 19, 63, 195, 9, 45, 47];
-    let bytes_to_add: [u8; TEST_DATA_LENGTH] = [78, 132, 89, 219, 209, 184, 78, 6];
+    let source_bytes: [u8; TEST_DATA_LENGTH] = [1, 200, 255, 255];
+    let bytes_to_add: [u8; TEST_DATA_LENGTH] = [255, 200, 100, 255];
     let expected_result: [u8; TEST_DATA_LENGTH] = [
-      /*46 + 78*/ 124, /*233 + 132 = 365 = 109 mod 256*/ 109, /*19 + 89*/ 108,
-      /*63 + 219 = 282 = 26 mod 256*/ 26, /*195 + 209 = 404 = 148 mod 256*/ 148,
-      /*9 + 184*/ 193, /*45 + 78*/ 123, /*47 + 6*/ 53,
+      0,   // (1 + 255) mod 256 = 256 mod 256 = 0
+      144, // (200 + 200) mod 256 = 400 mod 256 = 144
+      99,  // (255 + 100) mod 256 = 355 mod 256 = 99
+      254, // (255 + 255) mod 256 = 510 mod 256 = 254
     ];
 
     let mut add_buffer: [u8; TEST_DATA_LENGTH] = [0; TEST_DATA_LENGTH];
@@ -138,13 +138,7 @@ mod tests {
     )
     .unwrap();
 
-    assert_eq!(
-      dst, add_buffer,
-      "The contents of the writer and the add_buffer buffer must be equal!"
-    );
-    assert_eq!(
-      add_buffer, expected_result,
-      "Adding the arrays did not achieve the expected result"
-    );
+    assert_eq!(dst, add_buffer);
+    assert_eq!(add_buffer, expected_result);
   }
 }
