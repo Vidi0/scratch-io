@@ -117,9 +117,9 @@ impl<R: Read> SyncHeader<'_, R> {
     old_files_cache: &mut FilesCache,
     container_old: &tlc::Container,
     patch_op_buffer: &mut Vec<u8>,
-    progress_callback: &mut impl FnMut(u64),
     checkpoint: Option<FileCheckpoint>,
-    save_checkpoint: &mut impl FnMut(FileCheckpoint),
+    mut save_checkpoint: impl FnMut(FileCheckpoint),
+    mut progress_callback: impl FnMut(u64),
   ) -> Result<PatchFileStatus, String> {
     let mut written_bytes: u64 = 0;
 

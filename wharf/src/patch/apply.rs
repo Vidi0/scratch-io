@@ -94,10 +94,10 @@ impl Patch<'_> {
         &mut old_files_cache,
         &self.container_old,
         &mut patch_op_buffer,
-        &mut progress_callback,
         /////// TODO: Store checkpoints somewhere
         None,
         &mut |_checkpoint| (),
+        &mut progress_callback,
       )?;
 
       /////// TODO: DO SOMETHING WITH THE STATUS

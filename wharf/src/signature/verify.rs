@@ -40,7 +40,7 @@ fn check_file_integrity<R: Read>(
   build_folder: &Path,
   hasher: &mut FileBlockHasher<R>,
   buffer: &mut [u8],
-  progress_callback: &mut impl FnMut(u64),
+  mut progress_callback: impl FnMut(u64),
 ) -> Result<bool, String> {
   // Get the file size
   let file_size = container_file.size as u64;
