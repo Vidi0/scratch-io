@@ -1,8 +1,11 @@
+mod staging;
+
 use super::Patch;
 use super::operations::FilesCache;
 use crate::hasher::BlockHasher;
 use crate::signature::BlockHashIter;
 
+use std::fs;
 use std::io::Read;
 use std::path::Path;
 
@@ -34,6 +37,7 @@ impl Patch<'_> {
   pub fn apply(
     &mut self,
     old_build_folder: &Path,
+    staging_folder: &Path,
     new_build_folder: &Path,
     hash_iter: Option<&mut BlockHashIter<impl Read>>,
     mut progress_callback: impl FnMut(u64),
@@ -41,6 +45,14 @@ impl Patch<'_> {
     // Create the new container folders, files and symlinks,
     // applying all the correct permissions
     self.container_new.create(new_build_folder)?;
+
+    // Create the staging folder
+    fs::create_dir_all(staging_folder).map_err(|e| {
+      format!(
+        "Couldn't create staging folder: \"{}\"\n{e}",
+        staging_folder.to_string_lossy()
+      )
+    })?;
 
     // Create a cache of open file descriptors for the old files
     // The key is the file_index of the old file provided by the patch
@@ -68,40 +80,23 @@ impl Patch<'_> {
     // instance to verify that the new game files are intact
     let mut hasher = hash_iter.map(|iter| BlockHasher::new(iter));
 
-    // Patch all files in the iterator one by one
-    while let Some(header) = self.sync_op_iter.next_header() {
-      let mut header =
-        header.map_err(|e| format!("Couldn't get next patch sync operation!\n{e}"))?;
+    // Reconstruct all the modified files into the staging folder
+    let status = self.reconstruct_modified_files(
+      staging_folder,
+      &mut old_files_cache,
+      &mut hasher,
+      &mut patch_op_buffer,
+      ///////// TODO: load checkpoints
+      None,
+      ///////// TODO: store checkpoints
+      //|checkpoint| println!("checkpoint: {checkpoint:?}"),
+      |_checkpoint| (),
+      &mut progress_callback,
+    )?;
 
-      // Get the new file index
-      let file_index = header.file_index as usize;
-
-      // Open the new file
-      let new_container_file = self.container_new.get_file(file_index)?;
-      let new_file = || new_container_file.open_write(new_build_folder.to_owned());
-
-      // Create a hasher for the current file
-      let mut file_hasher = match hasher.as_mut() {
-        Some(h) => Some(h.new_file_hasher(new_container_file.block_count())?),
-        None => None,
-      };
-
-      // Write all the new data into the file
-      let status = header.patch_file(
-        new_file,
-        &mut file_hasher,
-        new_container_file.size as u64,
-        &mut old_files_cache,
-        &self.container_old,
-        &mut patch_op_buffer,
-        /////// TODO: Store checkpoints somewhere
-        None,
-        &mut |_checkpoint| (),
-        &mut progress_callback,
-      )?;
-
-      /////// TODO: DO SOMETHING WITH THE STATUS
-      println!("file {}: {:?}", header.file_index, status);
+    ///////// TODO: do something with the status
+    for (file_index, file_status) in status.patched_files.into_iter().enumerate() {
+      println!("file {}: {:?}", file_index, file_status);
     }
 
     Ok(())

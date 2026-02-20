@@ -226,6 +226,11 @@ enum WharfCommands {
     /// applying the patch.
     #[arg(long, env = "SCRATCH_OLD_BUILD_FOLDER")]
     old_build_folder: PathBuf,
+    /// The path where the half-reconstructed files will be placed
+    ///
+    /// Data in this folder may be overwritten
+    #[arg(long, env = "SCRATCH_OLD_BUILD_FOLDER")]
+    staging_folder: PathBuf,
     /// The path where the new build folder will be placed
     ///
     /// Existing files will be overwritten by the new ones,
@@ -980,6 +985,7 @@ fn handle_wharf_command(command: WharfCommands) {
       patch_file,
       signature_file,
       old_build_folder,
+      staging_folder,
       new_build_folder,
     } => {
       // Open the patch file
@@ -1018,6 +1024,7 @@ fn handle_wharf_command(command: WharfCommands) {
       patch
         .apply(
           &old_build_folder,
+          &staging_folder,
           &new_build_folder,
           hash_iter.as_mut(),
           |b| progress_bar.inc(b),
