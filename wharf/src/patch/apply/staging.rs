@@ -28,6 +28,7 @@ pub enum FileCheckpoint {
 pub enum PatchFileStatus {
   Patched { written_bytes: u64 },
   Skipped { old_index: u64 },
+  Empty,
   Broken,
 }
 
@@ -128,10 +129,13 @@ impl<R: Read> SyncHeader<'_, R> {
 
     match self.kind {
       SyncHeaderKind::Rsync { ref mut op_iter } => {
-        // Rsync operations can be used to determine literal copies of
-        // files into the new container.
+        // Rsync operations can be used to determine two special cases:
         //
-        // For that reason, check if the *first* operation represents a literal copy.
+        // 1. The new file is a literal copy of one in the old container
+        // 2. The new file is empty
+        //
+        // For that reason, check if the *first* operation represents
+        // one of these special cases.
         //
         // Skip the check if there is a checkpoint, because a checkpoint means this
         // patch operation represents actual changes in the file.
@@ -142,7 +146,13 @@ impl<R: Read> SyncHeader<'_, R> {
             Some(op) => {
               let first = op?;
 
-              // It it's a literal copy, then return early
+              // If it represents an empty file, then return early
+              if first.is_empty_file() {
+                op_iter.drain()?;
+                return Ok(PatchFileStatus::Empty);
+              }
+
+              // It it's a literal copy, return early, too
               if first.is_literal_copy(new_file_size, container_old)? {
                 progress_callback(new_file_size);
 

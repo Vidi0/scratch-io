@@ -167,4 +167,12 @@ impl pwr::SyncOp {
         && new_file_size == container_old.get_file(self.file_index as usize)?.size as u64,
     )
   }
+
+  /// Check if this `SyncOp` represents an empty file
+  pub fn is_empty_file(&self) -> bool {
+    // The type must be Data
+    self.r#type() == pwr::sync_op::Type::Data
+    // The data field should be empty
+      && self.data.is_empty()
+  }
 }
