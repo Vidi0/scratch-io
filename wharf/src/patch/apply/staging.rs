@@ -147,7 +147,7 @@ impl<R: Read> SyncHeader<'_, R> {
               let first = op?;
 
               // If it represents an empty file, then return early
-              if first.is_empty_file() {
+              if first.is_empty_file(new_file_size) {
                 op_iter.drain()?;
                 return Ok(PatchFileStatus::Empty);
               }
