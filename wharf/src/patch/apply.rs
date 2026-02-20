@@ -73,8 +73,11 @@ impl Patch<'_> {
       let mut header =
         header.map_err(|e| format!("Couldn't get next patch sync operation!\n{e}"))?;
 
+      // Get the new file index
+      let file_index = header.file_index as usize;
+
       // Open the new file
-      let new_container_file = self.container_new.get_file(header.file_index as usize)?;
+      let new_container_file = self.container_new.get_file(file_index)?;
       let new_file = || new_container_file.open_write(new_build_folder.to_owned());
 
       // Create a hasher for the current file
