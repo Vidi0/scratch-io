@@ -115,6 +115,29 @@ mod tests {
   use super::add_bytes;
 
   #[test]
+  fn add_zero() {
+    const TEST_DATA_LENGTH: usize = 8;
+
+    let source_bytes: [u8; TEST_DATA_LENGTH] = [0, 87, 124, 143, 49, 81, 215, 248];
+    let bytes_to_add: [u8; TEST_DATA_LENGTH] = [0u8; TEST_DATA_LENGTH];
+
+    let mut add_buffer: [u8; TEST_DATA_LENGTH] = [0; TEST_DATA_LENGTH];
+    let mut dst: [u8; TEST_DATA_LENGTH] = [0; TEST_DATA_LENGTH];
+
+    add_bytes(
+      &mut &source_bytes[..],
+      &mut &mut dst[..],
+      &bytes_to_add,
+      &mut add_buffer,
+    )
+    .unwrap();
+
+    assert_eq!(dst, add_buffer);
+    // Adding zeros should not change the original bytes
+    assert_eq!(add_buffer, source_bytes);
+  }
+
+  #[test]
   fn add_wrapping() {
     const TEST_DATA_LENGTH: usize = 4;
 
@@ -129,6 +152,54 @@ mod tests {
 
     let mut add_buffer: [u8; TEST_DATA_LENGTH] = [0; TEST_DATA_LENGTH];
     let mut dst: [u8; TEST_DATA_LENGTH] = [0; TEST_DATA_LENGTH];
+
+    add_bytes(
+      &mut &source_bytes[..],
+      &mut &mut dst[..],
+      &bytes_to_add,
+      &mut add_buffer,
+    )
+    .unwrap();
+
+    assert_eq!(dst, add_buffer);
+    assert_eq!(add_buffer, expected_result);
+  }
+
+  #[test]
+  fn add_single_byte() {
+    const TEST_DATA_LENGTH: usize = 1;
+
+    let source_bytes: [u8; TEST_DATA_LENGTH] = [37];
+    let bytes_to_add: [u8; TEST_DATA_LENGTH] = [67];
+    let expected_result: [u8; TEST_DATA_LENGTH] = [
+      104, // 37 + 67 = 104
+    ];
+
+    let mut add_buffer: [u8; TEST_DATA_LENGTH] = [0; TEST_DATA_LENGTH];
+    let mut dst: [u8; TEST_DATA_LENGTH] = [0; TEST_DATA_LENGTH];
+
+    add_bytes(
+      &mut &source_bytes[..],
+      &mut &mut dst[..],
+      &bytes_to_add,
+      &mut add_buffer,
+    )
+    .unwrap();
+
+    assert_eq!(dst, add_buffer);
+    assert_eq!(add_buffer, expected_result);
+  }
+
+  #[test]
+  fn add_large_buffer() {
+    const TEST_DATA_LENGTH: usize = 10000;
+
+    let source_bytes = vec![48u8; TEST_DATA_LENGTH];
+    let bytes_to_add = vec![153u8; TEST_DATA_LENGTH];
+    let expected_result = vec![201u8; TEST_DATA_LENGTH]; // 48 + 153 = 201
+
+    let mut add_buffer = vec![0u8; TEST_DATA_LENGTH];
+    let mut dst = vec![0u8; TEST_DATA_LENGTH];
 
     add_bytes(
       &mut &source_bytes[..],
