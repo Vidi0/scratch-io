@@ -20,6 +20,16 @@ pub struct StagingCheckpoint {
 }
 
 impl StagingCheckpoint {
+  /// Returns the index of the file that has to be patched
+  /// or was being patched
+  pub fn current_file_index(&self) -> u64 {
+    self.patched_files.len() as u64
+  }
+
+  pub fn update_current_file_checkpoint(&mut self, checkpoint: FileCheckpoint) {
+    self.current_file = Some(checkpoint)
+  }
+
   pub fn push_status(&mut self, status: PatchFileStatus) {
     // Add the status to the vector of finished file patches
     self.patched_files.push(status);
@@ -74,7 +84,7 @@ impl Patch<'_> {
     // Skip to the correct sync header
     self
       .sync_op_iter
-      .skip_entries(checkpoint.patched_files.len() as u64)?;
+      .skip_entries(checkpoint.current_file_index())?;
 
     // Important!
     // Send save checkpoint calls every time:
@@ -114,7 +124,7 @@ impl Patch<'_> {
         |file_c| {
           // If a sync op was successfully applied,
           // save a checkpoint with the new data
-          checkpoint.current_file = Some(file_c);
+          checkpoint.update_current_file_checkpoint(file_c);
           save_checkpoint(&checkpoint);
         },
         &mut progress_callback,
