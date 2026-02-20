@@ -1,5 +1,3 @@
-mod staging;
-
 use super::Patch;
 use super::operations::FilesCache;
 use crate::hasher::BlockHasher;

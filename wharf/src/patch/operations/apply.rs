@@ -1,6 +1,6 @@
+use super::{FilesCache, FilesCacheStatus, OpStatus};
 use crate::common::BLOCK_SIZE;
 use crate::hasher::{BlockHasherStatus, FileBlockHasher};
-use crate::patch::operations::{FilesCache, FilesCacheStatus, OpStatus};
 use crate::patch::{OpIter, SyncHeader, SyncHeaderKind};
 use crate::protos::tlc;
 
