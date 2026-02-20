@@ -202,6 +202,35 @@ where
       },
     }))
   }
+
+  pub fn skip_entries(&mut self, entries_to_skip: u64) -> Result<(), String> {
+    // For each entry that will be skipped:
+    for i in 0..entries_to_skip {
+      // Get the header
+      let header = match self.next_header() {
+        Some(Ok(h)) => h,
+        Some(Err(e)) => return Err(format!("Couldn't get next patch sync operation!\n{e}")),
+        None => {
+          return Err(format!(
+            "Can't skip {} entries, the iter stops at {}!",
+            entries_to_skip, i
+          ));
+        }
+      };
+
+      // Drain the corresponding iterator
+      match header.kind {
+        SyncHeaderKind::Rsync { mut op_iter } => {
+          op_iter.drain()?;
+        }
+        SyncHeaderKind::Bsdiff { mut op_iter, .. } => {
+          op_iter.drain()?;
+        }
+      }
+    }
+
+    Ok(())
+  }
 }
 
 impl<'a> Patch<'a> {
