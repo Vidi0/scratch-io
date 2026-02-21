@@ -58,8 +58,8 @@ where
     })
   }
 
-  pub fn skip_files(&mut self, file_blocks: &[u64]) -> Result<(), String> {
-    for blocks in file_blocks.iter().copied() {
+  pub fn skip_files(&mut self, file_blocks: impl Iterator<Item = u64>) -> Result<(), String> {
+    for blocks in file_blocks {
       // Skip all the blocks
       self.hash_iter.skip_blocks(blocks)?;
     }
