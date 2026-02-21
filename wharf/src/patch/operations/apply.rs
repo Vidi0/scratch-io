@@ -27,7 +27,7 @@ pub enum FileCheckpoint {
 #[must_use]
 pub enum PatchFileStatus {
   Patched { written_bytes: u64 },
-  Skipped { old_index: u64 },
+  Skipped { old_index: usize },
   Empty,
   Broken,
 }
@@ -153,13 +153,11 @@ impl<R: Read> SyncHeader<'_, R> {
               }
 
               // It it's a literal copy, return early, too
-              if first.is_literal_copy(new_file_size, container_old)? {
+              if let Some(old_index) = first.is_literal_copy(new_file_size, container_old)? {
                 progress_callback(new_file_size);
 
                 op_iter.drain()?;
-                return Ok(PatchFileStatus::Skipped {
-                  old_index: first.file_index as u64,
-                });
+                return Ok(PatchFileStatus::Skipped { old_index });
               }
 
               // If it's not, return the SyncOp to be able to apply it later

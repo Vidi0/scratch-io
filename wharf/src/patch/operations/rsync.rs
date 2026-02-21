@@ -1,7 +1,8 @@
 use super::{FilesCache, FilesCacheStatus, OpStatus, verify_data};
 use crate::common::BLOCK_SIZE;
 use crate::hasher::{BlockHasherStatus, FileBlockHasher};
-use crate::protos::{pwr, tlc};
+use crate::patch::RsyncOp;
+use crate::protos::tlc;
 
 use std::io::{self, Read, Seek, Write};
 
@@ -82,33 +83,47 @@ fn copy_range(
   Ok(CopyRangeStatus::Ok(total_written))
 }
 
-impl pwr::SyncOp {
-  /// Check if this `SyncOp` represents a file copy from the
+impl RsyncOp {
+  /// Check if this `RsyncOp` represents a file copy from the
   /// old container into the new without changing the data
+  ///
+  /// Returns an option containing the old file index
   pub fn is_literal_copy(
     &self,
     new_file_size: u64,
     container_old: &tlc::Container,
-  ) -> Result<bool, String> {
-    Ok(
-      // The type must be BlockRange
-      self.r#type() == pwr::sync_op::Type::BlockRange
-      // It should copy from the first block until the end of the given file
-        && self.block_index == 0
-        && self.block_span as u64 * BLOCK_SIZE >= new_file_size
-      // The size of the old and the new file must be equal
-        && new_file_size == container_old.get_file(self.file_index as usize)?.size as u64,
-    )
+  ) -> Result<Option<usize>, String> {
+    // The type must be BlockRange
+    if let Self::BlockRange {
+      file_index,
+      block_index,
+      block_span,
+    } = *self
+    {
+      Ok(
+        // It should copy from the first block until the end of the given file
+        (block_index == 0
+          && block_span * BLOCK_SIZE >= new_file_size
+        // The size of the old and the new file must be equal
+          && new_file_size == container_old.get_file(file_index)?.size as u64)
+          .then_some(file_index),
+      )
+    } else {
+      Ok(None)
+    }
   }
 
   /// Check if this `SyncOp` represents an empty file
   pub fn is_empty_file(&self, new_file_size: u64) -> bool {
     // The type must be Data
-    self.r#type() == pwr::sync_op::Type::Data
-    // The data field should be empty
-      && self.data.is_empty()
-    // The new file must have a 0 size in the container
-      && new_file_size == 0
+    if let Self::Data(data) = self {
+      // The data field should be empty
+      data.is_empty()
+      // The new file must have a 0 size in the container
+        && new_file_size == 0
+    } else {
+      false
+    }
   }
 
   /// Apply the `op` rsync operation into the writer
@@ -122,12 +137,16 @@ impl pwr::SyncOp {
   ) -> Result<OpStatus, String> {
     let mut written_bytes: u64 = 0;
 
-    match self.r#type() {
+    match *self {
       // If the type is BlockRange, copy the range from the old file to the new one
-      pwr::sync_op::Type::BlockRange => {
+      Self::BlockRange {
+        file_index,
+        block_index,
+        block_span,
+      } => {
         // Open the old file
         let (old_file, old_file_container_size, old_file_disk_size) =
-          match old_files_cache.get_file(self.file_index as usize, container_old)? {
+          match old_files_cache.get_file(file_index, container_old)? {
             FilesCacheStatus::Ok {
               file,
               container_size,
@@ -144,8 +163,8 @@ impl pwr::SyncOp {
           old_file,
           writer,
           hasher,
-          self.block_index as u64,
-          self.block_span as u64,
+          block_index,
+          block_span,
           old_file_container_size,
           old_file_disk_size,
           buffer,
@@ -160,19 +179,17 @@ impl pwr::SyncOp {
         }
       }
       // If the type is Data, just copy the data from the patch to the new file
-      pwr::sync_op::Type::Data => {
+      Self::Data(ref data) => {
         writer
-          .write_all(&self.data)
+          .write_all(data)
           .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
 
         // Verify the written data
-        match verify_data(hasher, &self.data)? {
+        match verify_data(hasher, data)? {
           OpStatus::Ok { written_bytes: b } => written_bytes += b,
           OpStatus::Broken => return Ok(OpStatus::Broken),
         }
       }
-      // If the type is HeyYouDidIt, then the iterator would have returned None
-      pwr::sync_op::Type::HeyYouDidIt => unreachable!(),
     }
 
     Ok(OpStatus::Ok { written_bytes })

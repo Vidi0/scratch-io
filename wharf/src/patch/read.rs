@@ -1,4 +1,4 @@
-use super::{OpIter, Patch, SyncEntryIter, SyncHeader, SyncHeaderKind, op_kind};
+use super::{OpIter, Patch, RsyncOp, SyncEntryIter, SyncHeader, SyncHeaderKind, op_kind};
 use crate::common::{MAGIC_PATCH, check_magic_bytes, decompress_stream};
 use crate::protos::{bsdiff, decode_protobuf, pwr, skip_protobuf, tlc};
 
@@ -59,7 +59,7 @@ impl<R> Iterator for OpIter<'_, R, op_kind::Rsync>
 where
   R: Read,
 {
-  type Item = Result<pwr::SyncOp, String>;
+  type Item = Result<RsyncOp, String>;
 
   fn next(&mut self) -> Option<Self::Item> {
     if self.finished {
@@ -76,7 +76,7 @@ where
           self.finished = true;
           None
         } else {
-          Some(Ok(sync_op))
+          Some(Ok(sync_op.into()))
         }
       }
     }

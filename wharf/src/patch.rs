@@ -29,6 +29,32 @@ pub mod op_kind {
   pub struct Bsdiff;
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RsyncOp {
+  BlockRange {
+    file_index: usize,
+    block_index: u64,
+    block_span: u64,
+  },
+  Data(Vec<u8>),
+}
+
+impl From<pwr::SyncOp> for RsyncOp {
+  fn from(value: pwr::SyncOp) -> Self {
+    use pwr::sync_op::Type as T;
+
+    match value.r#type() {
+      T::HeyYouDidIt => unreachable!(),
+      T::BlockRange => Self::BlockRange {
+        file_index: value.file_index as usize,
+        block_index: value.block_index as u64,
+        block_span: value.block_span as u64,
+      },
+      T::Data => Self::Data(value.data),
+    }
+  }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct OpIter<'a, R, K> {
   reader: &'a mut R,
