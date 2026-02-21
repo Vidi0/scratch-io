@@ -2,7 +2,8 @@ pub mod apply;
 pub mod operations;
 
 use crate::common::{MAGIC_PATCH, check_magic_bytes, decompress_stream};
-use crate::protos::{bsdiff, decode_protobuf, pwr, skip_protobuf, tlc};
+use crate::protos::{bsdiff, pwr, tlc};
+use crate::protos::{decode_protobuf, skip_protobuf};
 
 use std::io::{BufRead, Read};
 use std::marker::PhantomData;
