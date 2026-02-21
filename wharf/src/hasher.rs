@@ -52,6 +52,7 @@ where
 
     Ok(FileBlockHasher {
       block_hasher: self,
+      ignore_current_block: false,
       first_block: true,
       written_bytes: 0,
     })
@@ -74,6 +75,7 @@ where
 pub struct FileBlockHasher<'hasher, 'hasher_reader, R> {
   block_hasher: &'hasher mut BlockHasher<'hasher_reader, R>,
 
+  ignore_current_block: bool,
   first_block: bool,
   written_bytes: usize,
 }
@@ -117,6 +119,13 @@ impl<R: Read> FileBlockHasher<'_, '_, R> {
   ///
   /// Don't hash the block if it's empty AND it isn't the first one
   pub fn finalize_block(&mut self) -> Result<BlockHasherStatus, BlockHasherError> {
+    // Skip hashing if the ignore_current_block variable is true
+    if self.ignore_current_block {
+      // Set it to false to ensure the next block will be hashed
+      self.ignore_current_block = false;
+      return Ok(BlockHasherStatus::Ok);
+    }
+
     // Skip hashing if the current block is empty
     // However, wharf saves an empty hash for an empty file,
     // so ensure this is not the first block before skipping
@@ -155,5 +164,41 @@ impl<R: Read> FileBlockHasher<'_, '_, R> {
     }
 
     Ok(BlockHasherStatus::Ok)
+  }
+
+  /// This function MUST be called when a block has just been hasher
+  /// or this [`FileBlockHasher`] has just been created
+  pub fn skip_bytes(&mut self, bytes: u64) -> Result<(), String> {
+    // A number of whole blocks will be skipped, and then
+    // the last block will be ignored
+    let whole_blocks_to_skip = bytes / BLOCK_SIZE;
+
+    // Ensure the number of blocks to skip is correct
+    if whole_blocks_to_skip > self.block_hasher.last_file_remaining_blocks {
+      return Err(format!(
+        "Can't skip {} blocks from hasher, only {} are remaining!",
+        whole_blocks_to_skip, self.block_hasher.last_file_remaining_blocks
+      ))?;
+    }
+
+    // Skip the blocks
+    self
+      .block_hasher
+      .hash_iter
+      .skip_blocks(whole_blocks_to_skip)?;
+    self.block_hasher.last_file_remaining_blocks -= whole_blocks_to_skip;
+
+    // Ignore the last block
+    let last_block_bytes = bytes % BLOCK_SIZE;
+    if last_block_bytes != 0 {
+      self.ignore_current_block = true;
+      self.written_bytes = last_block_bytes as usize;
+    }
+
+    if bytes > BLOCK_SIZE {
+      self.first_block = false;
+    }
+
+    Ok(())
   }
 }
