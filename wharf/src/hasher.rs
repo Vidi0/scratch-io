@@ -56,6 +56,19 @@ where
       written_bytes: 0,
     })
   }
+
+  pub fn skip_files(&mut self, file_blocks: &[u64]) -> Result<(), String> {
+    for blocks in file_blocks.iter().copied() {
+      // Skip all the blocks
+      self.hash_iter.skip_blocks(blocks)?;
+    }
+
+    // Reset the hasher variables
+    self.last_file_remaining_blocks = 0;
+    self.hasher.reset();
+
+    Ok(())
+  }
 }
 
 pub struct FileBlockHasher<'hasher, 'hasher_reader, R> {
