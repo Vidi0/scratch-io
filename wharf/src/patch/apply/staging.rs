@@ -59,7 +59,7 @@ impl StagingCheckpoint {
         .files
         .iter()
         .take(self.current_file_index() as usize)
-        .map(|status| status.block_count());
+        .map(|f| f.block_count());
 
       hasher.skip_files(file_blocks)?;
     }
