@@ -62,6 +62,35 @@ impl<'a> StagingFiles<'a> {
       .map_err(|e| format!("Couldn't move checkpoint from temp to final destination!\n{e}"))
   }
 
+  pub fn load_checkpoint(&self) -> Result<Option<staging::StagingCheckpoint>, String> {
+    let path = self.get_checkpoint_path();
+
+    // If the checkpoint doesn't exist, return None
+    if !path.try_exists().map_err(|e| {
+      format!(
+        "Couldn't check if checkpoint exists: \"{}\"\n{e}",
+        path.to_string_lossy()
+      )
+    })? {
+      return Ok(None);
+    }
+
+    // Else, decode it
+    let str = std::fs::read_to_string(&path).map_err(|e| {
+      format!(
+        "Couldn't open checkpoint file: \"{}\"\n{e}",
+        path.to_string_lossy()
+      )
+    })?;
+
+    toml::from_str(&str).map_err(|e| {
+      format!(
+        "Couldn't decode TOML checkpoint from: \"{}\"\n{e}\n\n{str}",
+        path.to_string_lossy()
+      )
+    })
+  }
+
   fn get_file_path(&self, file_index: usize) -> PathBuf {
     self.staging_folder.join(file_index.to_string())
   }
@@ -174,14 +203,16 @@ impl Patch<'_> {
     // to determine which checkpoints to skip and which ones to save
     let mut last_checkpoint_instant = std::time::Instant::now();
 
+    // Deserialize the last checkpoint stored in the staging folder
+    let checkpoint = staging.load_checkpoint()?;
+
     // Reconstruct all the modified files into the staging folder
     let status = self.reconstruct_modified_files(
       &staging,
       &mut old_files_cache,
       &mut hasher,
       &mut patch_op_buffer,
-      ///////// TODO: load checkpoints
-      None,
+      checkpoint,
       |checkpoint| staging.save_checkpoint(checkpoint, &mut last_checkpoint_instant),
       &mut progress_callback,
     )?;
