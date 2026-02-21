@@ -35,6 +35,16 @@ impl<'a> StagingFiles<'a> {
         )
       })
   }
+
+  pub fn open_read(&self, file_index: usize) -> Result<fs::File, String> {
+    let file_path = self.get_file_path(file_index);
+    fs::File::open(&file_path).map_err(|e| {
+      format!(
+        "Couldn't open staging file to read from: \"{}\"\n{e}",
+        file_path.to_string_lossy()
+      )
+    })
+  }
 }
 
 impl Patch<'_> {
