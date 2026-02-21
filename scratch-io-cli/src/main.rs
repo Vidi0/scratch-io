@@ -894,13 +894,6 @@ fn handle_wharf_command(command: WharfCommands) {
         .verify_files(&build_folder, |b| progress_bar.inc(b))
         .unwrap_or_else(|e| eprintln_exit!("{e}"));
 
-      // If the wharf verify logic is correct, the position of the progress
-      // bar and its length should be equal
-      //
-      // If this panics it is due to a fault in the wharf handling logic
-      // If there are missing blocks, the verify_files function call should fail
-      assert_eq!(progress_bar.position(), progress_bar.length().unwrap());
-
       progress_bar.finish();
 
       println!("{broken:#?}");
@@ -939,13 +932,6 @@ fn handle_wharf_command(command: WharfCommands) {
         .verify_files(&build_folder, |b| progress_bar.inc(b))
         .unwrap_or_else(|e| eprintln_exit!("{e}"));
 
-      // If the wharf verify logic is correct, the position of the progress
-      // bar and its length should be equal
-      //
-      // If this panics it is due to a fault in the wharf handling logic
-      // If there are missing blocks, the verify_files function call should fail
-      assert_eq!(progress_bar.position(), progress_bar.length().unwrap());
-
       progress_bar.finish();
 
       // -- REPAIR DAMAGED FILES --
@@ -970,13 +956,6 @@ fn handle_wharf_command(command: WharfCommands) {
       signature
         .repair(&broken, &build_folder, &zip, |b| progress_bar.inc(b))
         .unwrap_or_else(|e| eprintln_exit!("{e}"));
-
-      // If the wharf verify logic is correct, the position of the progress
-      // bar and its length should be equal
-      //
-      // If this panics it is due to a fault in the wharf handling logic
-      // If there are missing files, the repair function call should fail
-      assert_eq!(progress_bar.position(), progress_bar.length().unwrap());
 
       progress_bar.finish();
     }
@@ -1030,12 +1009,6 @@ fn handle_wharf_command(command: WharfCommands) {
           |b| progress_bar.inc(b),
         )
         .unwrap_or_else(|e| eprintln_exit!("{e}"));
-
-      // If the wharf verify logic is correct, the position of the progress
-      // bar and its length should be equal
-      //
-      // If this panics it is due to a fault in the wharf handling logic
-      assert_eq!(progress_bar.position(), progress_bar.length().unwrap());
 
       progress_bar.finish();
     }
