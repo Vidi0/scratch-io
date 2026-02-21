@@ -14,6 +14,38 @@ pub struct StagingFiles<'a> {
 }
 
 impl<'a> StagingFiles<'a> {
+  const CHECKPOINT_FILENAME: &'static str = "checkpoint";
+  const CHECKPOINT_TEMP_FILENAME: &'static str = "checkpoint.tmp";
+
+  fn get_checkpoint_path(&self) -> PathBuf {
+    self.staging_folder.join(Self::CHECKPOINT_FILENAME)
+  }
+
+  fn get_checkpoint_temp_path(&self) -> PathBuf {
+    self.staging_folder.join(Self::CHECKPOINT_TEMP_FILENAME)
+  }
+
+  pub fn save_checkpoint(&self, checkpoint: &staging::StagingCheckpoint) -> Result<(), String> {
+    let str = toml::to_string(checkpoint)
+      .map_err(|e| format!("Couldn't serialize checkpoint into TOML!\n{e}\n\n{checkpoint:?}"))?;
+
+    // Save the new checkpoint to a temp file, and then
+    // do an atomic rename to replace the old checkpoint
+    let temp_path = self.get_checkpoint_temp_path();
+    let final_path = self.get_checkpoint_path();
+
+    fs::write(&temp_path, str).map_err(|e| {
+      format!(
+        "Couldn't save data to checkpoint: \"{}\"\n{e}",
+        temp_path.to_string_lossy()
+      )
+    })?;
+
+    // Data has been writte, now do the atomic replace
+    fs::rename(&temp_path, &final_path)
+      .map_err(|e| format!("Couldn't move checkpoint from temp to final destination!\n{e}"))
+  }
+
   fn get_file_path(&self, file_index: usize) -> PathBuf {
     self.staging_folder.join(file_index.to_string())
   }
@@ -130,8 +162,7 @@ impl Patch<'_> {
       &mut patch_op_buffer,
       ///////// TODO: load checkpoints
       None,
-      ///////// TODO: store checkpoints
-      |_checkpoint| Ok(()),
+      |checkpoint| staging.save_checkpoint(checkpoint),
       &mut progress_callback,
     )?;
 

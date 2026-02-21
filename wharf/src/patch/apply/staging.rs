@@ -4,9 +4,10 @@ use crate::patch::Patch;
 use crate::patch::operations::FilesCache;
 use crate::patch::operations::apply::{FileCheckpoint, PatchFileStatus};
 
+use serde::{Deserialize, Serialize};
 use std::io::Read;
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[must_use]
 pub struct StagingCheckpoint {
   /// A vector containing in order all the files that have been
