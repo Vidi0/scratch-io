@@ -66,7 +66,6 @@ where
 
     // Reset the hasher variables
     self.last_file_remaining_blocks = 0;
-    self.hasher.reset();
 
     Ok(())
   }
