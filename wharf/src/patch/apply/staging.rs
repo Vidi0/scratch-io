@@ -1,8 +1,9 @@
 use super::StagingFiles;
 use crate::hasher::BlockHasher;
-use crate::patch::Patch;
 use crate::patch::operations::FilesCache;
 use crate::patch::operations::apply::{FileCheckpoint, PatchFileStatus};
+use crate::patch::{Patch, SyncEntryIter};
+use crate::protos::tlc;
 
 use serde::{Deserialize, Serialize};
 use std::io::Read;
@@ -37,6 +38,34 @@ impl StagingCheckpoint {
     // Clear the current file checkpoint
     self.current_file = None;
   }
+
+  /// Load the checkpoint
+  pub fn load(
+    &self,
+    sync_op_iter: &mut SyncEntryIter<impl Read>,
+    hasher: &mut Option<BlockHasher<impl Read>>,
+    container_old: &tlc::Container,
+  ) -> Result<(), String> {
+    if self.current_file_index() == 0 {
+      return Ok(());
+    }
+
+    // Skip to the correct sync header
+    sync_op_iter.skip_entries(self.current_file_index())?;
+
+    // Skip the hasher to the correct file
+    if let Some(hasher) = hasher {
+      let file_blocks = container_old
+        .files
+        .iter()
+        .take(self.current_file_index() as usize)
+        .map(|status| status.block_count());
+
+      hasher.skip_files(file_blocks)?;
+    }
+
+    Ok(())
+  }
 }
 
 // Contains all the individual file patch status
@@ -63,22 +92,8 @@ impl Patch<'_> {
     // is created here and reused for the whole function
     let mut checkpoint = checkpoint.unwrap_or_default();
 
-    // Skip to the correct sync header
-    self
-      .sync_op_iter
-      .skip_entries(checkpoint.current_file_index())?;
-
-    // Skip the hasher to the correct file
-    if let Some(hasher) = hasher {
-      let file_blocks = self
-        .container_old
-        .files
-        .iter()
-        .take(checkpoint.current_file_index() as usize)
-        .map(|status| status.block_count());
-
-      hasher.skip_files(file_blocks)?;
-    }
+    // Load the checkpoint
+    checkpoint.load(&mut self.sync_op_iter, hasher, &self.container_old)?;
 
     // Important!
     // Send save checkpoint calls every time:
