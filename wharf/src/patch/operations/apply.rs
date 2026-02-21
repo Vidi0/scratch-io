@@ -65,6 +65,7 @@ impl FileCheckpoint {
     old_file_seek_position: Option<&mut u64>,
     new_file: &mut File,
     op_iter: &mut OpIter<impl Read, K>,
+    hasher: &mut Option<FileBlockHasher<impl Read>>,
   ) -> Result<(), String> {
     let op_index: usize = match *self {
       FileCheckpoint::Rsync {
@@ -97,6 +98,11 @@ impl FileCheckpoint {
 
     // Truncate the new file to the correct size
     truncate_file(new_file, *written_bytes)?;
+
+    // Skip hasher blocks
+    if let Some(hasher) = hasher {
+      hasher.skip_bytes(*written_bytes)?;
+    }
 
     // Add 1 to op_index: if the first operation was applied
     // successfully (index 0), then skip 1 operation (0+1)
@@ -185,7 +191,7 @@ impl<R: Read> SyncHeader<'_, R> {
           assert!(first.is_none());
 
           // For that reason, it is possible to load the checkpoint normally:
-          c.load(&mut written_bytes, None, new_file, op_iter)?;
+          c.load(&mut written_bytes, None, new_file, op_iter, hasher)?;
         }
 
         // Resize the block buffer
@@ -262,6 +268,7 @@ impl<R: Read> SyncHeader<'_, R> {
             Some(&mut old_file_seek_position),
             new_file,
             op_iter,
+            hasher,
           )?;
         }
 
