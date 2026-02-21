@@ -1,24 +1,10 @@
 pub mod repair;
 pub mod verify;
 
-mod read;
+use crate::common::{MAGIC_SIGNATURE, check_magic_bytes, decompress_stream};
+use crate::protos::{decode_protobuf, pwr, skip_protobuf, tlc};
 
-use crate::protos::{pwr, tlc};
-
-use std::io::BufRead;
-
-/// Represents a decoded wharf signature file
-///
-/// <https://docs.itch.zone/wharf/master/file-formats/signatures.html>
-///
-/// Contains the header, the container describing the files/dirs/symlinks,
-/// and an iterator over the signature block hashes. The iterator reads
-/// from the underlying stream on the fly as items are requested.
-pub struct Signature<'a> {
-  pub header: pwr::SignatureHeader,
-  pub container_new: tlc::Container,
-  pub block_hash_iter: BlockHashIter<Box<dyn BufRead + 'a>>,
-}
+use std::io::{BufRead, Read};
 
 /// Iterator over independent, sequential length-delimited hash messages in a [`std::io::Read`] stream
 ///
@@ -35,5 +21,148 @@ impl<R> BlockHashIter<R> {
   #[must_use]
   pub const fn total_blocks(&self) -> u64 {
     self.total_blocks
+  }
+}
+
+impl<R> BlockHashIter<R>
+where
+  R: Read,
+{
+  pub fn dump_stdout(&mut self) -> Result<(), String> {
+    for op in self {
+      println!("{:?}", op?);
+    }
+
+    Ok(())
+  }
+
+  pub fn skip_blocks(&mut self, blocks_to_skip: u64) -> Result<(), String> {
+    for _ in 0..blocks_to_skip {
+      skip_protobuf(&mut self.reader)?;
+    }
+
+    self.blocks_read += blocks_to_skip;
+
+    Ok(())
+  }
+}
+
+impl<R> Iterator for BlockHashIter<R>
+where
+  R: Read,
+{
+  type Item = Result<pwr::BlockHash, String>;
+
+  fn next(&mut self) -> Option<Self::Item> {
+    if self.blocks_read == self.total_blocks {
+      return None;
+    }
+
+    self.blocks_read += 1;
+    Some(decode_protobuf::<pwr::BlockHash>(&mut self.reader))
+  }
+}
+
+/// Represents a decoded wharf signature file
+///
+/// <https://docs.itch.zone/wharf/master/file-formats/signatures.html>
+///
+/// Contains the header, the container describing the files/dirs/symlinks,
+/// and an iterator over the signature block hashes. The iterator reads
+/// from the underlying stream on the fly as items are requested.
+pub struct Signature<'a> {
+  pub header: pwr::SignatureHeader,
+  pub container_new: tlc::Container,
+  pub block_hash_iter: BlockHashIter<Box<dyn BufRead + 'a>>,
+}
+
+impl<'a> Signature<'a> {
+  /// Dump the signature contents to standard output
+  ///
+  /// This prints the header, container metadata, and all block hash operations
+  /// for inspection by a human reader. The internal block hash iterator is
+  /// consumed during this call.
+  pub fn dump_stdout(&mut self) -> Result<(), String> {
+    // Print the header
+    println!("{:?}", self.header);
+
+    // Print the container
+    println!("\n--- START CONTAINER INFO ---\n");
+    self.container_new.dump_stdout();
+    println!("\n--- END CONTAINER INFO ---");
+
+    // Print the hashes
+    println!("--- START HASH BLOCKS ---\n");
+    self.block_hash_iter.dump_stdout()?;
+    println!("\n--- END HASH BLOCKS ---");
+
+    Ok(())
+  }
+
+  /// Print a concise summary of the signature to standard output
+  ///
+  /// Shows the compression settings and basic statistics of the
+  /// new container (size, number of files, directories, and symlinks).
+  pub fn print_summary(&self) {
+    // Print the kind of binary
+    println!(
+      "wharf signature file ({})",
+      // If the Signature was read using Signature::read or Signature::read_without_magic,
+      // then the compression field MUST be Some, because otherwise reading would have failed
+      self.header.compression.unwrap()
+    );
+
+    // Print the new container stats
+    self.container_new.print_summary("new");
+  }
+
+  /// Decode a binary wharf signature assuming the magic bytes
+  /// have already been consumed from the input stream
+  ///
+  /// For more information, see [`Signature::read`].
+  pub fn read_without_magic(reader: &'a mut impl BufRead) -> Result<Self, String> {
+    // Decode the signature header
+    let header = decode_protobuf::<pwr::SignatureHeader>(reader)?;
+
+    // Decompress the remaining stream
+    let compression_algorithm = header
+      .compression
+      .ok_or("Missing compressing field in Signature Header!")?
+      .algorithm();
+
+    let mut decompressed = decompress_stream(reader, compression_algorithm)?;
+
+    // Decode the container
+    let container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
+
+    // Decode the hashes
+    let block_hash_iter = BlockHashIter {
+      reader: decompressed,
+      total_blocks: container_new.file_blocks(),
+      blocks_read: 0,
+    };
+
+    Ok(Signature {
+      header,
+      container_new,
+      block_hash_iter,
+    })
+  }
+
+  /// Decode a binary wharf signature
+  ///
+  /// If the magic bytes have already been read, use [`Signature::read_without_magic`].
+  ///
+  /// # References
+  ///
+  /// <https://docs.itch.zone/wharf/master/file-formats/signatures.html>
+  ///
+  /// <https://github.com/Vidi0/scratch-io/blob/main/docs/wharf/patch.md>
+  pub fn read(reader: &'a mut impl BufRead) -> Result<Self, String> {
+    // Check the magic bytes
+    check_magic_bytes(reader, MAGIC_SIGNATURE)?;
+
+    // Decode the remaining data
+    Self::read_without_magic(reader)
   }
 }
