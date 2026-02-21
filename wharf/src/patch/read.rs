@@ -1,4 +1,4 @@
-use super::{OpIter, Patch, RsyncOp, SyncEntryIter, SyncHeader, SyncHeaderKind, op_kind};
+use super::{BsdiffOp, OpIter, Patch, RsyncOp, SyncEntryIter, SyncHeader, SyncHeaderKind, op_kind};
 use crate::common::{MAGIC_PATCH, check_magic_bytes, decompress_stream};
 use crate::protos::{bsdiff, decode_protobuf, pwr, skip_protobuf, tlc};
 
@@ -87,7 +87,7 @@ impl<R> Iterator for OpIter<'_, R, op_kind::Bsdiff>
 where
   R: Read,
 {
-  type Item = Result<bsdiff::Control, String>;
+  type Item = Result<BsdiffOp, String>;
 
   fn next(&mut self) -> Option<Self::Item> {
     if self.finished {
@@ -119,7 +119,7 @@ where
             }
           }
         } else {
-          Some(Ok(control_op))
+          Some(Ok(control_op.into()))
         }
       }
     }

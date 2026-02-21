@@ -3,7 +3,7 @@ pub mod operations;
 
 mod read;
 
-use crate::protos::{pwr, tlc};
+use crate::protos::{bsdiff, pwr, tlc};
 
 use std::io::BufRead;
 use std::marker::PhantomData;
@@ -51,6 +51,23 @@ impl From<pwr::SyncOp> for RsyncOp {
         block_span: value.block_span as u64,
       },
       T::Data => Self::Data(value.data),
+    }
+  }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BsdiffOp {
+  pub add: Vec<u8>,
+  pub copy: Vec<u8>,
+  pub seek: i64,
+}
+
+impl From<bsdiff::Control> for BsdiffOp {
+  fn from(value: bsdiff::Control) -> Self {
+    Self {
+      add: value.add,
+      copy: value.copy,
+      seek: value.seek,
     }
   }
 }

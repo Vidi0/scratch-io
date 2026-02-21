@@ -1,6 +1,6 @@
 use super::{OpStatus, verify_data};
 use crate::hasher::FileBlockHasher;
-use crate::protos::bsdiff;
+use crate::patch::BsdiffOp;
 
 use std::fs;
 use std::io::{Read, Seek, Write};
@@ -30,7 +30,7 @@ fn add_bytes(
     .map_err(|e| format!("Couldn't save buffer data into new file!\n{e}"))
 }
 
-impl bsdiff::Control {
+impl BsdiffOp {
   /// Apply the `control` bsdiff operation into the writer
   pub fn apply(
     &self,
