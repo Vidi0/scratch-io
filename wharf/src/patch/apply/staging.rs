@@ -68,6 +68,18 @@ impl Patch<'_> {
       .sync_op_iter
       .skip_entries(checkpoint.current_file_index())?;
 
+    // Skip the hasher to the correct file
+    if let Some(hasher) = hasher {
+      let file_blocks = self
+        .container_old
+        .files
+        .iter()
+        .take(checkpoint.current_file_index() as usize)
+        .map(|status| status.block_count());
+
+      hasher.skip_files(file_blocks)?;
+    }
+
     // Important!
     // Send save checkpoint calls every time:
     //
