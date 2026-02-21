@@ -62,12 +62,13 @@ impl FileCheckpoint {
   pub fn load<K>(
     &self,
     written_bytes: &mut u64,
+    op_index: &mut usize,
     old_file_seek_position: Option<&mut u64>,
     new_file: &mut File,
     op_iter: &mut OpIter<impl Read, K>,
     hasher: &mut Option<FileBlockHasher<impl Read>>,
   ) -> Result<(), String> {
-    let op_index: usize = match *self {
+    *op_index = match *self {
       FileCheckpoint::Rsync {
         written_bytes: c_bytes,
         op_index,
@@ -96,6 +97,11 @@ impl FileCheckpoint {
       }
     };
 
+    // Add 1 to op_index
+    // E.g: if the first operation was applied successfully (index 0),
+    // then the current operation is the second one (index 1)
+    *op_index += 1;
+
     // Truncate the new file to the correct size
     truncate_file(new_file, *written_bytes)?;
 
@@ -104,9 +110,8 @@ impl FileCheckpoint {
       hasher.skip_bytes(*written_bytes)?;
     }
 
-    // Add 1 to op_index: if the first operation was applied
-    // successfully (index 0), then skip 1 operation (0+1)
-    op_iter.skip_operations(op_index as u64 + 1)
+    // Skip the patch operations
+    op_iter.skip_operations(*op_index as u64)
   }
 }
 
@@ -129,6 +134,9 @@ impl<R: Read> SyncHeader<'_, R> {
     mut progress_callback: impl FnMut(u64),
   ) -> Result<PatchFileStatus, String> {
     let mut written_bytes: u64 = 0;
+
+    // Save the index of the operation to be able to store it in the checkpoint
+    let mut op_index: usize = 0;
 
     // WARNING: It is very important that, before any early Ok return
     // inside the self.kind match for both rsync and bsdiff iterators,
@@ -191,7 +199,14 @@ impl<R: Read> SyncHeader<'_, R> {
           assert!(first.is_none());
 
           // For that reason, it is possible to load the checkpoint normally:
-          c.load(&mut written_bytes, None, new_file, op_iter, hasher)?;
+          c.load(
+            &mut written_bytes,
+            &mut op_index,
+            None,
+            new_file,
+            op_iter,
+            hasher,
+          )?;
         }
 
         // Resize the block buffer
@@ -209,7 +224,7 @@ impl<R: Read> SyncHeader<'_, R> {
           .chain(&mut *op_iter);
 
         // Get the index of the operation to be able to store it in the checkpoint
-        for (op_index, op) in iter.enumerate() {
+        for op in iter {
           let status = op?.apply(
             new_file,
             hasher,
@@ -234,6 +249,8 @@ impl<R: Read> SyncHeader<'_, R> {
             written_bytes,
             op_index,
           })?;
+
+          op_index += 1;
         }
       }
 
@@ -265,6 +282,7 @@ impl<R: Read> SyncHeader<'_, R> {
         if let Some(c) = checkpoint {
           c.load(
             &mut written_bytes,
+            &mut op_index,
             Some(&mut old_file_seek_position),
             new_file,
             op_iter,
@@ -281,8 +299,7 @@ impl<R: Read> SyncHeader<'_, R> {
           .map_err(|e| format!("Couldn't seek old file to start!\n{e}"))?;
 
         // Finally, apply all the bsdiff operations
-        // Get the index of the operation to be able to store it in the checkpoint
-        for (op_index, control) in op_iter.enumerate() {
+        for control in &mut *op_iter {
           let status = control?.apply(
             new_file,
             hasher,
@@ -309,6 +326,8 @@ impl<R: Read> SyncHeader<'_, R> {
             old_file_seek_position,
             op_index,
           })?;
+
+          op_index += 1;
         }
       }
     }
