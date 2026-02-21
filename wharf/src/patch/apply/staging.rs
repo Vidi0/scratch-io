@@ -1,11 +1,10 @@
+use super::StagingFiles;
 use crate::hasher::BlockHasher;
 use crate::patch::Patch;
 use crate::patch::operations::FilesCache;
 use crate::patch::operations::apply::{FileCheckpoint, PatchFileStatus};
 
-use std::fs;
 use std::io::Read;
-use std::path::Path;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[must_use]
@@ -46,29 +45,11 @@ pub struct ReconstructedFilesStatus {
   pub patched_files: Vec<PatchFileStatus>,
 }
 
-fn open_staging_writer(
-  file_name: impl AsRef<Path>,
-  staging_folder: &Path,
-) -> Result<fs::File, String> {
-  let file_path = staging_folder.join(file_name);
-
-  fs::OpenOptions::new()
-    .create(true)
-    .append(true)
-    .open(&file_path)
-    .map_err(|e| {
-      format!(
-        "Couldn't open staging file in: \"{}\"\n{e}",
-        file_path.to_string_lossy()
-      )
-    })
-}
-
 impl Patch<'_> {
   #[allow(clippy::too_many_arguments)]
   pub fn reconstruct_modified_files(
     &mut self,
-    staging_folder: &Path,
+    staging_files: &StagingFiles,
     old_files_cache: &mut FilesCache,
     hasher: &mut Option<BlockHasher<impl Read>>,
     patch_op_buffer: &mut Vec<u8>,
@@ -104,7 +85,7 @@ impl Patch<'_> {
 
       // Open the new file
       let new_container_file = self.container_new.get_file(file_index)?;
-      let new_file = || open_staging_writer(file_index.to_string(), staging_folder);
+      let new_file = || staging_files.open_write(file_index);
 
       // Create a hasher for the current file
       let mut file_hasher = match hasher.as_mut() {

@@ -7,7 +7,35 @@ use crate::signature::BlockHashIter;
 
 use std::fs;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+pub struct StagingFiles<'a> {
+  staging_folder: &'a Path,
+}
+
+impl<'a> StagingFiles<'a> {
+  fn get_file_path(&self, file_index: usize) -> PathBuf {
+    self.staging_folder.join(file_index.to_string())
+  }
+
+  pub fn open_write(&self, file_index: usize) -> Result<fs::File, String> {
+    let file_path = self.get_file_path(file_index);
+
+    // Don't set `create_new`!
+    // If a file is half-patched, the patcher should be able
+    // to load the previous file and truncate it!
+    fs::OpenOptions::new()
+      .create(true)
+      .append(true)
+      .open(&file_path)
+      .map_err(|e| {
+        format!(
+          "Couldn't open staging file to write in: \"{}\"\n{e}",
+          file_path.to_string_lossy()
+        )
+      })
+  }
+}
 
 impl Patch<'_> {
   /// Apply the patch operations to produce the new build.
@@ -80,9 +108,13 @@ impl Patch<'_> {
     // instance to verify that the new game files are intact
     let mut hasher = hash_iter.map(|iter| BlockHasher::new(iter));
 
+    // Create a struct that allows the `reconstruct_modified_files` function
+    // to store the patched files in the staging folder
+    let staging = StagingFiles { staging_folder };
+
     // Reconstruct all the modified files into the staging folder
     let status = self.reconstruct_modified_files(
-      staging_folder,
+      &staging,
       &mut old_files_cache,
       &mut hasher,
       &mut patch_op_buffer,
