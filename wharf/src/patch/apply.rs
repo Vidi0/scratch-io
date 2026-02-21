@@ -131,8 +131,7 @@ impl Patch<'_> {
       ///////// TODO: load checkpoints
       None,
       ///////// TODO: store checkpoints
-      //|checkpoint| println!("checkpoint: {checkpoint:?}"),
-      |_checkpoint| (),
+      |_checkpoint| Ok(()),
       &mut progress_callback,
     )?;
 

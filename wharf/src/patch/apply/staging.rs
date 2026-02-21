@@ -54,7 +54,7 @@ impl Patch<'_> {
     hasher: &mut Option<BlockHasher<impl Read>>,
     patch_op_buffer: &mut Vec<u8>,
     checkpoint: Option<StagingCheckpoint>,
-    mut save_checkpoint: impl FnMut(&StagingCheckpoint),
+    mut save_checkpoint: impl FnMut(&StagingCheckpoint) -> Result<(), String>,
     mut progress_callback: impl FnMut(u64),
   ) -> Result<ReconstructedFilesStatus, String> {
     // Get the default checkpoint (empty) if it doesn't exist
@@ -106,14 +106,14 @@ impl Patch<'_> {
           // If a sync op was successfully applied,
           // save a checkpoint with the new data
           checkpoint.update_current_file_checkpoint(file_c);
-          save_checkpoint(&checkpoint);
+          save_checkpoint(&checkpoint)
         },
         &mut progress_callback,
       )?;
 
       // Update the checkpoint and save it
       checkpoint.push_status(status);
-      save_checkpoint(&checkpoint);
+      save_checkpoint(&checkpoint)?;
     }
 
     Ok(ReconstructedFilesStatus {
