@@ -8,6 +8,11 @@ use crate::signature::BlockHashIter;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
+
+// Store a checkpoint each second
+// Maybe it is too short?
+const CHECKPOINT_SAVE_INTERVAL: Duration = Duration::from_millis(1000);
 
 pub struct StagingFiles<'a> {
   staging_folder: &'a Path,
@@ -25,7 +30,18 @@ impl<'a> StagingFiles<'a> {
     self.staging_folder.join(Self::CHECKPOINT_TEMP_FILENAME)
   }
 
-  pub fn save_checkpoint(&self, checkpoint: &staging::StagingCheckpoint) -> Result<(), String> {
+  pub fn save_checkpoint(
+    &self,
+    checkpoint: &staging::StagingCheckpoint,
+    last_checkpoint_instant: &mut std::time::Instant,
+  ) -> Result<(), String> {
+    // Save the checkpoint only if the save interval time has passed
+    if last_checkpoint_instant.elapsed() < CHECKPOINT_SAVE_INTERVAL {
+      return Ok(());
+    }
+
+    *last_checkpoint_instant = std::time::Instant::now();
+
     let str = toml::to_string(checkpoint)
       .map_err(|e| format!("Couldn't serialize checkpoint into TOML!\n{e}\n\n{checkpoint:?}"))?;
 
@@ -154,6 +170,10 @@ impl Patch<'_> {
     // to store the patched files in the staging folder
     let staging = StagingFiles { staging_folder };
 
+    // Store the instant the last checkpoint was saved to be able
+    // to determine which checkpoints to skip and which ones to save
+    let mut last_checkpoint_instant = std::time::Instant::now();
+
     // Reconstruct all the modified files into the staging folder
     let status = self.reconstruct_modified_files(
       &staging,
@@ -162,7 +182,7 @@ impl Patch<'_> {
       &mut patch_op_buffer,
       ///////// TODO: load checkpoints
       None,
-      |checkpoint| staging.save_checkpoint(checkpoint),
+      |checkpoint| staging.save_checkpoint(checkpoint, &mut last_checkpoint_instant),
       &mut progress_callback,
     )?;
 
