@@ -118,13 +118,6 @@ impl<R: Read> FileBlockHasher<'_, '_, R> {
   ///
   /// Don't hash the block if it's empty AND it isn't the first one
   pub fn finalize_block(&mut self) -> Result<BlockHasherStatus, BlockHasherError> {
-    // Skip hashing if the ignore_current_block variable is true
-    if self.ignore_current_block {
-      // Set it to false to ensure the next block will be hashed
-      self.ignore_current_block = false;
-      return Ok(BlockHasherStatus::Ok);
-    }
-
     // Skip hashing if the current block is empty
     // However, wharf saves an empty hash for an empty file,
     // so ensure this is not the first block before skipping
@@ -135,12 +128,6 @@ impl<R: Read> FileBlockHasher<'_, '_, R> {
     // Reset hasher variables
     self.first_block = false;
     self.written_bytes = 0;
-
-    // Calculate the hash
-    self
-      .block_hasher
-      .hasher
-      .finalize_into_reset(&mut self.block_hasher.hash_buffer);
 
     // Get the next hash from the iterator
     let next_hash = self
@@ -153,6 +140,19 @@ impl<R: Read> FileBlockHasher<'_, '_, R> {
     // After getting the hash from the iterator, decrease the
     // remaining blocks counter
     self.block_hasher.last_file_remaining_blocks -= 1;
+
+    // Skip the hash verification if ignore_current_block variable is true
+    if self.ignore_current_block {
+      // Set it to false to ensure the next block will be hashed
+      self.ignore_current_block = false;
+      return Ok(BlockHasherStatus::Ok);
+    }
+
+    // Calculate the hash
+    self
+      .block_hasher
+      .hasher
+      .finalize_into_reset(&mut self.block_hasher.hash_buffer);
 
     // Compare the hashes
     if *self.block_hasher.hash_buffer != *next_hash.strong_hash {
