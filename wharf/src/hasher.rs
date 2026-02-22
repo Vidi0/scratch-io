@@ -168,12 +168,16 @@ impl<R: Read> FileBlockHasher<'_, '_, R> {
     // A number of whole blocks will be skipped, and then
     // the last block will be ignored
     let whole_blocks_to_skip = bytes / BLOCK_SIZE;
+    let last_block_bytes = bytes % BLOCK_SIZE;
 
     // Ensure the number of blocks to skip is correct
-    if whole_blocks_to_skip > self.block_hasher.last_file_remaining_blocks {
+    // Use div_ceil because there must be space left for the data
+    // that doesn't complete a full block at the end
+    if bytes.div_ceil(BLOCK_SIZE) > self.block_hasher.last_file_remaining_blocks {
       return Err(format!(
-        "Can't skip {} blocks from hasher, only {} are remaining!",
-        whole_blocks_to_skip, self.block_hasher.last_file_remaining_blocks
+        "{} blocks are needed from hasher, only {} are remaining!",
+        bytes.div_ceil(BLOCK_SIZE),
+        self.block_hasher.last_file_remaining_blocks
       ))?;
     }
 
@@ -185,15 +189,8 @@ impl<R: Read> FileBlockHasher<'_, '_, R> {
     self.block_hasher.last_file_remaining_blocks -= whole_blocks_to_skip;
 
     // Hash the last block data that's currently in the file
-    let last_block_bytes = bytes % BLOCK_SIZE;
     if last_block_bytes == 0 {
       return Ok(());
-    }
-
-    if self.block_hasher.last_file_remaining_blocks == 0 {
-      return Err(format!(
-        "Won't be able to hash last block because there are no blocks remaining!\n{last_block_bytes} bytes left"
-      ));
     }
 
     let mut last_bytes_buf = vec![0u8; last_block_bytes as usize];
