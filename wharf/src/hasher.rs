@@ -168,6 +168,9 @@ impl<R: Read> FileBlockHasher<'_, '_, R> {
   /// This function MUST be called when this [`FileBlockHasher`]
   /// has just been created
   pub fn skip_bytes(&mut self, bytes: u64) -> Result<(), String> {
+    assert!(self.first_block);
+    assert_eq!(self.written_bytes, 0);
+
     // A number of whole blocks will be skipped, and then
     // the last block will be ignored
     let whole_blocks_to_skip = bytes / BLOCK_SIZE;
