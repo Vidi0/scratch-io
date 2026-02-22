@@ -199,12 +199,12 @@ impl Patch<'_> {
     // to store the patched files in the staging folder
     let staging = StagingFiles { staging_folder };
 
+    // Deserialize the last checkpoint stored in the staging folder
+    let checkpoint = staging.load_checkpoint()?;
+
     // Store the instant the last checkpoint was saved to be able
     // to determine which checkpoints to skip and which ones to save
     let mut last_checkpoint_instant = std::time::Instant::now();
-
-    // Deserialize the last checkpoint stored in the staging folder
-    let checkpoint = staging.load_checkpoint()?;
 
     // Reconstruct all the modified files into the staging folder
     let status = self.reconstruct_modified_files(
