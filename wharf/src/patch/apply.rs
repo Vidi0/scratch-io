@@ -40,7 +40,7 @@ impl<'a> StagingFiles<'a> {
       return Ok(());
     }
 
-    let str = toml::to_string(checkpoint)
+    let str = serde_json::to_string(checkpoint)
       .map_err(|e| format!("Couldn't serialize checkpoint into TOML!\n{e}\n\n{checkpoint:?}"))?;
 
     // Save the new checkpoint to a temp file, and then
@@ -85,7 +85,7 @@ impl<'a> StagingFiles<'a> {
       )
     })?;
 
-    toml::from_str(&str).map_err(|e| {
+    serde_json::from_str(&str).map_err(|e| {
       format!(
         "Couldn't decode TOML checkpoint from: \"{}\"\n{e}\n\n{str}",
         path.to_string_lossy()
