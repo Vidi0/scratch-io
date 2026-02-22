@@ -40,8 +40,6 @@ impl<'a> StagingFiles<'a> {
       return Ok(());
     }
 
-    *last_checkpoint_instant = std::time::Instant::now();
-
     let str = toml::to_string(checkpoint)
       .map_err(|e| format!("Couldn't serialize checkpoint into TOML!\n{e}\n\n{checkpoint:?}"))?;
 
@@ -59,7 +57,11 @@ impl<'a> StagingFiles<'a> {
 
     // Data has been writte, now do the atomic replace
     fs::rename(&temp_path, &final_path)
-      .map_err(|e| format!("Couldn't move checkpoint from temp to final destination!\n{e}"))
+      .map_err(|e| format!("Couldn't move checkpoint from temp to final destination!\n{e}"))?;
+
+    *last_checkpoint_instant = std::time::Instant::now();
+
+    Ok(())
   }
 
   pub fn load_checkpoint(&self) -> Result<Option<staging::StagingCheckpoint>, String> {
