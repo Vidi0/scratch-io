@@ -103,9 +103,12 @@ impl<'a> StagingFiles<'a> {
     // Don't set `create_new`!
     // If a file is half-patched, the patcher should be able
     // to load the previous file and truncate it!
+    //
+    // Set `read` to be able to hash the last block from a checkpoint
     fs::OpenOptions::new()
       .create(true)
       .append(true)
+      .read(true)
       .open(&file_path)
       .map_err(|e| {
         format!(

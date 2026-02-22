@@ -6,7 +6,8 @@ pub use errors::{BlockHasherError, BlockHasherStatus};
 
 use md5::digest::{OutputSizeUser, generic_array::GenericArray, typenum::Unsigned};
 use md5::{Digest, Md5};
-use std::io::Read;
+use std::fs::File;
+use std::io::{Read, Seek};
 
 type Md5HashSize = <md5::Md5 as OutputSizeUser>::OutputSize;
 pub const MD5_HASH_LENGTH: usize = Md5HashSize::USIZE;
@@ -52,7 +53,6 @@ where
 
     Ok(FileBlockHasher {
       block_hasher: self,
-      ignore_current_block: false,
       first_block: true,
       written_bytes: 0,
     })
@@ -74,7 +74,6 @@ where
 pub struct FileBlockHasher<'hasher, 'hasher_reader, R> {
   block_hasher: &'hasher mut BlockHasher<'hasher_reader, R>,
 
-  ignore_current_block: bool,
   first_block: bool,
   written_bytes: usize,
 }
@@ -141,13 +140,6 @@ impl<R: Read> FileBlockHasher<'_, '_, R> {
     // remaining blocks counter
     self.block_hasher.last_file_remaining_blocks -= 1;
 
-    // Skip the hash verification if ignore_current_block variable is true
-    if self.ignore_current_block {
-      // Set it to false to ensure the next block will be hashed
-      self.ignore_current_block = false;
-      return Ok(BlockHasherStatus::Ok);
-    }
-
     // Calculate the hash
     self
       .block_hasher
@@ -167,7 +159,9 @@ impl<R: Read> FileBlockHasher<'_, '_, R> {
 
   /// This function MUST be called when this [`FileBlockHasher`]
   /// has just been created
-  pub fn skip_bytes(&mut self, bytes: u64) -> Result<(), String> {
+  ///
+  /// This function will move the file seek!
+  pub fn skip_bytes(&mut self, bytes: u64, file: &mut File) -> Result<(), String> {
     assert!(self.first_block);
     assert_eq!(self.written_bytes, 0);
 
@@ -190,16 +184,32 @@ impl<R: Read> FileBlockHasher<'_, '_, R> {
       .skip_blocks(whole_blocks_to_skip)?;
     self.block_hasher.last_file_remaining_blocks -= whole_blocks_to_skip;
 
-    // Ignore the last block
+    // Hash the last block data that's currently in the file
     let last_block_bytes = bytes % BLOCK_SIZE;
-    if last_block_bytes != 0 {
-      self.ignore_current_block = true;
-      self.written_bytes = last_block_bytes as usize;
+    if last_block_bytes == 0 {
+      return Ok(());
     }
 
-    if bytes > BLOCK_SIZE {
-      self.first_block = false;
+    if self.block_hasher.last_file_remaining_blocks == 0 {
+      return Err(format!(
+        "Won't be able to hash last block because there are no blocks remaining!\n{last_block_bytes} bytes left"
+      ));
     }
+
+    let mut last_bytes_buf = vec![0u8; last_block_bytes as usize];
+
+    file
+      .seek(std::io::SeekFrom::Start(bytes - last_block_bytes))
+      .map_err(|e| format!("Couldn't seek file to skip hasher bytes!\n{e}"))?;
+
+    file.read_exact(&mut last_bytes_buf).map_err(|e| {
+      format!("Couldn't read the exact bytes into the bufer to skip hasher bytes!\n{e}")
+    })?;
+
+    // The result can be ignored because the block won't be finalized
+    // (last_block_bytes is less than BLOCK_SIZE) and there are blocks
+    // remaining to hash (is was checked above)
+    let _ = self.update(&last_bytes_buf);
 
     Ok(())
   }

@@ -119,8 +119,14 @@ impl FileCheckpoint {
 
     // Skip hasher blocks
     if let Some(hasher) = hasher {
-      hasher.skip_bytes(*written_bytes)?;
+      hasher.skip_bytes(*written_bytes, new_file)?;
     }
+
+    // Seek the new file to the end
+    // (hasher.skip_bytes might have moved the seek)
+    new_file
+      .seek(std::io::SeekFrom::End(0))
+      .map_err(|e| format!("Couldn't seek new file to the end!\n{e}"))?;
 
     // Skip the patch operations
     op_iter.skip_operations(*op_index as u64)
