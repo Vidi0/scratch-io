@@ -189,6 +189,7 @@ impl<R: Read> FileBlockHasher<'_, '_, R> {
         .skip_blocks(whole_blocks_to_skip)?;
 
       self.block_hasher.last_file_remaining_blocks -= whole_blocks_to_skip;
+      self.first_block = false;
     }
 
     // Hash the last block data that's currently in the file
