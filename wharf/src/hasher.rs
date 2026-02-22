@@ -182,31 +182,32 @@ impl<R: Read> FileBlockHasher<'_, '_, R> {
     }
 
     // Skip the blocks
-    self
-      .block_hasher
-      .hash_iter
-      .skip_blocks(whole_blocks_to_skip)?;
-    self.block_hasher.last_file_remaining_blocks -= whole_blocks_to_skip;
+    if whole_blocks_to_skip > 0 {
+      self
+        .block_hasher
+        .hash_iter
+        .skip_blocks(whole_blocks_to_skip)?;
 
-    // Hash the last block data that's currently in the file
-    if last_block_bytes == 0 {
-      return Ok(());
+      self.block_hasher.last_file_remaining_blocks -= whole_blocks_to_skip;
     }
 
-    let mut last_bytes_buf = vec![0u8; last_block_bytes as usize];
+    // Hash the last block data that's currently in the file
+    if last_block_bytes > 0 {
+      let mut last_bytes_buf = vec![0u8; last_block_bytes as usize];
 
-    file
-      .seek(std::io::SeekFrom::Start(bytes - last_block_bytes))
-      .map_err(|e| format!("Couldn't seek file to skip hasher bytes!\n{e}"))?;
+      file
+        .seek(std::io::SeekFrom::Start(bytes - last_block_bytes))
+        .map_err(|e| format!("Couldn't seek file to skip hasher bytes!\n{e}"))?;
 
-    file.read_exact(&mut last_bytes_buf).map_err(|e| {
-      format!("Couldn't read the exact bytes into the bufer to skip hasher bytes!\n{e}")
-    })?;
+      file.read_exact(&mut last_bytes_buf).map_err(|e| {
+        format!("Couldn't read the exact bytes into the bufer to skip hasher bytes!\n{e}")
+      })?;
 
-    // The result can be ignored because the block won't be finalized
-    // (last_block_bytes is less than BLOCK_SIZE) and there are blocks
-    // remaining to hash (is was checked above)
-    let _ = self.update(&last_bytes_buf);
+      // The result can be ignored because the block won't be finalized
+      // (last_block_bytes is less than BLOCK_SIZE) and there are blocks
+      // remaining to hash (is was checked above)
+      let _ = self.update(&last_bytes_buf);
+    }
 
     Ok(())
   }
