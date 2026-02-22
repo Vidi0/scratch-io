@@ -10,16 +10,37 @@ use std::io::{Read, Seek};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[must_use]
-pub enum FileCheckpoint {
-  Rsync {
-    written_bytes: u64,
-    op_index: usize,
-  },
-  Bsdiff {
-    written_bytes: u64,
-    old_file_seek_position: u64,
-    op_index: usize,
-  },
+pub enum FileCheckpointKind {
+  Rsync,
+  Bsdiff { old_file_seek_position: u64 },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[must_use]
+pub struct FileCheckpoint {
+  written_bytes: u64,
+  op_index: usize,
+  kind: FileCheckpointKind,
+}
+
+impl FileCheckpoint {
+  pub fn rsync(written_bytes: u64, op_index: usize) -> Self {
+    Self {
+      written_bytes,
+      op_index,
+      kind: FileCheckpointKind::Rsync,
+    }
+  }
+
+  pub fn bsdiff(written_bytes: u64, op_index: usize, old_file_seek_position: u64) -> Self {
+    Self {
+      written_bytes,
+      op_index,
+      kind: FileCheckpointKind::Bsdiff {
+        old_file_seek_position,
+      },
+    }
+  }
 }
 
 // Whether the file to be patched was actually patched or was skipped
@@ -68,39 +89,30 @@ impl FileCheckpoint {
     op_iter: &mut OpIter<impl Read, K>,
     hasher: &mut Option<FileBlockHasher<impl Read>>,
   ) -> Result<(), String> {
-    *op_index = match *self {
-      FileCheckpoint::Rsync {
-        written_bytes: c_bytes,
-        op_index,
-      } => {
+    // Add 1 to op_index
+    // E.g: if the first operation was applied successfully (index 0),
+    // then the current operation is the second one (index 1)
+    *op_index = self.op_index + 1;
+    *written_bytes = self.written_bytes;
+
+    match self.kind {
+      FileCheckpointKind::Rsync => {
         // The old file seek position must not exist for an rsync checkpoint
         let None = old_file_seek_position else {
           return Err("Can't load a bsdiff checkpoint for an rsync file patch!".to_string());
         };
-
-        *written_bytes = c_bytes;
-        op_index
       }
-      FileCheckpoint::Bsdiff {
-        written_bytes: c_bytes,
+      FileCheckpointKind::Bsdiff {
         old_file_seek_position: c_seek,
-        op_index,
       } => {
         // The old file seek position must exist for a bsdiff checkpoint
-        let Some(old_file_seek_position) = old_file_seek_position else {
+        let Some(old_seek) = old_file_seek_position else {
           return Err("Can't load an rsync checkpoint for a bsdiff file patch!".to_string());
         };
 
-        *written_bytes = c_bytes;
-        *old_file_seek_position = c_seek;
-        op_index
+        *old_seek = c_seek;
       }
     };
-
-    // Add 1 to op_index
-    // E.g: if the first operation was applied successfully (index 0),
-    // then the current operation is the second one (index 1)
-    *op_index += 1;
 
     // Truncate the new file to the correct size
     truncate_file(new_file, *written_bytes)?;
@@ -245,10 +257,7 @@ impl<R: Read> SyncHeader<'_, R> {
           }
 
           // Save a checkpoint after each successful patch operation
-          save_checkpoint(FileCheckpoint::Rsync {
-            written_bytes,
-            op_index,
-          })?;
+          save_checkpoint(FileCheckpoint::rsync(written_bytes, op_index))?;
 
           op_index += 1;
         }
@@ -321,11 +330,11 @@ impl<R: Read> SyncHeader<'_, R> {
           }
 
           // Save a checkpoint after each successful patch operation
-          save_checkpoint(FileCheckpoint::Bsdiff {
+          save_checkpoint(FileCheckpoint::bsdiff(
             written_bytes,
-            old_file_seek_position,
             op_index,
-          })?;
+            old_file_seek_position,
+          ))?;
 
           op_index += 1;
         }
