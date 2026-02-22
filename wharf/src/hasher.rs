@@ -165,8 +165,8 @@ impl<R: Read> FileBlockHasher<'_, '_, R> {
     Ok(BlockHasherStatus::Ok)
   }
 
-  /// This function MUST be called when a block has just been hasher
-  /// or this [`FileBlockHasher`] has just been created
+  /// This function MUST be called when this [`FileBlockHasher`]
+  /// has just been created
   pub fn skip_bytes(&mut self, bytes: u64) -> Result<(), String> {
     // A number of whole blocks will be skipped, and then
     // the last block will be ignored
