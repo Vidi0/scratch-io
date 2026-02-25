@@ -296,7 +296,7 @@ impl tlc::Container {
   #[inline]
   #[must_use]
   pub fn file_bytes(&self) -> u64 {
-    self.files.iter().fold(0, |acc, f| acc + f.size as u64)
+    self.size as u64
   }
 
   pub fn get_file(&self, index: usize) -> Result<&tlc::File, String> {
