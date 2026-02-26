@@ -51,21 +51,22 @@ impl Signature<'_> {
   ) -> Result<(), String> {
     for &file_index in &integrity_issues.files {
       let container_file = &self.container_new.files[file_index];
-
-      let zip_file = build_zip_archive
-        .by_name(&container_file.path)
-        .ok_or_else(|| {
-          format!(
-            "Expected to find the file in the ZIP build archive: \"{}\"",
-            &container_file.path
-          )
-        })?;
-      let mut zip_file_reader = BufReader::new(zip_file.reader());
+      let mut zip_file = BufReader::new({
+        build_zip_archive
+          .by_name(&container_file.path)
+          .ok_or_else(|| {
+            format!(
+              "Expected to find the file in the ZIP build archive: \"{}\"",
+              &container_file.path
+            )
+          })?
+          .reader()
+      });
 
       let mut file = container_file.open_write(build_folder.to_owned())?;
 
       loop {
-        let buffer = zip_file_reader
+        let buffer = zip_file
           .fill_buf()
           .map_err(|e| format!("Couldn't fill ZIP data buffer!\n{e}"))?;
 
@@ -79,7 +80,7 @@ impl Signature<'_> {
 
         let len = buffer.len();
         progress_callback(len as u64);
-        zip_file_reader.consume(len);
+        zip_file.consume(len);
       }
     }
 
