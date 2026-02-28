@@ -22,22 +22,18 @@ fn read_length_delimiter(reader: &mut impl Read) -> Result<usize, String> {
 
   for current_byte in &mut varint {
     // Read one byte
-    let mut byte = [0u8; 1];
     reader
-      .read_exact(&mut byte)
+      .read_exact(std::slice::from_mut(current_byte))
       .map_err(|e| format!("Couldn't read from reader into buffer!\n{e}"))?;
 
-    // Save the byte in the array
-    *current_byte = byte[0];
-
     // The most significant bit indicates whether there are more bytes in the varint
-    if (byte[0] & 0x80) == 0 {
+    if (*current_byte & 0x80) == 0 {
       break;
     }
   }
 
   // Decode the varint
-  prost::decode_length_delimiter(varint.as_slice())
+  prost::decode_length_delimiter(&varint[..])
     .map_err(|e| format!("Couldn't decode the signature header length delimiter!\n{e}"))
 }
 
