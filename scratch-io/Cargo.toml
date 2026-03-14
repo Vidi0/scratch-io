@@ -10,16 +10,16 @@ edition = "2024"
 [dependencies]
 md-5 = "0.10.6"
 reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "form", "http2", "query", "rustls-no-provider", "system-proxy"] }
-rustls = { version = "0.23.36", default-features = false, features = ["ring", "std", "logging"] }
+rustls = { version = "0.23.37", default-features = false, features = ["ring", "std", "logging"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-serde_with = "3.16.1"
+serde_with = "3.18.0"
 strsim = "0.11.1"
 thiserror = "2.0.18"
 time = { version = "0.3.47", features = ["formatting", "parsing", "serde"] }
-toml = "1.0.3"
+toml = "1.0.6"
 
-zip = { version = "8.1.0", optional = true }
+zip = { version = "8.2.0", optional = true }
 brotli = { version = "8.0.2", optional = true }
 tar = { version = "0.4.44", optional = true }
 flate2 = { version = "1.1.9", optional = true }
