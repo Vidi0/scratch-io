@@ -457,7 +457,7 @@ fn login(
   config_api_key: &mut Option<String>,
 ) {
   // Create a temporary client and call the login function
-  let client = ItchClient::new(String::new());
+  let client = ItchClient::unauthenticated();
   let response = itch_api::login(&client, username, password, recaptcha_response)
     .unwrap_or_else(|e| eprintln_exit!("{e}"));
 
@@ -476,7 +476,7 @@ fn login(
 // Finish login by using two-step verifitaion
 fn totp_verification(totp_token: &str, totp_code: u64, config_api_key: &mut Option<String>) {
   // Create a temporary client and call the totp verification function
-  let client = ItchClient::new(String::new());
+  let client = ItchClient::unauthenticated();
   let login_success = itch_api::totp_verification(&client, totp_token, totp_code)
     .unwrap_or_else(|e| eprintln_exit!("{e}"));
 

@@ -129,6 +129,25 @@ impl ItchClient {
 
 /// This block defines the [`ItchClient`] constructors and other functions
 impl ItchClient {
+  /// Create a new unauthenticated client
+  ///
+  /// The client will not be able to make API calls that require an API key
+  ///
+  /// # Returns
+  ///
+  /// An [`ItchClient`] struct with an empty API key
+  pub fn unauthenticated() -> Self {
+    // Install the ring crypto provider
+    // The function call fails if the provider has already been installed.
+    // Ignore the error, because this function may be called more than once.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
+    Self {
+      client: Client::new(),
+      api_key: String::new(),
+    }
+  }
+
   /// Create a new client using the provided itch.io API key, without verifying its validity
   ///
   /// # Arguments
