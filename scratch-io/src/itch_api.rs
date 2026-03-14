@@ -170,29 +170,6 @@ impl ItchClient {
     }
   }
 
-  /// Create a new client using the provided itch.io API key and verify its validity
-  ///
-  /// # Arguments
-  ///
-  /// * `api_key` - A valid itch.io API key to store in the client
-  ///
-  /// # Returns
-  ///
-  /// An [`ItchClient`] struct with the given key
-  ///
-  /// # Errors
-  ///
-  /// If the request, retrieving its text, or parsing fails, or if the server returned an error
-  pub fn auth(api_key: String) -> Result<Self, ItchRequestJSONError<ApiResponseCommonErrors>> {
-    let client = Self::new(api_key);
-
-    // Verify that the API key is valid
-    // Calling get_profile will fail if the given API key is invalid
-    get_profile(&client)?;
-
-    Ok(client)
-  }
-
   /// Obtain the API key associated with this [`ItchClient`]
   #[must_use]
   pub fn api_key(&self) -> &str {
