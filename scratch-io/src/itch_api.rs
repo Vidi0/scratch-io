@@ -49,7 +49,7 @@ impl ItchClient {
     let mut request: RequestBuilder = self.client.request(method, url.as_str());
 
     // Add authentication based on the API's version.
-    request = match url.get_version() {
+    request = match url.version() {
       // https://itchapi.ryhn.link/API/V1/index.html#authentication
       ItchApiVersion::V1 => {
         request.header(header::AUTHORIZATION, format!("Bearer {}", &self.api_key))
@@ -63,7 +63,7 @@ impl ItchClient {
 
     // This header is set to ensure the use of the v2 version
     // https://itchapi.ryhn.link/API/V2/index.html
-    if url.get_version() == ItchApiVersion::V2 {
+    if url.version() == ItchApiVersion::V2 {
       request = request.header(header::ACCEPT, "application/vnd.itch.v2");
     }
 

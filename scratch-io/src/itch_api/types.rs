@@ -116,7 +116,7 @@ impl<'a> ItchApiUrl {
 
   /// Returns the API version of this [`ItchApiUrl`]
   #[must_use]
-  pub const fn get_version(&self) -> ItchApiVersion {
+  pub const fn version(&self) -> ItchApiVersion {
     self.version
   }
 }
