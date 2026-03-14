@@ -442,7 +442,7 @@ fn exit_if_already_installed(
 fn auth(client: &ItchClient, config_api_key: &mut Option<String>) {
   // We already checked if the key was valid
   println!("Valid key!");
-  *config_api_key = Some(client.get_api_key().to_string());
+  *config_api_key = Some(client.api_key().to_string());
 
   // Print user info
   let profile = itch_api::get_profile(client).unwrap_or_else(|e| eprintln_exit!("{e}"));

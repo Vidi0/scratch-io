@@ -131,7 +131,7 @@ impl ItchClient {
 impl ItchClient {
   /// Obtain the API key associated with this [`ItchClient`]
   #[must_use]
-  pub fn get_api_key(&self) -> &str {
+  pub fn api_key(&self) -> &str {
     &self.api_key
   }
 
