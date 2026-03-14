@@ -211,11 +211,8 @@ pub fn login(
     params.push(("recaptcha_response", rr));
   }
 
-  client.itch_request_json::<LoginResponse>(
-    &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "login"),
-    Method::POST,
-    |b| b.form(&params),
-  )
+  client
+    .itch_request_json::<LoginResponse>(&ItchApiUrl::v2("login"), Method::POST, |b| b.form(&params))
 }
 
 /// Complete the login with the TOTP two-factor verification
@@ -242,11 +239,9 @@ pub fn totp_verification(
   totp_code: u64,
 ) -> Result<LoginSuccess, ItchRequestJSONError<TOTPResponseError>> {
   client
-    .itch_request_json::<TOTPResponse>(
-      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "totp/verify"),
-      Method::POST,
-      |b| b.form(&[("token", totp_token), ("code", &totp_code.to_string())]),
-    )
+    .itch_request_json::<TOTPResponse>(&ItchApiUrl::v2("totp/verify"), Method::POST, |b| {
+      b.form(&[("token", totp_token), ("code", &totp_code.to_string())])
+    })
     .map(|res| res.success)
 }
 
@@ -269,7 +264,7 @@ pub fn get_user_info(
 ) -> Result<User, ItchRequestJSONError<UserResponseError>> {
   client
     .itch_request_json::<UserInfoResponse>(
-      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, format!("users/{user_id}")),
+      &ItchApiUrl::v2(&format!("users/{user_id}")),
       Method::GET,
       |b| b,
     )
@@ -295,11 +290,7 @@ pub fn get_profile(
   client: &ItchClient,
 ) -> Result<Profile, ItchRequestJSONError<ApiResponseCommonErrors>> {
   client
-    .itch_request_json::<ProfileInfoResponse>(
-      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "profile"),
-      Method::GET,
-      |b| b,
-    )
+    .itch_request_json::<ProfileInfoResponse>(&ItchApiUrl::v2("profile"), Method::GET, |b| b)
     .map(|res| res.user)
 }
 
@@ -320,11 +311,7 @@ pub fn get_created_games(
   client: &ItchClient,
 ) -> Result<Vec<CreatedGame>, ItchRequestJSONError<ApiResponseCommonErrors>> {
   client
-    .itch_request_json::<CreatedGamesResponse>(
-      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "profile/games"),
-      Method::GET,
-      |b| b,
-    )
+    .itch_request_json::<CreatedGamesResponse>(&ItchApiUrl::v2("profile/games"), Method::GET, |b| b)
     .map(|res| res.games)
 }
 
@@ -348,7 +335,7 @@ pub fn get_owned_keys(
   let mut page: u64 = 1;
   loop {
     let response = client.itch_request_json::<OwnedKeysResponse>(
-      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "profile/owned-keys"),
+      &ItchApiUrl::v2("profile/owned-keys"),
       Method::GET,
       |b| b.query(&[("page", page)]),
     )?;
@@ -385,7 +372,7 @@ pub fn get_profile_collections(
 ) -> Result<Vec<Collection>, ItchRequestJSONError<ApiResponseCommonErrors>> {
   client
     .itch_request_json::<ProfileCollectionsResponse>(
-      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, "profile/collections"),
+      &ItchApiUrl::v2("profile/collections"),
       Method::GET,
       |b| b,
     )
@@ -413,7 +400,7 @@ pub fn get_collection_info(
 ) -> Result<Collection, ItchRequestJSONError<CollectionResponseError>> {
   client
     .itch_request_json::<CollectionInfoResponse>(
-      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, format!("collections/{collection_id}")),
+      &ItchApiUrl::v2(&format!("collections/{collection_id}")),
       Method::GET,
       |b| b,
     )
@@ -443,10 +430,7 @@ pub fn get_collection_games(
   let mut page: u64 = 1;
   loop {
     let response = client.itch_request_json::<CollectionGamesResponse>(
-      &ItchApiUrl::from_api_endpoint(
-        ItchApiVersion::V2,
-        format!("collections/{collection_id}/collection-games"),
-      ),
+      &ItchApiUrl::v2(&format!("collections/{collection_id}/collection-games")),
       Method::GET,
       |b| b.query(&[("page", page)]),
     )?;
@@ -486,7 +470,7 @@ pub fn get_game_info(
 ) -> Result<Game, ItchRequestJSONError<GameResponseError>> {
   client
     .itch_request_json::<GameInfoResponse>(
-      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, format!("games/{game_id}")),
+      &ItchApiUrl::v2(&format!("games/{game_id}")),
       Method::GET,
       |b| b,
     )
@@ -514,7 +498,7 @@ pub fn get_game_uploads(
 ) -> Result<Vec<Upload>, ItchRequestJSONError<GameResponseError>> {
   client
     .itch_request_json::<GameUploadsResponse>(
-      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, format!("games/{game_id}/uploads")),
+      &ItchApiUrl::v2(&format!("games/{game_id}/uploads")),
       Method::GET,
       |b| b,
     )
@@ -542,7 +526,7 @@ pub fn get_upload_info(
 ) -> Result<Upload, ItchRequestJSONError<UploadResponseError>> {
   client
     .itch_request_json::<UploadInfoResponse>(
-      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, format!("uploads/{upload_id}")),
+      &ItchApiUrl::v2(&format!("uploads/{upload_id}")),
       Method::GET,
       |b| b,
     )
@@ -570,7 +554,7 @@ pub fn get_upload_builds(
 ) -> Result<Vec<UploadBuild>, ItchRequestJSONError<UploadResponseError>> {
   client
     .itch_request_json::<UploadBuildsResponse>(
-      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, format!("uploads/{upload_id}/builds")),
+      &ItchApiUrl::v2(&format!("uploads/{upload_id}/builds")),
       Method::GET,
       |b| b,
     )
@@ -598,7 +582,7 @@ pub fn get_build_info(
 ) -> Result<Build, ItchRequestJSONError<BuildResponseError>> {
   client
     .itch_request_json::<BuildInfoResponse>(
-      &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, format!("builds/{build_id}")),
+      &ItchApiUrl::v2(&format!("builds/{build_id}")),
       Method::GET,
       |b| b,
     )
@@ -629,10 +613,9 @@ pub fn get_upgrade_path(
 ) -> Result<Vec<UpgradePathBuild>, ItchRequestJSONError<UpgradePathResponseError>> {
   client
     .itch_request_json::<BuildUpgradePathResponse>(
-      &ItchApiUrl::from_api_endpoint(
-        ItchApiVersion::V2,
-        format!("builds/{current_build_id}/upgrade-paths/{target_build_id}"),
-      ),
+      &ItchApiUrl::v2(&format!(
+        "builds/{current_build_id}/upgrade-paths/{target_build_id}"
+      )),
       Method::GET,
       |b| b,
     )
@@ -660,10 +643,7 @@ pub fn get_upload_scanned_archive(
 ) -> Result<ScannedArchive, ItchRequestJSONError<UploadResponseError>> {
   client
     .itch_request_json::<UploadScannedArchiveResponse>(
-      &ItchApiUrl::from_api_endpoint(
-        ItchApiVersion::V2,
-        format!("uploads/{upload_id}/scanned-archive"),
-      ),
+      &ItchApiUrl::v2(&format!("uploads/{upload_id}/scanned-archive")),
       Method::GET,
       |b| b,
     )
@@ -691,10 +671,7 @@ pub fn get_build_scanned_archive(
 ) -> Result<ScannedArchive, ItchRequestJSONError<BuildResponseError>> {
   client
     .itch_request_json::<BuildScannedArchiveResponse>(
-      &ItchApiUrl::from_api_endpoint(
-        ItchApiVersion::V2,
-        format!("builds/{build_id}/scanned-archive"),
-      ),
+      &ItchApiUrl::v2(&format!("builds/{build_id}/scanned-archive")),
       Method::GET,
       |b| b,
     )

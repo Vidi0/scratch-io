@@ -417,7 +417,7 @@ pub fn download_game_cover(
 
   download_file(
     client,
-    &ItchApiUrl::from_api_endpoint(ItchApiVersion::Other, cover_url),
+    &ItchApiUrl::other(cover_url),
     &cover_path,
     None,
     |_| (),
@@ -486,7 +486,7 @@ pub fn download_upload(
   // Download the file
   download_file(
     client,
-    &ItchApiUrl::from_api_endpoint(ItchApiVersion::V2, format!("uploads/{upload_id}/download")),
+    &ItchApiUrl::v2(&format!("uploads/{upload_id}/download")),
     &upload_archive,
     // Only pass the hash if skip_hash_verification is false
     hash.filter(|_| !skip_hash_verification),

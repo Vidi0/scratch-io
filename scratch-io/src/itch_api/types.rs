@@ -94,23 +94,34 @@ pub struct ItchApiUrl {
   url: String,
 }
 
-impl<'a> ItchApiUrl {
-  /// Creates an [`ItchApiUrl`] by combining the API version with an endpoint path
-  /// V1 and V2 prepend their base URLs
+impl ItchApiUrl {
+  /// Creates an [`ItchApiUrl`] by appending the provided endpoint to
+  /// itch.io's API V1 base URL
   ///
-  /// Other uses the endpoint as-is
-  pub fn from_api_endpoint(
-    version: ItchApiVersion,
-    endpoint: impl Into<std::borrow::Cow<'a, str>>,
-  ) -> Self {
-    let endpoint = endpoint.into();
+  /// <https://itch.io/api/1/>
+  pub fn v1(endpoint: &str) -> Self {
     Self {
-      version,
-      url: match version {
-        ItchApiVersion::V1 => format!("{ITCH_API_V1_BASE_URL}{endpoint}"),
-        ItchApiVersion::V2 => format!("{ITCH_API_V2_BASE_URL}{endpoint}"),
-        ItchApiVersion::Other => endpoint.into_owned(),
-      },
+      version: ItchApiVersion::V1,
+      url: format!("{ITCH_API_V1_BASE_URL}{endpoint}"),
+    }
+  }
+
+  /// Creates an [`ItchApiUrl`] by appending the provided endpoint to
+  /// itch.io's API V2 base URL
+  ///
+  /// <https://api.itch.io/>
+  pub fn v2(endpoint: &str) -> Self {
+    Self {
+      version: ItchApiVersion::V2,
+      url: format!("{ITCH_API_V2_BASE_URL}{endpoint}"),
+    }
+  }
+
+  /// Creates an [`ItchApiUrl`] using the provided url as-is
+  pub fn other(url: String) -> Self {
+    Self {
+      version: ItchApiVersion::Other,
+      url,
     }
   }
 
