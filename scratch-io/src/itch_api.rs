@@ -129,12 +129,6 @@ impl ItchClient {
 
 /// This block defines the [`ItchClient`] constructors and other functions
 impl ItchClient {
-  /// Obtain the API key associated with this [`ItchClient`]
-  #[must_use]
-  pub fn api_key(&self) -> &str {
-    &self.api_key
-  }
-
   /// Create a new client using the provided itch.io API key, without verifying its validity
   ///
   /// # Arguments
@@ -178,6 +172,12 @@ impl ItchClient {
     get_profile(&client)?;
 
     Ok(client)
+  }
+
+  /// Obtain the API key associated with this [`ItchClient`]
+  #[must_use]
+  pub fn api_key(&self) -> &str {
+    &self.api_key
   }
 }
 
