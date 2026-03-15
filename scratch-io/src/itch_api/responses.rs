@@ -27,6 +27,17 @@ impl<T: IntoResponseResult> ApiResponse<T> {
   }
 }
 
+/// Response struct for: <https://api.itch.io/oauth/token/>
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OAuthTokenResponse {
+  #[serde(flatten)]
+  pub token: OAuthToken,
+}
+
+impl IntoResponseResult for OAuthTokenResponse {
+  type Err = OauthResponseError;
+}
+
 /// Response struct for: <https://api.itch.io/users/{user_id}>
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UserInfoResponse {

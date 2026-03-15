@@ -1,6 +1,10 @@
 use thiserror::Error;
 
 const ERROR_INVALID_API_KEY: &str = "invalid key";
+const ERROR_INVALID_GRANT: &str = "invalid_grant";
+const ERROR_INVALID_AUTHORIZATION_CODE: &str = "code: expected text between 1 and 64 characters";
+const ERROR_INVALID_CODE_VERIFIER: &str =
+  "code_verifier: expected text between 1 and 128 characters";
 const ERROR_INVALID_USER: &[&str] = &["invalid user", "user_id: expected database ID integer"];
 const ERROR_INVALID_COLLECTION: &[&str] = &[
   "invalid collection",
@@ -66,6 +70,20 @@ where
 pub struct InvalidApiKey;
 
 #[derive(Error, Debug)]
+#[error(
+  "Invalid grant: the authorization code or code verifier is incorrect, expired, or already used"
+)]
+pub struct InvalidGrant;
+
+#[derive(Error, Debug)]
+#[error("The provided authorization code is invalid: it must be between 1 and 64 characters long")]
+pub struct InvalidAuthorizationCode;
+
+#[derive(Error, Debug)]
+#[error("The provided code verifier is invalid: it must be between 1 and 128 characters long")]
+pub struct InvalidCodeVerifier;
+
+#[derive(Error, Debug)]
 #[error("The provided user ID is invalid.")]
 pub struct InvalidUserID;
 
@@ -100,6 +118,15 @@ pub enum ApiResponseErrorKind {
   InvalidApiKey(#[from] InvalidApiKey),
 
   #[error(transparent)]
+  InvalidGrant(#[from] InvalidGrant),
+
+  #[error(transparent)]
+  InvalidAuthorizationCode(#[from] InvalidAuthorizationCode),
+
+  #[error(transparent)]
+  InvalidCodeVerifier(#[from] InvalidCodeVerifier),
+
+  #[error(transparent)]
   InvalidUserID(#[from] InvalidUserID),
 
   #[error(transparent)]
@@ -128,6 +155,9 @@ impl From<&[String]> for ApiResponseErrorKind {
   fn from(value: &[String]) -> Self {
     match value {
       [v] if v == ERROR_INVALID_API_KEY => InvalidApiKey.into(),
+      [v] if v == ERROR_INVALID_GRANT => InvalidGrant.into(),
+      [v] if v == ERROR_INVALID_AUTHORIZATION_CODE => InvalidAuthorizationCode.into(),
+      [v] if v == ERROR_INVALID_CODE_VERIFIER => InvalidCodeVerifier.into(),
       [v] if ERROR_INVALID_USER.contains(&&**v) => InvalidUserID.into(),
       [v] if ERROR_INVALID_COLLECTION.contains(&&**v) => InvalidCollectionID.into(),
       [v] if ERROR_INVALID_GAME.contains(&&**v) => InvalidGameID.into(),
@@ -172,6 +202,33 @@ impl From<ApiResponseError> for ApiResponseCommonErrors {
     match value.kind {
       ApiResponseErrorKind::InvalidApiKey(v) => v.into(),
       _ => Self::Other(value.errors),
+    }
+  }
+}
+
+/// Errors returned from the OAuth login flow
+#[derive(Error, Debug)]
+pub enum OauthResponseError {
+  #[error(transparent)]
+  InvalidGrant(#[from] InvalidGrant),
+
+  #[error(transparent)]
+  InvalidAuthorizationCode(#[from] InvalidAuthorizationCode),
+
+  #[error(transparent)]
+  InvalidCodeVerifier(#[from] InvalidCodeVerifier),
+
+  #[error(transparent)]
+  Other(#[from] ApiResponseCommonErrors),
+}
+
+impl From<ApiResponseError> for OauthResponseError {
+  fn from(value: ApiResponseError) -> Self {
+    match value.kind {
+      ApiResponseErrorKind::InvalidGrant(v) => v.into(),
+      ApiResponseErrorKind::InvalidAuthorizationCode(v) => v.into(),
+      ApiResponseErrorKind::InvalidCodeVerifier(v) => v.into(),
+      _ => Self::Other(value.into()),
     }
   }
 }

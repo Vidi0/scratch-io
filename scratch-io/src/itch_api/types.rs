@@ -66,6 +66,29 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ApiKey {
+  pub id: u64,
+  pub key: String,
+  pub user_id: u64,
+  #[serde(with = "rfc3339")]
+  pub created_at: OffsetDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OauthTokenType {
+  Bearer,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OAuthToken {
+  pub key: ApiKey,
+  pub access_token: String,
+  pub token_type: OauthTokenType,
+  pub scope: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct User {
   pub id: UserID,
   pub username: String,
