@@ -2,12 +2,10 @@ pub mod errors;
 pub mod types;
 
 mod endpoints;
-mod login;
 mod responses;
 
 pub use endpoints::*;
-pub use login::*;
-pub use responses::{ApiResponse, IntoResponseResult, LoginResponse};
+pub use responses::{ApiResponse, IntoResponseResult};
 
 use errors::{ItchRequestJSONError, ItchRequestJSONErrorKind};
 

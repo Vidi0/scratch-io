@@ -27,30 +27,6 @@ impl<T: IntoResponseResult> ApiResponse<T> {
   }
 }
 
-/// Response struct for: <https://api.itch.io/login>
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum LoginResponse {
-  Success(LoginSuccess),
-  CaptchaError(LoginCaptchaError),
-  TOTPError(LoginTOTPError),
-}
-
-impl IntoResponseResult for LoginResponse {
-  type Err = LoginResponseError;
-}
-
-/// Response struct for: <https://api.itch.io/totp/verify>
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TOTPResponse {
-  #[serde(flatten)]
-  pub success: LoginSuccess,
-}
-
-impl IntoResponseResult for TOTPResponse {
-  type Err = TOTPResponseError;
-}
-
 /// Response struct for: <https://api.itch.io/users/{user_id}>
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UserInfoResponse {

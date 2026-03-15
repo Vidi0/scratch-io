@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use serde_with::{DefaultOnError, serde_as};
-use thiserror::Error;
 use time::{OffsetDateTime, serde::rfc3339};
 
 pub type UserID = u64;
@@ -64,71 +63,6 @@ where
   }
 
   deserializer.deserialize_any(Helper(std::marker::PhantomData))
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ItchCookie {
-  pub itchio: String,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ItchKeySource {
-  Desktop,
-  Android,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ItchKey {
-  pub key: String,
-  pub id: ItchKeyID,
-  pub user_id: UserID,
-  pub source: ItchKeySource,
-  pub revoked: Option<bool>,
-  #[serde(with = "rfc3339")]
-  pub created_at: OffsetDateTime,
-  #[serde(with = "rfc3339")]
-  pub updated_at: OffsetDateTime,
-  #[serde(with = "rfc3339::option", default)]
-  pub last_used_at: Option<OffsetDateTime>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LoginSuccess {
-  pub success: bool,
-  pub cookie: ItchCookie,
-  pub key: ItchKey,
-}
-
-// LoginCaptchaError is defined here because it's not returned by the API
-// the same way the other errors, but in its own separate struct
-#[derive(Error, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[error(
-  r#"A reCAPTCHA verification is required to continue!
-  Go to "{recaptcha_url}" and solve the reCAPTCHA.
-  To obtain the token, paste the following command on the developer console:
-    console.log(grecaptcha.getResponse())
-  Then run the login command again with the --recaptcha-response option."#
-)]
-pub struct LoginCaptchaError {
-  pub success: bool,
-  pub recaptcha_needed: bool,
-  pub recaptcha_url: String,
-}
-
-// LoginTOTPError is defined here because it's not returned by the API
-// the same way the other errors, but in its own separate struct
-#[derive(Error, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[error(
-  r#"The account has two-step verification enabled via TOTP.
-  To complete the login, run the totp verification command with the following options:
-    --totp-token="{token}"
-    --totp-code={{VERIFICATION_CODE}}"#
-)]
-pub struct LoginTOTPError {
-  pub success: bool,
-  pub totp_needed: bool,
-  pub token: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
