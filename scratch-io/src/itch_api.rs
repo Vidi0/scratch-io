@@ -182,7 +182,7 @@ impl ItchClient {
 ///
 /// * `password` - The password of the accout to log in with
 ///
-/// * `recaptcha_response` - If required, the reCAPTCHA token from <https://itch.io/captcha>
+/// * `recaptcha_response` - A reCAPTCHA token from <https://itch.io/captcha>.
 ///
 /// * `totp_code` - If required, The 6-digit code returned by the TOTP application
 ///
@@ -197,22 +197,20 @@ pub fn login(
   client: &ItchClient,
   username: &str,
   password: &str,
-  recaptcha_response: Option<&str>,
+  recaptcha_response: &str,
 ) -> Result<LoginResponse, ItchRequestJSONError<LoginResponseError>> {
-  let mut params: Vec<(&'static str, &str)> = vec![
-    ("username", username),
-    ("password", password),
-    ("force_recaptcha", "false"),
-    // source can be any of types::ItchKeySource
-    ("source", "desktop"),
-  ];
-
-  if let Some(rr) = recaptcha_response {
-    params.push(("recaptcha_response", rr));
-  }
-
-  client
-    .itch_request_json::<LoginResponse>(&ItchApiUrl::v2("login"), Method::POST, |b| b.form(&params))
+  client.itch_request_json::<LoginResponse>(&ItchApiUrl::v2("login"), Method::POST, |b| {
+    b.form(&[
+      ("username", username),
+      ("password", password),
+      // Even though the `force_recaptcha` parameter may suggest that the reCAPTCHA token
+      // isn't always required, testing has shown that it is always required by the itch.io API.
+      ("force_recaptcha", "true"),
+      ("recaptcha_response", recaptcha_response),
+      // source can be any of types::ItchKeySource
+      ("source", "desktop"),
+    ])
+  })
 }
 
 /// Complete the login with the TOTP two-factor verification

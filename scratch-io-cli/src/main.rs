@@ -304,9 +304,9 @@ enum WithoutApiCommands {
     /// The password of the user who logs in
     #[arg(long, env = "SCRATCH_PASSWORD")]
     password: String,
-    /// The response of the reCAPTCHA (if required)
+    /// A reCAPTCHA token from <https://itch.io/captcha>
     #[arg(long, env = "SCRATCH_RECAPTCHA_RESPONSE")]
-    recaptcha_response: Option<String>,
+    recaptcha_response: String,
   },
   /// Finish logging in with TOTP two-factor authentication
   TOTPVerification {
@@ -453,7 +453,7 @@ fn auth(client: &ItchClient, config_api_key: &mut Option<String>) {
 fn login(
   username: &str,
   password: &str,
-  recaptcha_response: Option<&str>,
+  recaptcha_response: &str,
   config_api_key: &mut Option<String>,
 ) {
   // Create a temporary client and call the login function
@@ -1118,7 +1118,7 @@ fn main() {
         login(
           &username,
           &password,
-          recaptcha_response.as_deref(),
+          &recaptcha_response,
           &mut config.api_key,
         );
         config.save_unwrap(custom_config_file);
