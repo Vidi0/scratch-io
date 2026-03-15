@@ -62,17 +62,17 @@ fn code_challenge(code_verifier: &str) -> String {
 pub struct CodeVerifier(String);
 
 impl CodeVerifier {
-  /// Generates a cryptographically random code verifier.
+  /// Generate a cryptographically random code verifier
   pub fn random() -> Self {
     Self(random_code_verifier())
   }
 
-  /// Returns the code verifier as a string slice.
+  /// Return the code verifier as a string slice
   pub fn as_str(&self) -> &str {
     &self.0
   }
 
-  /// Derives the SHA-256 code challenge from this verifier
+  /// Derive the SHA-256 code challenge from this verifier
   pub fn to_challenge(&self) -> CodeChallenge {
     let challenge = code_challenge(&self.0);
     CodeChallenge(challenge)
@@ -85,7 +85,7 @@ impl CodeVerifier {
 pub struct CodeChallenge(String);
 
 impl CodeChallenge {
-  /// Returns the code challenge string, needed for the authorization request.
+  /// Return the code challenge string, needed for the authorization request
   pub fn as_str(&self) -> &str {
     &self.0
   }
