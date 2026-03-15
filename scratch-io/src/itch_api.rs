@@ -5,9 +5,9 @@ mod endpoints;
 mod responses;
 
 pub use endpoints::*;
-pub use responses::{ApiResponse, IntoResponseResult};
 
 use errors::{ItchRequestJSONError, ItchRequestJSONErrorKind};
+use responses::{ApiResponse, IntoResponseResult};
 
 use reqwest::{
   Method,
