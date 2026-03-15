@@ -7,7 +7,7 @@ pub mod itch_api;
 pub mod itch_manifest;
 
 pub use crate::itch_api::ItchClient;
-use crate::itch_api::{types::*, *};
+use crate::itch_api::{ItchApiUrl, endpoints::*, types::*};
 
 use md5::{Digest, Md5};
 use reqwest::{Method, blocking::Response, header};

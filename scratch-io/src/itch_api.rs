@@ -1,10 +1,8 @@
+pub mod endpoints;
 pub mod errors;
 pub mod types;
 
-mod endpoints;
 mod responses;
-
-pub use endpoints::*;
 
 use errors::{ItchRequestJSONError, ItchRequestJSONErrorKind};
 use responses::{ApiResponse, IntoResponseResult};
