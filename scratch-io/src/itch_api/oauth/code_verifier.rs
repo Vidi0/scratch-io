@@ -55,6 +55,7 @@ fn code_challenge(code_verifier: &str) -> String {
   // Encode it as base64
   URL_SAFE_NO_PAD.encode(hash)
 }
+
 /// A cryptographically random PKCE code verifier, as defined in
 /// [RFC 7636 §4.1](https://datatracker.ietf.org/doc/html/rfc7636#section-4.1).
 #[derive(Debug, Clone, PartialEq, Eq)]
