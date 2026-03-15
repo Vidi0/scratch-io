@@ -127,16 +127,14 @@ pub enum ApiResponseErrorKind {
 impl From<&[String]> for ApiResponseErrorKind {
   fn from(value: &[String]) -> Self {
     match value {
-      [v] if v == ERROR_INVALID_API_KEY => Self::InvalidApiKey(InvalidApiKey),
-      [v] if ERROR_INVALID_USER.contains(&&**v) => Self::InvalidUserID(InvalidUserID),
-      [v] if ERROR_INVALID_COLLECTION.contains(&&**v) => {
-        Self::InvalidCollectionID(InvalidCollectionID)
-      }
-      [v] if ERROR_INVALID_GAME.contains(&&**v) => Self::InvalidGameID(InvalidGameID),
-      [v] if ERROR_INVALID_UPLOAD.contains(&&**v) => Self::InvalidUploadID(InvalidUploadID),
-      [v] if ERROR_INVALID_BUILD.contains(&&**v) => Self::InvalidBuildID(InvalidBuildID),
-      [v] if ERROR_INVALID_TARGET_BUILD == v => Self::InvalidTargetBuildID(InvalidTargetBuildID),
-      [v] if v == ERROR_NO_UPGRADE_PATH => Self::NoUpgradePath(NoUpgradePath),
+      [v] if v == ERROR_INVALID_API_KEY => InvalidApiKey.into(),
+      [v] if ERROR_INVALID_USER.contains(&&**v) => InvalidUserID.into(),
+      [v] if ERROR_INVALID_COLLECTION.contains(&&**v) => InvalidCollectionID.into(),
+      [v] if ERROR_INVALID_GAME.contains(&&**v) => InvalidGameID.into(),
+      [v] if ERROR_INVALID_UPLOAD.contains(&&**v) => InvalidUploadID.into(),
+      [v] if ERROR_INVALID_BUILD.contains(&&**v) => InvalidBuildID.into(),
+      [v] if ERROR_INVALID_TARGET_BUILD == v => InvalidTargetBuildID.into(),
+      [v] if v == ERROR_NO_UPGRADE_PATH => NoUpgradePath.into(),
       _ => Self::Other,
     }
   }
