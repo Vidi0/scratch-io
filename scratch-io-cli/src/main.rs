@@ -64,7 +64,7 @@ impl From<GamePlatform> for scratch_io::GamePlatform {
 
 #[derive(Subcommand)]
 enum Commands {
-  /// Manage the current session (login, logout, OAuth)
+  /// Manage the current session (login, logout)
   #[clap(subcommand)]
   Session(SessionCommand),
 
