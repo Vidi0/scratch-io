@@ -41,7 +41,7 @@ fn random_code_verifier() -> String {
 }
 
 /// <https://datatracker.ietf.org/doc/html/rfc7636#section-4.2>
-fn random_code_challenge(code_verifier: &str) -> String {
+fn code_challenge(code_verifier: &str) -> String {
   // Hash the code verifier
   let hash = Sha256::digest(code_verifier);
 
@@ -51,7 +51,7 @@ fn random_code_challenge(code_verifier: &str) -> String {
 
 pub fn get_oauth_url() -> String {
   let code_verifier = random_code_verifier();
-  let code_challenge = random_code_challenge(&code_verifier);
+  let code_challenge = code_challenge(&code_verifier);
 
   format!(
     "{OAUTH_URL_ENDPOINT}\
