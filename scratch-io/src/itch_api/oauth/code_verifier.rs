@@ -55,33 +55,37 @@ fn code_challenge(code_verifier: &str) -> String {
   // Encode it as base64
   URL_SAFE_NO_PAD.encode(hash)
 }
-
-/// A PKCE code verifier and its derived code challenge,
-/// used in the OAuth 2.0 authorization flow.
-/// See [RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636).
+/// A cryptographically random PKCE code verifier, as defined in
+/// [RFC 7636 §4.1](https://datatracker.ietf.org/doc/html/rfc7636#section-4.1).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CodeVerifier {
-  verifier: String,
-  challenge: String,
-}
+pub struct CodeVerifier(String);
 
 impl CodeVerifier {
-  /// Generate a cryptographically random code verifier and
-  /// derive its SHA-256 code challenge
+  /// Generates a cryptographically random code verifier.
   pub fn random() -> Self {
-    let verifier = random_code_verifier();
-    let challenge = code_challenge(&verifier);
-    Self {
-      verifier,
-      challenge,
-    }
+    Self(random_code_verifier())
   }
 
-  pub fn verifier(&self) -> &str {
-    &self.verifier
+  /// Returns the code verifier as a string slice.
+  pub fn as_str(&self) -> &str {
+    &self.0
   }
 
-  pub fn challenge(&self) -> &str {
-    &self.challenge
+  /// Derives the SHA-256 code challenge from this verifier
+  pub fn to_challenge(&self) -> CodeChallenge {
+    let challenge = code_challenge(&self.0);
+    CodeChallenge(challenge)
+  }
+}
+
+/// A PKCE code challenge derived from a [`CodeVerifier`], as defined in
+/// [RFC 7636 §4.2](https://datatracker.ietf.org/doc/html/rfc7636#section-4.2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CodeChallenge(String);
+
+impl CodeChallenge {
+  /// Returns the code challenge string, needed for the authorization request.
+  pub fn as_str(&self) -> &str {
+    &self.0
   }
 }

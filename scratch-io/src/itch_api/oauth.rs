@@ -1,6 +1,6 @@
 mod code_verifier;
 
-pub use code_verifier::CodeVerifier;
+pub use code_verifier::{CodeChallenge, CodeVerifier};
 
 /// OAuth client ID used by the itch.io APP
 ///
@@ -26,6 +26,6 @@ pub fn get_oauth_url() -> String {
     &redirect_uri={REDIRECT_URI}\
     &code_challenge_method={CODE_CHALLENGE_METHOD}\
     &code_challenge={}",
-    code_verifier.challenge()
+    code_verifier.to_challenge().as_str()
   )
 }
