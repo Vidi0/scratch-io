@@ -3,7 +3,7 @@ mod code_verifier;
 pub use code_verifier::CodeVerifier;
 
 /// OAuth client ID used by the itch.io APP
-/// 
+///
 /// <https://github.com/itchio/itch/blob/3a9c33a654e55e039bc0ae5155d83fb0ddd1aca2/src/main/reactors/login.ts#L29>
 const CLIENT_ID: &str = "85252daf268d27fbefac93e1ac462bfd";
 const RESPONSE_TYPE: &str = "code";
