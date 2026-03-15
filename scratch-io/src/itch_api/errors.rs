@@ -1,18 +1,6 @@
 use thiserror::Error;
 
 const ERROR_INVALID_API_KEY: &str = "invalid key";
-const ERROR_INVALID_USER_OR_PASSWORD: &[&str] = &[
-  "Incorrect username or password",
-  "username must be provided",
-  "password must be provided",
-];
-const ERROR_INVALID_CAPTCHA_CODE: &[&str] = &[
-  "Please correctly complete reCAPTCHA",
-  "Please complete reCAPTCHA to continue",
-];
-const ERROR_INVALID_TOTP_CODE: &str = "invalid code";
-const ERROR_TOTP_TOKEN_TIMED_OUT: &str = "two-factor login attempt timed out";
-const ERROR_INVALID_TOTP_TOKEN: &str = "invalid token";
 const ERROR_INVALID_USER: &[&str] = &["invalid user", "user_id: expected database ID integer"];
 const ERROR_INVALID_COLLECTION: &[&str] = &[
   "invalid collection",
@@ -78,29 +66,6 @@ where
 pub struct InvalidApiKey;
 
 #[derive(Error, Debug)]
-#[error("The username or the password is incorrect.")]
-pub struct IncorrectUsernameOrPassword;
-
-#[derive(Error, Debug)]
-#[error("The reCAPTCHA response code is incorrect!")]
-pub struct IncorrectCaptchaCode;
-
-#[derive(Error, Debug)]
-#[error("The TOTP code is incorrect!")]
-pub struct IncorrectTOTPCode;
-
-#[derive(Error, Debug)]
-#[error(
-  "The TOTP token timed out!
-Login again with a username and password to get another TOTP token."
-)]
-pub struct TOTPTokenTimedOut;
-
-#[derive(Error, Debug)]
-#[error("The TOTP token is invalid!")]
-pub struct InvalidTOTPToken;
-
-#[derive(Error, Debug)]
 #[error("The provided user ID is invalid.")]
 pub struct InvalidUserID;
 
@@ -135,21 +100,6 @@ pub enum ApiResponseErrorKind {
   InvalidApiKey(#[from] InvalidApiKey),
 
   #[error(transparent)]
-  IncorrectUsernameOrPassword(#[from] IncorrectUsernameOrPassword),
-
-  #[error(transparent)]
-  IncorrectCaptchaCode(#[from] IncorrectCaptchaCode),
-
-  #[error(transparent)]
-  IncorrectTOTPCode(#[from] IncorrectTOTPCode),
-
-  #[error(transparent)]
-  TOTPTokenTimedOut(#[from] TOTPTokenTimedOut),
-
-  #[error(transparent)]
-  InvalidTOTPToken(#[from] InvalidTOTPToken),
-
-  #[error(transparent)]
   InvalidUserID(#[from] InvalidUserID),
 
   #[error(transparent)]
@@ -178,15 +128,6 @@ impl From<&[String]> for ApiResponseErrorKind {
   fn from(value: &[String]) -> Self {
     match value {
       [v] if v == ERROR_INVALID_API_KEY => Self::InvalidApiKey(InvalidApiKey),
-      [v, ..] if ERROR_INVALID_USER_OR_PASSWORD.contains(&&**v) => {
-        Self::IncorrectUsernameOrPassword(IncorrectUsernameOrPassword)
-      }
-      [v] if ERROR_INVALID_CAPTCHA_CODE.contains(&&**v) => {
-        Self::IncorrectCaptchaCode(IncorrectCaptchaCode)
-      }
-      [v] if v == ERROR_INVALID_TOTP_CODE => Self::IncorrectTOTPCode(IncorrectTOTPCode),
-      [v] if v == ERROR_TOTP_TOKEN_TIMED_OUT => Self::TOTPTokenTimedOut(TOTPTokenTimedOut),
-      [v] if v == ERROR_INVALID_TOTP_TOKEN => Self::InvalidTOTPToken(InvalidTOTPToken),
       [v] if ERROR_INVALID_USER.contains(&&**v) => Self::InvalidUserID(InvalidUserID),
       [v] if ERROR_INVALID_COLLECTION.contains(&&**v) => {
         Self::InvalidCollectionID(InvalidCollectionID)
@@ -233,56 +174,6 @@ impl From<ApiResponseError> for ApiResponseCommonErrors {
     match value.kind {
       ApiResponseErrorKind::InvalidApiKey(v) => v.into(),
       _ => Self::Other(value.errors),
-    }
-  }
-}
-
-/// Errors returned from the login API call
-#[derive(Error, Debug)]
-pub enum LoginResponseError {
-  #[error(transparent)]
-  IncorrectUsernameOrPassword(#[from] IncorrectUsernameOrPassword),
-
-  #[error(transparent)]
-  IncorrectCaptchaCode(#[from] IncorrectCaptchaCode),
-
-  #[error(transparent)]
-  Other(#[from] ApiResponseCommonErrors),
-}
-
-impl From<ApiResponseError> for LoginResponseError {
-  fn from(value: ApiResponseError) -> Self {
-    match value.kind {
-      ApiResponseErrorKind::IncorrectUsernameOrPassword(v) => v.into(),
-      ApiResponseErrorKind::IncorrectCaptchaCode(v) => v.into(),
-      _ => Self::Other(value.into()),
-    }
-  }
-}
-
-/// Errors returned from the TOTP verification API call
-#[derive(Error, Debug)]
-pub enum TOTPResponseError {
-  #[error(transparent)]
-  IncorrectTOTPCode(#[from] IncorrectTOTPCode),
-
-  #[error(transparent)]
-  TOTPTokenTimedOut(#[from] TOTPTokenTimedOut),
-
-  #[error(transparent)]
-  InvalidTOTPToken(#[from] InvalidTOTPToken),
-
-  #[error(transparent)]
-  Other(#[from] ApiResponseCommonErrors),
-}
-
-impl From<ApiResponseError> for TOTPResponseError {
-  fn from(value: ApiResponseError) -> Self {
-    match value.kind {
-      ApiResponseErrorKind::IncorrectTOTPCode(v) => v.into(),
-      ApiResponseErrorKind::TOTPTokenTimedOut(v) => v.into(),
-      ApiResponseErrorKind::InvalidTOTPToken(v) => v.into(),
-      _ => Self::Other(value.into()),
     }
   }
 }
