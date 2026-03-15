@@ -25,6 +25,11 @@ pub struct OAuthRequest {
 }
 
 /// Build an OAuth 2.0 authorization URL with a freshly generated PKCE code verifier
+///
+/// # Returns
+/// 
+/// An [`OAuthRequest`] containing the authorization URL and the code verifier
+/// needed for the subsequent [`exchange_code`] call
 pub fn get_oauth_url() -> OAuthRequest {
   let code_verifier = code_verifier::CodeVerifier::random();
   let url = Url::parse_with_params(
