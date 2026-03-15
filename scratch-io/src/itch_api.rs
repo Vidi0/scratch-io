@@ -13,6 +13,87 @@ use reqwest::{
   header,
 };
 
+pub const ITCH_API_V1_BASE_URL: &str = "https://itch.io/api/1/";
+pub const ITCH_API_V2_BASE_URL: &str = "https://api.itch.io/";
+
+/// An itch.io API version
+///
+/// Its possible values are:
+///
+/// * `V1` - itch.io JSON API V1 <https://itch.io/api/1/>
+///
+/// * `V2` - itch.io JSON API V2 <https://api.itch.io/>
+///
+/// * `Other` - Any other URL
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ItchApiVersion {
+  V1,
+  V2,
+  Other,
+}
+
+/// An itch.io API address
+///
+/// Use the Other variant with the full URL when it isn't a known API version
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ItchApiUrl {
+  version: ItchApiVersion,
+  url: String,
+}
+
+impl ItchApiUrl {
+  /// Creates an [`ItchApiUrl`] by appending the provided endpoint to
+  /// itch.io's API V1 base URL: [`ITCH_API_V1_BASE_URL`]
+  ///
+  /// <https://itch.io/api/1/>
+  pub fn v1(endpoint: &str) -> Self {
+    Self {
+      version: ItchApiVersion::V1,
+      url: format!("{ITCH_API_V1_BASE_URL}{endpoint}"),
+    }
+  }
+
+  /// Creates an [`ItchApiUrl`] by appending the provided endpoint to
+  /// itch.io's API V2 base URL: [`ITCH_API_V2_BASE_URL`]
+  ///
+  /// <https://api.itch.io/>
+  pub fn v2(endpoint: &str) -> Self {
+    Self {
+      version: ItchApiVersion::V2,
+      url: format!("{ITCH_API_V2_BASE_URL}{endpoint}"),
+    }
+  }
+
+  /// Creates an [`ItchApiUrl`] using the provided url as-is
+  pub fn other(url: String) -> Self {
+    Self {
+      version: ItchApiVersion::Other,
+      url,
+    }
+  }
+
+  /// Returns the API version of this [`ItchApiUrl`]
+  #[must_use]
+  pub const fn version(&self) -> ItchApiVersion {
+    self.version
+  }
+}
+
+impl ItchApiUrl {
+  /// Get a reference to the full URL string
+  #[must_use]
+  pub fn as_str(&self) -> &str {
+    &self.url
+  }
+}
+
+impl std::fmt::Display for ItchApiUrl {
+  /// Format the [`ItchApiUrl`] as a string, returning the full URL
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(f, "{}", self.url)
+  }
+}
+
 /// A client able to send requests to the itch.io API
 #[derive(Debug, Clone)]
 pub struct ItchClient {
