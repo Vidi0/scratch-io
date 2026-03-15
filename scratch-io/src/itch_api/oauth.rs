@@ -56,12 +56,12 @@ pub fn get_oauth_url() -> String {
   let code_challenge = random_code_challenge();
 
   format!(
-    "{OAUTH_URL_ENDPOINT}?
-    client_id={OAUTH_CLIENT_ID}
-    &scope=itch
-    &redirect_uri={OAUTH_REDIRECT_URI}
-    &response_type=code
-    &code_challenge={code_challenge}
+    "{OAUTH_URL_ENDPOINT}\
+    ?client_id={OAUTH_CLIENT_ID}\
+    &scope=itch\
+    &redirect_uri={OAUTH_REDIRECT_URI}\
+    &response_type=code\
+    &code_challenge={code_challenge}\
     &code_challenge_method=S256"
   )
 }
