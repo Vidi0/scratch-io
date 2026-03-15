@@ -133,9 +133,7 @@ impl ItchClient {
     // Add authentication based on the API's version.
     request = match url.version() {
       // https://itchapi.ryhn.link/API/V1/index.html#authentication
-      ItchApiVersion::V1 => {
-        request.header(header::AUTHORIZATION, format!("Bearer {}", &self.api_key))
-      }
+      ItchApiVersion::V1 => request.bearer_auth(&self.api_key),
       // https://itchapi.ryhn.link/API/V2/index.html#authentication
       ItchApiVersion::V2 => request.header(header::AUTHORIZATION, &self.api_key),
       // If it isn't a known API version, just leave it without authentication
