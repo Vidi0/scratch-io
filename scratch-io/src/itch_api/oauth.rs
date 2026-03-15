@@ -16,7 +16,12 @@ const URL_ENDPOINT: &str = "https://itch.io/user/oauth";
 /// SHA-256 code challenge method, as defined in [RFC 7636 §4.2](https://datatracker.ietf.org/doc/html/rfc7636#section-4.2)
 const CODE_CHALLENGE_METHOD: &str = "S256";
 
-pub fn get_oauth_url() -> String {
+pub struct OAuthRequest {
+  pub url: String,
+  pub code_verifier: CodeVerifier,
+}
+
+pub fn get_oauth_url() -> OAuthRequest {
   let code_verifier = code_verifier::CodeVerifier::random();
   let url = Url::parse_with_params(
     URL_ENDPOINT,
@@ -31,5 +36,8 @@ pub fn get_oauth_url() -> String {
   )
   .expect("base URL is always valid");
 
-  url.to_string()
+  OAuthRequest {
+    url: url.to_string(),
+    code_verifier,
+  }
 }
