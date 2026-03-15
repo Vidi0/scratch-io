@@ -16,11 +16,15 @@ const URL_ENDPOINT: &str = "https://itch.io/user/oauth";
 /// SHA-256 code challenge method, as defined in [RFC 7636 §4.2](https://datatracker.ietf.org/doc/html/rfc7636#section-4.2)
 const CODE_CHALLENGE_METHOD: &str = "S256";
 
+/// The authorization URL and code verifier for an OAuth 2.0 PKCE flow
 pub struct OAuthRequest {
+  /// The authorization URL to open in the browser
   pub url: String,
+  /// The code verifier to use in the token exchange after the user authorizes
   pub code_verifier: CodeVerifier,
 }
 
+/// Build an OAuth 2.0 authorization URL with a freshly generated PKCE code verifier
 pub fn get_oauth_url() -> OAuthRequest {
   let code_verifier = code_verifier::CodeVerifier::random();
   let url = Url::parse_with_params(
