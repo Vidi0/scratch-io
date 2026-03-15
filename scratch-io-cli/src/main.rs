@@ -1,6 +1,8 @@
 mod config;
+mod session;
 
 use config::Config;
+use session::SessionCommand;
 
 use clap::{Parser, Subcommand};
 use scratch_io::itch_api::types::{BuildID, CollectionID, GameID, UploadID, UserID};
@@ -62,6 +64,10 @@ impl From<GamePlatform> for scratch_io::GamePlatform {
 
 #[derive(Subcommand)]
 enum Commands {
+  /// Manage the current session (login, logout, OAuth)
+  #[clap(subcommand)]
+  Session(SessionCommand),
+
   /// Make an API call to the itch.io servers
   #[clap(subcommand)]
   Api(ApiCalls),
@@ -242,11 +248,6 @@ enum WharfCommands {
 // These commands will receive a valid API key and its profile
 #[derive(Subcommand)]
 enum WithApiCommands {
-  /// Log in with an API key to use in the other commands
-  Auth {
-    /// The API key to save
-    api_key: String,
-  },
   /// Download the upload with the given ID
   Download {
     /// The ID of the upload to download
@@ -294,8 +295,6 @@ enum WithApiCommands {
 // These commands may receive a valid API key, or may not
 #[derive(Subcommand)]
 enum WithoutApiCommands {
-  /// Remove the saved API key
-  Logout,
   /// List the installed games
   Installed,
   /// Get the installed information about an upload given its ID
@@ -412,28 +411,6 @@ fn exit_if_already_installed(
         .join(info.upload_id.to_string())
         .to_string_lossy()
     );
-  }
-}
-
-// Save a key to the config and print info
-fn auth(client: &ItchClient, config_api_key: &mut Option<String>) {
-  // We already checked if the key was valid
-  println!("Valid key!");
-  *config_api_key = Some(client.api_key().to_string());
-
-  // Print user info
-  let profile = endpoints::get_profile(client).unwrap_or_else(|e| eprintln_exit!("{e}"));
-  println!("Logged in as: {}", profile.user.get_name());
-}
-
-// Remove the saved API key (if any)
-fn logout(config_api_key: &mut Option<String>) {
-  match config_api_key {
-    None => eprintln!("There isn't any API key saved!"),
-    Some(_) => {
-      *config_api_key = None;
-      println!("Logged out.");
-    }
   }
 }
 
@@ -968,23 +945,21 @@ fn main() {
   let client = get_itch_client(
     // The api key is:
     vec![
-      // 1. If the command is auth, then the provided key
-      if let Commands::WithApi(WithApiCommands::Auth { api_key }) = &cli.command {
-        Some(api_key.to_string())
-      } else {
-        None
-      },
-      // 2. If --api-key is set, then that key
+      // 1. If --api-key is set, then that key
       cli.api_key,
-      // 3. If not, then the saved config
+      // 2. If not, then the saved config
       config.api_key.to_owned(),
-      // 4. If there isn't a saved config, throw an error
+      // 3. If there isn't a saved config, throw an error
     ],
   );
 
   /**** COMMANDS ****/
 
   match cli.command {
+    Commands::Session(command) => {
+      command.handle_command(&mut config);
+      config.save_unwrap(custom_config_file);
+    }
     Commands::Api(command) => {
       let client = client.unwrap_or_else(|e| eprintln_exit!("{e}"));
       handle_api_command(command, &client);
@@ -998,10 +973,6 @@ fn main() {
       let client = client.unwrap_or_else(|e| eprintln_exit!("{e}"));
 
       match command {
-        WithApiCommands::Auth { .. } => {
-          auth(&client, &mut config.api_key);
-          config.save_unwrap(custom_config_file);
-        }
         WithApiCommands::Download {
           upload_id,
           install_path,
@@ -1051,10 +1022,6 @@ fn main() {
       }
     }
     Commands::WithoutApi(command) => match command {
-      WithoutApiCommands::Logout => {
-        logout(&mut config.api_key);
-        config.save_unwrap(custom_config_file);
-      }
       WithoutApiCommands::Installed => {
         print_installed_games(&mut config.installed_uploads);
       }
