@@ -79,13 +79,21 @@ To complete the login, run the `oauth exchange` command with the following optio
   );
 }
 
-fn oauth_exchange(code_verifier: String, authorization_code: String) {
+fn oauth_exchange(
+  code_verifier: String,
+  authorization_code: String,
+  config_api_key: &mut Option<String>,
+) {
   // Create an unauthenticated client to make the oauth request
   let client = ItchClient::unauthenticated();
 
-  let result = oauth::exchange_code(&client, &code_verifier, &authorization_code);
+  // Do the request and get the API key back from the server
+  let oauth_token = oauth::exchange_code(&client, &code_verifier, &authorization_code)
+    .unwrap_or_else(|e| eprintln_exit!("{e}"));
 
-  println!("{:#?}", result.unwrap_or_else(|e| eprintln_exit!("{e}")));
+  // Check if the key is valid and save it
+  println!("Successful OAuth login!");
+  auth(oauth_token.access_token, config_api_key);
 }
 
 impl SessionCommand {
@@ -97,7 +105,7 @@ impl SessionCommand {
       Self::Oauth(OauthCommand::Exchange {
         code_verifier,
         authorization_code,
-      }) => oauth_exchange(code_verifier, authorization_code),
+      }) => oauth_exchange(code_verifier, authorization_code, &mut config.api_key),
     }
   }
 }
