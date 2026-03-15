@@ -9,11 +9,13 @@ edition = "2024"
 
 [dependencies]
 md-5 = "0.10.6"
+rand = "0.10.0"
 reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "form", "http2", "query", "rustls-no-provider", "system-proxy"] }
 rustls = { version = "0.23.37", default-features = false, features = ["ring", "std", "logging"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 serde_with = "3.18.0"
+sha2 = "0.10.9"
 strsim = "0.11.1"
 thiserror = "2.0.18"
 time = { version = "0.3.47", features = ["formatting", "parsing", "serde"] }
@@ -26,6 +28,7 @@ flate2 = { version = "1.1.9", optional = true }
 bzip2 = { version = "0.6.1", optional = true }
 liblzma = { version = "0.4.6", optional = true }
 zstd = { version = "0.13.3", optional = true }
+base64 = "0.22.1"
 
 [features]
 default = ["zip", "tar", "gzip", "zstd"]

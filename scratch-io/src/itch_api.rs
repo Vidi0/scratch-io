@@ -1,5 +1,6 @@
 pub mod endpoints;
 pub mod errors;
+pub mod oauth;
 pub mod types;
 
 mod responses;
