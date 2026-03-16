@@ -70,8 +70,10 @@ scratch-io help
 ```
 
 > [!WARNING]
-> Due to how the itch.io API works, it is not possible to update a game in-place.  
-> To update a game, you must remove it and install it again.
+> Due to how the itch.io API works, it is not possible to update a game in-place
+> unless it has been packaged using [butler](https://github.com/itchio/butler).
+>
+> To update a game that has not been packaged this way, you must remove it and install it again.
 
 > [!NOTE]
 > Launching games is determined by heuristics, so it may not always work for every game.  
