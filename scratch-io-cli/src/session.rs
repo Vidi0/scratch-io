@@ -77,17 +77,19 @@ Logged in as: {}",
 }
 
 fn oauth_init() {
+  // Start the OAuth flow by generating a PKCE code verifier and authorization URL
   let oauth = oauth::init();
+
+  let url = oauth.url;
+  let code_verifier = oauth.code_verifier.as_str();
 
   println!(
     r#"Open this URL in your browser to authorize:
-  {}
+  {url}
 
 To complete the login, run the `oauth exchange` command with the following options:
-  --code-verifier="{}"
+  --code-verifier="{code_verifier}"
   --authorization-code="{{AUTHORIZATION_CODE}}""#,
-    oauth.url,
-    oauth.code_verifier.as_str(),
   );
 }
 
