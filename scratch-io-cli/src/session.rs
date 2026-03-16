@@ -7,6 +7,8 @@ use scratch_io::itch_api::{endpoints, oauth};
 
 #[derive(Subcommand)]
 pub enum SessionCommand {
+  /// Print the currently saved API key
+  PrintKey,
   /// Remove the saved API key
   Logout,
   /// Log in with an API key
@@ -34,6 +36,14 @@ pub enum OauthCommand {
     #[arg(long, env = "SCRATCH_AUTHORIZATION_CODE")]
     authorization_code: String,
   },
+}
+
+// Print the saved API key (if any)
+fn print_key(config_api_key: &Option<String>) {
+  match config_api_key {
+    None => eprintln!("There isn't any API key saved!"),
+    Some(key) => println!("{key}"),
+  }
 }
 
 // Remove the saved API key (if any)
@@ -101,6 +111,7 @@ fn oauth_exchange(
 impl SessionCommand {
   pub fn handle_command(self, config: &mut Config) {
     match self {
+      Self::PrintKey => print_key(&config.api_key),
       Self::Logout => logout(&mut config.api_key),
       Self::Auth { api_key } => auth(api_key, &mut config.api_key),
       Self::Oauth(OauthCommand::Init) => oauth_init(),
