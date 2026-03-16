@@ -27,44 +27,28 @@ const CODE_VERIFIER_CHARSET: &[char] = &[
   '~', // tilde
 ];
 
-/// Generate a cryptographically random code verifier string of length between
-/// [`CODE_VERIFIER_MIN_LEN`] and [`CODE_VERIFIER_MAX_LEN`], using the charset defined in
-/// [RFC 7636 §4.1](https://datatracker.ietf.org/doc/html/rfc7636#section-4.1).
-fn random_code_verifier() -> String {
-  // Get a random length for the code verifier
-  let mut rng = rand::rng();
-  let len = rng.random_range(CODE_VERIFIER_MIN_LEN..=CODE_VERIFIER_MAX_LEN);
-
-  // Fill the code with random characters from the charset
-  let mut code_verifier = String::with_capacity(len);
-  for _ in 0..len {
-    let index = rng.random_range(0..CODE_VERIFIER_CHARSET.len());
-    code_verifier.push(CODE_VERIFIER_CHARSET[index]);
-  }
-
-  code_verifier
-}
-
-/// Derive the code challenge from a code verifier by SHA-256 hashing it and encoding the result
-/// as Base64-URL without padding, as defined in
-/// [RFC 7636 §4.2](https://datatracker.ietf.org/doc/html/rfc7636#section-4.2).
-fn code_challenge(code_verifier: &str) -> String {
-  // Hash the code verifier
-  let hash = Sha256::digest(code_verifier);
-
-  // Encode it as base64
-  URL_SAFE_NO_PAD.encode(hash)
-}
-
 /// A cryptographically random PKCE code verifier, as defined in
 /// [RFC 7636 §4.1](https://datatracker.ietf.org/doc/html/rfc7636#section-4.1).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodeVerifier(String);
 
 impl CodeVerifier {
-  /// Generate a cryptographically random code verifier
+  /// Generate a cryptographically random code verifier string of length between
+  /// [`CODE_VERIFIER_MIN_LEN`] and [`CODE_VERIFIER_MAX_LEN`], using the charset defined in
+  /// [RFC 7636 §4.1](https://datatracker.ietf.org/doc/html/rfc7636#section-4.1).
   pub fn random() -> Self {
-    Self(random_code_verifier())
+    // Get a random length for the code verifier
+    let mut rng = rand::rng();
+    let len = rng.random_range(CODE_VERIFIER_MIN_LEN..=CODE_VERIFIER_MAX_LEN);
+
+    // Fill the code with random characters from the charset
+    let mut code_verifier = String::with_capacity(len);
+    for _ in 0..len {
+      let index = rng.random_range(0..CODE_VERIFIER_CHARSET.len());
+      code_verifier.push(CODE_VERIFIER_CHARSET[index]);
+    }
+
+    Self(code_verifier)
   }
 
   /// Return the code verifier as a string slice
@@ -72,9 +56,15 @@ impl CodeVerifier {
     &self.0
   }
 
-  /// Derive the SHA-256 code challenge from this verifier
+  /// Derive the code challenge from a code verifier by SHA-256 hashing it and encoding the result
+  /// as Base64-URL without padding, as defined in
+  /// [RFC 7636 §4.2](https://datatracker.ietf.org/doc/html/rfc7636#section-4.2).
   pub fn to_challenge(&self) -> CodeChallenge {
-    let challenge = code_challenge(&self.0);
+    // Hash the code verifier
+    let hash = Sha256::digest(&self.0);
+
+    // Encode it as base64
+    let challenge = URL_SAFE_NO_PAD.encode(hash);
     CodeChallenge(challenge)
   }
 }
