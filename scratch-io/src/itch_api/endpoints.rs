@@ -238,6 +238,37 @@ pub fn get_game_info(
     .map(|res| res.game)
 }
 
+/// Get a scoped API subkey for a specific game
+///
+/// # Arguments
+///
+/// * `client` - An itch.io API client
+///
+/// * `game_id` - The ID of the game to generate a subkey for
+///
+/// # Returns
+///
+/// An [`ApiSubkey`] with permissions scoped to `profile:me` for the given game
+///
+/// # Errors
+///
+/// If the request, retrieving its text, or parsing fails, or if the server returned an error
+pub fn get_game_subkey(
+  client: &ItchClient,
+  game_id: GameID,
+) -> Result<ApiSubkey, ItchRequestJSONError<ApiResponseCommonErrors>> {
+  // Currently, the only valid scope is "profile:me"
+  const SUBKEY_SCOPE: &str = "profile:me";
+
+  client
+    .itch_request_json::<GameSubkeyResponse>(
+      &ItchApiUrl::v2("credentials/subkey"),
+      Method::POST,
+      |b| b.form(&[("scope", SUBKEY_SCOPE), ("game_id", &game_id.to_string())]),
+    )
+    .map(|res| res.subkey)
+}
+
 /// Get the game's uploads (downloadable files)
 ///
 /// # Arguments

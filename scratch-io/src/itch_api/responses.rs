@@ -126,6 +126,17 @@ impl IntoResponseResult for GameInfoResponse {
   type Err = GameResponseError;
 }
 
+/// Response struct for: <https://api.itch.io/credentials/subkey>
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GameSubkeyResponse {
+  #[serde(flatten)]
+  pub subkey: ApiSubkey,
+}
+
+impl IntoResponseResult for GameSubkeyResponse {
+  type Err = ApiResponseCommonErrors;
+}
+
 /// Response struct for: <https://api.itch.io/games/{game_id}/uploads>
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameUploadsResponse {

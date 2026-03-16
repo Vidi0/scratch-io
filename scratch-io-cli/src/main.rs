@@ -119,6 +119,12 @@ enum ApiCalls {
     /// The ID of the game to retrieve information about
     game_id: GameID,
   },
+  /// Request a scoped API subkey for a specific game from the itch.io server,
+  /// with permissions scoped to `profile:me`
+  GameApiSubkey {
+    /// The ID of the game to request a subkey for
+    game_id: GameID,
+  },
   /// List the uploads available for download for the given game
   GameUploads {
     /// The ID of the game to retrieve information about
@@ -622,6 +628,12 @@ fn handle_api_command(command: ApiCalls, client: &ItchClient) {
       println!(
         "{:#?}",
         endpoints::get_game_info(client, game_id).unwrap_or_else(|e| eprintln_exit!("{e}"))
+      );
+    }
+    C::GameApiSubkey { game_id } => {
+      println!(
+        "{:#?}",
+        endpoints::get_game_subkey(client, game_id).unwrap_or_else(|e| eprintln_exit!("{e}"))
       );
     }
     C::GameUploads { game_id } => {

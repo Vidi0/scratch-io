@@ -89,6 +89,13 @@ pub struct OAuthToken {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ApiSubkey {
+  pub key: String,
+  #[serde(with = "rfc3339")]
+  pub expires_at: OffsetDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct User {
   pub id: UserID,
   pub username: String,
