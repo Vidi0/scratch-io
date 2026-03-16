@@ -1,6 +1,8 @@
 mod code_verifier;
+mod uuid;
 
 pub use code_verifier::{CodeChallenge, CodeVerifier};
+pub use uuid::UuidV4;
 
 use super::errors::{ItchRequestJSONError, OauthResponseError};
 use super::responses::OAuthTokenResponse;
@@ -27,6 +29,8 @@ pub struct OAuthRequest {
   pub url: String,
   /// The code verifier to use in the token exchange after the user authorizes
   pub code_verifier: CodeVerifier,
+  /// A unique identifier for this OAuth request
+  pub state: UuidV4,
 }
 
 /// Build an OAuth 2.0 authorization URL with a freshly generated PKCE code verifier
@@ -37,6 +41,8 @@ pub struct OAuthRequest {
 /// needed for the subsequent [`exchange_code`] call
 pub fn init() -> OAuthRequest {
   let code_verifier = code_verifier::CodeVerifier::random();
+  let state = uuid::UuidV4::random();
+
   let url = Url::parse_with_params(
     URL_ENDPOINT,
     &[
@@ -46,6 +52,7 @@ pub fn init() -> OAuthRequest {
       ("redirect_uri", REDIRECT_URI),
       ("code_challenge_method", CODE_CHALLENGE_METHOD),
       ("code_challenge", code_verifier.to_challenge().as_str()),
+      ("state", state.as_str()),
     ],
   )
   .expect("base URL is always valid");
@@ -53,6 +60,7 @@ pub fn init() -> OAuthRequest {
   OAuthRequest {
     url: url.to_string(),
     code_verifier,
+    state,
   }
 }
 

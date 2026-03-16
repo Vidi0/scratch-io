@@ -25,6 +25,9 @@ pub enum SessionCommand {
 pub enum OauthCommand {
   /// Generate an authorization URL and code verifier to start the OAuth flow.
   /// Open the printed URL in your browser, then run `oauth exchange` with the returned code.
+  ///
+  /// A unique state value will also be printed, which can be used to verify
+  /// that the callback URL hasn't been tampered with.
   Init,
   /// Exchange an authorization code for an API key.
   /// Requires the code verifier from `oauth init` and the authorization code from the OAuth callback.
@@ -82,10 +85,14 @@ fn oauth_init() {
 
   let url = oauth.url;
   let code_verifier = oauth.code_verifier.as_str();
+  let state = oauth.state.as_str();
 
   println!(
     r#"Open this URL in your browser to authorize:
   {url}
+
+Expected state (verify this matches the callback):
+  {state}
 
 To complete the login, run the `oauth exchange` command with the following options:
   --code-verifier="{code_verifier}"
