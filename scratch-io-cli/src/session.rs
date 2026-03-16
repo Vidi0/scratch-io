@@ -77,7 +77,7 @@ Logged in as: {}",
 }
 
 fn oauth_init() {
-  let oauth = oauth::get_oauth_url();
+  let oauth = oauth::init();
 
   println!(
     r#"Open this URL in your browser to authorize:
