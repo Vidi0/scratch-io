@@ -40,21 +40,21 @@ pub enum OauthCommand {
 
 // Print the saved API key (if any)
 fn print_key(config_api_key: &Option<String>) {
-  match config_api_key {
-    None => eprintln!("There isn't any API key saved!"),
-    Some(key) => println!("{key}"),
-  }
+  let Some(key) = config_api_key else {
+    eprintln_exit!("There isn't any API key saved!");
+  };
+
+  println!("{key}");
 }
 
 // Remove the saved API key (if any)
 fn logout(config_api_key: &mut Option<String>) {
-  match config_api_key {
-    None => eprintln!("There isn't any API key saved!"),
-    Some(_) => {
-      *config_api_key = None;
-      println!("Logged out.");
-    }
-  }
+  if config_api_key.is_none() {
+    eprintln_exit!("There isn't any API key saved!");
+  };
+
+  *config_api_key = None;
+  println!("Logged out.");
 }
 
 // Check if an api key is valid and print the user info
