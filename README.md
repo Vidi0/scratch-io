@@ -45,12 +45,6 @@ Authenticate with your itch.io API key:
 scratch-io auth API_KEY
 ```
 
-Alternatively, log in using your username and password:
-
-```sh
-scratch-io login --username USERNAME --password PASSWORD
-```
-
 Download a game by its upload ID:
 
 ```sh
