@@ -703,6 +703,7 @@ fn main() {
       command.handle_command(&mut config);
       config.save_unwrap(custom_config_file);
     }
+
     Commands::Api(command) => {
       let client = client.unwrap_or_else(|e| eprintln_exit!("{e}"));
       handle_api_command(command, &client);
@@ -764,6 +765,7 @@ fn main() {
         }
       }
     }
+
     Commands::WithoutApi(command) => match command {
       WithoutApiCommands::Installed => {
         print_installed_games(&mut config.installed_uploads);
