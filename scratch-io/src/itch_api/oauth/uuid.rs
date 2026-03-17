@@ -1,9 +1,10 @@
 use rand::Rng;
+use std::fmt::Display;
 
 /// A cryptographically random UUID version 4, as defined in
 /// [RFC 9562 §5.4](https://datatracker.ietf.org/doc/html/rfc9562#section-5.4).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UuidV4(String);
+pub struct UuidV4([u8; 16]);
 
 impl UuidV4 {
   /// Generate a cryptographically random UUID v4, with the version bits set to `0100`
@@ -20,31 +21,32 @@ impl UuidV4 {
     // Set variant to 10xx (10xxxxxx)
     bytes[8] = (bytes[8] & 0b0011_1111) | 0b1000_0000;
 
-    let uuid = format!(
-      "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-      bytes[0],
-      bytes[1],
-      bytes[2],
-      bytes[3],
-      bytes[4],
-      bytes[5],
-      bytes[6],
-      bytes[7],
-      bytes[8],
-      bytes[9],
-      bytes[10],
-      bytes[11],
-      bytes[12],
-      bytes[13],
-      bytes[14],
-      bytes[15]
-    );
-
-    Self(uuid)
+    Self(bytes)
   }
+}
 
-  /// Return the UUID as a string slice in the standard `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` format
-  pub fn as_str(&self) -> &str {
-    &self.0
+impl Display for UuidV4 {
+  /// Formats the UUID as a lowercase hyphenated string: `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(
+      f,
+      "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+      self.0[0],
+      self.0[1],
+      self.0[2],
+      self.0[3],
+      self.0[4],
+      self.0[5],
+      self.0[6],
+      self.0[7],
+      self.0[8],
+      self.0[9],
+      self.0[10],
+      self.0[11],
+      self.0[12],
+      self.0[13],
+      self.0[14],
+      self.0[15]
+    )
   }
 }

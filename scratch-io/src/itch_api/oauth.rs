@@ -55,7 +55,7 @@ pub fn init() -> OAuthRequest {
       ("client_id", CLIENT_ID),
       ("redirect_uri", REDIRECT_URI),
       ("scope", SCOPE),
-      ("state", state.as_str()),
+      ("state", &state.to_string()),
       ("code_challenge_method", CODE_CHALLENGE_METHOD),
       ("code_challenge", code_verifier.to_challenge().as_str()),
     ],

@@ -84,7 +84,7 @@ fn oauth_init() {
   let oauth = oauth::init();
 
   let url = oauth.url;
-  let state = oauth.state.as_str();
+  let state = oauth.state;
   let code_verifier = oauth.code_verifier.as_str();
 
   println!(
