@@ -23,7 +23,9 @@ const SCOPE: &str = "itch";
 /// SHA-256 code challenge method, as defined in [RFC 7636 §4.2](https://datatracker.ietf.org/doc/html/rfc7636#section-4.2)
 const CODE_CHALLENGE_METHOD: &str = "S256";
 
-/// The authorization URL and code verifier for an OAuth 2.0 PKCE flow
+/// The authorization URL, state, and code verifier for an itch.io OAuth 2.0 PKCE flow.
+/// See [RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749) and
+/// [RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636).
 pub struct OAuthRequest {
   /// The authorization URL to open in the browser
   pub url: String,
@@ -33,11 +35,14 @@ pub struct OAuthRequest {
   pub code_verifier: CodeVerifier,
 }
 
-/// Build an OAuth 2.0 authorization URL with a freshly generated PKCE code verifier
+/// Build an itch.io OAuth 2.0 authorization URL with a freshly generated PKCE code verifier
+/// and a random state parameter, as defined in
+/// [RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749) and
+/// [RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636).
 ///
 /// # Returns
 ///
-/// An [`OAuthRequest`] containing the authorization URL and the code verifier
+/// An [`OAuthRequest`] containing the authorization URL, the state, and the code verifier
 /// needed for the subsequent [`exchange_code`] call
 pub fn init() -> OAuthRequest {
   let state = uuid::UuidV4::random();
