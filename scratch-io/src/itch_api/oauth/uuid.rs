@@ -10,9 +10,10 @@ use std::fmt::Display;
 pub struct UuidV4([u8; 16]);
 
 impl UuidV4 {
-  /// Generate a cryptographically random UUID v4, with the version bits set to `0100`
-  /// and the variant bits set to `10xx`, as defined in
+  /// Generate a cryptographically random UUID v4, as defined in
   /// [RFC 9562 §5.4](https://datatracker.ietf.org/doc/html/rfc9562#section-5.4).
+  ///
+  /// Can be formatted as a string via its `Display` implementation.
   pub fn random() -> Self {
     // Generate 16 random bytes
     let mut rng = rand::rng();
