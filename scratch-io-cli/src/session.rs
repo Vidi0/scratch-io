@@ -84,8 +84,8 @@ fn oauth_init() {
   let oauth = oauth::init();
 
   let url = oauth.url;
-  let code_verifier = oauth.code_verifier.as_str();
   let state = oauth.state.as_str();
+  let code_verifier = oauth.code_verifier.as_str();
 
   println!(
     r#"Open this URL in your browser to authorize:
