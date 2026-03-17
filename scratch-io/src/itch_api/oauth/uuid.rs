@@ -1,3 +1,6 @@
+//! UUID version 4 implementation as defined in
+//! [RFC 9562 §5.4](https://datatracker.ietf.org/doc/html/rfc9562#section-5.4).
+
 use rand::Rng;
 use std::fmt::Display;
 
