@@ -33,8 +33,7 @@ const CODE_VERIFIER_CHARSET: &[char] = &[
 pub struct CodeVerifier(String);
 
 impl CodeVerifier {
-  /// Generate a cryptographically random code verifier string of length between
-  /// [`CODE_VERIFIER_MIN_LEN`] and [`CODE_VERIFIER_MAX_LEN`], using the charset defined in
+  /// Generate a cryptographically random code verifier as defined in
   /// [RFC 7636 §4.1](https://datatracker.ietf.org/doc/html/rfc7636#section-4.1).
   pub fn random() -> Self {
     // Get a random length for the code verifier
