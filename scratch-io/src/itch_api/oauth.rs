@@ -45,8 +45,12 @@ pub struct OAuthRequest {
 /// An [`OAuthRequest`] containing the authorization URL, the state, and the code verifier
 /// needed for the subsequent [`exchange_code`] call
 pub fn init() -> OAuthRequest {
-  let state = uuid::UuidV4::random();
-  let code_verifier = code_verifier::CodeVerifier::random();
+  // Initialize a random number generator
+  let mut rng = rand::rng();
+
+  // Generate a random state and code verifier for the OAuth request
+  let state = uuid::UuidV4::random(&mut rng);
+  let code_verifier = code_verifier::CodeVerifier::random(&mut rng);
 
   let url = Url::parse_with_params(
     URL_ENDPOINT,

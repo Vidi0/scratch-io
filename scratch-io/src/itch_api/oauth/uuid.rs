@@ -14,9 +14,8 @@ impl UuidV4 {
   /// [RFC 9562 §5.4](https://datatracker.ietf.org/doc/html/rfc9562#section-5.4).
   ///
   /// Can be formatted as a string via its `Display` implementation.
-  pub fn random() -> Self {
+  pub fn random(rng: &mut impl Rng) -> Self {
     // Generate 16 random bytes
-    let mut rng = rand::rng();
     let mut bytes = [0u8; 16];
     rng.fill_bytes(&mut bytes);
 

@@ -2,7 +2,7 @@
 //! See [RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636).
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use rand::RngExt;
+use rand::{Rng, RngExt};
 use sha2::{Digest, Sha256};
 
 /// Minimum length of a code verifier, as defined in
@@ -35,9 +35,8 @@ pub struct CodeVerifier(String);
 impl CodeVerifier {
   /// Generate a cryptographically random code verifier as defined in
   /// [RFC 7636 §4.1](https://datatracker.ietf.org/doc/html/rfc7636#section-4.1).
-  pub fn random() -> Self {
+  pub fn random(rng: &mut impl Rng) -> Self {
     // Get a random length for the code verifier
-    let mut rng = rand::rng();
     let len = rng.random_range(CODE_VERIFIER_MIN_LEN..=CODE_VERIFIER_MAX_LEN);
 
     // Fill the code with random characters from the charset
