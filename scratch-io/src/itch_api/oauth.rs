@@ -50,8 +50,8 @@ pub fn init() -> OAuthRequest {
   let mut rng = rand::rng();
 
   // Generate a random state and code verifier for the OAuth request
-  let state = uuid::UuidV4::random(&mut rng);
-  let code_verifier = code_verifier::CodeVerifier::random(&mut rng);
+  let state = UuidV4::random(&mut rng);
+  let code_verifier = CodeVerifier::random(&mut rng);
 
   let url = Url::parse_with_params(
     URL_ENDPOINT,
