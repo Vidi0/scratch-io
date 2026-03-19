@@ -76,7 +76,9 @@ pub fn init() -> OAuthRequest {
   }
 }
 
-/// Exchange an authorization code for an OAuth token using PKCE
+/// Exchange an authorization code for an OAuth token using PKCE, as defined in
+/// [RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749) and
+/// [RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636).
 ///
 /// # Arguments
 ///
@@ -101,11 +103,13 @@ pub fn exchange_code(
   client
     .itch_request_json::<OAuthTokenResponse>(&ItchApiUrl::v2("oauth/token"), Method::POST, |b| {
       b.form(&[
+        // https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3
         ("grant_type", GRANT_TYPE),
         ("code", authorization_code),
-        ("code_verifier", code_verifier),
         ("redirect_uri", REDIRECT_URI),
         ("client_id", CLIENT_ID),
+        // https://datatracker.ietf.org/doc/html/rfc7636#section-4.5
+        ("code_verifier", code_verifier),
       ])
     })
     .map(|res| res.token)
