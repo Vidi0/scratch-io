@@ -55,13 +55,15 @@ pub fn init() -> OAuthRequest {
   let url = Url::parse_with_params(
     URL_ENDPOINT,
     &[
+      // https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.1
       ("response_type", RESPONSE_TYPE),
       ("client_id", CLIENT_ID),
       ("redirect_uri", REDIRECT_URI),
       ("scope", SCOPE),
       ("state", &state.to_string()),
-      ("code_challenge_method", CODE_CHALLENGE_METHOD),
+      // https://datatracker.ietf.org/doc/html/rfc7636#section-4.3
       ("code_challenge", code_verifier.to_challenge().as_str()),
+      ("code_challenge_method", CODE_CHALLENGE_METHOD),
     ],
   )
   .expect("base URL is always valid");
