@@ -52,6 +52,7 @@ pub fn init() -> OAuthRequest {
   // Generate a random state and code verifier for the OAuth request
   let state = UuidV4::random(&mut rng);
   let code_verifier = CodeVerifier::random(&mut rng);
+  let code_challenge = code_verifier.to_challenge();
 
   let url = Url::parse_with_params(
     URL_ENDPOINT,
@@ -63,7 +64,7 @@ pub fn init() -> OAuthRequest {
       ("scope", SCOPE),
       ("state", &state.to_string()),
       // https://datatracker.ietf.org/doc/html/rfc7636#section-4.3
-      ("code_challenge", &code_verifier.to_challenge().to_string()),
+      ("code_challenge", code_challenge.as_str()),
       ("code_challenge_method", CODE_CHALLENGE_METHOD),
     ],
   )
