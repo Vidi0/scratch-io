@@ -11,6 +11,11 @@ use std::fmt::Display;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodeVerifier(String);
 
+/// A PKCE code challenge derived from a [`CodeVerifier`], as defined in
+/// [RFC 7636 §4.2](https://datatracker.ietf.org/doc/html/rfc7636#section-4.2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CodeChallenge(String);
+
 impl CodeVerifier {
   /// Generate a cryptographically random code verifier as defined in
   /// [RFC 7636 §4.1](https://datatracker.ietf.org/doc/html/rfc7636#section-4.1).
@@ -44,7 +49,9 @@ impl CodeVerifier {
 
     CodeChallenge(code_challenge)
   }
+}
 
+impl CodeVerifier {
   pub fn as_str(&self) -> &str {
     &self.0
   }
@@ -55,11 +62,6 @@ impl Display for CodeVerifier {
     write!(f, "{}", self.0)
   }
 }
-
-/// A PKCE code challenge derived from a [`CodeVerifier`], as defined in
-/// [RFC 7636 §4.2](https://datatracker.ietf.org/doc/html/rfc7636#section-4.2).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CodeChallenge(String);
 
 impl CodeChallenge {
   pub fn as_str(&self) -> &str {
