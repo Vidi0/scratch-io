@@ -20,34 +20,20 @@ impl CodeVerifier {
   /// Generate a cryptographically random code verifier as defined in
   /// [RFC 7636 §4.1](https://datatracker.ietf.org/doc/html/rfc7636#section-4.1).
   pub fn random(rng: &mut impl Rng) -> Self {
-    // Generate 32 random bytes, as recommended in
-    // https://datatracker.ietf.org/doc/html/rfc7636#section-4.1
+    // Generate 32 random bytes and encode them as base64url,
+    // following the recommendation in RFC 7636 §4.1
     let mut bytes = [0u8; 32];
     rng.fill_bytes(&mut bytes);
 
-    // Encode the bytes as base64url
-    let code_verifier = URL_SAFE_NO_PAD.encode(bytes);
-
-    // Encoding 32 bytes as base64url should return a 43-character long string
-    assert_eq!(code_verifier.len(), 43);
-
-    Self(code_verifier)
+    Self(URL_SAFE_NO_PAD.encode(bytes))
   }
 
   /// Derive the code challenge from a code verifier by SHA-256 hashing it and encoding the result
   /// as Base64-URL without padding, as defined in
   /// [RFC 7636 §4.2](https://datatracker.ietf.org/doc/html/rfc7636#section-4.2).
   pub fn to_challenge(&self) -> CodeChallenge {
-    // Hash the code verifier
     let hash = Sha256::digest(&self.0);
-
-    // Encode the bytes as base64url
-    let code_challenge = URL_SAFE_NO_PAD.encode(hash);
-
-    // Encoding 32 bytes as base64url should return a 43-character long string
-    assert_eq!(code_challenge.len(), 43);
-
-    CodeChallenge(code_challenge)
+    CodeChallenge(URL_SAFE_NO_PAD.encode(hash))
   }
 }
 
