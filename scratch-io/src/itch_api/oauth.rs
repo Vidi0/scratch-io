@@ -63,7 +63,7 @@ pub fn init() -> OAuthRequest {
       ("scope", SCOPE),
       ("state", &state.to_string()),
       // https://datatracker.ietf.org/doc/html/rfc7636#section-4.3
-      ("code_challenge", code_verifier.to_challenge().as_str()),
+      ("code_challenge", &code_verifier.to_challenge().to_string()),
       ("code_challenge_method", CODE_CHALLENGE_METHOD),
     ],
   )
