@@ -22,6 +22,10 @@ impl CodeVerifier {
 
     // Encode the bytes as base64url
     let code_verifier = URL_SAFE_NO_PAD.encode(bytes);
+
+    // Encoding 32 bytes as base64url should return a 43-character long string
+    assert_eq!(code_verifier.len(), 43);
+
     Self(code_verifier)
   }
 
@@ -34,6 +38,10 @@ impl CodeVerifier {
 
     // Encode the bytes as base64url
     let code_challenge = URL_SAFE_NO_PAD.encode(hash);
+
+    // Encoding 32 bytes as base64url should return a 43-character long string
+    assert_eq!(code_challenge.len(), 43);
+
     CodeChallenge(code_challenge)
   }
 
