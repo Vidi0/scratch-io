@@ -9,7 +9,7 @@ use super::responses::OAuthTokenResponse;
 use super::types::OAuthToken;
 use super::{ItchApiUrl, ItchClient};
 
-use reqwest::{Method, Url};
+use reqwest::Method;
 
 /// itch.io OAuth 2.0 authorization endpoint
 const URL_ENDPOINT: &str = "https://itch.io/user/oauth";
@@ -19,6 +19,8 @@ const RESPONSE_TYPE: &str = "code";
 /// <https://github.com/itchio/itch/blob/3a9c33a654e55e039bc0ae5155d83fb0ddd1aca2/src/main/reactors/login.ts#L29>
 const CLIENT_ID: &str = "85252daf268d27fbefac93e1ac462bfd";
 const REDIRECT_URI: &str = "itch://oauth-callback";
+/// Percent-encoded form of [`REDIRECT_URI`]
+const REDIRECT_URI_ENCODED: &str = "itch%3A%2F%2Foauth-callback";
 const SCOPE: &str = "itch";
 /// SHA-256 code challenge method, as defined in [RFC 7636 §4.2](https://datatracker.ietf.org/doc/html/rfc7636#section-4.2)
 const CODE_CHALLENGE_METHOD: &str = "S256";
@@ -54,24 +56,21 @@ pub fn init() -> OAuthRequest {
   let code_verifier = CodeVerifier::random(&mut rng);
   let code_challenge = code_verifier.to_challenge();
 
-  let url = Url::parse_with_params(
-    URL_ENDPOINT,
-    &[
-      // https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.1
-      ("response_type", RESPONSE_TYPE),
-      ("client_id", CLIENT_ID),
-      ("redirect_uri", REDIRECT_URI),
-      ("scope", SCOPE),
-      ("state", &state.to_string()),
-      // https://datatracker.ietf.org/doc/html/rfc7636#section-4.3
-      ("code_challenge", code_challenge.as_str()),
-      ("code_challenge_method", CODE_CHALLENGE_METHOD),
-    ],
-  )
-  .expect("base URL is always valid");
+  // https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.1
+  // https://datatracker.ietf.org/doc/html/rfc7636#section-4.3
+  let url = format!(
+    "{URL_ENDPOINT}\
+    ?response_type={RESPONSE_TYPE}\
+    &client_id={CLIENT_ID}\
+    &redirect_uri={REDIRECT_URI_ENCODED}\
+    &scope={SCOPE}\
+    &state={state}\
+    &code_challenge={code_challenge}\
+    &code_challenge_method={CODE_CHALLENGE_METHOD}"
+  );
 
   OAuthRequest {
-    url: url.to_string(),
+    url,
     state,
     code_verifier,
   }

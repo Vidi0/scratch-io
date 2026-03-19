@@ -37,21 +37,9 @@ impl CodeVerifier {
   }
 }
 
-impl CodeVerifier {
-  pub fn as_str(&self) -> &str {
-    &self.0
-  }
-}
-
 impl Display for CodeVerifier {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "{}", self.0)
-  }
-}
-
-impl CodeChallenge {
-  pub fn as_str(&self) -> &str {
-    &self.0
   }
 }
 
