@@ -22,6 +22,7 @@ const REDIRECT_URI: &str = "itch://oauth-callback";
 const SCOPE: &str = "itch";
 /// SHA-256 code challenge method, as defined in [RFC 7636 §4.2](https://datatracker.ietf.org/doc/html/rfc7636#section-4.2)
 const CODE_CHALLENGE_METHOD: &str = "S256";
+const GRANT_TYPE: &str = "authorization_code";
 
 /// The authorization URL, state, and code verifier for an itch.io OAuth 2.0 PKCE flow.
 /// See [RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749) and
@@ -100,7 +101,7 @@ pub fn exchange_code(
   client
     .itch_request_json::<OAuthTokenResponse>(&ItchApiUrl::v2("oauth/token"), Method::POST, |b| {
       b.form(&[
-        ("grant_type", "authorization_code"),
+        ("grant_type", GRANT_TYPE),
         ("code", authorization_code),
         ("code_verifier", code_verifier),
         ("redirect_uri", REDIRECT_URI),
