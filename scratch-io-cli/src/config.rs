@@ -68,7 +68,7 @@ impl Config {
     if !config_file_path.try_exists().map_err(|e| {
       format!(
         "Couldn't check if the config file exists: \"{}\"\n{e}",
-        config_file_path.to_string_lossy()
+        config_file_path.display()
       )
     })? {
       return Ok(Config::default());
@@ -78,7 +78,7 @@ impl Config {
     let config_text: String = std::fs::read_to_string(&config_file_path).map_err(|e| {
       format!(
         "Couldn't read the config file data: \"{}\"\n{e}",
-        config_file_path.to_string_lossy()
+        config_file_path.display()
       )
     })?;
 
@@ -87,7 +87,7 @@ impl Config {
       .map_err(|e| {
         format!(
           "Couldn't get the config version: \"{}\"\n{e}",
-          config_file_path.to_string_lossy()
+          config_file_path.display()
         )
       })?
       .config_version;
@@ -101,14 +101,14 @@ impl Config {
 Update to a newer scratch-io version to be able to load the given config.
   Config version: {ver}
   Supported version: {LAST_CONFIGURATION_VERSION}"#,
-          config_file_path.to_string_lossy()
+          config_file_path.display()
         ));
       }
     }
     .map_err(|e| {
       format!(
         "Invalid configuration file: \"{}\"\n{e}",
-        config_file_path.to_string_lossy()
+        config_file_path.display()
       )
     })
   }
@@ -137,7 +137,7 @@ Update to a newer scratch-io version to be able to load the given config.
       std::fs::create_dir_all(parent).map_err(|e| {
         format!(
           "Couldn't create config directory: \"{}\"\n{e}",
-          parent.to_string_lossy()
+          parent.display()
         )
       })?;
     }
@@ -146,7 +146,7 @@ Update to a newer scratch-io version to be able to load the given config.
     std::fs::write(&config_file_path, &config_text).map_err(|e| {
       format!(
         "Couldn't write config to a file: \"{}\"\n{e}",
-        config_file_path.to_string_lossy()
+        config_file_path.display()
       )
     })
   }

@@ -115,7 +115,7 @@ impl FilesystemIOErrorKind {
 
 #[derive(Error, Debug)]
 pub enum OtherFilesystemErrorKind {
-  #[error("The path contains invalid unicode: \"{}\"", .0.to_string_lossy())]
+  #[error("The path contains invalid unicode: \"{}\"", .0.display())]
   InvalidUnicodeOsStr(std::ffi::OsString),
 
   #[error("The following path doesn't have a filename: \"{0}\"")]

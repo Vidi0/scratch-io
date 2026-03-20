@@ -25,7 +25,7 @@ pub fn read_manifest(upload_folder: &Path) -> Result<Option<Manifest>, String> {
     .map_err(|e| {
       format!(
         "Couldn't parse itch manifest: {}\n{e}",
-        manifest_path.to_string_lossy()
+        manifest_path.display()
       )
     })
 }

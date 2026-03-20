@@ -95,7 +95,7 @@ pub fn get_game_executable(
   } else {
     Err(format!(
       "Couldn't find any game file executable in: \"{}\"",
-      upload_folder.to_string_lossy()
+      upload_folder.display()
     ))
   }
 }

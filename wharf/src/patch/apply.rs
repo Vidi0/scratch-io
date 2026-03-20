@@ -51,7 +51,7 @@ impl<'a> StagingFiles<'a> {
     fs::write(&temp_path, str).map_err(|e| {
       format!(
         "Couldn't save data to checkpoint: \"{}\"\n{e}",
-        temp_path.to_string_lossy()
+        temp_path.display()
       )
     })?;
 
@@ -71,24 +71,20 @@ impl<'a> StagingFiles<'a> {
     if !path.try_exists().map_err(|e| {
       format!(
         "Couldn't check if checkpoint exists: \"{}\"\n{e}",
-        path.to_string_lossy()
+        path.display()
       )
     })? {
       return Ok(None);
     }
 
     // Else, decode it
-    let str = std::fs::read_to_string(&path).map_err(|e| {
-      format!(
-        "Couldn't open checkpoint file: \"{}\"\n{e}",
-        path.to_string_lossy()
-      )
-    })?;
+    let str = std::fs::read_to_string(&path)
+      .map_err(|e| format!("Couldn't open checkpoint file: \"{}\"\n{e}", path.display()))?;
 
     serde_json::from_str(&str).map_err(|e| {
       format!(
         "Couldn't decode TOML checkpoint from: \"{}\"\n{e}\n\n{str}",
-        path.to_string_lossy()
+        path.display()
       )
     })
   }
@@ -113,7 +109,7 @@ impl<'a> StagingFiles<'a> {
       .map_err(|e| {
         format!(
           "Couldn't open staging file to write in: \"{}\"\n{e}",
-          file_path.to_string_lossy()
+          file_path.display()
         )
       })
   }
@@ -123,7 +119,7 @@ impl<'a> StagingFiles<'a> {
     fs::File::open(&file_path).map_err(|e| {
       format!(
         "Couldn't open staging file to read from: \"{}\"\n{e}",
-        file_path.to_string_lossy()
+        file_path.display()
       )
     })
   }
@@ -170,7 +166,7 @@ impl Patch<'_> {
     fs::create_dir_all(staging_folder).map_err(|e| {
       format!(
         "Couldn't create staging folder: \"{}\"\n{e}",
-        staging_folder.to_string_lossy()
+        staging_folder.display()
       )
     })?;
 

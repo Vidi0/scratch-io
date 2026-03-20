@@ -25,7 +25,7 @@ fn set_permissions(path: &Path, mode: u32) -> Result<(), String> {
     let exists = fs::exists(path).map_err(|e| {
       format!(
         "Couldn't check if the path exists: \"{}\"\n{e}",
-        path.to_string_lossy()
+        path.display()
       )
     })?;
 
@@ -37,12 +37,7 @@ fn set_permissions(path: &Path, mode: u32) -> Result<(), String> {
     let mode = mask_mode(mode);
 
     let mut permissions = fs::metadata(path)
-      .map_err(|e| {
-        format!(
-          "Couldn't read path metadata: \"{}\"\n{e}",
-          path.to_string_lossy()
-        )
-      })?
+      .map_err(|e| format!("Couldn't read path metadata: \"{}\"\n{e}", path.display()))?
       .permissions();
 
     if permissions.mode() != mode {
@@ -51,7 +46,7 @@ fn set_permissions(path: &Path, mode: u32) -> Result<(), String> {
       fs::set_permissions(path, permissions).map_err(|e| {
         format!(
           "Couldn't change path permissions: \"{}\"\n{e}",
-          path.to_string_lossy()
+          path.display()
         )
       })?;
     }
@@ -64,17 +59,13 @@ fn symlink(path: &Path, destination: &str) -> Result<(), String> {
   let exists = fs::exists(path).map_err(|e| {
     format!(
       "Couldn't check if the symlink exists: \"{}\"\n{e}",
-      path.to_string_lossy()
+      path.display()
     )
   })?;
 
   if exists {
-    fs::remove_file(path).map_err(|e| {
-      format!(
-        "Couldn't remove old symlink: \"{}\"\n{e}",
-        path.to_string_lossy()
-      )
-    })?;
+    fs::remove_file(path)
+      .map_err(|e| format!("Couldn't remove old symlink: \"{}\"\n{e}", path.display()))?;
   }
 
   #[cfg(unix)]
@@ -85,7 +76,7 @@ fn symlink(path: &Path, destination: &str) -> Result<(), String> {
   Link: {}
   Original: {}
 {e}",
-        path.to_string_lossy(),
+        path.display(),
         destination,
       )
     })?;
@@ -103,7 +94,7 @@ fn symlink(path: &Path, destination: &str) -> Result<(), String> {
   Link: {}
   Original: {}
 {e}",
-          path.to_string_lossy(),
+          path.display(),
           destination,
         )
       })?;
@@ -114,7 +105,7 @@ fn symlink(path: &Path, destination: &str) -> Result<(), String> {
   Link: {}
   Original: {}
 {e}",
-          path.to_string_lossy(),
+          path.display(),
           destination,
         )
       })?;
@@ -220,7 +211,7 @@ impl tlc::File {
         .map_err(|e| {
           format!(
             "Couldn't open file for reading: \"{}\"\n{e}",
-            file_path.to_string_lossy()
+            file_path.display()
           )
         }),
     }
@@ -248,7 +239,7 @@ impl tlc::File {
       .map_err(|e| {
         format!(
           "Couldn't open file for writting: \"{}\"\n{e}",
-          file_path.to_string_lossy()
+          file_path.display()
         )
       })
   }
@@ -325,7 +316,7 @@ impl tlc::Container {
     fs::create_dir_all(build_folder).map_err(|e| {
       format!(
         "Couldn't create build directory: \"{}\"\n{e}",
-        build_folder.to_string_lossy()
+        build_folder.display()
       )
     })?;
 
@@ -334,12 +325,8 @@ impl tlc::Container {
       let dir_path = dir.get_path(build_folder.to_owned())?;
 
       // This function call will do nothing if the directory already exists
-      fs::create_dir_all(&dir_path).map_err(|e| {
-        format!(
-          "Couldn't create directory: \"{}\"\n{e}",
-          dir_path.to_string_lossy()
-        )
-      })?;
+      fs::create_dir_all(&dir_path)
+        .map_err(|e| format!("Couldn't create directory: \"{}\"\n{e}", dir_path.display()))?;
     }
 
     Ok(())
@@ -359,7 +346,7 @@ impl tlc::Container {
         .map_err(|e| {
           format!(
             "Couldn't open file for writting: \"{}\"\n{e}",
-            file_path.to_string_lossy()
+            file_path.display()
           )
         })?;
     }

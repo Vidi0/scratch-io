@@ -251,10 +251,7 @@ fn exit_if_already_installed(
   if let Some(info) = installed_uploads.get(&upload_id) {
     eprintln_exit!(
       "The game is already installed in: \"{}\"",
-      info
-        .game_folder
-        .join(info.upload_id.to_string())
-        .to_string_lossy()
+      info.game_folder.join(info.upload_id.to_string()).display()
     );
   }
 }
@@ -302,9 +299,7 @@ fn download(
 
   println!(
     "Game upload downloaded to: \"{}\"",
-    iu.game_folder
-      .join(iu.upload_id.to_string())
-      .to_string_lossy()
+    iu.game_folder.join(iu.upload_id.to_string()).display()
   );
   installed_uploads.insert(upload_id, iu);
 }
@@ -323,10 +318,7 @@ fn download_cover(
 
   match cover_path {
     None => eprintln_exit!("The provided game with id: \"{game_id}\" doesn't have a cover image!"),
-    Some(p) => println!(
-      "Game cover image downloaded to: \"{}\"",
-      p.to_string_lossy()
-    ),
+    Some(p) => println!("Game cover image downloaded to: \"{}\"", p.display()),
   }
 }
 
@@ -379,9 +371,7 @@ fn import(
     .inspect(|ui| {
       println!(
         "Game imported from: \"{}\"",
-        ui.game_folder
-          .join(ui.upload_id.to_string())
-          .to_string_lossy()
+        ui.game_folder.join(ui.upload_id.to_string()).display()
       )
     })
     .unwrap_or_else(|e| eprintln_exit!("Error while importing game!\n{}", e));
@@ -398,7 +388,7 @@ fn remove_upload(upload_id: UploadID, installed_uploads: &mut HashMap<UploadID, 
 
   println!(
     "Removed upload {upload_id} from: \"{}\"",
-    &upload_info.game_folder.to_string_lossy()
+    &upload_info.game_folder.display()
   );
 
   installed_uploads
@@ -421,8 +411,8 @@ fn move_upload(
 
   println!(
     "Moved upload {upload_id}\n  Source: \"{}\"\n  Destination: \"{}\"",
-    src_game_folder.to_string_lossy(),
-    upload_info.game_folder.to_string_lossy()
+    src_game_folder.display(),
+    upload_info.game_folder.display()
   );
 }
 
@@ -495,7 +485,7 @@ fn launch_upload(
     |up, command| {
       println!(
         "Launching game:\n  Executable path: \"{}\"\n  {command:?}",
-        up.to_string_lossy()
+        up.display()
       )
     },
   )
