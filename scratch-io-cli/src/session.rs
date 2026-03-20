@@ -81,11 +81,11 @@ Logged in as: {}",
 
 fn oauth_init() {
   // Start the OAuth flow by generating a PKCE code verifier and authorization URL
-  let oauth = oauth::init();
-
-  let url = oauth.url;
-  let state = oauth.state;
-  let code_verifier = oauth.code_verifier;
+  let oauth::OAuthRequest {
+    url,
+    state,
+    code_verifier,
+  } = oauth::init();
 
   println!(
     r#"Open this URL in your browser to authorize:
