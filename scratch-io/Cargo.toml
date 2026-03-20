@@ -8,6 +8,7 @@ version = "0.1.4"
 edition = "2024"
 
 [dependencies]
+base64 = "0.22.1"
 md-5 = "0.10.6"
 rand = "0.10.0"
 reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "form", "http2", "query", "rustls-no-provider", "system-proxy"] }
@@ -28,7 +29,6 @@ flate2 = { version = "1.1.9", optional = true }
 bzip2 = { version = "0.6.1", optional = true }
 liblzma = { version = "0.4.6", optional = true }
 zstd = { version = "0.13.3", optional = true }
-base64 = "0.22.1"
 
 [features]
 default = ["zip", "tar", "gzip", "zstd"]
