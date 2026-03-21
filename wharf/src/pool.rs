@@ -1,3 +1,23 @@
+//! Pool abstractions for indexed file access
+//!
+//! This module provides traits for reading and writing files by index,
+//! regardless of the underlying storage backend. Pools are used throughout
+//! the patching and verification pipeline to abstract over different storage
+//! types such as directories on disk, ZIP archives, and staging folders.
+//!
+//! # Traits
+//!
+//! - [`Pool`]: indexed read access
+//! - [`SeekablePool`]: extends [`Pool`] with seek access, automatically
+//!   implemented for any [`Pool`] whose reader implements [`Seek`]
+//! - [`WritablePool`]: extends [`Pool`] with write access
+//!
+//! # Implementations
+//!
+//! - [`NullPool`]: discards all writes and returns empty reads, useful for
+//!   testing and benchmarking
+//! - [`ZipPool`]: backed by a ZIP archive
+
 mod errors;
 mod null;
 mod zip;
