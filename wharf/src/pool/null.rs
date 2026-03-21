@@ -1,4 +1,4 @@
-use super::{Pool, PoolError, PoolReadError, WritablePool};
+use super::{Pool, PoolError, WritablePool};
 
 use std::io;
 use std::io::{BufReader, BufWriter};
@@ -25,14 +25,14 @@ impl Pool for NullPool {
     Ok(Some(0))
   }
 
-  fn get_reader(&mut self, _entry_index: usize) -> Result<Self::Reader<'_>, PoolReadError> {
+  fn get_reader(&mut self, _entry_index: usize) -> Result<Self::Reader<'_>, PoolError> {
     Ok(io::empty())
   }
 
   fn get_bufreader(
     &mut self,
     _entry_index: usize,
-  ) -> Result<io::BufReader<Self::Reader<'_>>, PoolReadError> {
+  ) -> Result<io::BufReader<Self::Reader<'_>>, PoolError> {
     // Set the capacity to 0 to avoid wasting memory
     Ok(BufReader::with_capacity(0, io::empty()))
   }
@@ -60,7 +60,7 @@ impl WritablePool for NullPool {
     Ok(BufWriter::with_capacity(0, io::empty()))
   }
 
-  fn copy_from(&mut self, _entry_index: usize, _src: &mut impl Pool) -> Result<u64, PoolReadError> {
+  fn copy_from(&mut self, _entry_index: usize, _src: &mut impl Pool) -> Result<u64, PoolError> {
     Ok(0)
   }
 }

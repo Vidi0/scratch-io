@@ -1,7 +1,7 @@
 mod errors;
 mod null;
 
-pub use errors::{PoolError, PoolReadError};
+pub use errors::PoolError;
 #[expect(unused_imports)]
 pub use null::NullPool;
 
@@ -25,7 +25,7 @@ pub trait Pool {
   ///
   /// The number of entries in the pool, or [`usize::MAX`] if the pool is unbounded.
   /// Calling any other pool method with an index greater than or equal to this value
-  /// will return a [`PoolError::InvalidEntryIndex`] or [`PoolReadError::InvalidEntryIndex`] error.
+  /// will return a [`PoolError::InvalidEntryIndex`] error.
   fn entry_count(&self) -> usize;
 
   /// Return the size of the entry in the underlying storage
@@ -49,7 +49,7 @@ pub trait Pool {
   /// # Errors
   ///
   /// If the entry does not exist or there is an I/O failure while opening it.
-  fn get_reader(&mut self, entry_index: usize) -> Result<Self::Reader<'_>, PoolReadError>;
+  fn get_reader(&mut self, entry_index: usize) -> Result<Self::Reader<'_>, PoolError>;
 
   /// Return a buffered reader for the entry at the given index
   ///
@@ -57,7 +57,7 @@ pub trait Pool {
   fn get_bufreader(
     &mut self,
     entry_index: usize,
-  ) -> Result<BufReader<Self::Reader<'_>>, PoolReadError> {
+  ) -> Result<BufReader<Self::Reader<'_>>, PoolError> {
     self.get_reader(entry_index).map(BufReader::new)
   }
 }
@@ -82,10 +82,7 @@ pub trait SeekablePool: Pool {
   /// # Errors
   ///
   /// If the entry does not exist or there is an I/O failure while opening it.
-  fn get_seek_reader(
-    &mut self,
-    entry_index: usize,
-  ) -> Result<Self::SeekableReader<'_>, PoolReadError>;
+  fn get_seek_reader(&mut self, entry_index: usize) -> Result<Self::SeekableReader<'_>, PoolError>;
 }
 
 /// Blanket implementation of [`SeekablePool`] for any [`Pool`] whose
@@ -99,10 +96,7 @@ where
   where
     Self: 'a;
 
-  fn get_seek_reader(
-    &mut self,
-    entry_index: usize,
-  ) -> Result<Self::SeekableReader<'_>, PoolReadError> {
+  fn get_seek_reader(&mut self, entry_index: usize) -> Result<Self::SeekableReader<'_>, PoolError> {
     self.get_reader(entry_index)
   }
 }
@@ -157,7 +151,7 @@ pub trait WritablePool: Pool {
   ///
   /// If there is an I/O failure while reading from the source pool,
   /// writing to this pool, or opening either entry.
-  fn copy_from(&mut self, entry_index: usize, src: &mut impl Pool) -> Result<u64, PoolReadError> {
+  fn copy_from(&mut self, entry_index: usize, src: &mut impl Pool) -> Result<u64, PoolError> {
     let mut reader = src.get_reader(entry_index)?;
     let mut writer = self.get_writer(entry_index)?;
     Ok(std::io::copy(&mut reader, &mut writer)?)
