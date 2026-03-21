@@ -20,10 +20,12 @@
 
 mod errors;
 mod null;
+mod staging;
 mod zip;
 
 pub use errors::PoolError;
 pub use null::NullPool;
+pub use staging::StagingPool;
 pub use zip::ZipPool;
 
 use std::io::Seek;
