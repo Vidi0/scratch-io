@@ -14,16 +14,20 @@
 //!
 //! # Implementations
 //!
+//! - [`ContainerPool`]: backed by a folder on disk, mirroring the structure
+//!   of a [`crate::protos::tlc::Container`]
 //! - [`NullPool`]: discards all writes and returns empty reads, useful for
 //!   testing and benchmarking
-//! - [`ZipPool`]: backed by a ZIP archive
 //! - [`StagingPool`]: unbounded writable pool backed by a folder on disk
+//! - [`ZipPool`]: backed by a ZIP archive
 
+mod container;
 mod errors;
 mod null;
 mod staging;
 mod zip;
 
+pub use container::ContainerPool;
 pub use errors::PoolError;
 pub use null::NullPool;
 pub use staging::StagingPool;
