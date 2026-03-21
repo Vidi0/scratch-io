@@ -13,7 +13,6 @@ where
 }
 
 impl<'container, 'ar, 'ar_reader, C: HasCursor> ZipPool<'container, 'ar, 'ar_reader, C> {
-  #[expect(dead_code)]
   pub fn new(
     container: &'container tlc::Container,
     archive: &'ar ArchiveHandle<'ar_reader, C>,

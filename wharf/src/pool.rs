@@ -3,9 +3,7 @@ mod null;
 mod zip;
 
 pub use errors::PoolError;
-#[expect(unused_imports)]
 pub use null::NullPool;
-#[expect(unused_imports)]
 pub use zip::ZipPool;
 
 use std::io::Seek;
@@ -15,7 +13,6 @@ use std::io::{BufWriter, Write};
 /// Provides indexed read access to an ordered list of entries
 ///
 /// Each entry is identified by its index in the pool's entry list.
-#[expect(dead_code)]
 pub trait Pool {
   /// The reader type returned by [`Pool::get_reader`]
   type Reader<'a>: Read
@@ -69,7 +66,6 @@ pub trait Pool {
 ///
 /// This trait is automatically implemented for any [`Pool`] whose
 /// [`Pool::Reader`] implements [`Seek`].
-#[expect(dead_code)]
 pub trait SeekablePool: Pool {
   /// The seekable reader type returned by [`SeekablePool::get_seek_reader`].
   type SeekableReader<'a>: Read + Seek
@@ -105,7 +101,6 @@ where
 }
 
 /// Extends [`Pool`] with write access to the underlying storage
-#[expect(dead_code)]
 pub trait WritablePool: Pool {
   /// The writer type returned by [`WritablePool::get_writer`]
   type Writer<'a>: Write

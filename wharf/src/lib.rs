@@ -9,10 +9,11 @@ pub mod signature;
 /// Identify the kind of wharf binary provided
 pub mod info;
 
+pub mod pool;
+
 mod common;
 mod container;
 mod hasher;
-mod pool;
 
 pub use patch::Patch;
 pub use signature::Signature;
