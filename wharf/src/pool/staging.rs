@@ -2,7 +2,7 @@
 
 use super::{Pool, PoolError, WritablePool};
 
-use std::fs::{File, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -36,7 +36,7 @@ impl Pool for StagingPool<'_> {
   }
 
   fn get_size(&self, entry_index: usize) -> Result<Option<u64>, PoolError> {
-    match self.get_path(entry_index).metadata() {
+    match fs::metadata(self.get_path(entry_index)) {
       Ok(m) => Ok(Some(m.len())),
       Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
       Err(e) => Err(e.into()),
