@@ -37,9 +37,9 @@ impl<'ar_reader, C: HasCursor> Pool for ZipPool<'_, '_, 'ar_reader, C> {
     self.container.files.len()
   }
 
-  fn get_size(&self, file_index: usize) -> Result<Option<u64>, PoolError> {
-    let Some(container_file) = self.container.files.get(file_index) else {
-      return Err(PoolError::InvalidEntryIndex(file_index));
+  fn get_size(&self, entry_index: usize) -> Result<Option<u64>, PoolError> {
+    let Some(container_file) = self.container.files.get(entry_index) else {
+      return Err(PoolError::InvalidEntryIndex(entry_index));
     };
 
     Ok(
@@ -50,9 +50,9 @@ impl<'ar_reader, C: HasCursor> Pool for ZipPool<'_, '_, 'ar_reader, C> {
     )
   }
 
-  fn get_reader(&mut self, file_index: usize) -> Result<Self::Reader<'_>, PoolError> {
-    let Some(container_file) = self.container.files.get(file_index) else {
-      return Err(PoolError::InvalidEntryIndex(file_index));
+  fn get_reader(&mut self, entry_index: usize) -> Result<Self::Reader<'_>, PoolError> {
+    let Some(container_file) = self.container.files.get(entry_index) else {
+      return Err(PoolError::InvalidEntryIndex(entry_index));
     };
 
     let filename = &*container_file.path;

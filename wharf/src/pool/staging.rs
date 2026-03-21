@@ -20,8 +20,8 @@ impl<'path> StagingPool<'path> {
     Self { base_path }
   }
 
-  fn get_path(&self, file_index: usize) -> PathBuf {
-    self.base_path.join(file_index.to_string())
+  fn get_path(&self, entry_index: usize) -> PathBuf {
+    self.base_path.join(entry_index.to_string())
   }
 }
 
@@ -35,16 +35,16 @@ impl Pool for StagingPool<'_> {
     usize::MAX
   }
 
-  fn get_size(&self, file_index: usize) -> Result<Option<u64>, PoolError> {
-    match self.get_path(file_index).metadata() {
+  fn get_size(&self, entry_index: usize) -> Result<Option<u64>, PoolError> {
+    match self.get_path(entry_index).metadata() {
       Ok(m) => Ok(Some(m.len())),
       Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
       Err(e) => Err(e.into()),
     }
   }
 
-  fn get_reader(&mut self, file_index: usize) -> Result<Self::Reader<'_>, PoolError> {
-    let path = self.get_path(file_index);
+  fn get_reader(&mut self, entry_index: usize) -> Result<Self::Reader<'_>, PoolError> {
+    let path = self.get_path(entry_index);
 
     Ok(File::open(&path)?)
   }
@@ -56,14 +56,14 @@ impl WritablePool for StagingPool<'_> {
   where
     Self: 'a;
 
-  fn get_writer(&mut self, file_index: usize) -> Result<Self::Writer<'_>, PoolError> {
-    let path = self.get_path(file_index);
+  fn get_writer(&mut self, entry_index: usize) -> Result<Self::Writer<'_>, PoolError> {
+    let path = self.get_path(entry_index);
 
     Ok(OpenOptions::new().create(true).append(true).open(&path)?)
   }
 
-  fn truncate(&mut self, file_index: usize, size: u64) -> Result<(), PoolError> {
-    let Some(current_size) = self.get_size(file_index)? else {
+  fn truncate(&mut self, entry_index: usize, size: u64) -> Result<(), PoolError> {
+    let Some(current_size) = self.get_size(entry_index)? else {
       return Err(PoolError::Io(io::Error::new(
         io::ErrorKind::NotFound,
         "Couldn't truncate file in StagingPool if the file is missing!",
@@ -77,6 +77,6 @@ impl WritablePool for StagingPool<'_> {
       )));
     }
 
-    Ok(self.get_writer(file_index)?.set_len(size)?)
+    Ok(self.get_writer(entry_index)?.set_len(size)?)
   }
 }
