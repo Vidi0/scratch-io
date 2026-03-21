@@ -55,11 +55,6 @@ impl WritablePool for StagingPool<'_> {
   where
     Self: 'a;
 
-  fn get_writer(&mut self, entry_index: usize) -> Result<Self::Writer<'_>, PoolError> {
-    let path = self.get_path(entry_index);
-    Ok(OpenOptions::new().create(true).append(true).open(&path)?)
-  }
-
   fn truncate(&mut self, entry_index: usize, size: u64) -> Result<(), PoolError> {
     let Some(current_size) = self.get_size(entry_index)? else {
       return Err(PoolError::Io(io::Error::new(
@@ -76,5 +71,10 @@ impl WritablePool for StagingPool<'_> {
     }
 
     Ok(self.get_writer(entry_index)?.set_len(size)?)
+  }
+
+  fn get_writer(&mut self, entry_index: usize) -> Result<Self::Writer<'_>, PoolError> {
+    let path = self.get_path(entry_index);
+    Ok(OpenOptions::new().create(true).append(true).open(&path)?)
   }
 }
