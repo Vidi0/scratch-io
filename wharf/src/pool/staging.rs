@@ -1,9 +1,16 @@
+//! Staging pool implementation
+
 use super::{Pool, PoolError, WritablePool};
 
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::path::{Path, PathBuf};
 
+/// An unbounded writable pool backed by a folder on disk
+///
+/// Each entry is stored as a separate file in the base folder, named by its
+/// index (e.g. `0`, `1`, `2`, ...). The pool is unbounded ([`Pool::entry_count`]
+/// returns [`usize::MAX`]) so any index is valid for writing.
 pub struct StagingPool<'path> {
   base_path: &'path Path,
 }

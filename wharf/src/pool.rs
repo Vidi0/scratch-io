@@ -17,6 +17,7 @@
 //! - [`NullPool`]: discards all writes and returns empty reads, useful for
 //!   testing and benchmarking
 //! - [`ZipPool`]: backed by a ZIP archive
+//! - [`StagingPool`]: unbounded writable pool backed by a folder on disk
 
 mod errors;
 mod null;

@@ -1,9 +1,15 @@
+//! ZIP archive pool implementation
+
 use super::{Pool, PoolError};
 use crate::protos::tlc;
 
 use rc_zip_sync::{ArchiveHandle, EntryReader, HasCursor};
 use std::io;
 
+/// A read-only pool backed by a ZIP archive
+///
+/// Each entry is looked up in the archive by its path as described in the
+/// container. The number of entries is determined by the container's file list.
 pub struct ZipPool<'container, 'ar, 'ar_reader, C: HasCursor>
 where
   'ar: 'ar_reader,

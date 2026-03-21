@@ -1,3 +1,5 @@
+//! Null pool implementation
+
 use super::{Pool, PoolError, WritablePool};
 
 use std::io;
@@ -5,7 +7,7 @@ use std::io::{BufReader, BufWriter};
 
 /// A pool that discards all writes and returns empty reads
 ///
-/// Represents an unbounded sequence of empty files: every entry exists,
+/// Represents an unbounded sequence of empty entries: every entry exists,
 /// has size zero, and discards any data written to it.
 ///
 /// Useful for testing and benchmarking when actual I/O is not needed.
