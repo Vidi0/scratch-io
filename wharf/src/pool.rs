@@ -1,9 +1,12 @@
 mod errors;
 mod null;
+mod zip;
 
 pub use errors::PoolError;
 #[expect(unused_imports)]
 pub use null::NullPool;
+#[expect(unused_imports)]
+pub use zip::ZipPool;
 
 use std::io::Seek;
 use std::io::{BufReader, Read};
