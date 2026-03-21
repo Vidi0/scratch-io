@@ -19,6 +19,15 @@ pub trait Pool {
   where
     Self: 'a;
 
+  /// Return the number of entries in this pool
+  ///
+  /// # Returns
+  ///
+  /// The number of entries in the pool, or [`usize::MAX`] if the pool is unbounded.
+  /// Calling any other pool method with an index greater than or equal to this value
+  /// will return a [`PoolError::InvalidEntryIndex`] or [`PoolReadError::InvalidEntryIndex`] error.
+  fn entry_count(&self) -> usize;
+
   /// Return the size of the entry in the underlying storage
   ///
   /// # Returns

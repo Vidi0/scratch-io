@@ -5,6 +5,9 @@ use std::io::{BufReader, BufWriter};
 
 /// A pool that discards all writes and returns empty reads
 ///
+/// Represents an unbounded sequence of empty files: every entry exists,
+/// has size zero, and discards any data written to it.
+///
 /// Useful for testing and benchmarking when actual I/O is not needed.
 pub struct NullPool;
 
@@ -13,6 +16,10 @@ impl Pool for NullPool {
     = io::Empty
   where
     Self: 'a;
+
+  fn entry_count(&self) -> usize {
+    usize::MAX
+  }
 
   fn get_size(&self, _entry_index: usize) -> Result<Option<u64>, PoolError> {
     Ok(Some(0))
