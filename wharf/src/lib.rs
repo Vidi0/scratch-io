@@ -12,6 +12,7 @@ pub mod info;
 mod common;
 mod container;
 mod hasher;
+mod pool;
 
 pub use patch::Patch;
 pub use signature::Signature;
