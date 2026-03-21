@@ -45,7 +45,6 @@ impl Pool for StagingPool<'_> {
 
   fn get_reader(&mut self, entry_index: usize) -> Result<Self::Reader<'_>, PoolError> {
     let path = self.get_path(entry_index);
-
     Ok(File::open(&path)?)
   }
 }
@@ -58,7 +57,6 @@ impl WritablePool for StagingPool<'_> {
 
   fn get_writer(&mut self, entry_index: usize) -> Result<Self::Writer<'_>, PoolError> {
     let path = self.get_path(entry_index);
-
     Ok(OpenOptions::new().create(true).append(true).open(&path)?)
   }
 
