@@ -1,98 +1,57 @@
 use super::Signature;
 use super::verify::IntegrityIssues;
+use crate::pool::{ContainerPool, Pool, PoolError, WritablePool, ZipPool};
 
 use rc_zip_sync::{ArchiveHandle, HasCursor};
-use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 
-impl Signature<'_> {
-  /// Repair the files in a build folder using a [ZIP archive][ArchiveHandle]
-  /// as the source
-  ///
-  /// For each missing or broken file listed in `integrity_issues`:
-  /// 1. Get the file information from the container in [`Self::container_new`].
-  /// 2. Look up the file in the provided `build_zip_archive`.
-  /// 3. Read its contents in a streaming, buffered fashion.
-  /// 4. Write the contents to the corresponding location in `build_folder`.
-  /// 5. Report progress through the `progress_callback` for each chunk
-  ///    written, returning the number of bytes written since the last call.
-  ///
-  /// This function will NOT create missing folders, symlinks, or check if
-  /// the modes (permissions) of the files, folders, and symlinks are correct.
-  /// It will fail if a file's parent folder does not exist.
-  ///
-  /// # Arguments
-  ///
-  /// * `integrity_issues` - A struct containing the indexes of the broken files
-  ///
-  /// * `build_folder` - The path to the build folder
-  ///
-  /// * `build_zip_archive` - A reference to a ZIP archive handle containing the
-  ///   source files. Each file in `integrity_issues.files` must exist in the archive
-  ///
-  /// * `progress_callback` - A callback that is called with the number of
-  ///   bytes written since the last one
-  ///
-  /// # Errors
-  ///
-  /// If a file listed in the container is missing in the ZIP archive or
-  /// there is an I/O failure while reading files or metadata.
-  ///
-  /// # Panics
-  ///
-  /// If any index in `integrity_issues.files` is out of bounds for the
-  /// container's file list.
-  pub fn repair_files(
-    &self,
-    integrity_issues: &IntegrityIssues,
-    build_folder: &Path,
-    build_zip_archive: &ArchiveHandle<'_, impl HasCursor>,
-    mut progress_callback: impl FnMut(u64),
-  ) -> Result<(), String> {
-    for &file_index in &integrity_issues.files {
-      let container_file = &self.container_new.files[file_index];
-      let mut zip_file = BufReader::new({
-        build_zip_archive
-          .by_name(&container_file.path)
-          .ok_or_else(|| {
-            format!(
-              "Expected to find the file in the ZIP build archive: \"{}\"",
-              &container_file.path
-            )
-          })?
-          .reader()
-      });
-
-      let mut file = container_file.open_write(build_folder.to_owned())?;
-
-      loop {
-        let buffer = zip_file
-          .fill_buf()
-          .map_err(|e| format!("Couldn't fill ZIP data buffer!\n{e}"))?;
-
-        if buffer.is_empty() {
-          break;
-        }
-
-        file
-          .write_all(buffer)
-          .map_err(|e| format!("Couldn't write ZIP data into file!\n{e}"))?;
-
-        let len = buffer.len();
-        progress_callback(len as u64);
-        zip_file.consume(len);
-      }
-    }
-
-    Ok(())
+/// Repair broken entries in a pool using another pool as the source
+///
+/// For each broken entry listed in `integrity_issues`, the entry is copied
+/// from `src_pool` into `dst_pool`, overwriting the broken entry.
+/// Progress is reported through `progress_callback` with the number of
+/// bytes written since the last call.
+///
+/// This function will NOT create missing folders, symlinks, or check if
+/// the modes (permissions) of the files, folders, and symlinks are correct.
+/// It will fail if a file's parent folder does not exist.
+///
+/// # Arguments
+///
+/// * `integrity_issues` - A struct containing the indexes of the broken entries
+///
+/// * `dst_pool` - The pool containing the broken entries to be repaired
+///
+/// * `src_pool` - The pool to read the correct entries from
+///
+/// * `progress_callback` - A callback invoked with the number of bytes
+///   written since the last call
+///
+/// # Errors
+///
+/// If an entry is missing in `src_pool` or there is an I/O failure while
+/// reading or writing.
+pub fn repair_files(
+  integrity_issues: &IntegrityIssues,
+  dst_pool: &mut impl WritablePool,
+  src_pool: &mut impl Pool,
+  mut progress_callback: impl FnMut(u64),
+) -> Result<(), PoolError> {
+  for &entry_index in &integrity_issues.files {
+    let bytes = dst_pool.copy_from(entry_index, src_pool)?;
+    progress_callback(bytes);
   }
 
+  Ok(())
+}
+
+impl Signature<'_> {
   /// Prepare the build folder and repair the broken files
   ///
   /// This function will:
   /// 1. Create all directories, files, and symlinks described in
   ///    [`Self::container_new`] and set their modes (permissions)
-  /// 2. Call [`Self::repair_files`] to repair the broken files
+  /// 2. Call [`repair_files`] to repair the broken files
   ///
   /// After this function is called, the build folder will contain all the
   /// files, directories and symlinks described in the container with the
@@ -122,12 +81,15 @@ impl Signature<'_> {
     build_folder: &Path,
     build_zip_archive: &ArchiveHandle<'_, impl HasCursor>,
     progress_callback: impl FnMut(u64),
-  ) -> Result<(), String> {
-    self.container_new.create(build_folder)?;
-    self.repair_files(
+  ) -> Result<(), PoolError> {
+    // Create the folders, files and symlinks in the destination container
+    let mut dst_pool = ContainerPool::create(&self.container_new, build_folder)?;
+    let mut src_pool = ZipPool::new(&self.container_new, build_zip_archive);
+
+    repair_files(
       integrity_issues,
-      build_folder,
-      build_zip_archive,
+      &mut dst_pool,
+      &mut src_pool,
       progress_callback,
     )
   }
