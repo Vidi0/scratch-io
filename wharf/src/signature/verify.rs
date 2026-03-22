@@ -48,16 +48,12 @@ fn check_file_integrity<R: Read>(
 
   // If the length doesn't match, then this file is broken
   if file_size != Some(container_file_size) {
-    progress_callback(container_file_size);
     return Ok(false);
   }
 
   // Wrapping the file inside a BufReader isn't needed because
   // the buffer is already large
   let mut file = src_pool.get_reader(entry_index)?;
-
-  // The total number of bytes that have been read
-  let mut total_read_bytes: u64 = 0;
 
   // Hash the whole file
   loop {
@@ -71,15 +67,12 @@ fn check_file_integrity<R: Read>(
 
     // Callback with the number of bytes read
     progress_callback(read_bytes as u64);
-    total_read_bytes += read_bytes as u64;
 
     // Update hasher
     let status = hasher.update(&buffer[..read_bytes])?;
 
     // If the file is broken, return
     if let BlockHasherStatus::HashMismatch { .. } = status {
-      // Callback the number of bytes that have not been called back before
-      progress_callback(container_file_size - total_read_bytes);
       return Ok(false);
     }
   }
@@ -111,7 +104,7 @@ impl Signature<'_> {
   /// * `build_folder` - The path to the build folder
   ///
   /// * `progress_callback` - A callback that is called with the number of
-  ///   bytes processed since the last one
+  ///   bytes read since the last one
   ///
   /// # Returns
   ///

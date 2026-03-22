@@ -186,8 +186,6 @@ impl<R: Read> SyncHeader<'_, R> {
 
               // It it's a literal copy, return early, too
               if let Some(old_index) = first.is_literal_copy(new_file_size, src_pool)? {
-                progress_callback(new_file_size);
-
                 op_iter.drain()?;
                 return Ok(PatchFileStatus::Skipped { old_index });
               }

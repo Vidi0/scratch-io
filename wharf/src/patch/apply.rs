@@ -132,7 +132,7 @@ impl Patch<'_> {
   /// then applies each sync operation (rsync or bsdiff) using data from
   /// `old_build_folder`. Written data is hashed on the fly and verified against
   /// `hash_iter` (if provided). `progress_callback` is invoked with the number
-  /// of processed bytes as the patch is applied.
+  /// of written bytes as the patch is applied.
   ///
   /// # Arguments
   ///
@@ -144,7 +144,7 @@ impl Patch<'_> {
   ///   integrity of the written files (optional)
   ///
   /// * `progress_callback` - A callback that is called with the number of
-  ///   bytes processed since the last one
+  ///   bytes written since the last one
   ///
   /// # Errors
   ///
