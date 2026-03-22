@@ -136,7 +136,7 @@ impl FileCheckpoint {
 impl<R: Read> SyncHeader<'_, R> {
   /// Apply all the patch operations in the given header and
   /// write them into `new_file`
-  #[allow(clippy::too_many_arguments)]
+  #[expect(clippy::too_many_arguments)]
   pub fn patch_file(
     &mut self,
     // `new_file` is a clousure because the new file won't not be needed

@@ -67,7 +67,7 @@ pub struct ReconstructedFilesStatus {
   pub patched_files: Vec<PatchFileStatus>,
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub fn reconstruct_modified_files(
   src_pool: &mut (impl SeekablePool + ContainerBackedPool),
   dst_pool: &mut impl ContainerBackedPool,

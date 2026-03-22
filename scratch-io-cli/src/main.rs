@@ -417,7 +417,7 @@ fn move_upload(
 }
 
 // Launch an installed upload
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn launch_upload(
   upload_id: UploadID,
   upload_executable_path: Option<PathBuf>,

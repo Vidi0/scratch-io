@@ -14,7 +14,7 @@ enum CopyRangeStatus {
 }
 
 /// Copy blocks of bytes from `src` into `dst`
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn copy_range(
   src: &mut (impl Read + Seek),
   dst: &mut impl Write,
