@@ -1,4 +1,4 @@
-use crate::common::BLOCK_SIZE;
+use crate::common::block_count;
 use crate::protos::{pwr, tlc};
 
 use std::fs;
@@ -192,7 +192,7 @@ impl tlc::File {
   #[inline]
   #[must_use]
   pub fn block_count(&self) -> u64 {
-    (self.size as u64).div_ceil(BLOCK_SIZE).max(1)
+    block_count(self.size as u64)
   }
 
   // This function should not be called directly because

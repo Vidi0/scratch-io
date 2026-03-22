@@ -149,7 +149,7 @@ impl Signature<'_> {
     // Loop over all the files in the signature container
     for (file_index, container_file) in self.container_new.files.iter().enumerate() {
       // Create a hasher for the current file
-      let mut file_hasher = hasher.new_file_hasher(container_file.block_count())?;
+      let mut file_hasher = hasher.new_file_hasher(container_file.size as u64)?;
 
       // Check if the file is intact
       let is_intact = check_file_integrity(

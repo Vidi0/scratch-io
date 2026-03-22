@@ -1,6 +1,6 @@
 mod errors;
 
-use crate::common::BLOCK_SIZE;
+use crate::common::{BLOCK_SIZE, block_count};
 use crate::signature::BlockHashIter;
 pub use errors::{BlockHasherError, BlockHasherStatus};
 
@@ -36,10 +36,7 @@ impl<'a, R> BlockHasher<'a, R>
 where
   R: Read,
 {
-  pub fn new_file_hasher(
-    &mut self,
-    total_blocks: u64,
-  ) -> Result<FileBlockHasher<'_, 'a, R>, String> {
+  pub fn new_file_hasher(&mut self, file_size: u64) -> Result<FileBlockHasher<'_, 'a, R>, String> {
     // Reset the hasher, allowing it to hash another file
     self.hasher.reset();
 
@@ -49,6 +46,7 @@ where
       .hash_iter
       .skip_blocks(self.last_file_remaining_blocks)?;
 
+    let total_blocks = block_count(file_size);
     self.last_file_remaining_blocks = total_blocks;
 
     Ok(FileBlockHasher {
@@ -58,9 +56,10 @@ where
     })
   }
 
-  pub fn skip_files(&mut self, file_blocks: impl Iterator<Item = u64>) -> Result<(), String> {
-    for blocks in file_blocks {
+  pub fn skip_files(&mut self, file_sizes: impl Iterator<Item = u64>) -> Result<(), String> {
+    for size in file_sizes {
       // Skip all the blocks
+      let blocks = block_count(size);
       self.hash_iter.skip_blocks(blocks)?;
     }
 

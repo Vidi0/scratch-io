@@ -55,13 +55,13 @@ impl StagingCheckpoint {
 
     // Skip the hasher to the correct file
     if let Some(hasher) = hasher {
-      let file_blocks = container_new
+      let file_sizes = container_new
         .files
         .iter()
         .take(self.current_file_index() as usize)
-        .map(|f| f.block_count());
+        .map(|f| f.size as u64);
 
-      hasher.skip_files(file_blocks)?;
+      hasher.skip_files(file_sizes)?;
     }
 
     Ok(())
@@ -117,7 +117,7 @@ impl Patch<'_> {
 
       // Create a hasher for the current file
       let mut file_hasher = match hasher.as_mut() {
-        Some(h) => Some(h.new_file_hasher(new_container_file.block_count())?),
+        Some(h) => Some(h.new_file_hasher(new_container_file.size as u64)?),
         None => None,
       };
 
