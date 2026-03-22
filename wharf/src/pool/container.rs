@@ -196,11 +196,11 @@ impl<'container, 'path> ContainerPool<'container, 'path> {
   }
 
   fn get_file(&self, entry_index: usize) -> Result<&tlc::File, PoolError> {
-    let Some(container_file) = self.container.files.get(entry_index) else {
-      return Err(PoolError::InvalidEntryIndex(entry_index));
-    };
-
-    Ok(container_file)
+    self
+      .container
+      .files
+      .get(entry_index)
+      .ok_or(PoolError::InvalidEntryIndex(entry_index))
   }
 
   fn get_path(&self, entry_index: usize) -> Result<PathBuf, PoolError> {
