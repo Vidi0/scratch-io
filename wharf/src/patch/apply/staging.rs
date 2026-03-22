@@ -44,7 +44,6 @@ impl StagingCheckpoint {
     &self,
     sync_op_iter: &mut SyncEntryIter<impl Read>,
     hasher: &mut Option<BlockHasher<impl Read>>,
-    container_new: &tlc::Container,
   ) -> Result<(), String> {
     if self.current_file_index() == 0 {
       return Ok(());
@@ -55,13 +54,7 @@ impl StagingCheckpoint {
 
     // Skip the hasher to the correct file
     if let Some(hasher) = hasher {
-      let file_sizes = container_new
-        .files
-        .iter()
-        .take(self.current_file_index() as usize)
-        .map(|f| f.size as u64);
-
-      hasher.skip_files(file_sizes)?;
+      hasher.skip_files(self.current_file_index() as usize)?;
     }
 
     Ok(())
@@ -94,7 +87,7 @@ pub fn reconstruct_modified_files(
   let mut checkpoint = checkpoint.unwrap_or_default();
 
   // Load the checkpoint
-  checkpoint.load(sync_op_iter, hasher, container_new)?;
+  checkpoint.load(sync_op_iter, hasher)?;
 
   // Important!
   // Send save checkpoint calls every time:

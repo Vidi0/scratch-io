@@ -43,6 +43,21 @@ impl<'cont, 'hash, R> BlockHasher<'cont, 'hash, R>
 where
   R: Read,
 {
+  fn next_file_size(&mut self) -> Result<u64, String> {
+    self
+      .container
+      .files
+      .get(self.entry_index)
+      .map(|f| f.size as u64)
+      .ok_or_else(|| {
+        format!(
+          "Couldn't get next file hasher because the container has run out of files!
+Index: {}",
+          self.entry_index
+        )
+      })
+  }
+
   pub fn next_file_hasher(&mut self) -> Result<FileBlockHasher<'_, 'cont, 'hash, R>, String> {
     // Reset the hasher, allowing it to hash another file
     self.hasher.reset();
@@ -54,18 +69,7 @@ where
       .skip_blocks(self.last_file_remaining_blocks)?;
 
     // Get the next file size
-    let file_size = self
-      .container
-      .files
-      .get(self.entry_index)
-      .ok_or_else(|| {
-        format!(
-          "Couldn't get next file hasher because the container has run out of files!
-Index: {}",
-          self.entry_index
-        )
-      })?
-      .size as u64;
+    let file_size = self.next_file_size()?;
 
     // Set up the internal counter to the right values
     self.last_file_remaining_blocks = block_count(file_size);
@@ -78,15 +82,19 @@ Index: {}",
     })
   }
 
-  pub fn skip_files(&mut self, file_sizes: impl Iterator<Item = u64>) -> Result<(), String> {
-    for size in file_sizes {
+  /// This function must be called after the [`BlockHasher`] has just been created
+  pub fn skip_files(&mut self, file_count: usize) -> Result<(), String> {
+    assert_eq!(self.entry_index, 0);
+    assert_eq!(self.last_file_remaining_blocks, 0);
+
+    for _ in 0..file_count {
       // Skip all the blocks
-      let blocks = block_count(size);
-      self.hash_iter.skip_blocks(blocks)?;
+      let file_size = self.next_file_size()?;
+      self.hash_iter.skip_blocks(block_count(file_size))?;
     }
 
-    // Reset the hasher variables
-    self.last_file_remaining_blocks = 0;
+    // Set the hasher variables
+    self.entry_index += file_count;
 
     Ok(())
   }
