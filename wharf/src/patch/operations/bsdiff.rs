@@ -2,7 +2,6 @@ use super::{OpStatus, verify_data};
 use crate::hasher::FileBlockHasher;
 use crate::patch::BsdiffOp;
 
-use std::fs;
 use std::io::{Read, Seek, Write};
 
 /// Read a block from `src`, add corresponding bytes from `add`, and write the result to `dst`
@@ -36,7 +35,7 @@ impl BsdiffOp {
     &self,
     writer: &mut impl Write,
     hasher: &mut Option<FileBlockHasher<impl Read>>,
-    old_file: &mut fs::File,
+    old_file: &mut (impl Read + Seek),
     old_file_seek_position: &mut u64,
     old_file_disk_size: u64,
     add_buffer: &mut Vec<u8>,
