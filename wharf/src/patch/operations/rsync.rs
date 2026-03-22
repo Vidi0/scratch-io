@@ -1,8 +1,8 @@
-use super::{FilesCache, FilesCacheStatus, OpStatus, verify_data};
+use super::{OpStatus, verify_data};
 use crate::common::BLOCK_SIZE;
 use crate::hasher::{BlockHasherStatus, FileBlockHasher};
 use crate::patch::RsyncOp;
-use crate::protos::tlc;
+use crate::pool::{ContainerBackedPool, SeekablePool};
 
 use std::io::{self, Read, Seek, Write};
 
@@ -91,7 +91,7 @@ impl RsyncOp {
   pub fn is_literal_copy(
     &self,
     new_file_size: u64,
-    container_old: &tlc::Container,
+    src_pool: &impl ContainerBackedPool,
   ) -> Result<Option<usize>, String> {
     // The type must be BlockRange
     if let Self::BlockRange {
@@ -105,8 +105,8 @@ impl RsyncOp {
         (block_index == 0
           && block_span * BLOCK_SIZE >= new_file_size
         // The size of the old and the new file must be equal
-          && new_file_size == container_old.get_file(file_index)?.size as u64)
-          .then_some(file_index),
+          && new_file_size == src_pool.get_container_size(file_index)?)
+        .then_some(file_index),
       )
     } else {
       Ok(None)
@@ -131,8 +131,7 @@ impl RsyncOp {
     &self,
     writer: &mut impl Write,
     hasher: &mut Option<FileBlockHasher<impl Read>>,
-    old_files_cache: &mut FilesCache,
-    container_old: &tlc::Container,
+    src_pool: &mut (impl SeekablePool + ContainerBackedPool),
     buffer: &mut [u8],
   ) -> Result<OpStatus, String> {
     let mut written_bytes: u64 = 0;
@@ -144,23 +143,20 @@ impl RsyncOp {
         block_index,
         block_span,
       } => {
+        let old_file_container_size = src_pool.get_container_size(file_index)?;
+        let Some(old_file_disk_size) = src_pool.get_size(file_index)? else {
+          return Ok(OpStatus::Broken);
+        };
+
         // Open the old file
-        let (old_file, old_file_container_size, old_file_disk_size) =
-          match old_files_cache.get_file(file_index, container_old)? {
-            FilesCacheStatus::Ok {
-              file,
-              container_size,
-              disk_size,
-            } => (file, container_size, disk_size),
-            FilesCacheStatus::NotFound => return Ok(OpStatus::Broken),
-          };
+        let mut old_file = src_pool.get_seek_reader(file_index)?;
 
         // Rewind isn't needed because the copy_range function already seeks
         // into the correct (not relative) position
 
         // Copy the specified range to the new file
         let status = copy_range(
-          old_file,
+          &mut old_file,
           writer,
           hasher,
           block_index,

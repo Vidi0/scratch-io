@@ -1,8 +1,8 @@
 mod staging;
 
 use super::Patch;
-use super::operations::FilesCache;
 use crate::hasher::BlockHasher;
+use crate::pool::ContainerPool;
 use crate::signature::BlockHashIter;
 
 use std::fs;
@@ -170,10 +170,8 @@ impl Patch<'_> {
       )
     })?;
 
-    // Create a cache of open file descriptors for the old files
-    // The key is the file_index of the old file provided by the patch
-    // The value is the open file descriptor
-    let mut old_files_cache = FilesCache::new(old_build_folder);
+    // Create a pool for the old files
+    let mut src_pool = ContainerPool::open(&self.container_old, old_build_folder);
 
     // This buffer is used when applying rsync block_range operations and
     // bsdiff add operations. It is created here to avoid allocating and
@@ -209,11 +207,10 @@ impl Patch<'_> {
 
     // Reconstruct all the modified files into the staging folder
     let status = staging::reconstruct_modified_files(
-      &self.container_old,
+      &mut src_pool,
       &self.container_new,
       &mut self.sync_op_iter,
       &staging,
-      &mut old_files_cache,
       &mut hasher,
       &mut patch_op_buffer,
       checkpoint,

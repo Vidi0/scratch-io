@@ -1,8 +1,8 @@
-use super::{FilesCache, FilesCacheStatus, OpStatus};
+use super::OpStatus;
 use crate::common::BLOCK_SIZE;
 use crate::hasher::{BlockHasherStatus, FileBlockHasher};
 use crate::patch::{OpIter, SyncHeader, SyncHeaderKind};
-use crate::protos::tlc;
+use crate::pool::{ContainerBackedPool, SeekablePool};
 
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -144,8 +144,7 @@ impl<R: Read> SyncHeader<'_, R> {
     new_file: impl FnOnce() -> Result<File, String>,
     hasher: &mut Option<FileBlockHasher<impl Read>>,
     new_file_size: u64,
-    old_files_cache: &mut FilesCache,
-    container_old: &tlc::Container,
+    src_pool: &mut (impl SeekablePool + ContainerBackedPool),
     patch_op_buffer: &mut Vec<u8>,
     checkpoint: Option<FileCheckpoint>,
     mut save_checkpoint: impl FnMut(FileCheckpoint) -> Result<(), String>,
@@ -186,7 +185,7 @@ impl<R: Read> SyncHeader<'_, R> {
               }
 
               // It it's a literal copy, return early, too
-              if let Some(old_index) = first.is_literal_copy(new_file_size, container_old)? {
+              if let Some(old_index) = first.is_literal_copy(new_file_size, src_pool)? {
                 progress_callback(new_file_size);
 
                 op_iter.drain()?;
@@ -243,13 +242,7 @@ impl<R: Read> SyncHeader<'_, R> {
 
         // Get the index of the operation to be able to store it in the checkpoint
         for op in iter {
-          let status = op?.apply(
-            new_file,
-            hasher,
-            old_files_cache,
-            container_old,
-            patch_op_buffer,
-          )?;
+          let status = op?.apply(new_file, hasher, src_pool, patch_op_buffer)?;
 
           match status {
             OpStatus::Ok { written_bytes: b } => {
@@ -277,18 +270,12 @@ impl<R: Read> SyncHeader<'_, R> {
         let new_file = &mut new_file()?;
 
         // Open the old file
-        let (old_file, old_file_disk_size) =
-          match old_files_cache.get_file(target_index as usize, container_old)? {
-            FilesCacheStatus::Ok {
-              file,
-              container_size: _,
-              disk_size,
-            } => (file, disk_size),
-            FilesCacheStatus::NotFound => {
-              op_iter.drain()?;
-              return Ok(PatchFileStatus::Broken);
-            }
-          };
+        let Some(old_file_disk_size) = src_pool.get_size(target_index as usize)? else {
+          op_iter.drain()?;
+          return Ok(PatchFileStatus::Broken);
+        };
+
+        let mut old_file = src_pool.get_seek_reader(target_index as usize)?;
 
         // Store the old file seek position between apply calls
         let mut old_file_seek_position: u64 = 0;
@@ -318,7 +305,7 @@ impl<R: Read> SyncHeader<'_, R> {
           let status = control?.apply(
             new_file,
             hasher,
-            old_file,
+            &mut old_file,
             &mut old_file_seek_position,
             old_file_disk_size,
             patch_op_buffer,

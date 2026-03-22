@@ -1,8 +1,8 @@
 use super::StagingFiles;
 use crate::hasher::BlockHasher;
 use crate::patch::SyncEntryIter;
-use crate::patch::operations::FilesCache;
 use crate::patch::operations::apply::{FileCheckpoint, PatchFileStatus};
+use crate::pool::{ContainerBackedPool, SeekablePool};
 use crate::protos::tlc;
 
 use serde::{Deserialize, Serialize};
@@ -70,11 +70,10 @@ pub struct ReconstructedFilesStatus {
 
 #[allow(clippy::too_many_arguments)]
 pub fn reconstruct_modified_files(
-  container_old: &tlc::Container,
+  src_pool: &mut (impl SeekablePool + ContainerBackedPool),
   container_new: &tlc::Container,
   sync_op_iter: &mut SyncEntryIter<impl Read>,
   staging_files: &StagingFiles,
-  old_files_cache: &mut FilesCache,
   hasher: &mut Option<BlockHasher<impl Read>>,
   patch_op_buffer: &mut Vec<u8>,
   checkpoint: Option<StagingCheckpoint>,
@@ -119,8 +118,7 @@ pub fn reconstruct_modified_files(
       new_file,
       &mut file_hasher,
       new_container_file.size as u64,
-      old_files_cache,
-      container_old,
+      src_pool,
       patch_op_buffer,
       checkpoint.current_file,
       |file_c| {
