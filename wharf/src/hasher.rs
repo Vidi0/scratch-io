@@ -79,10 +79,8 @@ pub struct FileBlockHasher<'hasher, 'hasher_reader, R> {
 
 impl<R: Read> FileBlockHasher<'_, '_, R> {
   /// Update the hahser with new data
-  pub fn update(&mut self, buf: &[u8]) -> Result<BlockHasherStatus, BlockHasherError> {
-    let mut offset: usize = 0;
-
-    while offset < buf.len() {
+  pub fn update(&mut self, mut buf: &[u8]) -> Result<BlockHasherStatus, BlockHasherError> {
+    while !buf.is_empty() {
       // If all the expected blocks have been hashed, return an error
       if self.block_hasher.last_file_remaining_blocks == 0 {
         return Err(BlockHasherError::AllBlocksHashed);
@@ -90,15 +88,14 @@ impl<R: Read> FileBlockHasher<'_, '_, R> {
 
       // Get the next buffer slice
       let block_remaining = BLOCK_SIZE as usize - self.written_bytes;
-      let to_take = block_remaining.min(buf.len() - offset);
-      let slice = &buf[offset..offset + to_take];
+      let to_take = block_remaining.min(buf.len());
 
       // Update the hasher
-      self.block_hasher.hasher.update(slice);
+      self.block_hasher.hasher.update(&buf[..to_take]);
 
       // Update internal counters
-      offset += to_take;
       self.written_bytes += to_take;
+      buf = &buf[to_take..];
 
       if self.written_bytes == BLOCK_SIZE as usize {
         // Chunk completed
