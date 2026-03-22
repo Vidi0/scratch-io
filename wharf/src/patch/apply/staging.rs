@@ -3,7 +3,6 @@ use crate::hasher::BlockHasher;
 use crate::patch::SyncEntryIter;
 use crate::patch::operations::apply::{FileCheckpoint, PatchFileStatus};
 use crate::pool::{ContainerBackedPool, SeekablePool};
-use crate::protos::tlc;
 
 use serde::{Deserialize, Serialize};
 use std::io::Read;
@@ -71,7 +70,7 @@ pub struct ReconstructedFilesStatus {
 #[allow(clippy::too_many_arguments)]
 pub fn reconstruct_modified_files(
   src_pool: &mut (impl SeekablePool + ContainerBackedPool),
-  container_new: &tlc::Container,
+  dst_pool: &mut impl ContainerBackedPool,
   sync_op_iter: &mut SyncEntryIter<impl Read>,
   staging_files: &StagingFiles,
   hasher: &mut Option<BlockHasher<impl Read>>,
@@ -104,7 +103,7 @@ pub fn reconstruct_modified_files(
     let file_index = header.file_index as usize;
 
     // Open the new file
-    let new_container_file = container_new.get_file(file_index)?;
+    let new_file_size = dst_pool.get_container_size(file_index)?;
     let new_file = || staging_files.open_write(file_index);
 
     // Create a hasher for the current file
@@ -117,7 +116,7 @@ pub fn reconstruct_modified_files(
     let status = header.patch_file(
       new_file,
       &mut file_hasher,
-      new_container_file.size as u64,
+      new_file_size,
       src_pool,
       patch_op_buffer,
       checkpoint.current_file,

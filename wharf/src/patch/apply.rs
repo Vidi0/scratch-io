@@ -160,7 +160,7 @@ impl Patch<'_> {
   ) -> Result<(), String> {
     // Create the new container folders, files and symlinks,
     // applying all the correct permissions
-    self.container_new.create(new_build_folder)?;
+    let mut dst_pool = ContainerPool::create(&self.container_new, new_build_folder)?;
 
     // Create the staging folder
     fs::create_dir_all(staging_folder).map_err(|e| {
@@ -208,7 +208,7 @@ impl Patch<'_> {
     // Reconstruct all the modified files into the staging folder
     let status = staging::reconstruct_modified_files(
       &mut src_pool,
-      &self.container_new,
+      &mut dst_pool,
       &mut self.sync_op_iter,
       &staging,
       &mut hasher,
