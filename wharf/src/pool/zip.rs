@@ -25,6 +25,14 @@ impl<'container, 'ar, 'ar_reader, C: HasCursor> ZipPool<'container, 'ar, 'ar_rea
   ) -> Self {
     Self { container, archive }
   }
+
+  fn get_file(&self, entry_index: usize) -> Result<&tlc::File, PoolError> {
+    let Some(container_file) = self.container.files.get(entry_index) else {
+      return Err(PoolError::InvalidEntryIndex(entry_index));
+    };
+
+    Ok(container_file)
+  }
 }
 
 impl<'ar_reader, C: HasCursor> Pool for ZipPool<'_, '_, 'ar_reader, C> {
@@ -38,10 +46,7 @@ impl<'ar_reader, C: HasCursor> Pool for ZipPool<'_, '_, 'ar_reader, C> {
   }
 
   fn get_size(&self, entry_index: usize) -> Result<Option<u64>, PoolError> {
-    let Some(container_file) = self.container.files.get(entry_index) else {
-      return Err(PoolError::InvalidEntryIndex(entry_index));
-    };
-
+    let container_file = self.get_file(entry_index)?;
     Ok(
       self
         .archive
@@ -51,10 +56,7 @@ impl<'ar_reader, C: HasCursor> Pool for ZipPool<'_, '_, 'ar_reader, C> {
   }
 
   fn get_reader(&mut self, entry_index: usize) -> Result<Self::Reader<'_>, PoolError> {
-    let Some(container_file) = self.container.files.get(entry_index) else {
-      return Err(PoolError::InvalidEntryIndex(entry_index));
-    };
-
+    let container_file = self.get_file(entry_index)?;
     let filename = &*container_file.path;
     let entry = self.archive.by_name(filename).ok_or_else(|| {
       PoolError::Io(io::Error::new(
