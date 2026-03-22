@@ -168,6 +168,9 @@ pub trait WritablePool: Pool {
   /// This is a convenience wrapper around [`Pool::get_reader`] and
   /// [`WritablePool::get_writer`].
   ///
+  /// The destination entry is truncated to zero before copying,
+  /// so the final size equals the number of bytes copied.
+  ///
   /// # Returns
   ///
   /// The number of bytes copied.
@@ -177,8 +180,14 @@ pub trait WritablePool: Pool {
   /// If there is an I/O failure while reading from the source pool,
   /// writing to this pool, or opening either entry.
   fn copy_from(&mut self, entry_index: usize, src: &mut impl Pool) -> Result<u64, PoolError> {
+    // Get the reader
     let mut reader = src.get_reader(entry_index)?;
+
+    // Truncate the writer to 0 before getting the writer
+    self.truncate(entry_index, 0)?;
     let mut writer = self.get_writer(entry_index)?;
+
+    // Copy the data
     Ok(std::io::copy(&mut reader, &mut writer)?)
   }
 }
