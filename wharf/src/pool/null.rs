@@ -1,6 +1,6 @@
 //! Null pool implementation
 
-use super::{ContainerBackedPool, Pool, PoolError, WritablePool, SeekablePool};
+use super::{ContainerBackedPool, Pool, PoolError, SeekablePool, WritablePool};
 
 use std::io;
 use std::io::{BufReader, BufWriter};
