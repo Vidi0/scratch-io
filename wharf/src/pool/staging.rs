@@ -16,8 +16,13 @@ pub struct StagingPool<'path> {
 }
 
 impl<'path> StagingPool<'path> {
-  pub fn new(base_path: &'path Path) -> Self {
+  pub fn open(base_path: &'path Path) -> Self {
     Self { base_path }
+  }
+
+  pub fn create(base_path: &'path Path) -> Result<Self, PoolError> {
+    fs::create_dir_all(base_path)?;
+    Ok(Self { base_path })
   }
 
   fn get_path(&self, entry_index: usize) -> PathBuf {
