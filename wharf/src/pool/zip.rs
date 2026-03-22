@@ -1,6 +1,6 @@
 //! ZIP archive pool implementation
 
-use super::{Pool, PoolError};
+use super::{ContainerBackedPool, Pool, PoolError};
 use crate::protos::tlc;
 
 use rc_zip_sync::{ArchiveHandle, EntryReader, HasCursor};
@@ -66,5 +66,15 @@ impl<'ar_reader, C: HasCursor> Pool for ZipPool<'_, '_, 'ar_reader, C> {
     })?;
 
     Ok(entry.reader())
+  }
+}
+
+impl<'ar_reader, C: HasCursor> ContainerBackedPool for ZipPool<'_, '_, 'ar_reader, C> {
+  fn get_container_size(&self, entry_index: usize) -> Result<u64, PoolError> {
+    let Some(container_file) = self.container.files.get(entry_index) else {
+      return Err(PoolError::InvalidEntryIndex(entry_index));
+    };
+
+    Ok(container_file.size as u64)
   }
 }

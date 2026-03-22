@@ -8,6 +8,7 @@
 //! # Traits
 //!
 //! - [`Pool`]: indexed read access
+//! - [`ContainerBackedPool`]: extends [`Pool`] with access to container metadata
 //! - [`SeekablePool`]: extends [`Pool`] with seek access, automatically
 //!   implemented for any [`Pool`] whose reader implements [`Seek`]
 //! - [`WritablePool`]: extends [`Pool`] with write access
@@ -87,6 +88,24 @@ pub trait Pool {
   ) -> Result<BufReader<Self::Reader<'_>>, PoolError> {
     self.get_reader(entry_index).map(BufReader::new)
   }
+}
+
+/// Extends [`Pool`] with access to the container metadata
+///
+/// Implemented by pools that are backed by a [`crate::protos::tlc::Container`],
+/// allowing callers to query the declared size of entries as described
+/// in the container metadata.
+pub trait ContainerBackedPool: Pool {
+  /// Return the size of the entry as declared in the container metadata
+  ///
+  /// # Returns
+  ///
+  /// The declared size of the entry in bytes.
+  ///
+  /// # Errors
+  ///
+  /// If `entry_index` is out of bounds for the pool, returns [`PoolError::InvalidEntryIndex`].
+  fn get_container_size(&self, entry_index: usize) -> Result<u64, PoolError>;
 }
 
 /// Extends [`Pool`] with seek access to the underlying storage.

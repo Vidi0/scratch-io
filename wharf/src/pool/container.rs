@@ -1,4 +1,4 @@
-use super::{Pool, PoolError, WritablePool};
+use super::{ContainerBackedPool, Pool, PoolError, WritablePool};
 use crate::protos::tlc;
 
 use std::fs::{self, File, OpenOptions};
@@ -195,12 +195,18 @@ impl<'container, 'path> ContainerPool<'container, 'path> {
     Ok(())
   }
 
-  fn get_path(&self, entry_index: usize) -> Result<PathBuf, PoolError> {
-    let Some(file) = self.container.files.get(entry_index) else {
+  fn get_file(&self, entry_index: usize) -> Result<&tlc::File, PoolError> {
+    let Some(container_file) = self.container.files.get(entry_index) else {
       return Err(PoolError::InvalidEntryIndex(entry_index));
     };
 
-    file.get_path(self.base_path.to_owned())
+    Ok(container_file)
+  }
+
+  fn get_path(&self, entry_index: usize) -> Result<PathBuf, PoolError> {
+    self
+      .get_file(entry_index)
+      .and_then(|f| f.get_path(self.base_path.to_owned()))
   }
 }
 
@@ -253,6 +259,12 @@ impl Pool for ContainerPool<'_, '_> {
   fn get_reader(&mut self, entry_index: usize) -> Result<Self::Reader<'_>, PoolError> {
     let path = self.get_path(entry_index)?;
     Ok(File::open(&path)?)
+  }
+}
+
+impl ContainerBackedPool for ContainerPool<'_, '_> {
+  fn get_container_size(&self, entry_index: usize) -> Result<u64, PoolError> {
+    self.get_file(entry_index).map(|f| f.size as u64)
   }
 }
 

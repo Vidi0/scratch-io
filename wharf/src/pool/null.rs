@@ -1,6 +1,6 @@
 //! Null pool implementation
 
-use super::{Pool, PoolError, WritablePool};
+use super::{ContainerBackedPool, Pool, PoolError, WritablePool};
 
 use std::io;
 use std::io::{BufReader, BufWriter};
@@ -37,6 +37,12 @@ impl Pool for NullPool {
   ) -> Result<io::BufReader<Self::Reader<'_>>, PoolError> {
     // Set the capacity to 0 to avoid wasting memory
     Ok(BufReader::with_capacity(0, io::empty()))
+  }
+}
+
+impl ContainerBackedPool for NullPool {
+  fn get_container_size(&self, _entry_index: usize) -> Result<u64, PoolError> {
+    Ok(0)
   }
 }
 
