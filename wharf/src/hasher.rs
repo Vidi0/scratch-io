@@ -1,6 +1,7 @@
 mod errors;
 
 use crate::common::{BLOCK_SIZE, block_count};
+use crate::protos::tlc;
 use crate::signature::BlockHashIter;
 pub use errors::{BlockHasherError, BlockHasherStatus};
 
@@ -12,17 +13,23 @@ use std::io::{Read, Seek};
 type Md5HashSize = <md5::Md5 as OutputSizeUser>::OutputSize;
 pub const MD5_HASH_LENGTH: usize = Md5HashSize::USIZE;
 
-pub struct BlockHasher<'a, R> {
-  hash_iter: &'a mut BlockHashIter<R>,
+pub struct BlockHasher<'cont, 'hash, R> {
+  container: &'cont tlc::Container,
+  entry_index: usize,
+
+  hash_iter: &'hash mut BlockHashIter<R>,
   hasher: Md5,
   hash_buffer: GenericArray<u8, Md5HashSize>,
 
   last_file_remaining_blocks: u64,
 }
 
-impl<'a, R> BlockHasher<'a, R> {
-  pub fn new(hash_iter: &'a mut BlockHashIter<R>) -> Self {
+impl<'cont, 'hash, R> BlockHasher<'cont, 'hash, R> {
+  pub fn new(container: &'cont tlc::Container, hash_iter: &'hash mut BlockHashIter<R>) -> Self {
     Self {
+      container,
+      entry_index: 0,
+
       hash_iter,
       hasher: Md5::new(),
       hash_buffer: GenericArray::<u8, Md5HashSize>::default(),
@@ -32,22 +39,37 @@ impl<'a, R> BlockHasher<'a, R> {
   }
 }
 
-impl<'a, R> BlockHasher<'a, R>
+impl<'cont, 'hash, R> BlockHasher<'cont, 'hash, R>
 where
   R: Read,
 {
-  pub fn new_file_hasher(&mut self, file_size: u64) -> Result<FileBlockHasher<'_, 'a, R>, String> {
+  pub fn next_file_hasher(&mut self) -> Result<FileBlockHasher<'_, 'cont, 'hash, R>, String> {
     // Reset the hasher, allowing it to hash another file
     self.hasher.reset();
 
-    // Skip the blocks of the previous file that have not been hashed,
+    // Skip the blocks of the previous file that have not been hashed
     // to advance the iterator into the correct position
     self
       .hash_iter
       .skip_blocks(self.last_file_remaining_blocks)?;
 
-    let total_blocks = block_count(file_size);
-    self.last_file_remaining_blocks = total_blocks;
+    // Get the next file size
+    let file_size = self
+      .container
+      .files
+      .get(self.entry_index)
+      .ok_or_else(|| {
+        format!(
+          "Couldn't get next file hasher because the container has run out of files!
+Index: {}",
+          self.entry_index
+        )
+      })?
+      .size as u64;
+
+    // Set up the internal counter to the right values
+    self.last_file_remaining_blocks = block_count(file_size);
+    self.entry_index += 1;
 
     Ok(FileBlockHasher {
       block_hasher: self,
@@ -70,14 +92,14 @@ where
   }
 }
 
-pub struct FileBlockHasher<'hasher, 'hasher_reader, R> {
-  block_hasher: &'hasher mut BlockHasher<'hasher_reader, R>,
+pub struct FileBlockHasher<'hasher, 'cont, 'hash, R> {
+  block_hasher: &'hasher mut BlockHasher<'cont, 'hash, R>,
 
   first_block: bool,
   written_bytes: usize,
 }
 
-impl<R: Read> FileBlockHasher<'_, '_, R> {
+impl<R: Read> FileBlockHasher<'_, '_, '_, R> {
   /// Update the hahser with new data
   pub fn update(&mut self, mut buf: &[u8]) -> Result<BlockHasherStatus, BlockHasherError> {
     while !buf.is_empty() {

@@ -194,7 +194,7 @@ impl Patch<'_> {
 
     // If a hash_iter was provided, create a reusable hasher
     // instance to verify that the new game files are intact
-    let mut hasher = hash_iter.map(|iter| BlockHasher::new(iter));
+    let mut hasher = hash_iter.map(|iter| BlockHasher::new(&self.container_new, iter));
 
     // Create a struct that allows the `reconstruct_modified_files` function
     // to store the patched files in the staging folder
@@ -208,7 +208,10 @@ impl Patch<'_> {
     let mut last_checkpoint_instant = std::time::Instant::now();
 
     // Reconstruct all the modified files into the staging folder
-    let status = self.reconstruct_modified_files(
+    let status = staging::reconstruct_modified_files(
+      &self.container_old,
+      &self.container_new,
+      &mut self.sync_op_iter,
       &staging,
       &mut old_files_cache,
       &mut hasher,
