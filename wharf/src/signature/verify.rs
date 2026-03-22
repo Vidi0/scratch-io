@@ -1,7 +1,7 @@
 use super::Signature;
 use crate::common::BLOCK_SIZE;
-use crate::container::OpenFileStatus;
 use crate::hasher::{BlockHasher, BlockHasherStatus, FileBlockHasher};
+use crate::pool::{ContainerBackedPool, ContainerPool, Pool};
 use crate::protos::tlc;
 
 use std::io::Read;
@@ -36,35 +36,25 @@ impl IntegrityIssues {
 ///
 /// If the file is intact, returns `true`
 fn check_file_integrity<R: Read>(
-  container_file: &tlc::File,
-  build_folder: &Path,
+  entry_index: usize,
+  src_pool: &mut impl ContainerBackedPool,
   hasher: &mut FileBlockHasher<R>,
   buffer: &mut [u8],
   mut progress_callback: impl FnMut(u64),
 ) -> Result<bool, String> {
   // Get the file size
-  let file_size = container_file.size as u64;
+  let container_file_size = src_pool.get_container_size(entry_index)?;
+  let file_size = src_pool.get_size(entry_index)?;
 
-  // Check if the file exists and the length matches
-  let status = container_file.open_read(build_folder.to_owned())?;
-
-  let mut file = {
-    match status {
-      OpenFileStatus::Ok {
-        file,
-        container_size,
-        disk_size,
-      } if container_size == disk_size => file,
-      // If the length doesn't match, then this file is broken
-      OpenFileStatus::NotFound | OpenFileStatus::Ok { .. } => {
-        progress_callback(file_size);
-        return Ok(false);
-      }
-    }
-  };
+  // If the length doesn't match, then this file is broken
+  if file_size != Some(container_file_size) {
+    progress_callback(container_file_size);
+    return Ok(false);
+  }
 
   // Wrapping the file inside a BufReader isn't needed because
   // the buffer is already large
+  let mut file = src_pool.get_reader(entry_index)?;
 
   // The total number of bytes that have been read
   let mut total_read_bytes: u64 = 0;
@@ -89,7 +79,7 @@ fn check_file_integrity<R: Read>(
     // If the file is broken, return
     if let BlockHasherStatus::HashMismatch { .. } = status {
       // Callback the number of bytes that have not been called back before
-      progress_callback(file_size - total_read_bytes);
+      progress_callback(container_file_size - total_read_bytes);
       return Ok(false);
     }
   }
@@ -146,15 +136,18 @@ impl Signature<'_> {
     // value is valid
     let mut buffer = vec![0u8; BLOCK_SIZE as usize];
 
-    // Loop over all the files in the signature container
-    for (file_index, container_file) in self.container_new.files.iter().enumerate() {
+    // Load a pool from the build folder
+    let mut src_pool = ContainerPool::open(&self.container_new, build_folder);
+
+    // Loop over all the files in the source pool
+    for entry_index in 0..src_pool.entry_count() {
       // Create a hasher for the current file
       let mut file_hasher = hasher.next_file_hasher()?;
 
       // Check if the file is intact
       let is_intact = check_file_integrity(
-        container_file,
-        build_folder,
+        entry_index,
+        &mut src_pool,
         &mut file_hasher,
         &mut buffer,
         &mut progress_callback,
@@ -162,7 +155,7 @@ impl Signature<'_> {
 
       // If not, add it to the broken files vector
       if !is_intact {
-        broken_files.push(file_index);
+        broken_files.push(entry_index);
       }
     }
 
