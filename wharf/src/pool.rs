@@ -9,8 +9,7 @@
 //!
 //! - [`Pool`]: indexed read access
 //! - [`ContainerBackedPool`]: extends [`Pool`] with access to container metadata
-//! - [`SeekablePool`]: extends [`Pool`] with seek access, automatically
-//!   implemented for any [`Pool`] whose reader implements [`Seek`]
+//! - [`SeekablePool`]: extends [`Pool`] with seek access
 //! - [`WritablePool`]: extends [`Pool`] with write access
 //!
 //! # Implementations
@@ -108,10 +107,7 @@ pub trait ContainerBackedPool: Pool {
   fn get_container_size(&self, entry_index: usize) -> Result<u64, PoolError>;
 }
 
-/// Extends [`Pool`] with seek access to the underlying storage.
-///
-/// This trait is automatically implemented for any [`Pool`] whose
-/// [`Pool::Reader`] implements [`Seek`].
+/// Extends [`Pool`] with seek access to the underlying storage
 pub trait SeekablePool: Pool {
   /// The seekable reader type returned by [`SeekablePool::get_seek_reader`].
   type SeekableReader<'a>: Read + Seek
@@ -128,22 +124,6 @@ pub trait SeekablePool: Pool {
   ///
   /// If the entry does not exist or there is an I/O failure while opening it.
   fn get_seek_reader(&mut self, entry_index: usize) -> Result<Self::SeekableReader<'_>, PoolError>;
-}
-
-/// Blanket implementation of [`SeekablePool`] for any [`Pool`] whose
-/// [`Pool::Reader`] implements [`Seek`]
-impl<P: Pool> SeekablePool for P
-where
-  for<'a> P::Reader<'a>: Seek,
-{
-  type SeekableReader<'a>
-    = P::Reader<'a>
-  where
-    Self: 'a;
-
-  fn get_seek_reader(&mut self, entry_index: usize) -> Result<Self::SeekableReader<'_>, PoolError> {
-    self.get_reader(entry_index)
-  }
 }
 
 /// Extends [`Pool`] with write access to the underlying storage

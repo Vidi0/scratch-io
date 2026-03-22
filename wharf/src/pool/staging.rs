@@ -1,6 +1,6 @@
 //! Staging pool implementation
 
-use super::{Pool, PoolError, WritablePool};
+use super::{Pool, PoolError, SeekablePool, WritablePool};
 
 use std::fs::{self, File, OpenOptions};
 use std::io;
@@ -46,6 +46,17 @@ impl Pool for StagingPool<'_> {
   fn get_reader(&mut self, entry_index: usize) -> Result<Self::Reader<'_>, PoolError> {
     let path = self.get_path(entry_index);
     Ok(File::open(&path)?)
+  }
+}
+
+impl SeekablePool for StagingPool<'_> {
+  type SeekableReader<'a>
+    = Self::Reader<'a>
+  where
+    Self: 'a;
+
+  fn get_seek_reader(&mut self, entry_index: usize) -> Result<Self::SeekableReader<'_>, PoolError> {
+    self.get_reader(entry_index)
   }
 }
 

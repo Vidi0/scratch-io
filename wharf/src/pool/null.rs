@@ -1,6 +1,6 @@
 //! Null pool implementation
 
-use super::{ContainerBackedPool, Pool, PoolError, WritablePool};
+use super::{ContainerBackedPool, Pool, PoolError, WritablePool, SeekablePool};
 
 use std::io;
 use std::io::{BufReader, BufWriter};
@@ -43,6 +43,17 @@ impl Pool for NullPool {
 impl ContainerBackedPool for NullPool {
   fn get_container_size(&self, _entry_index: usize) -> Result<u64, PoolError> {
     Ok(0)
+  }
+}
+
+impl SeekablePool for NullPool {
+  type SeekableReader<'a>
+    = Self::Reader<'a>
+  where
+    Self: 'a;
+
+  fn get_seek_reader(&mut self, entry_index: usize) -> Result<Self::SeekableReader<'_>, PoolError> {
+    self.get_reader(entry_index)
   }
 }
 

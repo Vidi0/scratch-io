@@ -1,4 +1,4 @@
-use super::{ContainerBackedPool, Pool, PoolError, WritablePool};
+use super::{ContainerBackedPool, Pool, PoolError, SeekablePool, WritablePool};
 use crate::protos::tlc;
 
 use std::fs::{self, File, OpenOptions};
@@ -265,6 +265,17 @@ impl Pool for ContainerPool<'_, '_> {
 impl ContainerBackedPool for ContainerPool<'_, '_> {
   fn get_container_size(&self, entry_index: usize) -> Result<u64, PoolError> {
     self.get_file(entry_index).map(|f| f.size as u64)
+  }
+}
+
+impl SeekablePool for ContainerPool<'_, '_> {
+  type SeekableReader<'a>
+    = Self::Reader<'a>
+  where
+    Self: 'a;
+
+  fn get_seek_reader(&mut self, entry_index: usize) -> Result<Self::SeekableReader<'_>, PoolError> {
+    self.get_reader(entry_index)
   }
 }
 
