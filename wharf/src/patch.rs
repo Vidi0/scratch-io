@@ -251,8 +251,8 @@ where
 
     // Decode the SyncHeader
     let header = match decode_protobuf::<pwr::SyncHeader>(&mut self.reader) {
-      Err(e) => return Some(Err(e)),
       Ok(sync_header) => sync_header,
+      Err(e) => return Some(Err(e)),
     };
 
     // Decode the BsdiffHeader (if the header type is Bsdiff)
