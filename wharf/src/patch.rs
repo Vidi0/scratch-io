@@ -195,14 +195,14 @@ pub enum SyncHeaderKind<'a, R> {
     op_iter: OpIter<'a, R, op_kind::Rsync>,
   },
   Bsdiff {
-    target_index: i64,
+    target_index: usize,
     op_iter: OpIter<'a, R, op_kind::Bsdiff>,
   },
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct SyncHeader<'a, R> {
-  pub file_index: i64,
+  pub file_index: usize,
   pub kind: SyncHeaderKind<'a, R>,
 }
 
@@ -258,7 +258,7 @@ where
     // Pack the gathered data into a SyncHeader struct and return it
     use pwr::sync_header::Type;
     Some(Ok(SyncHeader {
-      file_index: header.file_index,
+      file_index: header.file_index as usize,
       kind: match header.r#type() {
         Type::Rsync => SyncHeaderKind::Rsync {
           op_iter: OpIter {
@@ -270,7 +270,7 @@ where
         Type::Bsdiff => {
           // If the header type is Bsdiff, decode the BsdiffHeader
           let target_index = match decode_protobuf::<pwr::BsdiffHeader>(&mut self.reader) {
-            Ok(bsdiff_header) => bsdiff_header.target_index,
+            Ok(bsdiff_header) => bsdiff_header.target_index as usize,
             Err(e) => return Some(Err(e)),
           };
 

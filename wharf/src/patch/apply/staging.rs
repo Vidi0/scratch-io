@@ -100,7 +100,7 @@ pub fn reconstruct_modified_files(
     let mut header = header.map_err(|e| format!("Couldn't get next patch sync operation!\n{e}"))?;
 
     // Get the new file index
-    let file_index = header.file_index as usize;
+    let file_index = header.file_index;
 
     // Open the new file
     let new_file_size = dst_pool.get_container_size(file_index)?;

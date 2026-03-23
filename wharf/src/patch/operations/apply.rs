@@ -268,12 +268,12 @@ impl<R: Read> SyncHeader<'_, R> {
         let new_file = &mut new_file()?;
 
         // Open the old file
-        let Some(old_file_disk_size) = src_pool.get_size(target_index as usize)? else {
+        let Some(old_file_disk_size) = src_pool.get_size(target_index)? else {
           op_iter.drain()?;
           return Ok(PatchFileStatus::Broken);
         };
 
-        let mut old_file = src_pool.get_seek_reader(target_index as usize)?;
+        let mut old_file = src_pool.get_seek_reader(target_index)?;
 
         // Store the old file seek position between apply calls
         let mut old_file_seek_position: u64 = 0;
