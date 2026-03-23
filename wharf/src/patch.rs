@@ -224,7 +224,7 @@ pub struct SyncHeader<'a, R> {
   pub kind: SyncHeaderKind<'a, R>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct SyncEntryIter<R> {
   reader: R,
   remaining_entries: u64,
