@@ -37,9 +37,11 @@ where
       return Ok(());
     }
 
-    for op in self {
+    for op in &mut *self {
       op?;
     }
+
+    self.finished = true;
 
     Ok(())
   }
