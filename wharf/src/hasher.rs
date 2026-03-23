@@ -93,6 +93,7 @@ impl<'cont, 'hash_iter, R> BlockHasher<'cont, 'hash_iter, R>
 where
   R: Read,
 {
+  /// Return the size of the next file in the container and advance the entry index
   fn next_file_size(&mut self) -> Result<u64, String> {
     let file = self.container.files.get(self.entry_index).ok_or_else(|| {
       format!(
@@ -106,6 +107,12 @@ Index: {}",
     Ok(file.size as u64)
   }
 
+  /// Return a [`FileBlockHasher`] for the next file in the container
+  ///
+  /// # Errors
+  ///
+  /// If the container has run out of files or there is an I/O failure while
+  /// skipping blocks in the hash iterator.
   pub fn next_file_hasher(&mut self) -> Result<FileBlockHasher<'_, 'hash_iter, R>, String> {
     // Reset the hasher, allowing it to hash another file
     self.internal_hasher.reset();
