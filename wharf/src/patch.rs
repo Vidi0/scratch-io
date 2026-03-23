@@ -109,19 +109,20 @@ where
       return None;
     }
 
-    match decode_protobuf::<pwr::SyncOp>(&mut self.reader) {
-      Err(e) => Some(Err(format!(
-        "Couldn't decode Rsync SyncOp message from reader!\n{e}"
-      ))),
-
-      Ok(sync_op) => {
-        if sync_op.r#type() == pwr::sync_op::Type::HeyYouDidIt {
-          self.finished = true;
-          None
-        } else {
-          Some(Ok(sync_op.into()))
-        }
+    let sync_op = match decode_protobuf::<pwr::SyncOp>(&mut self.reader) {
+      Ok(sync_op) => sync_op,
+      Err(e) => {
+        return Some(Err(format!(
+          "Couldn't decode Rsync SyncOp message from reader!\n{e}"
+        )));
       }
+    };
+
+    if sync_op.r#type() == pwr::sync_op::Type::HeyYouDidIt {
+      self.finished = true;
+      None
+    } else {
+      Some(Ok(sync_op.into()))
     }
   }
 }
@@ -154,34 +155,36 @@ where
       return None;
     }
 
-    match decode_protobuf::<bsdiff::Control>(&mut self.reader) {
-      Err(e) => Some(Err(format!(
-        "Couldn't decode Bsdiff Control message from reader!\n{e}"
-      ))),
-
-      Ok(control_op) => {
-        if control_op.eof {
-          // Wharf adds a Rsync HeyYouDidIt message after the Bsdiff EOF
-          match decode_protobuf::<pwr::SyncOp>(&mut self.reader) {
-            Err(e) => Some(Err(format!(
-              "Couldn't decode Rsync SyncOp message from reader!\n{e}"
-            ))),
-
-            Ok(sync_op) => {
-              if sync_op.r#type() == pwr::sync_op::Type::HeyYouDidIt {
-                self.finished = true;
-                None
-              } else {
-                Some(Err(
-                  "Expected a Rsync HeyYouDidIt sync operation, but did not found it!".to_string(),
-                ))
-              }
-            }
-          }
-        } else {
-          Some(Ok(control_op.into()))
-        }
+    let control_op = match decode_protobuf::<bsdiff::Control>(&mut self.reader) {
+      Ok(control_op) => control_op,
+      Err(e) => {
+        return Some(Err(format!(
+          "Couldn't decode Bsdiff Control message from reader!\n{e}"
+        )));
       }
+    };
+
+    if control_op.eof {
+      // Wharf adds a Rsync HeyYouDidIt message after the Bsdiff EOF
+      let sync_op = match decode_protobuf::<pwr::SyncOp>(&mut self.reader) {
+        Ok(sync_op) => sync_op,
+        Err(e) => {
+          return Some(Err(format!(
+            "Couldn't decode Rsync SyncOp message from reader!\n{e}"
+          )));
+        }
+      };
+
+      if sync_op.r#type() == pwr::sync_op::Type::HeyYouDidIt {
+        self.finished = true;
+        None
+      } else {
+        Some(Err(
+          "Expected a Rsync HeyYouDidIt sync operation, but did not found it!".to_string(),
+        ))
+      }
+    } else {
+      Some(Ok(control_op.into()))
     }
   }
 }
