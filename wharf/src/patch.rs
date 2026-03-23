@@ -53,11 +53,11 @@ where
       return Ok(());
     }
 
-    for op in &mut *self {
+    for op in self {
       op?;
     }
 
-    *self.pending_drain = None;
+    // self.pending_drain will be set to None in the last iterator call
 
     Ok(())
   }
