@@ -94,18 +94,16 @@ where
   R: Read,
 {
   fn next_file_size(&mut self) -> Result<u64, String> {
-    self
-      .container
-      .files
-      .get(self.entry_index)
-      .map(|f| f.size as u64)
-      .ok_or_else(|| {
-        format!(
-          "Couldn't get next file hasher because the container has run out of files!
+    let file = self.container.files.get(self.entry_index).ok_or_else(|| {
+      format!(
+        "Couldn't get next file hasher because the container has run out of files!
 Index: {}",
-          self.entry_index
-        )
-      })
+        self.entry_index
+      )
+    })?;
+
+    self.entry_index += 1;
+    Ok(file.size as u64)
   }
 
   pub fn next_file_hasher(&mut self) -> Result<FileBlockHasher<'_, 'hash_iter, R>, String> {
@@ -123,7 +121,6 @@ Index: {}",
 
     // Set up the internal counter to the right values
     self.last_file_remaining_blocks = block_count(file_size);
-    self.entry_index += 1;
 
     Ok(FileBlockHasher {
       internal_hasher: &mut self.internal_hasher,
@@ -143,9 +140,6 @@ Index: {}",
       let file_size = self.next_file_size()?;
       self.internal_hasher.skip_blocks(block_count(file_size))?;
     }
-
-    // Set the hasher variables
-    self.entry_index += file_count;
 
     Ok(())
   }
