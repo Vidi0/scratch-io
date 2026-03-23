@@ -155,10 +155,6 @@ impl<R: Read> SyncHeader<'_, R> {
     // Save the index of the operation to be able to store it in the checkpoint
     let mut op_index: usize = 0;
 
-    // WARNING: It is very important that, before any early Ok return
-    // inside the self.kind match for both rsync and bsdiff iterators,
-    // op_iter.drain() is called to ensure they aren't left in an invalid state
-
     match self.kind {
       SyncHeaderKind::Rsync { ref mut op_iter } => {
         // Rsync operations can be used to determine two special cases:
@@ -180,13 +176,11 @@ impl<R: Read> SyncHeader<'_, R> {
 
               // If it represents an empty file, then return early
               if first.is_empty_file(new_file_size) {
-                op_iter.drain()?;
                 return Ok(PatchFileStatus::Empty);
               }
 
               // It it's a literal copy, return early, too
               if let Some(old_index) = first.is_literal_copy(new_file_size, src_pool)? {
-                op_iter.drain()?;
                 return Ok(PatchFileStatus::Skipped { old_index });
               }
 
@@ -243,13 +237,10 @@ impl<R: Read> SyncHeader<'_, R> {
           let status = op?.apply(new_file, hasher, src_pool, patch_op_buffer)?;
 
           match status {
+            OpStatus::Broken => return Ok(PatchFileStatus::Broken),
             OpStatus::Ok { written_bytes: b } => {
               written_bytes += b;
               progress_callback(b);
-            }
-            OpStatus::Broken => {
-              op_iter.drain()?;
-              return Ok(PatchFileStatus::Broken);
             }
           }
 
@@ -269,7 +260,6 @@ impl<R: Read> SyncHeader<'_, R> {
 
         // Open the old file
         let Some(old_file_disk_size) = src_pool.get_size(target_index)? else {
-          op_iter.drain()?;
           return Ok(PatchFileStatus::Broken);
         };
 
@@ -310,13 +300,10 @@ impl<R: Read> SyncHeader<'_, R> {
           )?;
 
           match status {
+            OpStatus::Broken => return Ok(PatchFileStatus::Broken),
             OpStatus::Ok { written_bytes: b } => {
               written_bytes += b;
               progress_callback(b);
-            }
-            OpStatus::Broken => {
-              op_iter.drain()?;
-              return Ok(PatchFileStatus::Broken);
             }
           }
 

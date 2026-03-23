@@ -15,10 +15,27 @@ pub mod op_kind {
   pub struct Bsdiff;
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OpKind {
+  Rsync,
+  Bsdiff,
+}
+
+impl From<pwr::sync_header::Type> for OpKind {
+  fn from(value: pwr::sync_header::Type) -> Self {
+    use pwr::sync_header::Type as T;
+
+    match value {
+      T::Rsync => Self::Rsync,
+      T::Bsdiff => Self::Bsdiff,
+    }
+  }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct OpIter<'a, R, K> {
   reader: &'a mut R,
-  finished: bool,
+  pending_drain: &'a mut Option<OpKind>,
   _kind: PhantomData<K>,
 }
 
@@ -28,12 +45,11 @@ where
 {
   /// Drain the op iterator
   ///
-  /// It is very important to drain the iterator before getting
-  /// the next one if it hasn't been fully consumed.
-  /// If the iterator isn't drained, the next [`SyncEntryIter::next_header`]
-  /// call will fail because of an invalid read offset.
-  pub fn drain(&mut self) -> Result<(), String> {
-    if self.finished {
+  /// This is called automatically by [`SyncEntryIter::next_header`] before
+  /// advancing to the next entry, so it does not need to be called manually
+  /// unless you want to explicitly discard the remaining operations early.
+  fn drain(&mut self) -> Result<(), String> {
+    if self.pending_drain.is_none() {
       return Ok(());
     }
 
@@ -41,7 +57,7 @@ where
       op?;
     }
 
-    self.finished = true;
+    *self.pending_drain = None;
 
     Ok(())
   }
@@ -107,7 +123,7 @@ where
   type Item = Result<RsyncOp, String>;
 
   fn next(&mut self) -> Option<Self::Item> {
-    if self.finished {
+    if self.pending_drain.is_none() {
       return None;
     }
 
@@ -121,7 +137,7 @@ where
     };
 
     if sync_op.r#type() == pwr::sync_op::Type::HeyYouDidIt {
-      self.finished = true;
+      *self.pending_drain = None;
       None
     } else {
       Some(Ok(sync_op.into()))
@@ -153,7 +169,7 @@ where
   type Item = Result<BsdiffOp, String>;
 
   fn next(&mut self) -> Option<Self::Item> {
-    if self.finished {
+    if self.pending_drain.is_none() {
       return None;
     }
 
@@ -178,7 +194,7 @@ where
       };
 
       if sync_op.r#type() == pwr::sync_op::Type::HeyYouDidIt {
-        self.finished = true;
+        *self.pending_drain = None;
         None
       } else {
         Some(Err(
@@ -212,6 +228,7 @@ pub struct SyncHeader<'a, R> {
 pub struct SyncEntryIter<R> {
   reader: R,
   remaining_entries: u64,
+  pending_drain: Option<OpKind>,
 }
 
 impl<R> SyncEntryIter<R>
@@ -247,8 +264,16 @@ where
   fn new_op_iter<K>(&mut self) -> OpIter<'_, R, K> {
     OpIter {
       reader: &mut self.reader,
-      finished: false,
+      pending_drain: &mut self.pending_drain,
       _kind: PhantomData,
+    }
+  }
+
+  fn drain_last_entry(&mut self) -> Result<(), String> {
+    match self.pending_drain {
+      None => Ok(()),
+      Some(OpKind::Rsync) => self.new_op_iter::<op_kind::Rsync>().drain(),
+      Some(OpKind::Bsdiff) => self.new_op_iter::<op_kind::Bsdiff>().drain(),
     }
   }
 
@@ -257,6 +282,12 @@ where
       return None;
     }
 
+    // Fix the reader position if the last header wasn't fully read
+    if let Err(e) = self.drain_last_entry() {
+      return Some(Err(e));
+    };
+
+    // Update internal counters
     self.remaining_entries -= 1;
 
     // Decode the SyncHeader
@@ -270,10 +301,18 @@ where
     Some(Ok(SyncHeader {
       file_index: header.file_index as usize,
       kind: match header.r#type() {
-        Type::Rsync => SyncHeaderKind::Rsync {
-          op_iter: self.new_op_iter(),
-        },
+        Type::Rsync => {
+          // Set the correct kind for the pending drain
+          self.pending_drain = Some(OpKind::Rsync);
+
+          SyncHeaderKind::Rsync {
+            op_iter: self.new_op_iter(),
+          }
+        }
         Type::Bsdiff => {
+          // Set the correct kind for the pending drain
+          self.pending_drain = Some(OpKind::Bsdiff);
+
           // If the header type is Bsdiff, decode the BsdiffHeader
           let target_index = match decode_protobuf::<pwr::BsdiffHeader>(&mut self.reader) {
             Ok(bsdiff_header) => bsdiff_header.target_index as usize,
@@ -292,25 +331,15 @@ where
   pub fn skip_entries(&mut self, entries_to_skip: u64) -> Result<(), String> {
     // For each entry that will be skipped:
     for i in 0..entries_to_skip {
-      // Get the header
-      let header = match self.next_header() {
-        Some(Ok(h)) => h,
+      // After getting the header, the corresponding iterator will be drained automatically
+      match self.next_header() {
+        Some(Ok(_header)) => (),
         Some(Err(e)) => return Err(format!("Couldn't get next patch sync operation!\n{e}")),
         None => {
           return Err(format!(
             "Can't skip {} entries, the iter stops at {}!",
             entries_to_skip, i
           ));
-        }
-      };
-
-      // Drain the corresponding iterator
-      match header.kind {
-        SyncHeaderKind::Rsync { mut op_iter } => {
-          op_iter.drain()?;
-        }
-        SyncHeaderKind::Bsdiff { mut op_iter, .. } => {
-          op_iter.drain()?;
         }
       }
     }
@@ -405,6 +434,7 @@ impl<'a> Patch<'a> {
     let sync_op_iter = SyncEntryIter {
       reader: decompressed,
       remaining_entries: container_new.files.len() as u64,
+      pending_drain: None,
     };
 
     Ok(Patch {
