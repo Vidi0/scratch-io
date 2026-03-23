@@ -8,6 +8,13 @@ use crate::protos::{decode_protobuf, skip_protobuf};
 use std::io::{BufRead, Read};
 use std::marker::PhantomData;
 
+pub mod op_kind {
+  #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+  pub struct Rsync;
+  #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+  pub struct Bsdiff;
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct OpIter<'a, R, K> {
   reader: &'a mut R,
@@ -63,13 +70,6 @@ where
 
     Ok(())
   }
-}
-
-pub mod op_kind {
-  #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-  pub struct Rsync;
-  #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-  pub struct Bsdiff;
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
