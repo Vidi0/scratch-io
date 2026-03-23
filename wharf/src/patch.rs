@@ -242,13 +242,6 @@ where
     Ok(())
   }
 
-  pub fn new(reader: R, total_entries: u64) -> Self {
-    SyncEntryIter {
-      reader,
-      remaining_entries: total_entries,
-    }
-  }
-
   fn new_op_iter<K>(&mut self) -> OpIter<'_, R, K> {
     OpIter {
       reader: &mut self.reader,
@@ -407,7 +400,10 @@ impl<'a> Patch<'a> {
     let container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
 
     // Decode the sync operations
-    let sync_op_iter = SyncEntryIter::new(decompressed, container_new.files.len() as u64);
+    let sync_op_iter = SyncEntryIter {
+      reader: decompressed,
+      remaining_entries: container_new.files.len() as u64,
+    };
 
     Ok(Patch {
       header,
