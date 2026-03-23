@@ -7,7 +7,6 @@ pub use errors::{BlockHasherError, BlockHasherStatus};
 
 use md5::digest::{OutputSizeUser, generic_array::GenericArray, typenum::Unsigned};
 use md5::{Digest, Md5};
-use std::fs::File;
 use std::io::{Read, Seek};
 
 type Md5HashSize = <md5::Md5 as OutputSizeUser>::OutputSize;
@@ -220,7 +219,7 @@ impl<R: Read> FileBlockHasher<'_, '_, R> {
   /// has just been created
   ///
   /// This function will move the file seek!
-  pub fn skip_bytes(&mut self, bytes: u64, file: &mut File) -> Result<(), String> {
+  pub fn skip_bytes(&mut self, bytes: u64, file: &mut (impl Read + Seek)) -> Result<(), String> {
     assert!(self.first_block);
     assert_eq!(self.written_bytes, 0);
 
