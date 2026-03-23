@@ -209,15 +209,7 @@ pub struct SyncHeader<'a, R> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncEntryIter<R> {
   reader: R,
-  total_entries: u64,
-  entries_read: u64,
-}
-
-impl<R> SyncEntryIter<R> {
-  #[must_use]
-  pub const fn total_entries(&self) -> u64 {
-    self.total_entries
-  }
+  remaining_entries: u64,
 }
 
 impl<R> SyncEntryIter<R>
@@ -251,11 +243,11 @@ where
   }
 
   pub fn next_header(&mut self) -> Option<Result<SyncHeader<'_, R>, String>> {
-    if self.entries_read == self.total_entries {
+    if self.remaining_entries == 0 {
       return None;
     }
 
-    self.entries_read += 1;
+    self.remaining_entries -= 1;
 
     // Decode the SyncHeader
     let header = match decode_protobuf::<pwr::SyncHeader>(&mut self.reader) {
@@ -413,8 +405,7 @@ impl<'a> Patch<'a> {
     let sync_op_iter = SyncEntryIter {
       reader: decompressed,
       // An entry is provided for each file in the new container
-      total_entries: container_new.files.len() as u64,
-      entries_read: 0,
+      remaining_entries: container_new.files.len() as u64,
     };
 
     Ok(Patch {
