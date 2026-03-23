@@ -255,36 +255,34 @@ where
       Err(e) => return Some(Err(e)),
     };
 
-    // Decode the BsdiffHeader (if the header type is Bsdiff)
-    let bsdiff_header = match header.r#type() {
-      pwr::sync_header::Type::Rsync => None,
-      pwr::sync_header::Type::Bsdiff => {
-        match decode_protobuf::<pwr::BsdiffHeader>(&mut self.reader) {
-          Err(e) => return Some(Err(e)),
-          Ok(bsdiff_header) => Some(bsdiff_header),
-        }
-      }
-    };
-
     // Pack the gathered data into a SyncHeader struct and return it
+    use pwr::sync_header::Type;
     Some(Ok(SyncHeader {
       file_index: header.file_index,
-      kind: match bsdiff_header {
-        None => SyncHeaderKind::Rsync {
+      kind: match header.r#type() {
+        Type::Rsync => SyncHeaderKind::Rsync {
           op_iter: OpIter {
             reader: &mut self.reader,
             finished: false,
             _kind: PhantomData,
           },
         },
-        Some(bsdiff) => SyncHeaderKind::Bsdiff {
-          target_index: bsdiff.target_index,
-          op_iter: OpIter {
-            reader: &mut self.reader,
-            finished: false,
-            _kind: PhantomData,
-          },
-        },
+        Type::Bsdiff => {
+          // If the header type is Bsdiff, decode the BsdiffHeader
+          let target_index = match decode_protobuf::<pwr::BsdiffHeader>(&mut self.reader) {
+            Ok(bsdiff_header) => bsdiff_header.target_index,
+            Err(e) => return Some(Err(e)),
+          };
+
+          SyncHeaderKind::Bsdiff {
+            target_index,
+            op_iter: OpIter {
+              reader: &mut self.reader,
+              finished: false,
+              _kind: PhantomData,
+            },
+          }
+        }
       },
     }))
   }
