@@ -274,7 +274,7 @@ where
           op_iter: OpIter {
             reader: &mut self.reader,
             finished: false,
-            _kind: PhantomData::<op_kind::Rsync>,
+            _kind: PhantomData,
           },
         },
         Some(bsdiff) => SyncHeaderKind::Bsdiff {
@@ -282,7 +282,7 @@ where
           op_iter: OpIter {
             reader: &mut self.reader,
             finished: false,
-            _kind: PhantomData::<op_kind::Bsdiff>,
+            _kind: PhantomData,
           },
         },
       },
