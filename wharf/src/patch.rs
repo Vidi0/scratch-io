@@ -242,6 +242,14 @@ where
     Ok(())
   }
 
+  fn new_op_iter<K>(&mut self) -> OpIter<'_, R, K> {
+    OpIter {
+      reader: &mut self.reader,
+      finished: false,
+      _kind: PhantomData,
+    }
+  }
+
   pub fn next_header(&mut self) -> Option<Result<SyncHeader<'_, R>, String>> {
     if self.remaining_entries == 0 {
       return None;
@@ -261,11 +269,7 @@ where
       file_index: header.file_index as usize,
       kind: match header.r#type() {
         Type::Rsync => SyncHeaderKind::Rsync {
-          op_iter: OpIter {
-            reader: &mut self.reader,
-            finished: false,
-            _kind: PhantomData,
-          },
+          op_iter: self.new_op_iter(),
         },
         Type::Bsdiff => {
           // If the header type is Bsdiff, decode the BsdiffHeader
@@ -276,11 +280,7 @@ where
 
           SyncHeaderKind::Bsdiff {
             target_index,
-            op_iter: OpIter {
-              reader: &mut self.reader,
-              finished: false,
-              _kind: PhantomData,
-            },
+            op_iter: self.new_op_iter(),
           }
         }
       },
