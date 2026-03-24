@@ -1,5 +1,3 @@
-/// Wharf protobuf definitions
-pub mod protos;
 
 /// Funcions and structures for reading wharf patches
 pub mod patch;
@@ -11,6 +9,7 @@ pub mod info;
 
 pub mod pool;
 
+mod protos;
 mod common;
 mod container;
 mod hasher;

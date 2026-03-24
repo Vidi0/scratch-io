@@ -15,7 +15,7 @@
 //! # Implementations
 //!
 //! - [`ContainerPool`]: backed by a folder on disk, mirroring the structure
-//!   of a [`crate::protos::Container`]
+//!   of a wharf container
 //! - [`NullPool`]: discards all writes and returns empty reads, useful for
 //!   testing and benchmarking
 //! - [`StagingPool`]: unbounded writable pool backed by a folder on disk
@@ -91,7 +91,7 @@ pub trait Pool {
 
 /// Extends [`Pool`] with access to the container metadata
 ///
-/// Implemented by pools that are backed by a [`crate::protos::Container`],
+/// Implemented by pools that are backed by a wharf container,
 /// allowing callers to query the declared size of entries as described
 /// in the container metadata.
 pub trait ContainerBackedPool: Pool {

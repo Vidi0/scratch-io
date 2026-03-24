@@ -125,7 +125,7 @@ impl ContainerItem for protos::Symlink {
   }
 }
 
-/// A pool backed by a folder on disk, mirroring the structure of a [`protos::Container`]
+/// A pool backed by a folder on disk, mirroring the structure of a wharf container
 ///
 /// Each entry is located by resolving its path from the container metadata
 /// against the base folder. The folder structure is created on construction
