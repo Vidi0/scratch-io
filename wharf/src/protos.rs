@@ -2,7 +2,7 @@ mod definitions;
 
 pub use definitions::*;
 
-use std::io::Read;
+use std::io::{self, Read};
 
 /// <https://protobuf.dev/programming-guides/encoding/#varints>
 const PROTOBUF_VARINT_MAX_LENGTH: usize = 10;
@@ -71,7 +71,7 @@ pub(crate) fn decode_protobuf<T: prost::Message + Default>(
 pub(crate) fn skip_protobuf(reader: &mut impl Read) -> Result<(), String> {
   let length = read_length_delimiter(reader)?;
 
-  std::io::copy(&mut reader.take(length as u64), &mut std::io::sink())
+  std::io::copy(&mut reader.take(length as u64), &mut io::empty())
     .map(|_| ())
     .map_err(|e| format!("Couldn't read from reader into a sink!\n{e}"))
 }
