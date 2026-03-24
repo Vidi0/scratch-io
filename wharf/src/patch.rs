@@ -2,8 +2,7 @@ pub mod apply;
 pub mod operations;
 
 use crate::common::{MAGIC_PATCH, check_magic_bytes, decompress_stream};
-use crate::protos::{bsdiff, pwr, tlc};
-use crate::protos::{decode_protobuf, skip_protobuf};
+use crate::protos::{self, decode_protobuf, skip_protobuf};
 
 use std::io::{BufRead, Read};
 use std::marker::PhantomData;
@@ -21,9 +20,9 @@ pub enum OpKind {
   Bsdiff,
 }
 
-impl From<pwr::sync_header::Type> for OpKind {
-  fn from(value: pwr::sync_header::Type) -> Self {
-    use pwr::sync_header::Type as T;
+impl From<protos::sync_header::Type> for OpKind {
+  fn from(value: protos::sync_header::Type) -> Self {
+    use protos::sync_header::Type as T;
 
     match value {
       T::Rsync => Self::Rsync,
@@ -100,9 +99,9 @@ pub enum RsyncOp {
   Data(Vec<u8>),
 }
 
-impl From<pwr::SyncOp> for RsyncOp {
-  fn from(value: pwr::SyncOp) -> Self {
-    use pwr::sync_op::Type as T;
+impl From<protos::SyncOp> for RsyncOp {
+  fn from(value: protos::SyncOp) -> Self {
+    use protos::sync_op::Type as T;
 
     match value.r#type() {
       T::HeyYouDidIt => unreachable!(),
@@ -127,7 +126,7 @@ where
       return None;
     }
 
-    let sync_op = match decode_protobuf::<pwr::SyncOp>(&mut self.reader) {
+    let sync_op = match decode_protobuf::<protos::SyncOp>(&mut self.reader) {
       Ok(sync_op) => sync_op,
       Err(e) => {
         return Some(Err(format!(
@@ -136,7 +135,7 @@ where
       }
     };
 
-    if sync_op.r#type() == pwr::sync_op::Type::HeyYouDidIt {
+    if sync_op.r#type() == protos::sync_op::Type::HeyYouDidIt {
       *self.pending_drain = None;
       None
     } else {
@@ -152,8 +151,8 @@ pub struct BsdiffOp {
   pub seek: i64,
 }
 
-impl From<bsdiff::Control> for BsdiffOp {
-  fn from(value: bsdiff::Control) -> Self {
+impl From<protos::Control> for BsdiffOp {
+  fn from(value: protos::Control) -> Self {
     Self {
       add: value.add,
       copy: value.copy,
@@ -173,7 +172,7 @@ where
       return None;
     }
 
-    let control_op = match decode_protobuf::<bsdiff::Control>(&mut self.reader) {
+    let control_op = match decode_protobuf::<protos::Control>(&mut self.reader) {
       Ok(control_op) => control_op,
       Err(e) => {
         return Some(Err(format!(
@@ -184,7 +183,7 @@ where
 
     if control_op.eof {
       // Wharf adds a Rsync HeyYouDidIt message after the Bsdiff EOF
-      let sync_op = match decode_protobuf::<pwr::SyncOp>(&mut self.reader) {
+      let sync_op = match decode_protobuf::<protos::SyncOp>(&mut self.reader) {
         Ok(sync_op) => sync_op,
         Err(e) => {
           return Some(Err(format!(
@@ -193,7 +192,7 @@ where
         }
       };
 
-      if sync_op.r#type() == pwr::sync_op::Type::HeyYouDidIt {
+      if sync_op.r#type() == protos::sync_op::Type::HeyYouDidIt {
         *self.pending_drain = None;
         None
       } else {
@@ -291,13 +290,13 @@ where
     self.remaining_entries -= 1;
 
     // Decode the SyncHeader
-    let header = match decode_protobuf::<pwr::SyncHeader>(&mut self.reader) {
+    let header = match decode_protobuf::<protos::SyncHeader>(&mut self.reader) {
       Ok(sync_header) => sync_header,
       Err(e) => return Some(Err(e)),
     };
 
     // Pack the gathered data into a SyncHeader struct and return it
-    use pwr::sync_header::Type;
+    use protos::sync_header::Type;
     Some(Ok(SyncHeader {
       file_index: header.file_index as usize,
       kind: match header.r#type() {
@@ -314,7 +313,7 @@ where
           self.pending_drain = Some(OpKind::Bsdiff);
 
           // If the header type is Bsdiff, decode the BsdiffHeader
-          let target_index = match decode_protobuf::<pwr::BsdiffHeader>(&mut self.reader) {
+          let target_index = match decode_protobuf::<protos::BsdiffHeader>(&mut self.reader) {
             Ok(bsdiff_header) => bsdiff_header.target_index as usize,
             Err(e) => return Some(Err(e)),
           };
@@ -356,9 +355,9 @@ where
 /// state before and after the patch, and an iterator over the patch operations.
 /// The iterator reads from the underlying stream on the fly as items are requested.
 pub struct Patch<'a> {
-  pub header: pwr::PatchHeader,
-  pub container_old: tlc::Container,
-  pub container_new: tlc::Container,
+  pub header: protos::PatchHeader,
+  pub container_old: protos::Container,
+  pub container_new: protos::Container,
   pub sync_op_iter: SyncEntryIter<Box<dyn BufRead + 'a>>,
 }
 
@@ -416,7 +415,7 @@ impl<'a> Patch<'a> {
   /// For more information, see [`Patch::read`].
   pub fn read_without_magic(reader: &'a mut impl BufRead) -> Result<Self, String> {
     // Decode the patch header
-    let header = decode_protobuf::<pwr::PatchHeader>(reader)?;
+    let header = decode_protobuf::<protos::PatchHeader>(reader)?;
 
     // Decompress the remaining stream
     let compression_algorithm = header
@@ -427,8 +426,8 @@ impl<'a> Patch<'a> {
     let mut decompressed = decompress_stream(reader, compression_algorithm)?;
 
     // Decode the containers
-    let container_old = decode_protobuf::<tlc::Container>(&mut decompressed)?;
-    let container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
+    let container_old = decode_protobuf::<protos::Container>(&mut decompressed)?;
+    let container_new = decode_protobuf::<protos::Container>(&mut decompressed)?;
 
     // Decode the sync operations
     let sync_op_iter = SyncEntryIter {

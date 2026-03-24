@@ -2,7 +2,7 @@ use super::Signature;
 use crate::common::BLOCK_SIZE;
 use crate::hasher::{BlockHasher, BlockHasherStatus, FileBlockHasher};
 use crate::pool::{ContainerBackedPool, ContainerPool, Pool};
-use crate::protos::tlc;
+use crate::protos;
 
 use std::io::Read;
 use std::path::Path;
@@ -22,7 +22,7 @@ impl IntegrityIssues {
   }
 
   #[must_use]
-  pub fn bytes_to_fix(&self, container: &tlc::Container) -> u64 {
+  pub fn bytes_to_fix(&self, container: &protos::Container) -> u64 {
     self
       .files
       .iter()

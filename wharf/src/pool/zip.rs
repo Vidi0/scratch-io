@@ -1,7 +1,7 @@
 //! ZIP archive pool implementation
 
 use super::{ContainerBackedPool, Pool, PoolError};
-use crate::protos::tlc;
+use crate::protos;
 
 use rc_zip_sync::{ArchiveHandle, EntryReader, HasCursor};
 use std::io;
@@ -14,19 +14,19 @@ pub struct ZipPool<'container, 'ar, 'ar_reader, C: HasCursor>
 where
   'ar: 'ar_reader,
 {
-  container: &'container tlc::Container,
+  container: &'container protos::Container,
   archive: &'ar ArchiveHandle<'ar_reader, C>,
 }
 
 impl<'container, 'ar, 'ar_reader, C: HasCursor> ZipPool<'container, 'ar, 'ar_reader, C> {
   pub fn new(
-    container: &'container tlc::Container,
+    container: &'container protos::Container,
     archive: &'ar ArchiveHandle<'ar_reader, C>,
   ) -> Self {
     Self { container, archive }
   }
 
-  fn get_file(&self, entry_index: usize) -> Result<&tlc::File, PoolError> {
+  fn get_file(&self, entry_index: usize) -> Result<&protos::File, PoolError> {
     self
       .container
       .files

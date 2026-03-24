@@ -2,8 +2,8 @@ pub mod repair;
 pub mod verify;
 
 use crate::common::{MAGIC_SIGNATURE, check_magic_bytes, decompress_stream};
+use crate::protos;
 use crate::protos::{decode_protobuf, skip_protobuf};
-use crate::protos::{pwr, tlc};
 
 use std::io::{BufRead, Read};
 
@@ -52,7 +52,7 @@ impl<R> Iterator for BlockHashIter<R>
 where
   R: Read,
 {
-  type Item = Result<pwr::BlockHash, String>;
+  type Item = Result<protos::BlockHash, String>;
 
   fn next(&mut self) -> Option<Self::Item> {
     if self.blocks_read == self.total_blocks {
@@ -60,7 +60,7 @@ where
     }
 
     self.blocks_read += 1;
-    Some(decode_protobuf::<pwr::BlockHash>(&mut self.reader))
+    Some(decode_protobuf::<protos::BlockHash>(&mut self.reader))
   }
 }
 
@@ -72,8 +72,8 @@ where
 /// and an iterator over the signature block hashes. The iterator reads
 /// from the underlying stream on the fly as items are requested.
 pub struct Signature<'a> {
-  pub header: pwr::SignatureHeader,
-  pub container_new: tlc::Container,
+  pub header: protos::SignatureHeader,
+  pub container_new: protos::Container,
   pub block_hash_iter: BlockHashIter<Box<dyn BufRead + 'a>>,
 }
 
@@ -123,7 +123,7 @@ impl<'a> Signature<'a> {
   /// For more information, see [`Signature::read`].
   pub fn read_without_magic(reader: &'a mut impl BufRead) -> Result<Self, String> {
     // Decode the signature header
-    let header = decode_protobuf::<pwr::SignatureHeader>(reader)?;
+    let header = decode_protobuf::<protos::SignatureHeader>(reader)?;
 
     // Decompress the remaining stream
     let compression_algorithm = header
@@ -134,7 +134,7 @@ impl<'a> Signature<'a> {
     let mut decompressed = decompress_stream(reader, compression_algorithm)?;
 
     // Decode the container
-    let container_new = decode_protobuf::<tlc::Container>(&mut decompressed)?;
+    let container_new = decode_protobuf::<protos::Container>(&mut decompressed)?;
 
     // Decode the hashes
     let block_hash_iter = BlockHashIter {

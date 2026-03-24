@@ -1,7 +1,7 @@
 mod errors;
 
 use crate::common::{BLOCK_SIZE, block_count};
-use crate::protos::tlc;
+use crate::protos;
 use crate::signature::BlockHashIter;
 pub use errors::{BlockHasherError, BlockHasherStatus};
 
@@ -69,14 +69,14 @@ where
 pub struct BlockHasher<'cont, 'hash_iter, R> {
   internal_hasher: InternalHasher<'hash_iter, R>,
 
-  container: &'cont tlc::Container,
+  container: &'cont protos::Container,
   entry_index: usize,
 
   last_file_remaining_blocks: u64,
 }
 
 impl<'cont, 'hash, R> BlockHasher<'cont, 'hash, R> {
-  pub fn new(container: &'cont tlc::Container, hash_iter: &'hash mut BlockHashIter<R>) -> Self {
+  pub fn new(container: &'cont protos::Container, hash_iter: &'hash mut BlockHashIter<R>) -> Self {
     Self {
       internal_hasher: InternalHasher::new(hash_iter),
 

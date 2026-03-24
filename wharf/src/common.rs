@@ -1,4 +1,4 @@
-use crate::protos::pwr::CompressionAlgorithm;
+use crate::protos::CompressionAlgorithm;
 
 use std::io::{BufRead, BufReader, Read};
 

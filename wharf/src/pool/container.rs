@@ -1,5 +1,5 @@
 use super::{ContainerBackedPool, Pool, PoolError, SeekablePool, WritablePool};
-use crate::protos::tlc;
+use crate::protos;
 
 use std::fs::{self, File, OpenOptions};
 use std::io;
@@ -95,7 +95,7 @@ trait ContainerItem {
   }
 }
 
-impl ContainerItem for tlc::Dir {
+impl ContainerItem for protos::Dir {
   fn mode(&self) -> u32 {
     self.mode
   }
@@ -105,7 +105,7 @@ impl ContainerItem for tlc::Dir {
   }
 }
 
-impl ContainerItem for tlc::File {
+impl ContainerItem for protos::File {
   fn mode(&self) -> u32 {
     self.mode
   }
@@ -115,7 +115,7 @@ impl ContainerItem for tlc::File {
   }
 }
 
-impl ContainerItem for tlc::Symlink {
+impl ContainerItem for protos::Symlink {
   fn mode(&self) -> u32 {
     self.mode
   }
@@ -125,13 +125,13 @@ impl ContainerItem for tlc::Symlink {
   }
 }
 
-/// A pool backed by a folder on disk, mirroring the structure of a [`tlc::Container`]
+/// A pool backed by a folder on disk, mirroring the structure of a [`protos::Container`]
 ///
 /// Each entry is located by resolving its path from the container metadata
 /// against the base folder. The folder structure is created on construction
 /// to match the container's declared directories, files and symlinks.
 pub struct ContainerPool<'container, 'path> {
-  container: &'container tlc::Container,
+  container: &'container protos::Container,
   base_path: &'path Path,
 }
 
@@ -195,7 +195,7 @@ impl<'container, 'path> ContainerPool<'container, 'path> {
     Ok(())
   }
 
-  fn get_file(&self, entry_index: usize) -> Result<&tlc::File, PoolError> {
+  fn get_file(&self, entry_index: usize) -> Result<&protos::File, PoolError> {
     self
       .container
       .files
@@ -212,7 +212,7 @@ impl<'container, 'path> ContainerPool<'container, 'path> {
 
 impl<'container, 'path> ContainerPool<'container, 'path> {
   /// Open an existing folder as a [`ContainerPool`] without creating anything
-  pub fn open(container: &'container tlc::Container, base_path: &'path Path) -> Self {
+  pub fn open(container: &'container protos::Container, base_path: &'path Path) -> Self {
     Self {
       container,
       base_path,
@@ -224,7 +224,7 @@ impl<'container, 'path> ContainerPool<'container, 'path> {
   /// Creates all directories, files and symlinks described in the container
   /// under `base_path`, applying the correct permissions to each.
   pub fn create(
-    container: &'container tlc::Container,
+    container: &'container protos::Container,
     base_path: &'path Path,
   ) -> Result<Self, PoolError> {
     let pool = Self::open(container, base_path);

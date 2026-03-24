@@ -1,5 +1,5 @@
 use crate::common::block_count;
-use crate::protos::{pwr, tlc};
+use crate::protos;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -115,7 +115,7 @@ fn symlink(path: &Path, destination: &str) -> Result<(), String> {
   Ok(())
 }
 
-impl std::fmt::Display for pwr::CompressionSettings {
+impl std::fmt::Display for protos::CompressionSettings {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(f, "{:?}-q{}", self.algorithm(), self.quality)
   }
@@ -145,7 +145,7 @@ pub trait ContainerItem {
   }
 }
 
-impl ContainerItem for tlc::Dir {
+impl ContainerItem for protos::Dir {
   fn mode(&self) -> u32 {
     self.mode
   }
@@ -155,7 +155,7 @@ impl ContainerItem for tlc::Dir {
   }
 }
 
-impl ContainerItem for tlc::File {
+impl ContainerItem for protos::File {
   fn mode(&self) -> u32 {
     self.mode
   }
@@ -165,7 +165,7 @@ impl ContainerItem for tlc::File {
   }
 }
 
-impl ContainerItem for tlc::Symlink {
+impl ContainerItem for protos::Symlink {
   fn mode(&self) -> u32 {
     self.mode
   }
@@ -185,7 +185,7 @@ pub enum OpenFileStatus {
   NotFound,
 }
 
-impl tlc::File {
+impl protos::File {
   /// Get the number of blocks that the file occupies
   ///
   /// If the file is empty, still count one block for its empty hash
@@ -245,7 +245,7 @@ impl tlc::File {
   }
 }
 
-impl tlc::Container {
+impl protos::Container {
   pub fn dump_stdout(&self) {
     // Print the container size
     println!("{}", self.size);
@@ -290,7 +290,7 @@ impl tlc::Container {
     self.size as u64
   }
 
-  pub fn get_file(&self, index: usize) -> Result<&tlc::File, String> {
+  pub fn get_file(&self, index: usize) -> Result<&protos::File, String> {
     self
       .files
       .get(index)
