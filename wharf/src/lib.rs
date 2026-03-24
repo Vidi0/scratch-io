@@ -1,4 +1,3 @@
-
 /// Funcions and structures for reading wharf patches
 pub mod patch;
 /// Funcions and structures for reading wharf signatures
@@ -9,12 +8,10 @@ pub mod info;
 
 pub mod pool;
 
-mod protos;
 mod common;
 mod container;
 mod hasher;
+mod protos;
 
 pub use patch::Patch;
 pub use signature::Signature;
-
-pub use common::{BLOCK_SIZE, MAGIC_PATCH, MAGIC_SIGNATURE};
