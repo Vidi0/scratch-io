@@ -282,14 +282,6 @@ impl protos::Container {
     self.files.iter().fold(0, |acc, f| acc + f.block_count())
   }
 
-  /// Get the number of bytes every file in this container
-  /// combined occupies
-  #[inline]
-  #[must_use]
-  pub fn file_bytes(&self) -> u64 {
-    self.size as u64
-  }
-
   pub fn get_file(&self, index: usize) -> Result<&protos::File, String> {
     self
       .files

@@ -125,7 +125,7 @@ fn verify(signature_file: &Path, build_folder: &Path) {
             .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}) ({eta})").unwrap()
             .progress_chars("#>-")
         );
-  progress_bar.set_length(signature.container_new.file_bytes());
+  progress_bar.set_length(signature.container_new.size as u64);
   progress_bar.set_draw_target(indicatif::ProgressDrawTarget::stderr());
 
   // Do the files verification
@@ -158,7 +158,7 @@ fn repair(signature_file: &Path, build_folder: &Path, zip_archive: &Path) {
             .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}) ({eta})").unwrap()
             .progress_chars("#>-")
         );
-  progress_bar.set_length(signature.container_new.file_bytes());
+  progress_bar.set_length(signature.container_new.size as u64);
   progress_bar.set_draw_target(indicatif::ProgressDrawTarget::stderr());
 
   // Do the files verification
@@ -230,7 +230,7 @@ fn patch(
             .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}) ({eta})").unwrap()
             .progress_chars("#>-")
         );
-  progress_bar.set_length(patch.container_new.file_bytes());
+  progress_bar.set_length(patch.container_new.size as u64);
   progress_bar.set_draw_target(indicatif::ProgressDrawTarget::stderr());
 
   // Apply the patch
