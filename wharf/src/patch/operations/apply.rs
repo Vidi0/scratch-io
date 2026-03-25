@@ -43,14 +43,20 @@ impl FileCheckpoint {
   }
 }
 
-// Whether the file to be patched was actually patched or was skipped
-// because it was an exact copy of an old file
+/// The result of patching a file
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[must_use]
 pub enum PatchFileStatus {
+  /// The file was successfully patched and `written_bytes` bytes were written
   Patched { written_bytes: u64 },
+
+  /// The file was an exact copy of the old file at `old_index` and was skipped
   Skipped { old_index: usize },
+
+  /// The file is empty and no data was written
   Empty,
+
+  /// The file failed verification and its contents cannot be trusted
   Broken,
 }
 
