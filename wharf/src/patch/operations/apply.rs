@@ -101,7 +101,14 @@ impl FileCheckpoint {
 
     // Skip hasher blocks
     if let Some(hasher) = hasher {
+      ////////
+      ////////
+      //////// TODO: THIS DOESN'T WORK BECAUSE NEW_FILE IS WRITE-ONLY!!!!
+      ////////
+      ////////
+      ////////
       hasher.skip_bytes(*written_bytes, new_file)?;
+      todo!();
     }
 
     // Seek the new file to the end
