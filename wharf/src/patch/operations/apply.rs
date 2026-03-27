@@ -1,7 +1,7 @@
 use super::OpStatus;
 use crate::common::BLOCK_SIZE;
 use crate::hasher::{BlockHasherStatus, FileBlockHasher};
-use crate::patch::{OpIter, SyncHeader, SyncHeaderKind};
+use crate::patch::{OpIter, SyncHeader, SyncHeaderKind, op_kind};
 use crate::pool::{ContainerBackedPool, SeekablePool};
 
 use serde::{Deserialize, Serialize};
@@ -115,12 +115,12 @@ impl FileCheckpoint {
   }
 
   /// Load a checkpoint for an rsync patch
-  pub fn load_rsync<K>(
+  pub fn load_rsync(
     &self,
     written_bytes: &mut u64,
     op_index: &mut usize,
     new_file: &mut File,
-    op_iter: &mut OpIter<impl Read, K>,
+    op_iter: &mut OpIter<impl Read, op_kind::Rsync>,
     hasher: &mut Option<FileBlockHasher<impl Read>>,
   ) -> Result<(), String> {
     let FileCheckpointKind::Rsync = self.kind else {
@@ -131,13 +131,13 @@ impl FileCheckpoint {
   }
 
   /// Load a checkpoint for a bsdiff patch
-  pub fn load_bsdiff<K>(
+  pub fn load_bsdiff(
     &self,
     written_bytes: &mut u64,
     op_index: &mut usize,
     old_file_seek_position: &mut u64,
     new_file: &mut File,
-    op_iter: &mut OpIter<impl Read, K>,
+    op_iter: &mut OpIter<impl Read, op_kind::Bsdiff>,
     hasher: &mut Option<FileBlockHasher<impl Read>>,
   ) -> Result<(), String> {
     let FileCheckpointKind::Bsdiff {
