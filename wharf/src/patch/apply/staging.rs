@@ -114,7 +114,7 @@ pub fn reconstruct_modified_files(
     // Before patching, check if the file really needs patching
     let status = match header.check_skip(new_file_size, src_pool)? {
       SkipStatus::Empty => PatchFileStatus::Empty,
-      SkipStatus::LiteralCopy { old_index } => PatchFileStatus::Skipped { old_index },
+      SkipStatus::LiteralCopy { old_index } => PatchFileStatus::LiteralCopy { old_index },
       SkipStatus::NotSkippableRsync { mut op_iter } => {
         // Open the new file
         let mut new_file = staging_pool.get_writer(file_index)?;

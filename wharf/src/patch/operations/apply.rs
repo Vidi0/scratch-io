@@ -52,7 +52,7 @@ pub enum PatchFileStatus {
   Patched { written_bytes: u64 },
 
   /// The file was an exact copy of the old file at `old_index` and was skipped
-  Skipped { old_index: usize },
+  LiteralCopy { old_index: usize },
 
   /// The file is empty and no data was written
   Empty,
