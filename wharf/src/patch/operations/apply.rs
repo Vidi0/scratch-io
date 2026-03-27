@@ -82,15 +82,10 @@ fn truncate_file(file: &mut File, new_len: u64) -> Result<(), String> {
 }
 
 impl FileCheckpoint {
-  /// Load a checkpoint
-  ///
-  /// If `old_file_seek_position` is provided, load it as a bsdiff checkpoint.
-  /// Else, load it as an rsync one.
-  pub fn load<K>(
+  fn load_common<K>(
     &self,
     written_bytes: &mut u64,
     op_index: &mut usize,
-    old_file_seek_position: Option<&mut u64>,
     new_file: &mut File,
     op_iter: &mut OpIter<impl Read, K>,
     hasher: &mut Option<FileBlockHasher<impl Read>>,
@@ -100,25 +95,6 @@ impl FileCheckpoint {
     // then the current operation is the second one (index 1)
     *op_index = self.op_index + 1;
     *written_bytes = self.written_bytes;
-
-    match self.kind {
-      FileCheckpointKind::Rsync => {
-        // The old file seek position must not exist for an rsync checkpoint
-        let None = old_file_seek_position else {
-          return Err("Can't load a bsdiff checkpoint for an rsync file patch!".to_string());
-        };
-      }
-      FileCheckpointKind::Bsdiff {
-        old_file_seek_position: c_seek,
-      } => {
-        // The old file seek position must exist for a bsdiff checkpoint
-        let Some(old_seek) = old_file_seek_position else {
-          return Err("Can't load an rsync checkpoint for a bsdiff file patch!".to_string());
-        };
-
-        *old_seek = c_seek;
-      }
-    };
 
     // Truncate the new file to the correct size
     truncate_file(new_file, *written_bytes)?;
@@ -136,6 +112,43 @@ impl FileCheckpoint {
 
     // Skip the patch operations
     op_iter.skip_operations(*op_index as u64)
+  }
+
+  /// Load a checkpoint for an rsync patch
+  pub fn load_rsync<K>(
+    &self,
+    written_bytes: &mut u64,
+    op_index: &mut usize,
+    new_file: &mut File,
+    op_iter: &mut OpIter<impl Read, K>,
+    hasher: &mut Option<FileBlockHasher<impl Read>>,
+  ) -> Result<(), String> {
+    let FileCheckpointKind::Rsync = self.kind else {
+      return Err("Can't load a bsdiff checkpoint for an rsync file patch!".to_string());
+    };
+
+    self.load_common(written_bytes, op_index, new_file, op_iter, hasher)
+  }
+
+  /// Load a checkpoint for a bsdiff patch
+  pub fn load_bsdiff<K>(
+    &self,
+    written_bytes: &mut u64,
+    op_index: &mut usize,
+    old_file_seek_position: &mut u64,
+    new_file: &mut File,
+    op_iter: &mut OpIter<impl Read, K>,
+    hasher: &mut Option<FileBlockHasher<impl Read>>,
+  ) -> Result<(), String> {
+    let FileCheckpointKind::Bsdiff {
+      old_file_seek_position: checkpoint_seek,
+    } = self.kind
+    else {
+      return Err("Can't load an rsync checkpoint for a bsdiff file patch!".to_string());
+    };
+
+    *old_file_seek_position = checkpoint_seek;
+    self.load_common(written_bytes, op_index, new_file, op_iter, hasher)
   }
 }
 
@@ -214,14 +227,7 @@ impl<R: Read> SyncHeader<'_, R> {
           assert!(first.is_none());
 
           // For that reason, it is possible to load the checkpoint normally:
-          c.load(
-            &mut written_bytes,
-            &mut op_index,
-            None,
-            new_file,
-            op_iter,
-            hasher,
-          )?;
+          c.load_rsync(&mut written_bytes, &mut op_index, new_file, op_iter, hasher)?;
         }
 
         // Resize the block buffer
@@ -276,10 +282,10 @@ impl<R: Read> SyncHeader<'_, R> {
 
         // Load the checkpoint
         if let Some(c) = checkpoint {
-          c.load(
+          c.load_bsdiff(
             &mut written_bytes,
             &mut op_index,
-            Some(&mut old_file_seek_position),
+            &mut old_file_seek_position,
             new_file,
             op_iter,
             hasher,
