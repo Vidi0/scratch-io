@@ -1,4 +1,6 @@
 pub mod apply;
+pub mod skip;
+
 mod bsdiff;
 mod rsync;
 

@@ -1,7 +1,8 @@
 use super::OpStatus;
 use crate::common::BLOCK_SIZE;
 use crate::hasher::{BlockHasherStatus, FileBlockHasher};
-use crate::patch::{OpIter, SyncHeader, SyncHeaderKind, op_kind};
+use crate::patch::operations::skip::RsyncIterator;
+use crate::patch::{OpIter, op_kind};
 use crate::pool::{ContainerBackedPool, SeekablePool};
 
 use serde::{Deserialize, Serialize};
@@ -82,12 +83,11 @@ fn truncate_file(file: &mut File, new_len: u64) -> Result<(), String> {
 }
 
 impl FileCheckpoint {
-  fn load_common<K>(
+  fn load_common(
     &self,
     written_bytes: &mut u64,
     op_index: &mut usize,
     new_file: &mut File,
-    op_iter: &mut OpIter<impl Read, K>,
     hasher: &mut Option<FileBlockHasher<impl Read>>,
   ) -> Result<(), String> {
     // Add 1 to op_index
@@ -110,8 +110,7 @@ impl FileCheckpoint {
       .seek(std::io::SeekFrom::End(0))
       .map_err(|e| format!("Couldn't seek new file to the end!\n{e}"))?;
 
-    // Skip the patch operations
-    op_iter.skip_operations(*op_index as u64)
+    Ok(())
   }
 
   /// Load a checkpoint for an rsync patch
@@ -120,14 +119,17 @@ impl FileCheckpoint {
     written_bytes: &mut u64,
     op_index: &mut usize,
     new_file: &mut File,
-    op_iter: &mut OpIter<impl Read, op_kind::Rsync>,
+    op_iter: &mut RsyncIterator<'_, impl Read>,
     hasher: &mut Option<FileBlockHasher<impl Read>>,
   ) -> Result<(), String> {
     let FileCheckpointKind::Rsync = self.kind else {
       return Err("Can't load a bsdiff checkpoint for an rsync file patch!".to_string());
     };
 
-    self.load_common(written_bytes, op_index, new_file, op_iter, hasher)
+    self.load_common(written_bytes, op_index, new_file, hasher)?;
+
+    // Skip the patch operations
+    op_iter.skip_operations(*op_index as u64)
   }
 
   /// Load a checkpoint for a bsdiff patch
@@ -147,208 +149,171 @@ impl FileCheckpoint {
       return Err("Can't load an rsync checkpoint for a bsdiff file patch!".to_string());
     };
 
+    self.load_common(written_bytes, op_index, new_file, hasher)?;
     *old_file_seek_position = checkpoint_seek;
-    self.load_common(written_bytes, op_index, new_file, op_iter, hasher)
+
+    // Skip the patch operations
+    op_iter.skip_operations(*op_index as u64)
   }
 }
 
-impl<R: Read> SyncHeader<'_, R> {
-  /// Apply all the patch operations in the given header and
-  /// write them into `new_file`
-  #[expect(clippy::too_many_arguments)]
-  pub fn patch_file(
-    &mut self,
-    // `new_file` is a clousure because the new file won't not be needed
-    // if this patch represents a literal copy of an old file (the patch will be skipped)
-    new_file: impl FnOnce() -> Result<File, String>,
-    hasher: &mut Option<FileBlockHasher<impl Read>>,
-    new_file_size: u64,
-    src_pool: &mut (impl SeekablePool + ContainerBackedPool),
-    patch_op_buffer: &mut Vec<u8>,
-    checkpoint: Option<FileCheckpoint>,
-    mut save_checkpoint: impl FnMut(FileCheckpoint) -> Result<(), String>,
-    mut progress_callback: impl FnMut(u64),
-  ) -> Result<PatchFileStatus, String> {
-    let mut written_bytes: u64 = 0;
+#[expect(clippy::too_many_arguments)]
+pub fn patch_rsync(
+  op_iter: &mut RsyncIterator<'_, impl Read>,
+  new_file: &mut File,
+  new_file_size: u64,
+  src_pool: &mut (impl SeekablePool + ContainerBackedPool),
+  hasher: &mut Option<FileBlockHasher<impl Read>>,
+  patch_op_buffer: &mut Vec<u8>,
+  checkpoint: Option<FileCheckpoint>,
+  mut save_checkpoint: impl FnMut(FileCheckpoint) -> Result<(), String>,
+  mut progress_callback: impl FnMut(u64),
+) -> Result<PatchFileStatus, String> {
+  let mut op_index: usize = 0;
+  let mut written_bytes: u64 = 0;
 
-    // Save the index of the operation to be able to store it in the checkpoint
-    let mut op_index: usize = 0;
-
-    match self.kind {
-      SyncHeaderKind::Rsync { ref mut op_iter } => {
-        // Rsync operations can be used to determine two special cases:
-        //
-        // 1. The new file is a literal copy of one in the old container
-        // 2. The new file is empty
-        //
-        // For that reason, check if the *first* operation represents
-        // one of these special cases.
-        //
-        // Skip the check if there is a checkpoint, because a checkpoint means this
-        // patch operation represents actual changes in the file.
-        let first = if checkpoint.is_some() {
-          None
-        } else {
-          match op_iter.next() {
-            Some(op) => {
-              let first = op?;
-
-              // If it represents an empty file, then return early
-              if first.is_empty_file(new_file_size) {
-                return Ok(PatchFileStatus::Empty);
-              }
-
-              // It it's a literal copy, return early, too
-              if let Some(old_index) = first.is_literal_copy(new_file_size, src_pool)? {
-                return Ok(PatchFileStatus::Skipped { old_index });
-              }
-
-              // If it's not, return the SyncOp to be able to apply it later
-              Some(first)
-            }
-            // If the first operation is None, something has gone wrong...
-            // Even if the file is empty, it is represented with an empty Data message.
-            None => {
-              return Err(
-                "Expected the first SyncOp for this file, but received None?".to_string(),
-              );
-            }
-          }
-        };
-
-        // Now that we know that this file will have to be patched,
-        // get the new file with the clousure
-        let new_file = &mut new_file()?;
-
-        // Load the checkpoint
-        if let Some(c) = checkpoint {
-          // If there is a checkpoint, then the first operation was not
-          // obtained yet.
-          assert!(first.is_none());
-
-          // For that reason, it is possible to load the checkpoint normally:
-          c.load_rsync(&mut written_bytes, &mut op_index, new_file, op_iter, hasher)?;
-        }
-
-        // Resize the block buffer
-        // The size of the new buffer doesn't need to be BLOCK_SIZE,
-        // but it makes sense to use it
-        // Don't resize it if it's already large enough
-        if patch_op_buffer.len() < BLOCK_SIZE as usize {
-          patch_op_buffer.resize(BLOCK_SIZE as usize, 0);
-        }
-
-        // Finally, apply all the rsync operations
-        // Don't forget the first one, which was obtained independently!
-        let iter = std::iter::once(first)
-          .filter_map(|x| x.map(Ok))
-          .chain(&mut *op_iter);
-
-        // Get the index of the operation to be able to store it in the checkpoint
-        for op in iter {
-          let status = op?.apply(new_file, hasher, src_pool, patch_op_buffer)?;
-
-          match status {
-            OpStatus::Broken => return Ok(PatchFileStatus::Broken),
-            OpStatus::Ok { written_bytes: b } => {
-              written_bytes += b;
-              progress_callback(b);
-            }
-          }
-
-          // Save a checkpoint after each successful patch operation
-          save_checkpoint(FileCheckpoint::rsync(written_bytes, op_index))?;
-
-          op_index += 1;
-        }
-      }
-
-      SyncHeaderKind::Bsdiff {
-        target_index,
-        ref mut op_iter,
-      } => {
-        // If the header kind is bsdiff, the file will have to be patched
-        let new_file = &mut new_file()?;
-
-        // Open the old file
-        let Some(old_file_disk_size) = src_pool.get_size(target_index)? else {
-          return Ok(PatchFileStatus::Broken);
-        };
-
-        let mut old_file = src_pool.get_seek_reader(target_index)?;
-
-        // Store the old file seek position between apply calls
-        let mut old_file_seek_position: u64 = 0;
-
-        // Load the checkpoint
-        if let Some(c) = checkpoint {
-          c.load_bsdiff(
-            &mut written_bytes,
-            &mut op_index,
-            &mut old_file_seek_position,
-            new_file,
-            op_iter,
-            hasher,
-          )?;
-        }
-
-        // Rewind the old file to the start because the file might
-        // have been in the cache and seeked before
-        //
-        // If there is a checkpoint, seek the file to the correct position
-        old_file
-          .seek(std::io::SeekFrom::Start(old_file_seek_position))
-          .map_err(|e| format!("Couldn't seek old file to start!\n{e}"))?;
-
-        // Finally, apply all the bsdiff operations
-        for control in &mut *op_iter {
-          let status = control?.apply(
-            new_file,
-            hasher,
-            &mut old_file,
-            &mut old_file_seek_position,
-            old_file_disk_size,
-            patch_op_buffer,
-          )?;
-
-          match status {
-            OpStatus::Broken => return Ok(PatchFileStatus::Broken),
-            OpStatus::Ok { written_bytes: b } => {
-              written_bytes += b;
-              progress_callback(b);
-            }
-          }
-
-          // Save a checkpoint after each successful patch operation
-          save_checkpoint(FileCheckpoint::bsdiff(
-            written_bytes,
-            op_index,
-            old_file_seek_position,
-          ))?;
-
-          op_index += 1;
-        }
-      }
-    }
-
-    // VERY IMPORTANT!
-    // If the file doesn't finish with a full block, hash it anyways!
-    if let Some(h) = hasher {
-      let status = h.finalize_block()?;
-      if let BlockHasherStatus::HashMismatch { .. } = status {
-        return Ok(PatchFileStatus::Broken);
-      }
-    }
-
-    // If the patch is correct, the number of written bytes and the new
-    // file size should match.
-    //
-    // If the number of written bytes is lower because the file couldn't be
-    // patched or was skipped, then the function should have returned early.
-    if written_bytes != new_file_size {
-      return Err("After successfully patching a file, the number of written bytes does not equal the expected amount!".to_string());
-    }
-
-    Ok(PatchFileStatus::Patched { written_bytes })
+  // Load the checkpoint
+  if let Some(c) = checkpoint {
+    // For that reason, it is possible to load the checkpoint normally:
+    c.load_rsync(&mut written_bytes, &mut op_index, new_file, op_iter, hasher)?;
   }
+
+  // Resize the block buffer
+  // The size of the new buffer doesn't need to be BLOCK_SIZE,
+  // but it makes sense to use it
+  // Don't resize it if it's already large enough
+  if patch_op_buffer.len() < BLOCK_SIZE as usize {
+    patch_op_buffer.resize(BLOCK_SIZE as usize, 0);
+  }
+
+  for op in op_iter {
+    let status = op?.apply(new_file, hasher, src_pool, patch_op_buffer)?;
+
+    match status {
+      OpStatus::Broken => return Ok(PatchFileStatus::Broken),
+      OpStatus::Ok { written_bytes: b } => {
+        written_bytes += b;
+        progress_callback(b);
+      }
+    }
+
+    // Save a checkpoint after each successful patch operation
+    save_checkpoint(FileCheckpoint::rsync(written_bytes, op_index))?;
+
+    op_index += 1;
+  }
+
+  // VERY IMPORTANT!
+  // If the file doesn't finish with a full block, hash it anyways!
+  if let Some(h) = hasher {
+    let status = h.finalize_block()?;
+    if let BlockHasherStatus::HashMismatch { .. } = status {
+      return Ok(PatchFileStatus::Broken);
+    }
+  }
+
+  // If the patch is correct, the number of written bytes and the new
+  // file size should match.
+  //
+  // If the number of written bytes is lower because the file couldn't be
+  // patched or was skipped, then the function should have returned early.
+  if written_bytes != new_file_size {
+    return Err("After successfully patching a file, the number of written bytes does not equal the expected amount!".to_string());
+  }
+
+  Ok(PatchFileStatus::Patched { written_bytes })
+}
+
+#[expect(clippy::too_many_arguments)]
+pub fn patch_bsdiff(
+  op_iter: &mut OpIter<'_, impl Read, op_kind::Bsdiff>,
+  target_index: usize,
+  new_file: &mut File,
+  new_file_size: u64,
+  src_pool: &mut (impl SeekablePool + ContainerBackedPool),
+  hasher: &mut Option<FileBlockHasher<impl Read>>,
+  patch_op_buffer: &mut Vec<u8>,
+  checkpoint: Option<FileCheckpoint>,
+  mut save_checkpoint: impl FnMut(FileCheckpoint) -> Result<(), String>,
+  mut progress_callback: impl FnMut(u64),
+) -> Result<PatchFileStatus, String> {
+  let mut op_index: usize = 0;
+  let mut written_bytes: u64 = 0;
+  let mut old_file_seek_position: u64 = 0;
+
+  // Load the checkpoint
+  if let Some(c) = checkpoint {
+    c.load_bsdiff(
+      &mut written_bytes,
+      &mut op_index,
+      &mut old_file_seek_position,
+      new_file,
+      op_iter,
+      hasher,
+    )?;
+  }
+
+  // Open the old file
+  let Some(old_file_disk_size) = src_pool.get_size(target_index)? else {
+    return Ok(PatchFileStatus::Broken);
+  };
+
+  let mut old_file = src_pool.get_seek_reader(target_index)?;
+
+  // Rewind the old file to the start because the file might
+  // have been in the cache and seeked before
+  //
+  // If there is a checkpoint, seek the file to the correct position
+  old_file
+    .seek(std::io::SeekFrom::Start(old_file_seek_position))
+    .map_err(|e| format!("Couldn't seek old file to start!\n{e}"))?;
+
+  // Finally, apply all the bsdiff operations
+  for control in &mut *op_iter {
+    let status = control?.apply(
+      new_file,
+      hasher,
+      &mut old_file,
+      &mut old_file_seek_position,
+      old_file_disk_size,
+      patch_op_buffer,
+    )?;
+
+    match status {
+      OpStatus::Broken => return Ok(PatchFileStatus::Broken),
+      OpStatus::Ok { written_bytes: b } => {
+        written_bytes += b;
+        progress_callback(b);
+      }
+    }
+
+    // Save a checkpoint after each successful patch operation
+    save_checkpoint(FileCheckpoint::bsdiff(
+      written_bytes,
+      op_index,
+      old_file_seek_position,
+    ))?;
+
+    op_index += 1;
+  }
+
+  // VERY IMPORTANT!
+  // If the file doesn't finish with a full block, hash it anyways!
+  if let Some(h) = hasher {
+    let status = h.finalize_block()?;
+    if let BlockHasherStatus::HashMismatch { .. } = status {
+      return Ok(PatchFileStatus::Broken);
+    }
+  }
+
+  // If the patch is correct, the number of written bytes and the new
+  // file size should match.
+  //
+  // If the number of written bytes is lower because the file couldn't be
+  // patched or was skipped, then the function should have returned early.
+  if written_bytes != new_file_size {
+    return Err("After successfully patching a file, the number of written bytes does not equal the expected amount!".to_string());
+  }
+
+  Ok(PatchFileStatus::Patched { written_bytes })
 }
