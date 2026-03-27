@@ -2,7 +2,37 @@ use crate::patch::{OpIter, RsyncOp, SyncHeader, SyncHeaderKind, op_kind};
 use crate::pool::{ContainerBackedPool, SeekablePool};
 
 use std::io::Read;
-use std::iter;
+
+#[derive(Debug)]
+pub struct RsyncIterator<'reader, R> {
+  // When the first operation is read, the `first_op` field is set to None
+  first_op: Option<RsyncOp>,
+  op_iter: OpIter<'reader, R, op_kind::Rsync>,
+}
+
+impl<'reader, R: Read> Iterator for RsyncIterator<'reader, R> {
+  type Item = <OpIter<'reader, R, op_kind::Rsync> as Iterator>::Item;
+
+  fn next(&mut self) -> Option<Self::Item> {
+    if let Some(op) = self.first_op.take() {
+      return Some(Ok(op));
+    }
+
+    self.op_iter.next()
+  }
+}
+
+impl<R: Read> RsyncIterator<'_, R> {
+  pub fn skip_operations(&mut self, mut operations_to_skip: u64) -> Result<(), String> {
+    if operations_to_skip == 0 {
+      return Ok(());
+    }
+
+    self.first_op = None;
+    operations_to_skip -= 1;
+    self.op_iter.skip_operations(operations_to_skip)
+  }
+}
 
 #[derive(Debug)]
 #[must_use]
@@ -21,9 +51,7 @@ pub enum SkipStatus<'reader, R> {
   /// continuing with the remaining operations.
   ///
   /// The returned iterator will iterate over all the rsync patch operations
-  NotSkippableRsync {
-    op_iter: iter::Chain<iter::Once<Result<RsyncOp, String>>, OpIter<'reader, R, op_kind::Rsync>>,
-  },
+  NotSkippableRsync { op_iter: RsyncIterator<'reader, R> },
 
   /// The file is a literal copy of an old file at the given index
   LiteralCopy { old_index: usize },
@@ -83,11 +111,14 @@ impl<'reader, R: Read> SyncHeader<'reader, R> {
       else if let Some(old_index) = first_op.is_literal_copy(new_file_size, src_pool)? {
         SkipStatus::LiteralCopy { old_index }
       }
-      // Else, the file will have to be patched, so chain the first operation
-      // (which has been obtained independently) into the op_iter patch iterator
+      // Else, the file will have to be patched, create an iterator that chains the first
+      // operation (which has been obtained independently) into the op_iter patch iterator
       else {
         SkipStatus::NotSkippableRsync {
-          op_iter: iter::chain(iter::once(Ok(first_op)), op_iter),
+          op_iter: RsyncIterator {
+            first_op: Some(first_op),
+            op_iter,
+          },
         }
       },
     )
