@@ -95,11 +95,7 @@ impl<'reader, R: Read> SyncHeader<'reader, R> {
     // Get the first patch operation
     let first_op = match op_iter.next() {
       Some(op) => op?,
-      None => {
-        return Err(
-          "Expected the first rsync SyncOp for this file, but received None?".to_string(),
-        );
-      }
+      None => return Ok(SkipStatus::Empty),
     };
 
     Ok(
