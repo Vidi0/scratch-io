@@ -2,128 +2,11 @@ mod staging;
 
 use super::Patch;
 use crate::hasher::BlockHasher;
-use crate::pool::ContainerPool;
+use crate::pool::{ContainerPool, StagingPool};
 use crate::signature::BlockHashIter;
 
-use std::fs;
 use std::io::Read;
-use std::path::{Path, PathBuf};
-use std::time::Duration;
-
-// Store a checkpoint each second
-// Maybe it is too short?
-const CHECKPOINT_SAVE_INTERVAL: Duration = Duration::from_millis(1000);
-
-pub struct StagingFiles<'a> {
-  staging_folder: &'a Path,
-}
-
-impl<'a> StagingFiles<'a> {
-  const CHECKPOINT_FILENAME: &'static str = "checkpoint";
-  const CHECKPOINT_TEMP_FILENAME: &'static str = "checkpoint.tmp";
-
-  fn get_checkpoint_path(&self) -> PathBuf {
-    self.staging_folder.join(Self::CHECKPOINT_FILENAME)
-  }
-
-  fn get_checkpoint_temp_path(&self) -> PathBuf {
-    self.staging_folder.join(Self::CHECKPOINT_TEMP_FILENAME)
-  }
-
-  pub fn save_checkpoint(
-    &self,
-    checkpoint: &staging::StagingCheckpoint,
-    last_checkpoint_instant: &mut std::time::Instant,
-  ) -> Result<(), String> {
-    // Save the checkpoint only if the save interval time has passed
-    if last_checkpoint_instant.elapsed() < CHECKPOINT_SAVE_INTERVAL {
-      return Ok(());
-    }
-
-    let str = serde_json::to_string(checkpoint)
-      .map_err(|e| format!("Couldn't serialize checkpoint into TOML!\n{e}\n\n{checkpoint:?}"))?;
-
-    // Save the new checkpoint to a temp file, and then
-    // do an atomic rename to replace the old checkpoint
-    let temp_path = self.get_checkpoint_temp_path();
-    let final_path = self.get_checkpoint_path();
-
-    fs::write(&temp_path, str).map_err(|e| {
-      format!(
-        "Couldn't save data to checkpoint: \"{}\"\n{e}",
-        temp_path.display()
-      )
-    })?;
-
-    // Data has been writte, now do the atomic replace
-    fs::rename(&temp_path, &final_path)
-      .map_err(|e| format!("Couldn't move checkpoint from temp to final destination!\n{e}"))?;
-
-    *last_checkpoint_instant = std::time::Instant::now();
-
-    Ok(())
-  }
-
-  pub fn load_checkpoint(&self) -> Result<Option<staging::StagingCheckpoint>, String> {
-    let path = self.get_checkpoint_path();
-
-    // If the checkpoint doesn't exist, return None
-    if !path.try_exists().map_err(|e| {
-      format!(
-        "Couldn't check if checkpoint exists: \"{}\"\n{e}",
-        path.display()
-      )
-    })? {
-      return Ok(None);
-    }
-
-    // Else, decode it
-    let str = std::fs::read_to_string(&path)
-      .map_err(|e| format!("Couldn't open checkpoint file: \"{}\"\n{e}", path.display()))?;
-
-    serde_json::from_str(&str).map_err(|e| {
-      format!(
-        "Couldn't decode TOML checkpoint from: \"{}\"\n{e}\n\n{str}",
-        path.display()
-      )
-    })
-  }
-
-  fn get_file_path(&self, file_index: usize) -> PathBuf {
-    self.staging_folder.join(file_index.to_string())
-  }
-
-  pub fn open_write(&self, file_index: usize) -> Result<fs::File, String> {
-    let file_path = self.get_file_path(file_index);
-
-    // Don't set `create_new`!
-    // If a file is half-patched, the patcher should be able
-    // to load the previous file and truncate it!
-    //
-    // Set `read` to be able to hash the last block from a checkpoint
-    fs::OpenOptions::new()
-      .create(true)
-      .append(true)
-      .read(true)
-      .open(&file_path)
-      .map_err(|e| {
-        format!(
-          "Couldn't open staging file to write in: \"{}\"\n{e}",
-          file_path.display()
-        )
-      })
-  }
-
-  pub fn open_read(&self, file_index: usize) -> Result<fs::File, String> {
-    let file_path = self.get_file_path(file_index);
-    fs::File::open(&file_path).map_err(|e| {
-      format!(
-        "Couldn't open staging file to read from: \"{}\"\n{e}",
-        file_path.display()
-      )
-    })
-  }
-}
+use std::path::Path;
 
 impl Patch<'_> {
   /// Apply the patch operations to produce the new build.
@@ -163,12 +46,7 @@ impl Patch<'_> {
     let mut dst_pool = ContainerPool::create(&self.container_new, new_build_folder)?;
 
     // Create the staging folder
-    fs::create_dir_all(staging_folder).map_err(|e| {
-      format!(
-        "Couldn't create staging folder: \"{}\"\n{e}",
-        staging_folder.display()
-      )
-    })?;
+    let mut staging_pool = StagingPool::create(staging_folder)?;
 
     // Create a pool for the old files
     let mut src_pool = ContainerPool::open(&self.container_old, old_build_folder);
@@ -194,27 +72,14 @@ impl Patch<'_> {
     // instance to verify that the new game files are intact
     let mut hasher = hash_iter.map(|iter| BlockHasher::new(&self.container_new, iter));
 
-    // Create a struct that allows the `reconstruct_modified_files` function
-    // to store the patched files in the staging folder
-    let staging = StagingFiles { staging_folder };
-
-    // Deserialize the last checkpoint stored in the staging folder
-    let checkpoint = staging.load_checkpoint()?;
-
-    // Store the instant the last checkpoint was saved to be able
-    // to determine which checkpoints to skip and which ones to save
-    let mut last_checkpoint_instant = std::time::Instant::now();
-
     // Reconstruct all the modified files into the staging folder
     let status = staging::reconstruct_modified_files(
       &mut src_pool,
+      &mut staging_pool,
       &mut dst_pool,
       &mut self.sync_op_iter,
-      &staging,
       &mut hasher,
       &mut patch_op_buffer,
-      checkpoint,
-      |checkpoint| staging.save_checkpoint(checkpoint, &mut last_checkpoint_instant),
       &mut progress_callback,
     )?;
 
