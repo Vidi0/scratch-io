@@ -28,8 +28,10 @@ impl<R: Read> RsyncIterator<'_, R> {
       return Ok(());
     }
 
-    self.first_op = None;
-    operations_to_skip -= 1;
+    if let Some(_op) = self.first_op.take() {
+      operations_to_skip -= 1;
+    }
+
     self.op_iter.skip_operations(operations_to_skip)
   }
 }
