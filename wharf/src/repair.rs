@@ -51,7 +51,7 @@ impl Signature<'_> {
   /// This function will:
   /// 1. Create all directories, files, and symlinks described in
   ///    [`Self::container_new`] and set their modes (permissions)
-  /// 2. Call [`repair_files`] to repair the broken files
+  /// 2. Repair the broken files
   ///
   /// After this function is called, the build folder will contain all the
   /// files, directories and symlinks described in the container with the
