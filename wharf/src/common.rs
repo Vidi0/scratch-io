@@ -3,7 +3,7 @@ use crate::protos::CompressionAlgorithm;
 use std::io::{BufRead, BufReader, Read};
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L33>
-pub const BLOCK_SIZE: u64 = 64 * 1024;
+pub const BLOCK_SIZE: usize = 64 * 1024;
 
 /// Get the number of blocks that a file occupies
 ///
@@ -11,7 +11,7 @@ pub const BLOCK_SIZE: u64 = 64 * 1024;
 #[inline]
 #[must_use]
 pub fn block_count(file_size: u64) -> u64 {
-  file_size.div_ceil(BLOCK_SIZE).max(1)
+  file_size.div_ceil(BLOCK_SIZE as u64).max(1)
 }
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L14>

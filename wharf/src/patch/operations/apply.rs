@@ -189,8 +189,8 @@ pub fn patch_rsync(
   // The size of the new buffer doesn't need to be BLOCK_SIZE,
   // but it makes sense to use it
   // Don't resize it if it's already large enough
-  if patch_op_buffer.len() < BLOCK_SIZE as usize {
-    patch_op_buffer.resize(BLOCK_SIZE as usize, 0);
+  if patch_op_buffer.len() < BLOCK_SIZE {
+    patch_op_buffer.resize(BLOCK_SIZE, 0);
   }
 
   for op in op_iter {

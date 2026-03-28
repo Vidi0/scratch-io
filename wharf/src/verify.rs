@@ -127,7 +127,7 @@ impl Signature<'_> {
     // This buffer will hold some data for the hasher to verify
     // The length of the buffer doesn't need to be BLOCK_SIZE, any
     // value is valid
-    let mut buffer = vec![0u8; BLOCK_SIZE as usize];
+    let mut buffer = vec![0u8; BLOCK_SIZE];
 
     // Load a pool from the build folder
     let mut src_pool = ContainerPool::open(&self.container_new, build_folder);

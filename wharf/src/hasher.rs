@@ -170,7 +170,7 @@ impl<R: Read> FileBlockHasher<'_, '_, R> {
       }
 
       // Get the next buffer slice
-      let block_remaining = BLOCK_SIZE as usize - self.written_bytes;
+      let block_remaining = BLOCK_SIZE - self.written_bytes;
       let to_take = block_remaining.min(buf.len());
 
       // Update the hasher
@@ -180,7 +180,7 @@ impl<R: Read> FileBlockHasher<'_, '_, R> {
       self.written_bytes += to_take;
       buf = &buf[to_take..];
 
-      if self.written_bytes == BLOCK_SIZE as usize {
+      if self.written_bytes == BLOCK_SIZE {
         // Chunk completed
         let status = self.finalize_block()?;
         if let BlockHasherStatus::HashMismatch { expected, found } = status {
@@ -222,16 +222,16 @@ impl<R: Read> FileBlockHasher<'_, '_, R> {
 
     // A number of whole blocks will be skipped, and then
     // the last block will be ignored
-    let whole_blocks_to_skip = bytes / BLOCK_SIZE;
-    let last_block_bytes = bytes % BLOCK_SIZE;
+    let whole_blocks_to_skip = bytes / BLOCK_SIZE as u64;
+    let last_block_bytes = bytes % BLOCK_SIZE as u64;
 
     // Ensure the number of blocks to skip is correct
     // Use div_ceil because there must be space left for the data
     // that doesn't complete a full block at the end
-    if bytes.div_ceil(BLOCK_SIZE) > *self.remaining_blocks {
+    if bytes.div_ceil(BLOCK_SIZE as u64) > *self.remaining_blocks {
       return Err(format!(
         "{} blocks are needed from hasher, only {} are remaining!",
-        bytes.div_ceil(BLOCK_SIZE),
+        bytes.div_ceil(BLOCK_SIZE as u64),
         *self.remaining_blocks
       ))?;
     }

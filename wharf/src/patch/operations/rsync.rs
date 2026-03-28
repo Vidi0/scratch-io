@@ -25,13 +25,13 @@ fn copy_range(
   old_file_disk_size: u64,
   buffer: &mut [u8],
 ) -> Result<CopyRangeStatus, String> {
-  let start_pos = block_index * BLOCK_SIZE;
+  let start_pos = block_index * BLOCK_SIZE as u64;
   let len = {
     // The patch operation will copy this number of bytes:
     // the minimum between the range specified and the remaining number
     // of bytes in the container file.
     let remaining_file_bytes = old_file_container_size - start_pos;
-    let bytes_to_copy = (block_span * BLOCK_SIZE).min(remaining_file_bytes);
+    let bytes_to_copy = (block_span * BLOCK_SIZE as u64).min(remaining_file_bytes);
 
     // If the file in disk doesn't have enought bytes, set
     // the file as broken (we won't be able to patch it).
@@ -103,7 +103,7 @@ impl RsyncOp {
       Ok(
         // It should copy from the first block until the end of the given file
         (block_index == 0
-          && block_span * BLOCK_SIZE >= new_file_size
+          && block_span * BLOCK_SIZE as u64 >= new_file_size
         // The size of the old and the new file must be equal
           && new_file_size == src_pool.get_container_size(file_index)?)
         .then_some(file_index),
