@@ -1,6 +1,3 @@
-pub mod repair;
-pub mod verify;
-
 use crate::common::{MAGIC_SIGNATURE, check_magic_bytes, decompress_stream};
 use crate::protos;
 use crate::protos::{decode_protobuf, skip_protobuf};

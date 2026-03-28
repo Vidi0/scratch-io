@@ -3,6 +3,9 @@ pub mod patch;
 /// Funcions and structures for reading wharf signatures
 pub mod signature;
 
+mod repair;
+mod verify;
+
 /// Identify the kind of wharf binary provided
 pub mod info;
 
