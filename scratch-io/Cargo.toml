@@ -12,8 +12,7 @@ base64 = "0.22.1"
 hex = "0.4.3"
 md-5 = "0.11.0"
 rand = "0.10.0"
-reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "form", "http2", "query", "rustls-no-provider", "system-proxy"] }
-rustls = { version = "0.23.37", default-features = false, features = ["ring", "std", "logging"] }
+reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "form", "http2", "query", "rustls", "system-proxy"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 serde_with = "3.18.0"
