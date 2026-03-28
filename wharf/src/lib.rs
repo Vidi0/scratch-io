@@ -1,10 +1,10 @@
 /// Funcions and structures for reading wharf patches
-pub mod patch;
+mod patch;
 /// Funcions and structures for reading wharf signatures
-pub mod signature;
+mod signature;
 
-mod repair;
-mod verify;
+pub mod repair;
+pub mod verify;
 
 /// Identify the kind of wharf binary provided
 pub mod info;
