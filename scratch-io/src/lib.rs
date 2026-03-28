@@ -320,7 +320,7 @@ fn download_file(
 
   // If the hashes aren't equal, exit with an error
   if let Some((hasher, hash)) = md5_hash {
-    let file_hash = format!("{:x}", hasher.finalize());
+    let file_hash = hex::encode(hasher.finalize());
 
     if !file_hash.eq_ignore_ascii_case(hash) {
       return Err(format!("File verification failed! The file hash and the hash provided by the server are different.\n

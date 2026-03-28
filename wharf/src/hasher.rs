@@ -5,7 +5,7 @@ use crate::protos;
 use crate::signature::BlockHashIter;
 pub use errors::{BlockHasherError, BlockHasherStatus};
 
-use md5::digest::{OutputSizeUser, generic_array::GenericArray, typenum::Unsigned};
+use md5::digest::{OutputSizeUser, array::Array, typenum::Unsigned};
 use md5::{Digest, Md5};
 use std::io::{Read, Seek};
 
@@ -15,7 +15,7 @@ pub const MD5_HASH_LENGTH: usize = Md5HashSize::USIZE;
 struct InternalHasher<'iter, R> {
   hash_iter: &'iter mut BlockHashIter<R>,
   hasher: Md5,
-  hash_buffer: GenericArray<u8, Md5HashSize>,
+  hash_buffer: Array<u8, Md5HashSize>,
 }
 
 impl<'iter, R> InternalHasher<'iter, R> {
@@ -23,7 +23,7 @@ impl<'iter, R> InternalHasher<'iter, R> {
     Self {
       hash_iter,
       hasher: Md5::new(),
-      hash_buffer: GenericArray::<u8, Md5HashSize>::default(),
+      hash_buffer: Array::<u8, Md5HashSize>::default(),
     }
   }
 }
