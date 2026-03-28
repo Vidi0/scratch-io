@@ -5,7 +5,12 @@ use crate::common::{MAGIC_SIGNATURE, check_magic_bytes, decompress_stream};
 use crate::protos;
 use crate::protos::{decode_protobuf, skip_protobuf};
 
+use md5::Md5;
+use md5::digest::{self, typenum::Unsigned};
 use std::io::{BufRead, Read};
+
+pub type Md5HashSize = <Md5 as digest::OutputSizeUser>::OutputSize;
+pub const MD5_HASH_LENGTH: usize = Md5HashSize::USIZE;
 
 /// Iterator over independent, sequential length-delimited hash messages in a [`std::io::Read`] stream
 ///
@@ -48,11 +53,33 @@ where
   }
 }
 
+/// <https://itch.io/docs/wharf/appendix/hashes.html>
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BlockHash {
+  /// The weak hashing algorithm used in the original RSync paper
+  pub weak_hash: u32,
+  /// MD5 as the "strong" hashing algorithm
+  pub strong_hash: [u8; MD5_HASH_LENGTH],
+}
+
+impl TryFrom<protos::BlockHash> for BlockHash {
+  type Error = String;
+
+  fn try_from(value: protos::BlockHash) -> Result<Self, Self::Error> {
+    Ok(Self {
+      weak_hash: value.weak_hash,
+      strong_hash: value.strong_hash.try_into().map_err(|e| {
+        format!("Failed to parse strong_hash BlockHash proto message into an array!\n{e:?}")
+      })?,
+    })
+  }
+}
+
 impl<R> Iterator for BlockHashIter<R>
 where
   R: Read,
 {
-  type Item = Result<protos::BlockHash, String>;
+  type Item = Result<BlockHash, String>;
 
   fn next(&mut self) -> Option<Self::Item> {
     if self.blocks_read == self.total_blocks {
@@ -60,7 +87,17 @@ where
     }
 
     self.blocks_read += 1;
-    Some(decode_protobuf::<protos::BlockHash>(&mut self.reader))
+
+    let block_hash = match decode_protobuf::<protos::BlockHash>(&mut self.reader) {
+      Ok(hash) => hash,
+      Err(e) => {
+        return Some(Err(format!(
+          "Couldn't decode BlockHash message from reader!\n{e}"
+        )));
+      }
+    };
+
+    Some(block_hash.try_into())
   }
 }
 

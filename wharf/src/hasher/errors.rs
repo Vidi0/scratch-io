@@ -28,7 +28,7 @@ impl From<BlockHasherError> for String {
 pub enum BlockHasherStatus {
   Ok,
   HashMismatch {
-    expected: Vec<u8>,
+    expected: [u8; MD5_HASH_LENGTH],
     found: [u8; MD5_HASH_LENGTH],
   },
 }

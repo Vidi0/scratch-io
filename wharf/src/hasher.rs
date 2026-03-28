@@ -2,15 +2,12 @@ mod errors;
 
 use crate::common::{BLOCK_SIZE, block_count};
 use crate::protos;
-use crate::signature::BlockHashIter;
+use crate::signature::{BlockHashIter, MD5_HASH_LENGTH, Md5HashSize};
 pub use errors::{BlockHasherError, BlockHasherStatus};
 
-use md5::digest::{OutputSizeUser, array::Array, typenum::Unsigned};
+use md5::digest::array::Array;
 use md5::{Digest, Md5};
 use std::io::{Read, Seek};
-
-type Md5HashSize = <md5::Md5 as OutputSizeUser>::OutputSize;
-pub const MD5_HASH_LENGTH: usize = Md5HashSize::USIZE;
 
 struct InternalHasher<'iter, R> {
   hash_iter: &'iter mut BlockHashIter<R>,
@@ -55,12 +52,12 @@ where
     self.hasher.finalize_into_reset(&mut self.hash_buffer);
 
     // Compare the hashes
-    Ok(if *self.hash_buffer == *next_hash.strong_hash {
+    Ok(if self.hash_buffer == next_hash.strong_hash {
       BlockHasherStatus::Ok
     } else {
       BlockHasherStatus::HashMismatch {
         expected: next_hash.strong_hash,
-        found: self.hash_buffer.into(),
+        found: self.hash_buffer.0,
       }
     })
   }
