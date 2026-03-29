@@ -1,6 +1,5 @@
 use super::Signature;
-use crate::common::BLOCK_SIZE;
-use crate::hasher::{BlockHasher, BlockHasherStatus, FileBlockHasher};
+use crate::hasher::{BlockHasher, BlockHasherStatus};
 use crate::pool::{ContainerBackedPool, ContainerPool, Pool};
 use crate::protos;
 
@@ -38,8 +37,7 @@ impl IntegrityIssues {
 fn check_file_integrity<R: Read>(
   entry_index: usize,
   src_pool: &mut impl ContainerBackedPool,
-  hasher: &mut FileBlockHasher<R>,
-  buffer: &mut [u8],
+  hasher: &mut BlockHasher<R>,
   mut progress_callback: impl FnMut(u64),
 ) -> Result<bool, String> {
   // Get the file size
@@ -51,39 +49,15 @@ fn check_file_integrity<R: Read>(
     return Ok(false);
   }
 
-  // Wrapping the file inside a BufReader isn't needed because
-  // the buffer is already large
-  let mut file = src_pool.get_reader(entry_index)?;
+  let mut reader = src_pool.get_reader(entry_index)?;
+  let status = hasher.hash_next_file(&mut reader)?;
 
-  // Hash the whole file
-  loop {
-    let read_bytes = file
-      .read(buffer)
-      .map_err(|e| format!("Couldn't read file data into buffer!\n{e}"))?;
+  progress_callback(container_file_size);
 
-    if read_bytes == 0 {
-      break;
-    }
-
-    // Callback with the number of bytes read
-    progress_callback(read_bytes as u64);
-
-    // Update hasher
-    let status = hasher.update(&buffer[..read_bytes])?;
-
-    // If the file is broken, return
-    if let BlockHasherStatus::HashMismatch { .. } = status {
-      return Ok(false);
-    }
-  }
-
-  // Hash the last block
-  let status = hasher.finalize_block()?;
-  if let BlockHasherStatus::HashMismatch { .. } = status {
-    return Ok(false);
-  }
-
-  Ok(true)
+  Ok(match status {
+    BlockHasherStatus::Ok => true,
+    BlockHasherStatus::HashMismatch { block_index: _ } => false,
+  })
 }
 
 impl Signature<'_> {
@@ -124,25 +98,16 @@ impl Signature<'_> {
     // Create the hasher that will verify the files' integrity
     let mut hasher = BlockHasher::new(&self.container_new, &mut self.block_hash_iter);
 
-    // This buffer will hold some data for the hasher to verify
-    // The length of the buffer doesn't need to be BLOCK_SIZE, any
-    // value is valid
-    let mut buffer = vec![0u8; BLOCK_SIZE];
-
     // Load a pool from the build folder
     let mut src_pool = ContainerPool::open(&self.container_new, build_folder);
 
     // Loop over all the files in the source pool
     for entry_index in 0..src_pool.entry_count() {
-      // Create a hasher for the current file
-      let mut file_hasher = hasher.next_file_hasher()?;
-
       // Check if the file is intact
       let is_intact = check_file_integrity(
         entry_index,
         &mut src_pool,
-        &mut file_hasher,
-        &mut buffer,
+        &mut hasher,
         &mut progress_callback,
       )?;
 

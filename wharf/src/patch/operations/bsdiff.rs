@@ -1,5 +1,4 @@
-use super::{OpStatus, verify_data};
-use crate::hasher::FileBlockHasher;
+use super::OpStatus;
 use crate::patch::BsdiffOp;
 
 use std::io::{Read, Seek, Write};
@@ -34,7 +33,6 @@ impl BsdiffOp {
   pub fn apply(
     &self,
     writer: &mut impl Write,
-    hasher: &mut Option<FileBlockHasher<impl Read>>,
     old_file: &mut (impl Read + Seek),
     old_file_seek_position: &mut u64,
     old_file_disk_size: u64,
@@ -63,12 +61,7 @@ impl BsdiffOp {
 
       // Move the old file seek cursor forward!
       *old_file_seek_position += self.add.len() as u64;
-
-      // Verify the written data
-      match verify_data(hasher, add_buffer)? {
-        OpStatus::Ok { written_bytes: b } => written_bytes += b,
-        OpStatus::Broken => return Ok(OpStatus::Broken),
-      }
+      written_bytes += self.add.len() as u64;
     }
 
     // Then, copy the extra bytes
@@ -77,11 +70,7 @@ impl BsdiffOp {
         .write_all(&self.copy)
         .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
 
-      // Verify the written data
-      match verify_data(hasher, &self.copy)? {
-        OpStatus::Ok { written_bytes: b } => written_bytes += b,
-        OpStatus::Broken => return Ok(OpStatus::Broken),
-      }
+      written_bytes += self.copy.len() as u64;
     }
 
     // Lastly, seek into the correct position in the old file

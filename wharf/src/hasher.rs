@@ -7,260 +7,170 @@ pub use errors::{BlockHasherError, BlockHasherStatus};
 
 use md5::digest::array::Array;
 use md5::{Digest, Md5};
-use std::io::{Read, Seek};
+use std::io::Read;
 
-struct InternalHasher<'iter, R> {
-  hash_iter: &'iter mut BlockHashIter<R>,
+#[derive(Clone, Debug)]
+struct InternalHasher {
   hasher: Md5,
   hash_buffer: Array<u8, Md5HashSize>,
 }
 
-impl<'iter, R> InternalHasher<'iter, R> {
-  pub fn new(hash_iter: &'iter mut BlockHashIter<R>) -> Self {
+impl InternalHasher {
+  pub fn new() -> Self {
     Self {
-      hash_iter,
       hasher: Md5::new(),
       hash_buffer: Array::<u8, Md5HashSize>::default(),
     }
   }
 }
 
-impl<'iter, R> InternalHasher<'iter, R>
-where
-  R: Read,
-{
-  pub fn skip_blocks(&mut self, blocks_to_skip: u64) -> Result<(), String> {
-    self.hash_iter.skip_blocks(blocks_to_skip)
-  }
+#[derive(Clone, Debug)]
+struct FileBlock<'data> {
+  pub block_index: usize,
 
-  pub fn reset(&mut self) {
-    self.hasher.reset();
-  }
+  pub data: &'data [u8],
+  pub expected_hash: [u8; MD5_HASH_LENGTH],
+}
 
-  pub fn update(&mut self, data: &[u8]) {
-    self.hasher.update(data);
-  }
-
-  pub fn finalize(&mut self) -> Result<BlockHasherStatus, BlockHasherError> {
-    let next_hash = self
-      .hash_iter
-      .next()
-      .ok_or(BlockHasherError::MissingHashFromIter)?
-      .map_err(BlockHasherError::IterReturnedError)?;
-
-    // Calculate the hash
+impl InternalHasher {
+  pub fn hash_block(&mut self, block: &FileBlock) -> BlockHasherStatus {
+    self.hasher.update(block.data);
     self.hasher.finalize_into_reset(&mut self.hash_buffer);
 
-    // Compare the hashes
-    Ok(if self.hash_buffer == next_hash.strong_hash {
+    if self.hash_buffer == block.expected_hash {
       BlockHasherStatus::Ok
     } else {
       BlockHasherStatus::HashMismatch {
-        expected: next_hash.strong_hash,
-        found: self.hash_buffer.0,
+        block_index: block.block_index,
       }
-    })
+    }
   }
 }
 
 pub struct BlockHasher<'cont, 'hash_iter, R> {
-  internal_hasher: InternalHasher<'hash_iter, R>,
-
   container: &'cont protos::Container,
   entry_index: usize,
 
-  last_file_remaining_blocks: u64,
+  hash_iter: &'hash_iter mut BlockHashIter<R>,
+  block_buffer: Box<[u8; BLOCK_SIZE]>,
+
+  internal_hasher: InternalHasher,
 }
 
 impl<'cont, 'hash, R> BlockHasher<'cont, 'hash, R> {
   pub fn new(container: &'cont protos::Container, hash_iter: &'hash mut BlockHashIter<R>) -> Self {
     Self {
-      internal_hasher: InternalHasher::new(hash_iter),
-
       container,
       entry_index: 0,
 
-      last_file_remaining_blocks: 0,
+      hash_iter,
+      block_buffer: Box::new([0u8; BLOCK_SIZE]),
+
+      internal_hasher: InternalHasher::new(),
     }
   }
 }
 
-impl<'cont, 'hash_iter, R> BlockHasher<'cont, 'hash_iter, R>
+impl<R> BlockHasher<'_, '_, R>
 where
   R: Read,
 {
-  /// Return the size of the next file in the container and advance the entry index
-  fn next_file_size(&mut self) -> Result<u64, String> {
-    let file = self.container.files.get(self.entry_index).ok_or_else(|| {
-      format!(
-        "Couldn't get next file hasher because the container has run out of files!
-Index: {}",
-        self.entry_index
-      )
-    })?;
-
-    self.entry_index += 1;
-    Ok(file.size as u64)
-  }
-
-  /// Return a [`FileBlockHasher`] for the next file in the container
-  ///
-  /// # Errors
-  ///
-  /// If the container has run out of files or there is an I/O failure while
-  /// skipping blocks in the hash iterator.
-  pub fn next_file_hasher(&mut self) -> Result<FileBlockHasher<'_, 'hash_iter, R>, String> {
-    // Reset the hasher, allowing it to hash another file
-    self.internal_hasher.reset();
-
-    // Skip the blocks of the previous file that have not been hashed
-    // to advance the iterator into the correct position
+  /// Return the size of the next file in the container
+  fn current_file_size(&self) -> Result<u64, BlockHasherError> {
     self
-      .internal_hasher
-      .skip_blocks(self.last_file_remaining_blocks)?;
-
-    // Get the next file size
-    let file_size = self.next_file_size()?;
-
-    // Set up the internal counter to the right values
-    self.last_file_remaining_blocks = block_count(file_size);
-
-    Ok(FileBlockHasher {
-      internal_hasher: &mut self.internal_hasher,
-      first_block: true,
-      written_bytes: 0,
-      remaining_blocks: &mut self.last_file_remaining_blocks,
-    })
+      .container
+      .files
+      .get(self.entry_index)
+      .map(|f| f.size as u64)
+      .ok_or(BlockHasherError::RunOutOfFiles {
+        file_index: self.entry_index,
+      })
   }
 
   /// This function must be called after the [`BlockHasher`] has just been created
   pub fn skip_files(&mut self, file_count: usize) -> Result<(), String> {
     assert_eq!(self.entry_index, 0);
-    assert_eq!(self.last_file_remaining_blocks, 0);
 
     for _ in 0..file_count {
       // Skip all the blocks
-      let file_size = self.next_file_size()?;
-      self.internal_hasher.skip_blocks(block_count(file_size))?;
+      let file_size = self.current_file_size()?;
+      self.hash_iter.skip_blocks(block_count(file_size))?;
+      self.entry_index += 1;
     }
 
     Ok(())
   }
-}
 
-pub struct FileBlockHasher<'hasher, 'hash_iter, R> {
-  internal_hasher: &'hasher mut InternalHasher<'hash_iter, R>,
+  pub fn hash_next_file(
+    &mut self,
+    reader: &mut impl Read,
+  ) -> Result<BlockHasherStatus, BlockHasherError> {
+    // Get the next file size and reader
+    let file_size = self.current_file_size()?;
+    let file_blocks = block_count(file_size);
 
-  first_block: bool,
-  written_bytes: usize,
+    self.entry_index += 1;
 
-  // Store this as a reference to allow the BlockHasher
-  // to restore the hasher to the correct position again if the
-  // file block hasher isn't fully consumed
-  remaining_blocks: &'hasher mut u64,
-}
+    let mut read_blocks = 0;
+    let mut has_verification_failed = false;
+    let mut broken_block_index = 0;
 
-impl<R: Read> FileBlockHasher<'_, '_, R> {
-  /// Update the hahser with new data
-  pub fn update(&mut self, mut buf: &[u8]) -> Result<BlockHasherStatus, BlockHasherError> {
-    while !buf.is_empty() {
-      // If all the expected blocks have been hashed, return an error
-      if *self.remaining_blocks == 0 {
-        return Err(BlockHasherError::AllBlocksHashed);
+    for block_index in 0..file_blocks as usize {
+      if has_verification_failed {
+        break;
       }
 
-      // Get the next buffer slice
-      let block_remaining = BLOCK_SIZE - self.written_bytes;
-      let to_take = block_remaining.min(buf.len());
+      // Read the expected hash from the signature
+      let expected_hash = self
+        .hash_iter
+        .next()
+        .ok_or(BlockHasherError::MissingHashFromIter)?
+        .map(|hash| hash.strong_hash)
+        .map_err(BlockHasherError::IterReturnedError)?;
 
-      // Update the hasher
-      self.internal_hasher.update(&buf[..to_take]);
+      // Add 1 to the read blocks counter after reading the hash from the iterator
+      read_blocks += 1;
 
-      // Update internal counters
-      self.written_bytes += to_take;
-      buf = &buf[to_take..];
+      // Calculate how many bytes to read for this block
+      let block_buffer = {
+        let bytes_remaining = file_size as usize - (block_index * BLOCK_SIZE);
+        let block_size = BLOCK_SIZE.min(bytes_remaining);
+        &mut self.block_buffer[..block_size]
+      };
 
-      if self.written_bytes == BLOCK_SIZE {
-        // Chunk completed
-        let status = self.finalize_block()?;
-        if let BlockHasherStatus::HashMismatch { expected, found } = status {
-          return Ok(BlockHasherStatus::HashMismatch { expected, found });
-        }
+      // Read the file block into the buffer
+      reader
+        .read_exact(block_buffer)
+        .map_err(BlockHasherError::ReaderFailed)?;
+
+      // Create a FileBlock struct to pass it into the hasher
+      let block = FileBlock {
+        block_index,
+        data: &*block_buffer,
+        expected_hash,
+      };
+
+      // Hash the data and compare the hashes
+      let status = self.internal_hasher.hash_block(&block);
+      if let BlockHasherStatus::HashMismatch { block_index } = status {
+        has_verification_failed = true;
+        broken_block_index = block_index;
       }
     }
 
-    Ok(BlockHasherStatus::Ok)
-  }
-
-  /// Finalize the current data in the hasher and check the current block
-  ///
-  /// Don't hash the block if it's empty AND it isn't the first one
-  pub fn finalize_block(&mut self) -> Result<BlockHasherStatus, BlockHasherError> {
-    // Skip hashing if the current block is empty
-    // However, wharf saves an empty hash for an empty file,
-    // so ensure this is not the first block before skipping
-    if self.written_bytes == 0 && !self.first_block {
-      return Ok(BlockHasherStatus::Ok);
+    if has_verification_failed {
+      self
+        .hash_iter
+        .skip_blocks(file_blocks - read_blocks)
+        .map_err(BlockHasherError::IterReturnedError)?;
     }
 
-    // Reset hasher variables
-    self.first_block = false;
-    self.written_bytes = 0;
-    *self.remaining_blocks -= 1;
-
-    // Compare the hasher
-    self.internal_hasher.finalize()
-  }
-
-  /// This function MUST be called when this [`FileBlockHasher`]
-  /// has just been created
-  ///
-  /// This function will move the file seek!
-  pub fn skip_bytes(&mut self, bytes: u64, file: &mut (impl Read + Seek)) -> Result<(), String> {
-    assert!(self.first_block);
-    assert_eq!(self.written_bytes, 0);
-
-    // A number of whole blocks will be skipped, and then
-    // the last block will be ignored
-    let whole_blocks_to_skip = bytes / BLOCK_SIZE as u64;
-    let last_block_bytes = bytes % BLOCK_SIZE as u64;
-
-    // Ensure the number of blocks to skip is correct
-    // Use div_ceil because there must be space left for the data
-    // that doesn't complete a full block at the end
-    if bytes.div_ceil(BLOCK_SIZE as u64) > *self.remaining_blocks {
-      return Err(format!(
-        "{} blocks are needed from hasher, only {} are remaining!",
-        bytes.div_ceil(BLOCK_SIZE as u64),
-        *self.remaining_blocks
-      ))?;
-    }
-
-    // Skip the blocks
-    if whole_blocks_to_skip > 0 {
-      self.first_block = false;
-      *self.remaining_blocks -= whole_blocks_to_skip;
-      self.internal_hasher.skip_blocks(whole_blocks_to_skip)?;
-    }
-
-    // Hash the last block data that's currently in the file
-    if last_block_bytes > 0 {
-      let mut last_bytes_buf = vec![0u8; last_block_bytes as usize];
-
-      file
-        .seek(std::io::SeekFrom::Start(bytes - last_block_bytes))
-        .map_err(|e| format!("Couldn't seek file to skip hasher bytes!\n{e}"))?;
-
-      file.read_exact(&mut last_bytes_buf).map_err(|e| {
-        format!("Couldn't read the exact bytes into the bufer to skip hasher bytes!\n{e}")
-      })?;
-
-      // The result can be ignored because the block won't be finalized
-      // (last_block_bytes is less than BLOCK_SIZE) and there are blocks
-      // remaining to hash (is was checked above)
-      let _ = self.update(&last_bytes_buf);
-    }
-
-    Ok(())
+    Ok(if has_verification_failed {
+      BlockHasherStatus::HashMismatch {
+        block_index: broken_block_index,
+      }
+    } else {
+      BlockHasherStatus::Ok
+    })
   }
 }

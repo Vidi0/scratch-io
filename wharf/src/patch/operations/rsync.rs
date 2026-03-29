@@ -1,6 +1,5 @@
-use super::{OpStatus, verify_data};
+use super::OpStatus;
 use crate::common::BLOCK_SIZE;
-use crate::hasher::{BlockHasherStatus, FileBlockHasher};
 use crate::patch::RsyncOp;
 use crate::pool::{ContainerBackedPool, SeekablePool};
 
@@ -14,11 +13,9 @@ enum CopyRangeStatus {
 }
 
 /// Copy blocks of bytes from `src` into `dst`
-#[expect(clippy::too_many_arguments)]
 fn copy_range(
   src: &mut (impl Read + Seek),
   dst: &mut impl Write,
-  hasher: &mut Option<FileBlockHasher<impl Read>>,
   block_index: u64,
   block_span: u64,
   old_file_container_size: u64,
@@ -48,7 +45,7 @@ fn copy_range(
 
   let mut limited = src.take(len);
 
-  // Read the data, write it, and then hash it
+  // Read the data, and then write it
   let mut total_written: u64 = 0;
 
   // Check the buffer has been resized correctly
@@ -68,14 +65,6 @@ fn copy_range(
     dst
       .write_all(&buffer[..read])
       .map_err(|e| format!("Couldn't write to new file\n{e}"))?;
-
-    // Update the hasher
-    if let Some(hasher) = hasher {
-      let status = hasher.update(&buffer[..read])?;
-      if let BlockHasherStatus::HashMismatch { .. } = status {
-        return Ok(CopyRangeStatus::Broken);
-      }
-    }
 
     total_written += read as u64;
   }
@@ -130,7 +119,6 @@ impl RsyncOp {
   pub fn apply(
     &self,
     writer: &mut impl Write,
-    hasher: &mut Option<FileBlockHasher<impl Read>>,
     src_pool: &mut (impl SeekablePool + ContainerBackedPool),
     buffer: &mut [u8],
   ) -> Result<OpStatus, String> {
@@ -158,15 +146,12 @@ impl RsyncOp {
         let status = copy_range(
           &mut old_file,
           writer,
-          hasher,
           block_index,
           block_span,
           old_file_container_size,
           old_file_disk_size,
           buffer,
         )?;
-
-        // The copy_range function already verified the data
 
         // Return the number of bytes copied into the new file or the error
         match status {
@@ -180,11 +165,7 @@ impl RsyncOp {
           .write_all(data)
           .map_err(|e| format!("Couldn't copy data from patch to new file!\n{e}"))?;
 
-        // Verify the written data
-        match verify_data(hasher, data)? {
-          OpStatus::Ok { written_bytes: b } => written_bytes += b,
-          OpStatus::Broken => return Ok(OpStatus::Broken),
-        }
+        written_bytes += data.len() as u64;
       }
     }
 

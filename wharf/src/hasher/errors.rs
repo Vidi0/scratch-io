@@ -1,5 +1,3 @@
-use super::MD5_HASH_LENGTH;
-
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -13,8 +11,17 @@ pub enum BlockHasherError {
   )]
   IterReturnedError(String),
 
-  #[error("All the current file blocks have been hashed. No more data for this file is allowed!")]
-  AllBlocksHashed,
+  #[error(
+    "Could not get data from reader when hashing a file:
+{0}"
+  )]
+  ReaderFailed(std::io::Error),
+
+  #[error(
+    "Could not get the expected file size from the container because it has run \
+out of files at the index: {file_index}"
+  )]
+  RunOutOfFiles { file_index: usize },
 }
 
 impl From<BlockHasherError> for String {
@@ -27,8 +34,5 @@ impl From<BlockHasherError> for String {
 #[derive(Clone, Debug)]
 pub enum BlockHasherStatus {
   Ok,
-  HashMismatch {
-    expected: [u8; MD5_HASH_LENGTH],
-    found: [u8; MD5_HASH_LENGTH],
-  },
+  HashMismatch { block_index: usize },
 }

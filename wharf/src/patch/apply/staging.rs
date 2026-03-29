@@ -1,10 +1,10 @@
-use crate::hasher::BlockHasher;
+use crate::hasher::{BlockHasher, BlockHasherStatus};
 use crate::patch::SyncEntryIter;
 use crate::patch::operations::{
   apply::{self, FileCheckpoint, PatchFileStatus},
   skip::SkipStatus,
 };
-use crate::pool::{ContainerBackedPool, SeekablePool, StagingPool, WritablePool};
+use crate::pool::{ContainerBackedPool, Pool, SeekablePool, StagingPool, WritablePool};
 
 use serde::{Deserialize, Serialize};
 use std::io::Read;
@@ -105,14 +105,8 @@ pub fn reconstruct_modified_files(
     let file_index = header.file_index;
     let new_file_size = dst_pool.get_container_size(file_index)?;
 
-    // Create a hasher for the current file
-    let mut file_hasher = match hasher.as_mut() {
-      Some(h) => Some(h.next_file_hasher()?),
-      None => None,
-    };
-
     // Before patching, check if the file really needs patching
-    let status = match header.check_skip(new_file_size, src_pool)? {
+    let mut status = match header.check_skip(new_file_size, src_pool)? {
       SkipStatus::Empty => PatchFileStatus::Empty,
       SkipStatus::LiteralCopy { old_index } => PatchFileStatus::LiteralCopy { old_index },
       SkipStatus::NotSkippableRsync { mut op_iter } => {
@@ -125,7 +119,6 @@ pub fn reconstruct_modified_files(
           &mut new_file,
           new_file_size,
           src_pool,
-          &mut file_hasher,
           patch_op_buffer,
           checkpoint.current_file,
           |file_c| {
@@ -151,7 +144,6 @@ pub fn reconstruct_modified_files(
           &mut new_file,
           new_file_size,
           src_pool,
-          &mut file_hasher,
           patch_op_buffer,
           checkpoint.current_file,
           |file_c| {
@@ -164,6 +156,16 @@ pub fn reconstruct_modified_files(
         )?
       }
     };
+
+    // Verify the patched file
+    if let Some(hasher) = hasher {
+      let mut reader = staging_pool.get_reader(file_index)?;
+      let hash_status = hasher.hash_next_file(&mut reader)?;
+
+      if let BlockHasherStatus::HashMismatch { block_index: _ } = hash_status {
+        status = PatchFileStatus::Broken;
+      }
+    }
 
     // Update the checkpoint and save it
     checkpoint.push_status(status);

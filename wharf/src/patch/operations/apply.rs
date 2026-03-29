@@ -1,6 +1,5 @@
 use super::OpStatus;
 use crate::common::BLOCK_SIZE;
-use crate::hasher::{BlockHasherStatus, FileBlockHasher};
 use crate::patch::operations::skip::RsyncIterator;
 use crate::patch::{OpIter, op_kind};
 use crate::pool::{ContainerBackedPool, SeekablePool};
@@ -57,7 +56,7 @@ pub enum PatchFileStatus {
   /// The file is empty and no data was written
   Empty,
 
-  /// The file failed verification and its contents cannot be trusted
+  /// The file could not be patched (the old container has missing data)
   Broken,
 }
 
@@ -88,7 +87,6 @@ impl FileCheckpoint {
     written_bytes: &mut u64,
     op_index: &mut usize,
     new_file: &mut File,
-    hasher: &mut Option<FileBlockHasher<impl Read>>,
   ) -> Result<(), String> {
     // Add 1 to op_index
     // E.g: if the first operation was applied successfully (index 0),
@@ -97,27 +95,7 @@ impl FileCheckpoint {
     *written_bytes = self.written_bytes;
 
     // Truncate the new file to the correct size
-    truncate_file(new_file, *written_bytes)?;
-
-    // Skip hasher blocks
-    if let Some(hasher) = hasher {
-      ////////
-      ////////
-      //////// TODO: THIS DOESN'T WORK BECAUSE NEW_FILE IS WRITE-ONLY!!!!
-      ////////
-      ////////
-      ////////
-      hasher.skip_bytes(*written_bytes, new_file)?;
-      todo!();
-    }
-
-    // Seek the new file to the end
-    // (hasher.skip_bytes might have moved the seek)
-    new_file
-      .seek(std::io::SeekFrom::End(0))
-      .map_err(|e| format!("Couldn't seek new file to the end!\n{e}"))?;
-
-    Ok(())
+    truncate_file(new_file, *written_bytes)
   }
 
   /// Load a checkpoint for an rsync patch
@@ -127,13 +105,12 @@ impl FileCheckpoint {
     op_index: &mut usize,
     new_file: &mut File,
     op_iter: &mut RsyncIterator<'_, impl Read>,
-    hasher: &mut Option<FileBlockHasher<impl Read>>,
   ) -> Result<(), String> {
     let FileCheckpointKind::Rsync = self.kind else {
       return Err("Can't load a bsdiff checkpoint for an rsync file patch!".to_string());
     };
 
-    self.load_common(written_bytes, op_index, new_file, hasher)?;
+    self.load_common(written_bytes, op_index, new_file)?;
 
     // Skip the patch operations
     op_iter.skip_operations(*op_index as u64)
@@ -147,7 +124,6 @@ impl FileCheckpoint {
     old_file_seek_position: &mut u64,
     new_file: &mut File,
     op_iter: &mut OpIter<impl Read, op_kind::Bsdiff>,
-    hasher: &mut Option<FileBlockHasher<impl Read>>,
   ) -> Result<(), String> {
     let FileCheckpointKind::Bsdiff {
       old_file_seek_position: checkpoint_seek,
@@ -156,7 +132,7 @@ impl FileCheckpoint {
       return Err("Can't load an rsync checkpoint for a bsdiff file patch!".to_string());
     };
 
-    self.load_common(written_bytes, op_index, new_file, hasher)?;
+    self.load_common(written_bytes, op_index, new_file)?;
     *old_file_seek_position = checkpoint_seek;
 
     // Skip the patch operations
@@ -170,7 +146,6 @@ pub fn patch_rsync(
   new_file: &mut File,
   new_file_size: u64,
   src_pool: &mut (impl SeekablePool + ContainerBackedPool),
-  hasher: &mut Option<FileBlockHasher<impl Read>>,
   patch_op_buffer: &mut Vec<u8>,
   checkpoint: Option<FileCheckpoint>,
   mut save_checkpoint: impl FnMut(FileCheckpoint) -> Result<(), String>,
@@ -181,8 +156,7 @@ pub fn patch_rsync(
 
   // Load the checkpoint
   if let Some(c) = checkpoint {
-    // For that reason, it is possible to load the checkpoint normally:
-    c.load_rsync(&mut written_bytes, &mut op_index, new_file, op_iter, hasher)?;
+    c.load_rsync(&mut written_bytes, &mut op_index, new_file, op_iter)?;
   }
 
   // Resize the block buffer
@@ -194,7 +168,7 @@ pub fn patch_rsync(
   }
 
   for op in op_iter {
-    let status = op?.apply(new_file, hasher, src_pool, patch_op_buffer)?;
+    let status = op?.apply(new_file, src_pool, patch_op_buffer)?;
 
     match status {
       OpStatus::Broken => return Ok(PatchFileStatus::Broken),
@@ -208,15 +182,6 @@ pub fn patch_rsync(
     save_checkpoint(FileCheckpoint::rsync(written_bytes, op_index))?;
 
     op_index += 1;
-  }
-
-  // VERY IMPORTANT!
-  // If the file doesn't finish with a full block, hash it anyways!
-  if let Some(h) = hasher {
-    let status = h.finalize_block()?;
-    if let BlockHasherStatus::HashMismatch { .. } = status {
-      return Ok(PatchFileStatus::Broken);
-    }
   }
 
   // If the patch is correct, the number of written bytes and the new
@@ -238,7 +203,6 @@ pub fn patch_bsdiff(
   new_file: &mut File,
   new_file_size: u64,
   src_pool: &mut (impl SeekablePool + ContainerBackedPool),
-  hasher: &mut Option<FileBlockHasher<impl Read>>,
   patch_op_buffer: &mut Vec<u8>,
   checkpoint: Option<FileCheckpoint>,
   mut save_checkpoint: impl FnMut(FileCheckpoint) -> Result<(), String>,
@@ -256,7 +220,6 @@ pub fn patch_bsdiff(
       &mut old_file_seek_position,
       new_file,
       op_iter,
-      hasher,
     )?;
   }
 
@@ -279,7 +242,6 @@ pub fn patch_bsdiff(
   for control in &mut *op_iter {
     let status = control?.apply(
       new_file,
-      hasher,
       &mut old_file,
       &mut old_file_seek_position,
       old_file_disk_size,
@@ -302,15 +264,6 @@ pub fn patch_bsdiff(
     ))?;
 
     op_index += 1;
-  }
-
-  // VERY IMPORTANT!
-  // If the file doesn't finish with a full block, hash it anyways!
-  if let Some(h) = hasher {
-    let status = h.finalize_block()?;
-    if let BlockHasherStatus::HashMismatch { .. } = status {
-      return Ok(PatchFileStatus::Broken);
-    }
   }
 
   // If the patch is correct, the number of written bytes and the new
