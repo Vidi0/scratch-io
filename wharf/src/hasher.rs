@@ -71,10 +71,7 @@ impl<'cont, 'hash, R> BlockHasher<'cont, 'hash, R> {
   }
 }
 
-impl<R> BlockHasher<'_, '_, R>
-where
-  R: Read,
-{
+impl<R> BlockHasher<'_, '_, R> {
   /// Return the size of the next file in the container
   fn current_file_size(&self) -> Result<u64, BlockHasherError> {
     self
@@ -86,7 +83,9 @@ where
         file_index: self.entry_index,
       })
   }
+}
 
+impl<R: Read> BlockHasher<'_, '_, R> {
   pub fn skip_file(&mut self) -> Result<(), String> {
     let file_size = self.current_file_size()?;
     self.entry_index += 1;
@@ -101,7 +100,9 @@ where
 
     Ok(())
   }
+}
 
+impl<R: Read> BlockHasher<'_, '_, R> {
   /// Hash the next file and verify its integrity against the signature
   ///
   /// Reads the file block by block from `reader`, hashing each block and
