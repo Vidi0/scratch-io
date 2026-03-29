@@ -158,7 +158,9 @@ pub fn reconstruct_modified_files(
     };
 
     // Verify the patched file
-    if let Some(hasher) = hasher {
+    if let PatchFileStatus::Patched { written_bytes: _ } = status
+      && let Some(hasher) = hasher
+    {
       let mut reader = staging_pool.get_reader(file_index)?;
       let hash_status = hasher.hash_next_file(&mut reader)?;
 
