@@ -10,6 +10,14 @@ use md5::{Digest, Md5};
 use std::io::Read;
 
 #[derive(Clone, Debug)]
+struct FileBlock<'data> {
+  pub block_index: usize,
+
+  pub data: &'data [u8],
+  pub expected_hash: [u8; MD5_HASH_LENGTH],
+}
+
+#[derive(Clone, Debug)]
 struct InternalHasher {
   hasher: Md5,
   hash_buffer: Array<u8, Md5HashSize>,
@@ -22,14 +30,6 @@ impl InternalHasher {
       hash_buffer: Array::<u8, Md5HashSize>::default(),
     }
   }
-}
-
-#[derive(Clone, Debug)]
-struct FileBlock<'data> {
-  pub block_index: usize,
-
-  pub data: &'data [u8],
-  pub expected_hash: [u8; MD5_HASH_LENGTH],
 }
 
 impl InternalHasher {
