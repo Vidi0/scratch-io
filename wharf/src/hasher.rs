@@ -87,15 +87,16 @@ where
       })
   }
 
-  /// This function must be called after the [`BlockHasher`] has just been created
-  pub fn skip_files(&mut self, file_count: usize) -> Result<(), String> {
-    assert_eq!(self.entry_index, 0);
+  pub fn skip_file(&mut self) -> Result<(), String> {
+    let file_size = self.current_file_size()?;
+    self.entry_index += 1;
 
+    self.hash_iter.skip_blocks(block_count(file_size))
+  }
+
+  pub fn skip_files(&mut self, file_count: usize) -> Result<(), String> {
     for _ in 0..file_count {
-      // Skip all the blocks
-      let file_size = self.current_file_size()?;
-      self.hash_iter.skip_blocks(block_count(file_size))?;
-      self.entry_index += 1;
+      self.skip_file()?;
     }
 
     Ok(())

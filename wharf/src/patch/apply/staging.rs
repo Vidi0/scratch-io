@@ -158,14 +158,18 @@ pub fn reconstruct_modified_files(
     };
 
     // Verify the patched file
-    if let PatchFileStatus::Patched { written_bytes: _ } = status
-      && let Some(hasher) = hasher
-    {
-      let mut reader = staging_pool.get_reader(file_index)?;
-      let hash_status = hasher.hash_next_file(&mut reader)?;
+    if let Some(hasher) = hasher {
+      if let PatchFileStatus::Patched { written_bytes: _ } = status {
+        let mut reader = staging_pool.get_reader(file_index)?;
+        let hash_status = hasher.hash_next_file(&mut reader)?;
 
-      if let BlockHasherStatus::HashMismatch { block_index: _ } = hash_status {
-        status = PatchFileStatus::Broken;
+        if let BlockHasherStatus::HashMismatch { block_index: _ } = hash_status {
+          status = PatchFileStatus::Broken;
+        }
+      } else {
+        // It is VERY IMPORTANT to advance the hasher to the next file
+        // to avoid breaking the hasher iterator
+        hasher.skip_file()?;
       }
     }
 
