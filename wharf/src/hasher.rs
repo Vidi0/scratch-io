@@ -101,6 +101,25 @@ where
     Ok(())
   }
 
+  /// Hash the next file and verify its integrity against the signature
+  ///
+  /// Reads the file block by block from `reader`, hashing each block and
+  /// comparing it against the expected hash from the signature iterator.
+  /// If a hash mismatch is found, the remaining blocks are skipped in the
+  /// signature iterator to keep it in sync, and [`BlockHasherStatus::HashMismatch`]
+  /// is returned with the index of the first broken block.
+  ///
+  /// # Returns
+  ///
+  /// - [`BlockHasherStatus::Ok`] if all blocks match their expected hashes.
+  /// - [`BlockHasherStatus::HashMismatch`] if any block fails verification,
+  ///   containing the index of the first broken block.
+  ///
+  /// # Errors
+  ///
+  /// If the signature iterator runs out of hashes before all blocks are read,
+  /// the iterator returns an error, or there is an I/O failure while reading
+  /// the file.
   pub fn hash_next_file(
     &mut self,
     reader: &mut impl Read,
