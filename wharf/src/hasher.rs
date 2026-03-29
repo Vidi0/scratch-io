@@ -102,6 +102,39 @@ impl<R: Read> BlockHasher<'_, '_, R> {
   }
 }
 
+struct VerificationStatus {
+  has_failed: bool,
+  broken_block_index: usize,
+}
+
+impl VerificationStatus {
+  pub fn new() -> Self {
+    Self {
+      has_failed: false,
+      broken_block_index: 0,
+    }
+  }
+
+  pub fn has_failed(&self) -> bool {
+    self.has_failed
+  }
+
+  pub fn set_failed(&mut self, broken_block_index: usize) {
+    self.has_failed = true;
+    self.broken_block_index = broken_block_index;
+  }
+
+  pub fn status(&self) -> BlockHasherStatus {
+    if self.has_failed {
+      BlockHasherStatus::HashMismatch {
+        block_index: self.broken_block_index,
+      }
+    } else {
+      BlockHasherStatus::Ok
+    }
+  }
+}
+
 impl<R: Read> BlockHasher<'_, '_, R> {
   /// Hash the next file and verify its integrity against the signature
   ///
@@ -133,11 +166,10 @@ impl<R: Read> BlockHasher<'_, '_, R> {
     self.entry_index += 1;
 
     let mut read_blocks = 0;
-    let mut has_verification_failed = false;
-    let mut broken_block_index = 0;
+    let mut verification_status = VerificationStatus::new();
 
     for block_index in 0..file_blocks as usize {
-      if has_verification_failed {
+      if verification_status.has_failed() {
         break;
       }
 
@@ -174,24 +206,17 @@ impl<R: Read> BlockHasher<'_, '_, R> {
       // Hash the data and compare the hashes
       let status = self.internal_hasher.hash_block(&block);
       if let BlockHasherStatus::HashMismatch { block_index } = status {
-        has_verification_failed = true;
-        broken_block_index = block_index;
+        verification_status.set_failed(block_index);
       }
     }
 
-    if has_verification_failed {
+    if verification_status.has_failed() {
       self
         .hash_iter
         .skip_blocks(file_blocks - read_blocks)
         .map_err(BlockHasherError::IterReturnedError)?;
     }
 
-    Ok(if has_verification_failed {
-      BlockHasherStatus::HashMismatch {
-        block_index: broken_block_index,
-      }
-    } else {
-      BlockHasherStatus::Ok
-    })
+    Ok(verification_status.status())
   }
 }
