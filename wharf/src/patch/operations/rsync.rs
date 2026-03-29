@@ -5,6 +5,50 @@ use crate::pool::{ContainerBackedPool, SeekablePool};
 
 use std::io::{self, Read, Seek, Write};
 
+impl RsyncOp {
+  /// Check if this `RsyncOp` represents a file copy from the
+  /// old container into the new without changing the data
+  ///
+  /// Returns an option containing the old file index
+  pub fn is_literal_copy(
+    &self,
+    new_file_size: u64,
+    src_pool: &impl ContainerBackedPool,
+  ) -> Result<Option<usize>, String> {
+    // The type must be BlockRange
+    if let Self::BlockRange {
+      file_index,
+      block_index,
+      block_span,
+    } = *self
+    {
+      Ok(
+        // It should copy from the first block until the end of the given file
+        (block_index == 0
+          && block_span * BLOCK_SIZE as u64 >= new_file_size
+        // The size of the old and the new file must be equal
+          && new_file_size == src_pool.get_container_size(file_index)?)
+        .then_some(file_index),
+      )
+    } else {
+      Ok(None)
+    }
+  }
+
+  /// Check if this `SyncOp` represents an empty file
+  pub fn is_empty_file(&self, new_file_size: u64) -> bool {
+    // The type must be Data
+    if let Self::Data(data) = self {
+      // The data field should be empty
+      data.is_empty()
+      // The new file must have a 0 size in the container
+        && new_file_size == 0
+    } else {
+      false
+    }
+  }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[must_use]
 enum CopyRangeStatus {
@@ -73,48 +117,6 @@ fn copy_range(
 }
 
 impl RsyncOp {
-  /// Check if this `RsyncOp` represents a file copy from the
-  /// old container into the new without changing the data
-  ///
-  /// Returns an option containing the old file index
-  pub fn is_literal_copy(
-    &self,
-    new_file_size: u64,
-    src_pool: &impl ContainerBackedPool,
-  ) -> Result<Option<usize>, String> {
-    // The type must be BlockRange
-    if let Self::BlockRange {
-      file_index,
-      block_index,
-      block_span,
-    } = *self
-    {
-      Ok(
-        // It should copy from the first block until the end of the given file
-        (block_index == 0
-          && block_span * BLOCK_SIZE as u64 >= new_file_size
-        // The size of the old and the new file must be equal
-          && new_file_size == src_pool.get_container_size(file_index)?)
-        .then_some(file_index),
-      )
-    } else {
-      Ok(None)
-    }
-  }
-
-  /// Check if this `SyncOp` represents an empty file
-  pub fn is_empty_file(&self, new_file_size: u64) -> bool {
-    // The type must be Data
-    if let Self::Data(data) = self {
-      // The data field should be empty
-      data.is_empty()
-      // The new file must have a 0 size in the container
-        && new_file_size == 0
-    } else {
-      false
-    }
-  }
-
   /// Apply the `op` rsync operation into the writer
   pub fn apply(
     &self,
