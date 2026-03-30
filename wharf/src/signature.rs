@@ -1,10 +1,10 @@
-use crate::common::{MAGIC_SIGNATURE, check_magic_bytes, decompress_stream};
+use crate::common::{MAGIC_SIGNATURE, Reader, check_magic_bytes, decompress_stream};
 use crate::protos;
 use crate::protos::{decode_protobuf, skip_protobuf};
 
 use md5::Md5;
 use md5::digest::{self, typenum::Unsigned};
-use std::io::{BufRead, Read};
+use std::io::BufRead;
 
 pub type Md5HashSize = <Md5 as digest::OutputSizeUser>::OutputSize;
 pub const MD5_HASH_LENGTH: usize = Md5HashSize::USIZE;
@@ -13,24 +13,18 @@ pub const MD5_HASH_LENGTH: usize = Md5HashSize::USIZE;
 ///
 /// Each message is of the same type, independent and follows directly after the previous one in the stream.
 /// The messages are read and decoded one by one, without loading the entire stream into memory.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BlockHashIter<R> {
-  reader: R,
+pub struct BlockHashIter<'reader> {
+  reader: Box<Reader<'reader>>,
   total_blocks: u64,
   blocks_read: u64,
 }
 
-impl<R> BlockHashIter<R> {
+impl BlockHashIter<'_> {
   #[must_use]
   pub const fn total_blocks(&self) -> u64 {
     self.total_blocks
   }
-}
 
-impl<R> BlockHashIter<R>
-where
-  R: Read,
-{
   pub fn dump_stdout(&mut self) -> Result<(), String> {
     for op in self {
       println!("{:?}", op?);
@@ -72,10 +66,7 @@ impl TryFrom<protos::BlockHash> for BlockHash {
   }
 }
 
-impl<R> Iterator for BlockHashIter<R>
-where
-  R: Read,
-{
+impl Iterator for BlockHashIter<'_> {
   type Item = Result<BlockHash, String>;
 
   fn next(&mut self) -> Option<Self::Item> {
@@ -105,10 +96,10 @@ where
 /// Contains the header, the container describing the files/dirs/symlinks,
 /// and an iterator over the signature block hashes. The iterator reads
 /// from the underlying stream on the fly as items are requested.
-pub struct Signature<'a> {
+pub struct Signature<'reader> {
   pub header: protos::SignatureHeader,
   pub container_new: protos::Container,
-  pub block_hash_iter: BlockHashIter<Box<dyn BufRead + 'a>>,
+  pub block_hash_iter: BlockHashIter<'reader>,
 }
 
 impl<'a> Signature<'a> {
@@ -155,7 +146,10 @@ impl<'a> Signature<'a> {
   /// have already been consumed from the input stream
   ///
   /// For more information, see [`Signature::read`].
-  pub fn read_without_magic(reader: &'a mut impl BufRead) -> Result<Self, String> {
+  pub fn read_without_magic<R>(reader: &'a mut R) -> Result<Self, String>
+  where
+    R: BufRead + Send,
+  {
     // Decode the signature header
     let header = decode_protobuf::<protos::SignatureHeader>(reader)?;
 
@@ -193,7 +187,10 @@ impl<'a> Signature<'a> {
   /// <https://docs.itch.zone/wharf/master/file-formats/signatures.html>
   ///
   /// <https://github.com/Vidi0/scratch-io/blob/main/docs/wharf/patch.md>
-  pub fn read(reader: &'a mut impl BufRead) -> Result<Self, String> {
+  pub fn read<R>(reader: &'a mut R) -> Result<Self, String>
+  where
+    R: BufRead + Send,
+  {
     // Check the magic bytes
     check_magic_bytes(reader, MAGIC_SIGNATURE)?;
 

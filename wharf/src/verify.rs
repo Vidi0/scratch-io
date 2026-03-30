@@ -3,7 +3,6 @@ use crate::hasher::{BlockHasher, BlockHasherStatus};
 use crate::pool::{ContainerBackedPool, ContainerPool, Pool};
 use crate::protos;
 
-use std::io::Read;
 use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,10 +33,10 @@ impl IntegrityIssues {
 /// # Returns
 ///
 /// If the file is intact, returns `true`
-fn check_file_integrity<R: Read>(
+fn check_file_integrity(
   entry_index: usize,
   src_pool: &mut impl ContainerBackedPool,
-  hasher: &mut BlockHasher<R>,
+  hasher: &mut BlockHasher,
   mut progress_callback: impl FnMut(u64),
 ) -> Result<bool, String> {
   // Get the file size
@@ -88,7 +87,7 @@ impl Signature<'_> {
   ///
   /// If there is an I/O failure while reading files or metadata.
   pub fn verify_files(
-    &'_ mut self,
+    &mut self,
     build_folder: &Path,
     mut progress_callback: impl FnMut(u64),
   ) -> Result<IntegrityIssues, String> {

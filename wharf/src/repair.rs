@@ -75,13 +75,17 @@ impl Signature<'_> {
   ///
   /// If a file listed in the container is missing in the ZIP archive or
   /// there is an I/O failure while reading files or metadata.
-  pub fn repair(
+  pub fn repair<'ar, C>(
     &self,
     integrity_issues: &IntegrityIssues,
     build_folder: &Path,
-    build_zip_archive: &ArchiveHandle<'_, impl HasCursor>,
+    build_zip_archive: &'ar ArchiveHandle<C>,
     progress_callback: impl FnMut(u64),
-  ) -> Result<(), PoolError> {
+  ) -> Result<(), PoolError>
+  where
+    C: HasCursor,
+    <C as HasCursor>::Cursor<'ar>: Send,
+  {
     // Create the folders, files and symlinks in the destination container
     let mut dst_pool = ContainerPool::create(&self.container_new, build_folder)?;
     let mut src_pool = ZipPool::new(&self.container_new, build_zip_archive);

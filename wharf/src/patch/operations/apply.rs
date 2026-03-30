@@ -6,7 +6,7 @@ use crate::pool::{ContainerBackedPool, SeekablePool};
 
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::{Read, Seek};
+use std::io::Seek;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[must_use]
@@ -104,7 +104,7 @@ impl FileCheckpoint {
     written_bytes: &mut u64,
     op_index: &mut usize,
     new_file: &mut File,
-    op_iter: &mut RsyncIterator<'_, impl Read>,
+    op_iter: &mut RsyncIterator,
   ) -> Result<(), String> {
     let FileCheckpointKind::Rsync = self.kind else {
       return Err("Can't load a bsdiff checkpoint for an rsync file patch!".to_string());
@@ -123,7 +123,7 @@ impl FileCheckpoint {
     op_index: &mut usize,
     old_file_seek_position: &mut u64,
     new_file: &mut File,
-    op_iter: &mut OpIter<impl Read, op_kind::Bsdiff>,
+    op_iter: &mut OpIter<op_kind::Bsdiff>,
   ) -> Result<(), String> {
     let FileCheckpointKind::Bsdiff {
       old_file_seek_position: checkpoint_seek,
@@ -142,7 +142,7 @@ impl FileCheckpoint {
 
 #[expect(clippy::too_many_arguments)]
 pub fn patch_rsync(
-  op_iter: &mut RsyncIterator<'_, impl Read>,
+  op_iter: &mut RsyncIterator,
   new_file: &mut File,
   new_file_size: u64,
   src_pool: &mut (impl SeekablePool + ContainerBackedPool),
@@ -198,7 +198,7 @@ pub fn patch_rsync(
 
 #[expect(clippy::too_many_arguments)]
 pub fn patch_bsdiff(
-  op_iter: &mut OpIter<'_, impl Read, op_kind::Bsdiff>,
+  op_iter: &mut OpIter<op_kind::Bsdiff>,
   target_index: usize,
   new_file: &mut File,
   new_file_size: u64,

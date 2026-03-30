@@ -1,17 +1,14 @@
 use crate::patch::{OpIter, RsyncOp, SyncHeader, SyncHeaderKind, op_kind};
 use crate::pool::{ContainerBackedPool, SeekablePool};
 
-use std::io::Read;
-
-#[derive(Debug)]
-pub struct RsyncIterator<'reader, R> {
+pub struct RsyncIterator<'reader> {
   // When the first operation is read, the `first_op` field is set to None
   first_op: Option<RsyncOp>,
-  op_iter: OpIter<'reader, R, op_kind::Rsync>,
+  op_iter: OpIter<'reader, op_kind::Rsync>,
 }
 
-impl<'reader, R: Read> Iterator for RsyncIterator<'reader, R> {
-  type Item = <OpIter<'reader, R, op_kind::Rsync> as Iterator>::Item;
+impl<'reader> Iterator for RsyncIterator<'reader> {
+  type Item = <OpIter<'reader, op_kind::Rsync> as Iterator>::Item;
 
   fn next(&mut self) -> Option<Self::Item> {
     if let Some(op) = self.first_op.take() {
@@ -22,7 +19,7 @@ impl<'reader, R: Read> Iterator for RsyncIterator<'reader, R> {
   }
 }
 
-impl<R: Read> RsyncIterator<'_, R> {
+impl RsyncIterator<'_> {
   pub fn skip_operations(&mut self, mut operations_to_skip: u64) -> Result<(), String> {
     if operations_to_skip == 0 {
       return Ok(());
@@ -36,14 +33,13 @@ impl<R: Read> RsyncIterator<'_, R> {
   }
 }
 
-#[derive(Debug)]
 #[must_use]
-pub enum SkipStatus<'reader, R> {
+pub enum SkipStatus<'reader> {
   /// The file uses bsdiff and cannot be skipped
   /// (the patch operation always represents actual changes in the file)
   NotSkippableBsdiff {
     target_index: usize,
-    op_iter: OpIter<'reader, R, op_kind::Bsdiff>,
+    op_iter: OpIter<'reader, op_kind::Bsdiff>,
   },
 
   /// The file uses rsync and cannot be skipped
@@ -53,7 +49,7 @@ pub enum SkipStatus<'reader, R> {
   /// continuing with the remaining operations.
   ///
   /// The returned iterator will iterate over all the rsync patch operations
-  NotSkippableRsync { op_iter: RsyncIterator<'reader, R> },
+  NotSkippableRsync { op_iter: RsyncIterator<'reader> },
 
   /// The file is a literal copy of an old file at the given index
   LiteralCopy { old_index: usize },
@@ -62,7 +58,7 @@ pub enum SkipStatus<'reader, R> {
   Empty,
 }
 
-impl<'reader, R: Read> SyncHeader<'reader, R> {
+impl<'reader> SyncHeader<'reader> {
   /// Check if the new file needs to be patched, or if it can be skipped/is empty
   ///
   /// Rsync operations can be used to determine two special cases:
@@ -79,7 +75,7 @@ impl<'reader, R: Read> SyncHeader<'reader, R> {
     self,
     new_file_size: u64,
     src_pool: &mut (impl SeekablePool + ContainerBackedPool),
-  ) -> Result<SkipStatus<'reader, R>, String> {
+  ) -> Result<SkipStatus<'reader>, String> {
     let mut op_iter = match self.kind {
       SyncHeaderKind::Rsync { op_iter } => op_iter,
       // If the kind is bsdiff, return the iterator and target index

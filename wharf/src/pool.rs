@@ -42,7 +42,7 @@ use std::io::{BufWriter, Write};
 /// Each entry is identified by its index in the pool's entry list.
 pub trait Pool {
   /// The reader type returned by [`Pool::get_reader`]
-  type Reader<'a>: Read
+  type Reader<'a>: Read + Send
   where
     Self: 'a;
 
@@ -110,7 +110,7 @@ pub trait ContainerBackedPool: Pool {
 /// Extends [`Pool`] with seek access to the underlying storage
 pub trait SeekablePool: Pool {
   /// The seekable reader type returned by [`SeekablePool::get_seek_reader`].
-  type SeekableReader<'a>: Read + Seek
+  type SeekableReader<'a>: Read + Seek + Send
   where
     Self: 'a;
 
@@ -129,7 +129,7 @@ pub trait SeekablePool: Pool {
 /// Extends [`Pool`] with write access to the underlying storage
 pub trait WritablePool: Pool {
   /// The writer type returned by [`WritablePool::get_writer`]
-  type Writer<'a>: Write
+  type Writer<'a>: Write + Send
   where
     Self: 'a;
 

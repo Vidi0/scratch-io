@@ -1,10 +1,10 @@
 pub mod apply;
 pub mod operations;
 
-use crate::common::{MAGIC_PATCH, check_magic_bytes, decompress_stream};
+use crate::common::{MAGIC_PATCH, Reader, check_magic_bytes, decompress_stream};
 use crate::protos::{self, decode_protobuf, skip_protobuf};
 
-use std::io::{BufRead, Read};
+use std::io::BufRead;
 use std::marker::PhantomData;
 
 pub mod op_kind {
@@ -31,14 +31,13 @@ impl From<protos::sync_header::Type> for OpKind {
   }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct OpIter<'a, R, K> {
-  reader: &'a mut R,
-  pending_drain: &'a mut Option<OpKind>,
+pub struct OpIter<'reader, K> {
+  reader: &'reader mut Reader<'reader>,
+  pending_drain: &'reader mut Option<OpKind>,
   _kind: PhantomData<K>,
 }
 
-impl<R, K, T> OpIter<'_, R, K>
+impl<K, T> OpIter<'_, K>
 where
   Self: Iterator<Item = Result<T, String>>,
 {
@@ -62,10 +61,7 @@ where
   }
 }
 
-impl<R, K> OpIter<'_, R, K>
-where
-  R: Read,
-{
+impl<K> OpIter<'_, K> {
   pub fn skip_operations(&mut self, operations_to_skip: u64) -> Result<(), String> {
     for _ in 0..operations_to_skip {
       skip_protobuf(&mut self.reader)?;
@@ -75,7 +71,7 @@ where
   }
 }
 
-impl<R, K, T> OpIter<'_, R, K>
+impl<K, T> OpIter<'_, K>
 where
   Self: Iterator<Item = Result<T, String>>,
   T: std::fmt::Debug,
@@ -115,10 +111,7 @@ impl From<protos::SyncOp> for RsyncOp {
   }
 }
 
-impl<R> Iterator for OpIter<'_, R, op_kind::Rsync>
-where
-  R: Read,
-{
+impl Iterator for OpIter<'_, op_kind::Rsync> {
   type Item = Result<RsyncOp, String>;
 
   fn next(&mut self) -> Option<Self::Item> {
@@ -161,10 +154,7 @@ impl From<protos::Control> for BsdiffOp {
   }
 }
 
-impl<R> Iterator for OpIter<'_, R, op_kind::Bsdiff>
-where
-  R: Read,
-{
+impl Iterator for OpIter<'_, op_kind::Bsdiff> {
   type Item = Result<BsdiffOp, String>;
 
   fn next(&mut self) -> Option<Self::Item> {
@@ -206,34 +196,28 @@ where
   }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum SyncHeaderKind<'a, R> {
+pub enum SyncHeaderKind<'reader> {
   Rsync {
-    op_iter: OpIter<'a, R, op_kind::Rsync>,
+    op_iter: OpIter<'reader, op_kind::Rsync>,
   },
   Bsdiff {
     target_index: usize,
-    op_iter: OpIter<'a, R, op_kind::Bsdiff>,
+    op_iter: OpIter<'reader, op_kind::Bsdiff>,
   },
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct SyncHeader<'a, R> {
+pub struct SyncHeader<'reader> {
   pub file_index: usize,
-  pub kind: SyncHeaderKind<'a, R>,
+  pub kind: SyncHeaderKind<'reader>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct SyncEntryIter<R> {
-  reader: R,
+pub struct SyncEntryIter<'reader> {
+  reader: Box<Reader<'reader>>,
   remaining_entries: u64,
   pending_drain: Option<OpKind>,
 }
 
-impl<R> SyncEntryIter<R>
-where
-  R: Read,
-{
+impl SyncEntryIter<'_> {
   pub fn dump_stdout(&mut self) -> Result<(), String> {
     while let Some(header) = self.next_header() {
       let header = header?;
@@ -260,7 +244,7 @@ where
     Ok(())
   }
 
-  fn new_op_iter<K>(&mut self) -> OpIter<'_, R, K> {
+  fn new_op_iter<K>(&mut self) -> OpIter<'_, K> {
     OpIter {
       reader: &mut self.reader,
       pending_drain: &mut self.pending_drain,
@@ -276,7 +260,7 @@ where
     }
   }
 
-  pub fn next_header(&mut self) -> Option<Result<SyncHeader<'_, R>, String>> {
+  pub fn next_header(&mut self) -> Option<Result<SyncHeader<'_>, String>> {
     if self.remaining_entries == 0 {
       return None;
     }
@@ -354,11 +338,11 @@ where
 /// Contains the header, the old and new containers describing file system
 /// state before and after the patch, and an iterator over the patch operations.
 /// The iterator reads from the underlying stream on the fly as items are requested.
-pub struct Patch<'a> {
+pub struct Patch<'reader> {
   pub header: protos::PatchHeader,
   pub container_old: protos::Container,
   pub container_new: protos::Container,
-  pub sync_op_iter: SyncEntryIter<Box<dyn BufRead + 'a>>,
+  pub sync_op_iter: SyncEntryIter<'reader>,
 }
 
 impl<'a> Patch<'a> {
@@ -413,7 +397,10 @@ impl<'a> Patch<'a> {
   /// have already been consumed from the input stream
   ///
   /// For more information, see [`Patch::read`].
-  pub fn read_without_magic(reader: &'a mut impl BufRead) -> Result<Self, String> {
+  pub fn read_without_magic<R>(reader: &'a mut R) -> Result<Self, String>
+  where
+    R: BufRead + Send,
+  {
     // Decode the patch header
     let header = decode_protobuf::<protos::PatchHeader>(reader)?;
 
@@ -453,7 +440,10 @@ impl<'a> Patch<'a> {
   /// <https://docs.itch.zone/wharf/master/file-formats/signatures.html>
   ///
   /// <https://github.com/Vidi0/scratch-io/blob/main/docs/wharf/patch.md>
-  pub fn read(reader: &'a mut impl BufRead) -> Result<Self, String> {
+  pub fn read<R>(reader: &'a mut R) -> Result<Self, String>
+  where
+    R: BufRead + Send,
+  {
     // Check the magic bytes
     check_magic_bytes(reader, MAGIC_PATCH)?;
 

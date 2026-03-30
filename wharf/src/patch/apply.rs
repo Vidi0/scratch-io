@@ -5,7 +5,6 @@ use crate::hasher::BlockHasher;
 use crate::pool::{ContainerPool, StagingPool};
 use crate::signature::BlockHashIter;
 
-use std::io::Read;
 use std::path::Path;
 
 impl Patch<'_> {
@@ -38,7 +37,7 @@ impl Patch<'_> {
     old_build_folder: &Path,
     staging_folder: &Path,
     new_build_folder: &Path,
-    hash_iter: Option<&mut BlockHashIter<impl Read>>,
+    hash_iter: Option<&mut BlockHashIter>,
     mut progress_callback: impl FnMut(u64),
   ) -> Result<(), String> {
     // Create the new container folders, files and symlinks,

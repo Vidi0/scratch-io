@@ -10,15 +10,21 @@ use std::io;
 ///
 /// Each entry is looked up in the archive by its path as described in the
 /// container. The number of entries is determined by the container's file list.
-pub struct ZipPool<'container, 'ar, 'ar_reader, C: HasCursor>
+pub struct ZipPool<'container, 'ar, 'ar_reader, C>
 where
+  C: HasCursor,
+  <C as HasCursor>::Cursor<'ar_reader>: Send,
   'ar: 'ar_reader,
 {
   container: &'container protos::Container,
   archive: &'ar ArchiveHandle<'ar_reader, C>,
 }
 
-impl<'container, 'ar, 'ar_reader, C: HasCursor> ZipPool<'container, 'ar, 'ar_reader, C> {
+impl<'container, 'ar, 'ar_reader, C> ZipPool<'container, 'ar, 'ar_reader, C>
+where
+  C: HasCursor,
+  <C as HasCursor>::Cursor<'ar_reader>: Send,
+{
   pub fn new(
     container: &'container protos::Container,
     archive: &'ar ArchiveHandle<'ar_reader, C>,
@@ -35,7 +41,11 @@ impl<'container, 'ar, 'ar_reader, C: HasCursor> ZipPool<'container, 'ar, 'ar_rea
   }
 }
 
-impl<'ar_reader, C: HasCursor> Pool for ZipPool<'_, '_, 'ar_reader, C> {
+impl<'ar_reader, C: HasCursor> Pool for ZipPool<'_, '_, 'ar_reader, C>
+where
+  C: HasCursor,
+  <C as HasCursor>::Cursor<'ar_reader>: Send,
+{
   type Reader<'a>
     = EntryReader<<C as HasCursor>::Cursor<'ar_reader>>
   where
@@ -69,7 +79,11 @@ impl<'ar_reader, C: HasCursor> Pool for ZipPool<'_, '_, 'ar_reader, C> {
   }
 }
 
-impl<'ar_reader, C: HasCursor> ContainerBackedPool for ZipPool<'_, '_, 'ar_reader, C> {
+impl<'ar_reader, C: HasCursor> ContainerBackedPool for ZipPool<'_, '_, 'ar_reader, C>
+where
+  C: HasCursor,
+  <C as HasCursor>::Cursor<'ar_reader>: Send,
+{
   fn get_container_size(&self, entry_index: usize) -> Result<u64, PoolError> {
     let Some(container_file) = self.container.files.get(entry_index) else {
       return Err(PoolError::InvalidEntryIndex(entry_index));

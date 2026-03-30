@@ -14,6 +14,8 @@ pub fn block_count(file_size: u64) -> u64 {
   file_size.div_ceil(BLOCK_SIZE as u64).max(1)
 }
 
+pub type Reader<'a> = dyn BufRead + Send + 'a;
+
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L14>
 pub const MAGIC_PATCH: u32 = 0x0FEF_5F00;
 
@@ -49,10 +51,13 @@ pub fn check_magic_bytes(reader: &mut impl Read, expected_magic: u32) -> Result<
 /// # Returns
 ///
 /// The decompressed buffered stream
-pub fn decompress_stream(
-  reader: &mut impl BufRead,
+pub fn decompress_stream<R>(
+  reader: &mut R,
   algorithm: CompressionAlgorithm,
-) -> Result<Box<dyn BufRead + '_>, String> {
+) -> Result<Box<Reader<'_>>, String>
+where
+  R: BufRead + Send,
+{
   match algorithm {
     CompressionAlgorithm::None => Ok(Box::new(reader)),
 

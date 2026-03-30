@@ -3,9 +3,9 @@ use crate::{Patch, Signature};
 
 use std::io::BufRead;
 
-pub enum WharfBinary<'a> {
-  Signature(Signature<'a>),
-  Patch(Patch<'a>),
+pub enum WharfBinary<'reader> {
+  Signature(Signature<'reader>),
+  Patch(Patch<'reader>),
 }
 
 impl WharfBinary<'_> {
@@ -33,7 +33,10 @@ impl WharfBinary<'_> {
 }
 
 /// Itentify a wharf binary based on the magic bytes and decode it
-pub fn identify<'a>(reader: &'a mut impl BufRead) -> Result<WharfBinary<'a>, String> {
+pub fn identify<'reader, R>(reader: &'reader mut R) -> Result<WharfBinary<'reader>, String>
+where
+  R: BufRead + Send,
+{
   use WharfBinary as WB;
 
   let magic = read_magic_bytes(reader)?;

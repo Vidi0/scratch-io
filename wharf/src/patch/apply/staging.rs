@@ -7,7 +7,6 @@ use crate::patch::operations::{
 use crate::pool::{ContainerBackedPool, Pool, SeekablePool, StagingPool, WritablePool};
 
 use serde::{Deserialize, Serialize};
-use std::io::Read;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[must_use]
@@ -43,8 +42,8 @@ impl StagingCheckpoint {
   /// Load the checkpoint
   pub fn load(
     &self,
-    sync_op_iter: &mut SyncEntryIter<impl Read>,
-    hasher: &mut Option<BlockHasher<impl Read>>,
+    sync_op_iter: &mut SyncEntryIter,
+    hasher: &mut Option<BlockHasher>,
   ) -> Result<(), String> {
     if self.current_file_index() == 0 {
       return Ok(());
@@ -73,8 +72,8 @@ pub fn reconstruct_modified_files(
   src_pool: &mut (impl SeekablePool + ContainerBackedPool),
   staging_pool: &mut StagingPool,
   dst_pool: &mut impl ContainerBackedPool,
-  sync_op_iter: &mut SyncEntryIter<impl Read>,
-  hasher: &mut Option<BlockHasher<impl Read>>,
+  sync_op_iter: &mut SyncEntryIter,
+  hasher: &mut Option<BlockHasher>,
   patch_op_buffer: &mut Vec<u8>,
   mut progress_callback: impl FnMut(u64),
 ) -> Result<ReconstructedFilesStatus, String> {

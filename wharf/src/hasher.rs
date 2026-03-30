@@ -47,18 +47,21 @@ impl InternalHasher {
   }
 }
 
-pub struct BlockHasher<'cont, 'hash_iter, R> {
+pub struct BlockHasher<'cont, 'hash_iter, 'reader> {
   container: &'cont protos::Container,
   entry_index: usize,
 
-  hash_iter: &'hash_iter mut BlockHashIter<R>,
+  hash_iter: &'hash_iter mut BlockHashIter<'reader>,
   block_buffer: Box<[u8; BLOCK_SIZE]>,
 
   internal_hasher: InternalHasher,
 }
 
-impl<'cont, 'hash, R> BlockHasher<'cont, 'hash, R> {
-  pub fn new(container: &'cont protos::Container, hash_iter: &'hash mut BlockHashIter<R>) -> Self {
+impl<'cont, 'hash_iter, 'reader> BlockHasher<'cont, 'hash_iter, 'reader> {
+  pub fn new(
+    container: &'cont protos::Container,
+    hash_iter: &'hash_iter mut BlockHashIter<'reader>,
+  ) -> Self {
     Self {
       container,
       entry_index: 0,
@@ -71,7 +74,7 @@ impl<'cont, 'hash, R> BlockHasher<'cont, 'hash, R> {
   }
 }
 
-impl<R> BlockHasher<'_, '_, R> {
+impl BlockHasher<'_, '_, '_> {
   /// Return the size of the next file in the container
   fn current_file_size(&self) -> Result<u64, BlockHasherError> {
     self
@@ -85,7 +88,7 @@ impl<R> BlockHasher<'_, '_, R> {
   }
 }
 
-impl<R: Read> BlockHasher<'_, '_, R> {
+impl BlockHasher<'_, '_, '_> {
   pub fn skip_file(&mut self) -> Result<(), String> {
     let file_size = self.current_file_size()?;
     self.entry_index += 1;
@@ -135,7 +138,7 @@ impl VerificationStatus {
   }
 }
 
-impl<R: Read> BlockHasher<'_, '_, R> {
+impl BlockHasher<'_, '_, '_> {
   /// Hash the next file and verify its integrity against the signature
   ///
   /// Reads the file block by block from `reader`, hashing each block and
