@@ -97,9 +97,9 @@ fn io_thread(
   buffer_pool: &BlockBufferPool,
   mut progress_callback: impl FnMut(u64) + Send,
 ) -> Result<(), BlockHasherError> {
-  'outer: for block_index in 0..file_blocks as usize {
+  for block_index in 0..file_blocks as usize {
     if verification_status.has_finished() {
-      break;
+      return Ok(());
     }
 
     // Read the expected hash from the signature
@@ -128,7 +128,7 @@ fn io_thread(
         } else {
           // Check if verification has failed to avoid deadlocks
           if verification_status.has_finished() {
-            break 'outer;
+            return Ok(());
           }
 
           std::hint::spin_loop();
