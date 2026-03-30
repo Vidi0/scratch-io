@@ -45,6 +45,7 @@ fn check_file_integrity(
 
   // If the length doesn't match, then this file is broken
   if file_size != Some(container_file_size) {
+    hasher.skip_file()?;
     return Ok(false);
   }
 
