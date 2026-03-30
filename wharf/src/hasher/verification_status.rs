@@ -76,7 +76,12 @@ impl VerificationStatus {
     }
   }
 
+  /// This function sets the status as finished only if it hasn't failed.
   pub fn set_finished(&self) {
+    if let Status::Failed = self.get_status() {
+      return;
+    }
+
     self.store_status(Status::Finished);
   }
 
