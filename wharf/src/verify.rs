@@ -37,7 +37,7 @@ fn check_file_integrity(
   entry_index: usize,
   src_pool: &mut impl ContainerBackedPool,
   hasher: &mut BlockHasher,
-  progress_callback: impl FnMut(u64),
+  progress_callback: impl FnMut(u64) + Send,
 ) -> Result<bool, String> {
   // Get the file size
   let container_file_size = src_pool.get_container_size(entry_index)?;
@@ -87,7 +87,7 @@ impl Signature<'_> {
   pub fn verify_files(
     &mut self,
     build_folder: &Path,
-    mut progress_callback: impl FnMut(u64),
+    mut progress_callback: impl FnMut(u64) + Send,
   ) -> Result<IntegrityIssues, String> {
     // This vector holds all the broken file indexes found in the build folder
     let mut broken_files: Vec<usize> = Vec::new();

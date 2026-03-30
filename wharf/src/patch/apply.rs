@@ -38,7 +38,7 @@ impl Patch<'_> {
     staging_folder: &Path,
     new_build_folder: &Path,
     hash_iter: Option<&mut BlockHashIter>,
-    mut progress_callback: impl FnMut(u64),
+    mut progress_callback: impl FnMut(u64) + Send,
   ) -> Result<(), String> {
     // Create the new container folders, files and symlinks,
     // applying all the correct permissions

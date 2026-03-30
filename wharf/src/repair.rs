@@ -35,7 +35,7 @@ pub fn repair_files(
   integrity_issues: &IntegrityIssues,
   dst_pool: &mut impl WritablePool,
   src_pool: &mut impl Pool,
-  mut progress_callback: impl FnMut(u64),
+  mut progress_callback: impl FnMut(u64) + Send,
 ) -> Result<(), PoolError> {
   for &entry_index in &integrity_issues.files {
     let bytes = dst_pool.copy_from(entry_index, src_pool)?;
@@ -80,7 +80,7 @@ impl Signature<'_> {
     integrity_issues: &IntegrityIssues,
     build_folder: &Path,
     build_zip_archive: &'ar ArchiveHandle<C>,
-    progress_callback: impl FnMut(u64),
+    progress_callback: impl FnMut(u64) + Send,
   ) -> Result<(), PoolError>
   where
     C: HasCursor,

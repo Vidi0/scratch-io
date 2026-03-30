@@ -75,7 +75,7 @@ pub fn reconstruct_modified_files(
   sync_op_iter: &mut SyncEntryIter,
   hasher: &mut Option<BlockHasher>,
   patch_op_buffer: &mut Vec<u8>,
-  mut progress_callback: impl FnMut(u64),
+  mut progress_callback: impl FnMut(u64) + Send,
 ) -> Result<ReconstructedFilesStatus, String> {
   // Deserialize the last checkpoint stored in the staging folder
   // Get the default checkpoint (empty) if it doesn't exist

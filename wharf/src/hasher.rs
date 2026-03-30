@@ -161,7 +161,7 @@ impl BlockHasher<'_, '_, '_> {
   pub fn hash_next_file(
     &mut self,
     reader: &mut impl Read,
-    mut progress_callback: impl FnMut(u64),
+    mut progress_callback: impl FnMut(u64) + Send,
   ) -> Result<BlockHasherStatus, BlockHasherError> {
     // Get the next file size and reader
     let file_size = self.current_file_size()?;

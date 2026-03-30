@@ -148,7 +148,7 @@ pub fn patch_rsync(
   patch_op_buffer: &mut Vec<u8>,
   checkpoint: Option<FileCheckpoint>,
   mut save_checkpoint: impl FnMut(FileCheckpoint) -> Result<(), String>,
-  mut progress_callback: impl FnMut(u64),
+  mut progress_callback: impl FnMut(u64) + Send,
 ) -> Result<PatchFileStatus, String> {
   let mut op_index: usize = 0;
   let mut written_bytes: u64 = 0;
@@ -205,7 +205,7 @@ pub fn patch_bsdiff(
   patch_op_buffer: &mut Vec<u8>,
   checkpoint: Option<FileCheckpoint>,
   mut save_checkpoint: impl FnMut(FileCheckpoint) -> Result<(), String>,
-  mut progress_callback: impl FnMut(u64),
+  mut progress_callback: impl FnMut(u64) + Send,
 ) -> Result<PatchFileStatus, String> {
   let mut op_index: usize = 0;
   let mut written_bytes: u64 = 0;
