@@ -14,6 +14,7 @@ use crate::protos;
 use crate::signature::BlockHashIter;
 
 use std::io::Read;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Default number of hashers to use when the availble parallelism can't be determined
 const DEFAULT_HASHERS_NUM: usize = 4;
@@ -90,7 +91,7 @@ fn io_thread(
   verification_status: &VerificationStatus,
   file_size: u64,
   file_blocks: u64,
-  read_blocks: &mut u64,
+  read_blocks: &mut AtomicU64,
   hash_iter: &mut &mut BlockHashIter,
   reader: &mut impl Read,
   buffer_pool: &BlockBufferPool,
@@ -109,7 +110,7 @@ fn io_thread(
       .map_err(BlockHasherError::IterReturnedError)?;
 
     // Add 1 to the read blocks counter after reading the hash from the iterator
-    *read_blocks += 1;
+    read_blocks.fetch_add(1, Ordering::SeqCst);
 
     // Get the block buffer
     let mut block_buffer = {
@@ -216,7 +217,7 @@ impl BlockHasher<'_, '_, '_> {
 
     self.entry_index += 1;
 
-    let mut read_blocks = 0;
+    let mut read_blocks = AtomicU64::new(0);
     let verification_status = VerificationStatus::new();
     let buffer_pool = &self.block_buffers;
 
@@ -259,7 +260,7 @@ impl BlockHasher<'_, '_, '_> {
     if verification_status.has_failed() {
       self
         .hash_iter
-        .skip_blocks(file_blocks - read_blocks)
+        .skip_blocks(file_blocks - read_blocks.load(Ordering::SeqCst))
         .map_err(BlockHasherError::IterReturnedError)?;
     }
 
