@@ -1,60 +1,33 @@
+mod block_buffer;
 mod errors;
+mod internal_hasher;
+mod verification_status;
+
+pub use errors::{BlockHasherError, BlockHasherStatus};
+
+use block_buffer::BlockBufferPool;
+use internal_hasher::InternalHasher;
+use verification_status::VerificationStatus;
 
 use crate::common::{BLOCK_SIZE, block_count};
 use crate::protos;
-use crate::signature::{BlockHashIter, MD5_HASH_LENGTH, Md5HashSize};
-pub use errors::{BlockHasherError, BlockHasherStatus};
+use crate::signature::BlockHashIter;
 
-use md5::digest::array::Array;
-use md5::{Digest, Md5};
 use std::io::Read;
 
-#[derive(Clone, Debug)]
-struct FileBlock<'data> {
-  pub block_index: usize,
-
-  pub data: &'data [u8],
-  pub expected_hash: [u8; MD5_HASH_LENGTH],
-}
-
-#[derive(Clone, Debug)]
-struct InternalHasher {
-  hasher: Md5,
-  hash_buffer: Array<u8, Md5HashSize>,
-}
-
-impl InternalHasher {
-  pub fn new() -> Self {
-    Self {
-      hasher: Md5::new(),
-      hash_buffer: Array::<u8, Md5HashSize>::default(),
-    }
-  }
-}
-
-impl InternalHasher {
-  pub fn hash_block(&mut self, block: &FileBlock) -> BlockHasherStatus {
-    self.hasher.update(block.data);
-    self.hasher.finalize_into_reset(&mut self.hash_buffer);
-
-    if self.hash_buffer == block.expected_hash {
-      BlockHasherStatus::Ok
-    } else {
-      BlockHasherStatus::HashMismatch {
-        block_index: block.block_index,
-      }
-    }
-  }
-}
+/// Default number of hashers to use when the availble parallelism can't be determined
+const DEFAULT_HASHERS_NUM: usize = 4;
+const MIN_THREADS: usize = 2;
+const MIN_BLOCKS_FOR_MULTITHREADING: u64 = 1;
 
 pub struct BlockHasher<'cont, 'hash_iter, 'reader> {
   container: &'cont protos::Container,
   entry_index: usize,
 
   hash_iter: &'hash_iter mut BlockHashIter<'reader>,
-  block_buffer: Box<[u8; BLOCK_SIZE]>,
+  block_buffers: BlockBufferPool,
 
-  internal_hasher: InternalHasher,
+  internal_hashers: Vec<InternalHasher>,
 }
 
 impl<'cont, 'hash_iter, 'reader> BlockHasher<'cont, 'hash_iter, 'reader> {
@@ -62,14 +35,21 @@ impl<'cont, 'hash_iter, 'reader> BlockHasher<'cont, 'hash_iter, 'reader> {
     container: &'cont protos::Container,
     hash_iter: &'hash_iter mut BlockHashIter<'reader>,
   ) -> Self {
+    let num_hashers = std::thread::available_parallelism()
+      .map(|n| n.get())
+      .unwrap_or(DEFAULT_HASHERS_NUM)
+      .max(MIN_THREADS);
+
     Self {
       container,
       entry_index: 0,
 
       hash_iter,
-      block_buffer: Box::new([0u8; BLOCK_SIZE]),
+      // Create twice as many block buffers as internal hashers to avoid wasting
+      // time waiting for the hashers to finish before obtaining more file data.
+      block_buffers: BlockBufferPool::new(2 * num_hashers),
 
-      internal_hasher: InternalHasher::new(),
+      internal_hashers: vec![InternalHasher::new(); num_hashers],
     }
   }
 }
@@ -105,35 +85,99 @@ impl BlockHasher<'_, '_, '_> {
   }
 }
 
-struct VerificationStatus {
-  has_failed: bool,
-  broken_block_index: usize,
+#[expect(clippy::too_many_arguments)]
+fn io_thread(
+  verification_status: &VerificationStatus,
+  file_size: u64,
+  file_blocks: u64,
+  read_blocks: &mut u64,
+  hash_iter: &mut &mut BlockHashIter,
+  reader: &mut impl Read,
+  buffer_pool: &BlockBufferPool,
+  mut progress_callback: impl FnMut(u64) + Send,
+) -> Result<(), BlockHasherError> {
+  'outer: for block_index in 0..file_blocks as usize {
+    if verification_status.has_finished() {
+      break;
+    }
+
+    // Read the expected hash from the signature
+    let expected_hash = hash_iter
+      .next()
+      .ok_or(BlockHasherError::MissingHashFromIter)?
+      .map(|hash| hash.strong_hash)
+      .map_err(BlockHasherError::IterReturnedError)?;
+
+    // Add 1 to the read blocks counter after reading the hash from the iterator
+    *read_blocks += 1;
+
+    // Get the block buffer
+    let mut block_buffer = {
+      // Calculate how many bytes to read for this block
+      let bytes_remaining = file_size as usize - (block_index * BLOCK_SIZE);
+      let block_size = BLOCK_SIZE.min(bytes_remaining);
+
+      // It is safe to loop here because the hasher threads will have to finish
+      // hashing at some point.
+      loop {
+        if let Some(b) = buffer_pool.get_buffer_to_refill(block_size) {
+          break b;
+        } else {
+          // Check if verification has failed to avoid deadlocks
+          if verification_status.has_finished() {
+            break 'outer;
+          }
+
+          std::hint::spin_loop();
+        }
+      }
+    };
+
+    // Read the file block into the buffer
+    reader
+      .read_exact(block_buffer.buffer_mut())
+      .map_err(BlockHasherError::ReaderFailed)?;
+
+    progress_callback(block_buffer.buffer().len() as u64);
+
+    // Share the block buffer with the hasher threads
+    buffer_pool.save_refilled_buffer(block_buffer, expected_hash, block_index);
+  }
+
+  verification_status.set_finished();
+
+  Ok(())
 }
 
-impl VerificationStatus {
-  pub fn new() -> Self {
-    Self {
-      has_failed: false,
-      broken_block_index: 0,
+fn hasher_thread(
+  verification_status: &VerificationStatus,
+  hasher: &mut InternalHasher,
+  buffer_pool: &BlockBufferPool,
+) -> Result<(), BlockHasherError> {
+  loop {
+    if verification_status.has_finished() {
+      return Ok(());
     }
-  }
 
-  pub fn has_failed(&self) -> bool {
-    self.has_failed
-  }
+    let buffer = loop {
+      if let Some(b) = buffer_pool.get_buffer_to_hash() {
+        break b;
+      } else {
+        // Check if verification has failed to avoid deadlocks
+        if verification_status.has_finished() {
+          return Ok(());
+        }
 
-  pub fn set_failed(&mut self, broken_block_index: usize) {
-    self.has_failed = true;
-    self.broken_block_index = broken_block_index;
-  }
-
-  pub fn status(&self) -> BlockHasherStatus {
-    if self.has_failed {
-      BlockHasherStatus::HashMismatch {
-        block_index: self.broken_block_index,
+        std::hint::spin_loop();
       }
-    } else {
-      BlockHasherStatus::Ok
+    };
+
+    let status = hasher.hash_block(&buffer);
+    buffer_pool.drop_hashed_buffer(buffer);
+
+    if let BlockHasherStatus::HashMismatch { block_index } = status {
+      verification_status.set_failed(block_index);
+      return Ok(());
     }
   }
 }
@@ -158,11 +202,14 @@ impl BlockHasher<'_, '_, '_> {
   /// If the signature iterator runs out of hashes before all blocks are read,
   /// the iterator returns an error, or there is an I/O failure while reading
   /// the file.
-  pub fn hash_next_file(
+  pub fn hash_next_file<F>(
     &mut self,
-    reader: &mut impl Read,
-    mut progress_callback: impl FnMut(u64) + Send,
-  ) -> Result<BlockHasherStatus, BlockHasherError> {
+    reader: &mut F,
+    progress_callback: impl FnMut(u64) + Send,
+  ) -> Result<BlockHasherStatus, BlockHasherError>
+  where
+    F: Read + Send,
+  {
     // Get the next file size and reader
     let file_size = self.current_file_size()?;
     let file_blocks = block_count(file_size);
@@ -170,51 +217,44 @@ impl BlockHasher<'_, '_, '_> {
     self.entry_index += 1;
 
     let mut read_blocks = 0;
-    let mut verification_status = VerificationStatus::new();
+    let verification_status = VerificationStatus::new();
+    let buffer_pool = &self.block_buffers;
 
-    for block_index in 0..file_blocks as usize {
-      if verification_status.has_failed() {
-        break;
+    std::thread::scope(|scope| {
+      // Spawn the IO thread
+      {
+        let verification_status = &verification_status;
+        let read_blocks = &mut read_blocks;
+        let hash_iter = &mut self.hash_iter;
+
+        scope.spawn(move || -> Result<(), BlockHasherError> {
+          io_thread(
+            verification_status,
+            file_size,
+            file_blocks,
+            read_blocks,
+            hash_iter,
+            reader,
+            buffer_pool,
+            progress_callback,
+          )
+        });
       }
 
-      // Read the expected hash from the signature
-      let expected_hash = self
-        .hash_iter
-        .next()
-        .ok_or(BlockHasherError::MissingHashFromIter)?
-        .map(|hash| hash.strong_hash)
-        .map_err(BlockHasherError::IterReturnedError)?;
+      // Spawn the hasher threads
+      for hasher in &mut self.internal_hashers {
+        let verification_status = &verification_status;
 
-      // Add 1 to the read blocks counter after reading the hash from the iterator
-      read_blocks += 1;
+        scope.spawn(move || -> Result<(), BlockHasherError> {
+          hasher_thread(verification_status, hasher, buffer_pool)
+        });
 
-      // Calculate how many bytes to read for this block
-      let block_buffer = {
-        let bytes_remaining = file_size as usize - (block_index * BLOCK_SIZE);
-        let block_size = BLOCK_SIZE.min(bytes_remaining);
-        &mut self.block_buffer[..block_size]
-      };
-
-      // Read the file block into the buffer
-      reader
-        .read_exact(block_buffer)
-        .map_err(BlockHasherError::ReaderFailed)?;
-
-      // Create a FileBlock struct to pass it into the hasher
-      let block = FileBlock {
-        block_index,
-        data: &*block_buffer,
-        expected_hash,
-      };
-
-      // Hash the data and compare the hashes
-      let status = self.internal_hasher.hash_block(&block);
-      progress_callback(block.data.len() as u64);
-
-      if let BlockHasherStatus::HashMismatch { block_index } = status {
-        verification_status.set_failed(block_index);
+        // If there are only few blocks to hash, spawn only one hasher thread
+        if file_blocks <= MIN_BLOCKS_FOR_MULTITHREADING {
+          break;
+        }
       }
-    }
+    });
 
     if verification_status.has_failed() {
       self
