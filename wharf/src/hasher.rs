@@ -263,6 +263,6 @@ impl BlockHasher<'_, '_, '_> {
         .map_err(BlockHasherError::IterReturnedError)?;
     }
 
-    Ok(verification_status.status())
+    Ok(verification_status.finished_status())
   }
 }
