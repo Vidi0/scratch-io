@@ -1,7 +1,6 @@
 use super::OpStatus;
 use crate::common::BLOCK_SIZE;
-use crate::patch::operations::skip::RsyncIterator;
-use crate::patch::{OpIter, op_kind};
+use crate::patch::operations::skip::{BsdiffIterator, RsyncIterator};
 use crate::pool::{ContainerBackedPool, SeekablePool};
 
 use serde::{Deserialize, Serialize};
@@ -123,7 +122,7 @@ impl FileCheckpoint {
     op_index: &mut usize,
     old_file_seek_position: &mut u64,
     new_file: &mut File,
-    op_iter: &mut OpIter<op_kind::Bsdiff>,
+    op_iter: &mut BsdiffIterator,
   ) -> Result<(), String> {
     let FileCheckpointKind::Bsdiff {
       old_file_seek_position: checkpoint_seek,
@@ -198,7 +197,7 @@ pub fn patch_rsync(
 
 #[expect(clippy::too_many_arguments)]
 pub fn patch_bsdiff(
-  op_iter: &mut OpIter<op_kind::Bsdiff>,
+  op_iter: &mut BsdiffIterator,
   target_index: usize,
   new_file: &mut File,
   new_file_size: u64,

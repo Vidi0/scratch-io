@@ -7,6 +7,8 @@ pub struct RsyncIterator<'reader> {
   op_iter: OpIter<'reader, op_kind::Rsync>,
 }
 
+pub type BsdiffIterator<'reader> = OpIter<'reader, op_kind::Bsdiff>;
+
 impl<'reader> Iterator for RsyncIterator<'reader> {
   type Item = <OpIter<'reader, op_kind::Rsync> as Iterator>::Item;
 
@@ -39,7 +41,7 @@ pub enum SkipStatus<'reader> {
   /// (the patch operation always represents actual changes in the file)
   NotSkippableBsdiff {
     target_index: usize,
-    op_iter: OpIter<'reader, op_kind::Bsdiff>,
+    op_iter: BsdiffIterator<'reader>,
   },
 
   /// The file uses rsync and cannot be skipped
