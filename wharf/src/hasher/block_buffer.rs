@@ -5,90 +5,158 @@ use std::marker::PhantomData;
 use std::sync::{Mutex, MutexGuard};
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
-enum BufferStatus {
+pub enum BufferStatus {
   WaitingForRefill,
   Refilling,
-  WaitingForHash {
-    block_index: usize,
-    buffer_size: usize,
-    expected_hash: [u8; MD5_HASH_LENGTH],
-  },
+  WaitingForHash,
   Hashing,
 }
 
+#[derive(Debug, Clone)]
+struct BufferSlot {
+  expected_hash: [u8; MD5_HASH_LENGTH],
+  data: [u8; BLOCK_SIZE],
+  len: usize,
+  block_index: usize,
+}
+
+impl BufferSlot {
+  pub fn empty() -> Self {
+    Self {
+      expected_hash: [0u8; MD5_HASH_LENGTH],
+      data: [0u8; BLOCK_SIZE],
+      len: 0,
+      block_index: 0,
+    }
+  }
+}
+
 mod buffer_handle {
-  #[derive(Clone, Copy, Debug)]
-  pub struct Hash;
+  use super::BufferStatus;
+
   #[derive(Clone, Copy, Debug)]
   pub struct Refill;
+
+  #[derive(Clone, Copy, Debug)]
+  pub struct Hash;
+
+  pub trait BufferHanfleKind {
+    fn expected() -> BufferStatus;
+    fn current() -> BufferStatus;
+    fn next() -> BufferStatus;
+  }
+
+  impl BufferHanfleKind for Refill {
+    fn expected() -> BufferStatus {
+      BufferStatus::WaitingForRefill
+    }
+
+    fn current() -> BufferStatus {
+      BufferStatus::Refilling
+    }
+
+    fn next() -> BufferStatus {
+      BufferStatus::WaitingForHash
+    }
+  }
+
+  impl BufferHanfleKind for Hash {
+    fn expected() -> BufferStatus {
+      BufferStatus::WaitingForHash
+    }
+
+    fn current() -> BufferStatus {
+      BufferStatus::Hashing
+    }
+
+    fn next() -> BufferStatus {
+      BufferStatus::WaitingForRefill
+    }
+  }
 }
 
 #[derive(Debug)]
 pub struct BufferHandle<'a, K> {
-  guard: MutexGuard<'a, [u8; BLOCK_SIZE]>,
-  index: usize,
-  // The length of the buffer, must be less or equal to BLOCK_SIZE
-  len: usize,
+  guard: MutexGuard<'a, BufferSlot>,
+  slot_index: usize,
   _kind: PhantomData<K>,
 }
 
-impl<K> BufferHandle<'_, K> {
-  pub fn buffer(&self) -> &[u8] {
-    &self.guard[..self.len]
+pub type RefillBuffer<'a> = BufferHandle<'a, buffer_handle::Refill>;
+pub type HashBuffer<'a> = BufferHandle<'a, buffer_handle::Hash>;
+
+impl RefillBuffer<'_> {
+  fn set_block_index(&mut self, block_index: usize) {
+    self.guard.block_index = block_index;
   }
 
-  pub fn buffer_mut(&mut self) -> &mut [u8] {
-    &mut self.guard[..self.len]
+  fn set_buffer_len(&mut self, len: usize) {
+    self.guard.len = len;
   }
 }
 
-#[derive(Debug)]
-pub struct FileBlock<'data> {
-  pub block_index: usize,
+impl RefillBuffer<'_> {
+  pub fn buffer_mut(&mut self) -> &mut [u8] {
+    let len = self.guard.len;
+    &mut self.guard.data[..len]
+  }
 
-  pub data: BufferHandle<'data, buffer_handle::Hash>,
-  pub expected_hash: [u8; MD5_HASH_LENGTH],
+  pub fn set_expected_hash(&mut self, expected_hash: [u8; MD5_HASH_LENGTH]) {
+    self.guard.expected_hash = expected_hash;
+  }
+}
+
+impl HashBuffer<'_> {
+  pub fn block_index(&self) -> usize {
+    self.guard.block_index
+  }
+
+  pub fn buffer(&self) -> &[u8] {
+    let len = self.guard.len;
+    &self.guard.data[..len]
+  }
+
+  pub fn expected_hash(&self) -> &[u8; MD5_HASH_LENGTH] {
+    &self.guard.expected_hash
+  }
 }
 
 #[derive(Debug)]
 pub struct BlockBufferPool {
   status: Mutex<Vec<BufferStatus>>,
-  buffers: Vec<Mutex<[u8; BLOCK_SIZE]>>,
+  buffers: Vec<Mutex<BufferSlot>>,
 }
 
 impl BlockBufferPool {
   pub fn new(size: usize) -> Self {
     Self {
       status: Mutex::new(vec![BufferStatus::WaitingForRefill; size]),
-      buffers: std::iter::repeat_with(|| Mutex::new([0u8; BLOCK_SIZE]))
+      buffers: std::iter::repeat_with(|| Mutex::new(BufferSlot::empty()))
         .take(size)
         .collect(),
     }
   }
 
-  pub fn get_buffer_to_refill(
-    &self,
-    buffer_size: usize,
-  ) -> Option<BufferHandle<'_, buffer_handle::Refill>> {
-    assert!(buffer_size <= BLOCK_SIZE);
-
+  fn get_buffer<K>(&self) -> Option<BufferHandle<'_, K>>
+  where
+    K: buffer_handle::BufferHanfleKind,
+  {
     let mut status = self.status.lock().unwrap();
 
     for (index, s) in status.iter_mut().enumerate() {
-      if *s == BufferStatus::WaitingForRefill {
-        // Getting the buffer won't lock because the status is WaitingForRefill,
-        // so no other thread should have it.
+      if *s == K::expected() {
+        // Getting the buffer won't lock because the status is WaitingForRefill
+        // or WaitingForHash, so no other thread should have it.
         let guard = self.buffers[index]
           .try_lock()
           .expect("Buffer lock failed despite status indicating availability");
 
-        // Set the status to Refilling so no other thread can try refilling it
-        *s = BufferStatus::Refilling;
+        // Set the status to Refilling or Hashing so no other thread can try obtaining it
+        *s = K::current();
 
         return Some(BufferHandle {
           guard,
-          index,
-          len: buffer_size,
+          slot_index: index,
           _kind: PhantomData,
         });
       }
@@ -97,70 +165,35 @@ impl BlockBufferPool {
     None
   }
 
-  pub fn get_buffer_to_hash(&self) -> Option<FileBlock<'_>> {
-    let mut status = self.status.lock().unwrap();
-
-    for (index, s) in status.iter_mut().enumerate() {
-      if let BufferStatus::WaitingForHash {
-        block_index,
-        buffer_size,
-        expected_hash,
-      } = *s
-      {
-        // Getting the buffer won't lock because the status is WaitingForHash,
-        // so no other thread should have it.
-        let guard = self.buffers[index]
-          .try_lock()
-          .expect("Buffer lock failed despite status indicating availability");
-
-        // Set the status to Hashing so no other thread can try refilling it
-        *s = BufferStatus::Hashing;
-
-        return Some(FileBlock {
-          block_index,
-          data: BufferHandle {
-            guard,
-            index,
-            len: buffer_size,
-            _kind: PhantomData,
-          },
-          expected_hash,
-        });
-      }
-    }
-
-    None
-  }
-
-  /// Take ownership of the buffer handle in order to drop the guard and allow the
-  /// buffer to be taken by other thread.
-  pub fn save_refilled_buffer(
+  pub fn get_buffer_to_refill(
     &self,
-    buffer: BufferHandle<'_, buffer_handle::Refill>,
-    expected_hash: [u8; MD5_HASH_LENGTH],
     block_index: usize,
-  ) {
-    let index = buffer.index;
-    let len = buffer.len;
-    // release the MutexGuard FIRST before obtaining the status
-    drop(buffer);
+    buffer_len: usize,
+  ) -> Option<RefillBuffer<'_>> {
+    if let Some(mut buffer) = self.get_buffer::<buffer_handle::Refill>() {
+      buffer.set_block_index(block_index);
+      buffer.set_buffer_len(buffer_len);
+      Some(buffer)
+    } else {
+      None
+    }
+  }
 
-    let mut status = self.status.lock().unwrap();
-    status[index] = BufferStatus::WaitingForHash {
-      block_index,
-      buffer_size: len,
-      expected_hash,
-    };
+  pub fn get_buffer_to_hash(&self) -> Option<HashBuffer<'_>> {
+    self.get_buffer::<buffer_handle::Hash>()
   }
 
   /// Take ownership of the buffer handle in order to drop the guard and allow the
   /// buffer to be taken by other thread.
-  pub fn drop_hashed_buffer(&self, buffer: FileBlock<'_>) {
-    let index = buffer.data.index;
+  pub fn drop_buffer<K>(&self, buffer: BufferHandle<K>)
+  where
+    K: buffer_handle::BufferHanfleKind,
+  {
+    let index = buffer.slot_index;
     // release the MutexGuard FIRST before obtaining the status
     drop(buffer);
 
     let mut status = self.status.lock().unwrap();
-    status[index] = BufferStatus::WaitingForRefill;
+    status[index] = K::next();
   }
 }

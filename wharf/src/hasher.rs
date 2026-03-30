@@ -112,16 +112,18 @@ fn io_thread(
     // Add 1 to the read blocks counter after reading the hash from the iterator
     read_blocks.fetch_add(1, Ordering::SeqCst);
 
+    // Calculate how many bytes to read for this block
+    let buffer_len = {
+      let bytes_remaining = file_size as usize - (block_index * BLOCK_SIZE);
+      BLOCK_SIZE.min(bytes_remaining)
+    };
+
     // Get the block buffer
     let mut block_buffer = {
-      // Calculate how many bytes to read for this block
-      let bytes_remaining = file_size as usize - (block_index * BLOCK_SIZE);
-      let block_size = BLOCK_SIZE.min(bytes_remaining);
-
       // It is safe to loop here because the hasher threads will have to finish
       // hashing at some point.
       loop {
-        if let Some(b) = buffer_pool.get_buffer_to_refill(block_size) {
+        if let Some(b) = buffer_pool.get_buffer_to_refill(block_index, buffer_len) {
           break b;
         } else {
           // Check if verification has failed to avoid deadlocks
@@ -134,15 +136,18 @@ fn io_thread(
       }
     };
 
+    // Store the expected hash into the buffer
+    block_buffer.set_expected_hash(expected_hash);
+
     // Read the file block into the buffer
     reader
       .read_exact(block_buffer.buffer_mut())
       .map_err(BlockHasherError::ReaderFailed)?;
 
-    progress_callback(block_buffer.buffer().len() as u64);
-
     // Share the block buffer with the hasher threads
-    buffer_pool.save_refilled_buffer(block_buffer, expected_hash, block_index);
+    buffer_pool.drop_buffer(block_buffer);
+
+    progress_callback(buffer_len as u64);
   }
 
   verification_status.set_finished();
@@ -174,7 +179,9 @@ fn hasher_thread(
     };
 
     let status = hasher.hash_block(&buffer);
-    buffer_pool.drop_hashed_buffer(buffer);
+
+    // Leave the block buffer available to be filled by the IO thread again
+    buffer_pool.drop_buffer(buffer);
 
     if let BlockHasherStatus::HashMismatch { block_index } = status {
       verification_status.set_failed(block_index);

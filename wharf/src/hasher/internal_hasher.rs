@@ -1,5 +1,5 @@
 use super::BlockHasherStatus;
-use super::block_buffer::FileBlock;
+use super::block_buffer::HashBuffer;
 use crate::signature::Md5HashSize;
 
 use md5::digest::array::Array;
@@ -21,15 +21,15 @@ impl InternalHasher {
 }
 
 impl InternalHasher {
-  pub fn hash_block(&mut self, block: &FileBlock) -> BlockHasherStatus {
-    self.hasher.update(block.data.buffer());
+  pub fn hash_block(&mut self, block: &HashBuffer) -> BlockHasherStatus {
+    self.hasher.update(block.buffer());
     self.hasher.finalize_into_reset(&mut self.hash_buffer);
 
-    if self.hash_buffer == block.expected_hash {
+    if self.hash_buffer == *block.expected_hash() {
       BlockHasherStatus::Ok
     } else {
       BlockHasherStatus::HashMismatch {
-        block_index: block.block_index,
+        block_index: block.block_index(),
       }
     }
   }
