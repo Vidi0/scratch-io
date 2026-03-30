@@ -37,7 +37,7 @@ fn check_file_integrity(
   entry_index: usize,
   src_pool: &mut impl ContainerBackedPool,
   hasher: &mut BlockHasher,
-  mut progress_callback: impl FnMut(u64),
+  progress_callback: impl FnMut(u64),
 ) -> Result<bool, String> {
   // Get the file size
   let container_file_size = src_pool.get_container_size(entry_index)?;
@@ -49,9 +49,7 @@ fn check_file_integrity(
   }
 
   let mut reader = src_pool.get_reader(entry_index)?;
-  let status = hasher.hash_next_file(&mut reader)?;
-
-  progress_callback(container_file_size);
+  let status = hasher.hash_next_file(&mut reader, progress_callback)?;
 
   Ok(match status {
     BlockHasherStatus::Ok => true,

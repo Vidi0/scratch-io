@@ -160,7 +160,7 @@ pub fn reconstruct_modified_files(
     if let Some(hasher) = hasher {
       if let PatchFileStatus::Patched { written_bytes: _ } = status {
         let mut reader = staging_pool.get_reader(file_index)?;
-        let hash_status = hasher.hash_next_file(&mut reader)?;
+        let hash_status = hasher.hash_next_file(&mut reader, |_| ())?;
 
         if let BlockHasherStatus::HashMismatch { block_index: _ } = hash_status {
           status = PatchFileStatus::Broken;

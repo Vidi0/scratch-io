@@ -161,6 +161,7 @@ impl BlockHasher<'_, '_, '_> {
   pub fn hash_next_file(
     &mut self,
     reader: &mut impl Read,
+    mut progress_callback: impl FnMut(u64),
   ) -> Result<BlockHasherStatus, BlockHasherError> {
     // Get the next file size and reader
     let file_size = self.current_file_size()?;
@@ -208,6 +209,8 @@ impl BlockHasher<'_, '_, '_> {
 
       // Hash the data and compare the hashes
       let status = self.internal_hasher.hash_block(&block);
+      progress_callback(block.data.len() as u64);
+
       if let BlockHasherStatus::HashMismatch { block_index } = status {
         verification_status.set_failed(block_index);
       }
