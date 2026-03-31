@@ -7,7 +7,6 @@ pub use errors::{BlockHasherError, BlockHasherStatus};
 
 use buffer_pool::BufferPool;
 use internal_hasher::InternalHasher;
-use verification_status::VerificationStatus;
 
 use crate::common::{BLOCK_SIZE, block_count};
 use crate::protos;
@@ -86,7 +85,6 @@ impl BlockHasher<'_, '_, '_> {
 }
 
 fn io_thread(
-  verification_status: &VerificationStatus,
   file_size: u64,
   file_blocks: u64,
   hash_iter: &mut &mut BlockHashIter,
@@ -95,19 +93,12 @@ fn io_thread(
   mut progress_callback: impl FnMut(u64) + Send,
 ) -> Result<(), BlockHasherError> {
   for block_index in 0..file_blocks as usize {
-    if verification_status.has_finished() {
-      return Ok(());
-    }
-
     // Read the expected hash from the signature
     let expected_hash = hash_iter
       .next()
       .ok_or(BlockHasherError::MissingHashFromIter)?
       .map(|hash| hash.strong_hash)
       .map_err(BlockHasherError::IterReturnedError)?;
-
-    // Add 1 to the read blocks counter after reading the hash from the iterator
-    verification_status.add_one_read_block();
 
     // Calculate how many bytes to read for this block
     let buffer_len = {
@@ -116,7 +107,9 @@ fn io_thread(
     };
 
     // Get the block buffer
-    let mut block_buffer = buffer_pool.get_buffer_to_refill(block_index, buffer_len);
+    let Some(mut block_buffer) = buffer_pool.get_buffer_to_refill(block_index, buffer_len) else {
+      return Ok(());
+    };
 
     // Store the expected hash into the buffer
     block_buffer.set_expected_hash(expected_hash);
@@ -127,7 +120,7 @@ fn io_thread(
       .map_err(BlockHasherError::ReaderFailed)?;
 
     // Share the block buffer with the hasher threads
-    buffer_pool.drop_buffer(block_buffer);
+    buffer_pool.drop_refilled_buffer(block_buffer);
 
     progress_callback(buffer_len as u64);
   }
@@ -135,29 +128,21 @@ fn io_thread(
   Ok(())
 }
 
-fn hasher_thread(
-  verification_status: &VerificationStatus,
-  hasher: &mut InternalHasher,
-  buffer_pool: &BufferPool,
-) {
+fn hasher_thread(hasher: &mut InternalHasher, buffer_pool: &BufferPool) {
   loop {
-    if verification_status.has_finished() {
+    let Some(buffer) = buffer_pool.get_buffer_to_hash() else {
       return;
-    }
-
-    let buffer = buffer_pool.get_buffer_to_hash();
+    };
 
     let status = hasher.hash_block(&buffer);
 
     // Leave the block buffer available to be filled by the IO thread again
-    buffer_pool.drop_buffer(buffer);
+    buffer_pool.drop_hashed_buffer(buffer);
 
     if let BlockHasherStatus::HashMismatch { block_index } = status {
-      verification_status.set_failed(block_index);
+      buffer_pool.set_failed(block_index);
       return;
     }
-
-    verification_status.add_one_hashed_block();
   }
 }
 
@@ -195,18 +180,17 @@ impl BlockHasher<'_, '_, '_> {
 
     self.entry_index += 1;
 
-    let verification_status = VerificationStatus::new(file_blocks);
+    // Reset the buffer pool
+    self.buffer_pool.reset(file_blocks);
     let buffer_pool = &self.buffer_pool;
 
     std::thread::scope(|scope| {
       // Spawn the IO thread
       let io_handle = {
-        let verification_status = &verification_status;
         let hash_iter = &mut self.hash_iter;
 
         scope.spawn(move || -> Result<(), BlockHasherError> {
           io_thread(
-            verification_status,
             file_size,
             file_blocks,
             hash_iter,
@@ -219,9 +203,7 @@ impl BlockHasher<'_, '_, '_> {
 
       // Spawn the hasher threads
       for hasher in &mut self.internal_hashers {
-        let verification_status = &verification_status;
-
-        scope.spawn(move || hasher_thread(verification_status, hasher, buffer_pool));
+        scope.spawn(move || hasher_thread(hasher, buffer_pool));
 
         // If there are only few blocks to hash, spawn only one hasher thread
         if file_blocks <= MIN_BLOCKS_FOR_MULTITHREADING {
@@ -232,20 +214,20 @@ impl BlockHasher<'_, '_, '_> {
       // Check the IO thread result
       // If it errored, signal the hashers to stop and propagate the error
       if let Err(e) = io_handle.join().unwrap() {
-        verification_status.set_failed(0);
+        buffer_pool.set_failed(0);
         return Err(e);
       }
 
       Ok(())
     })?;
 
-    if verification_status.has_failed() {
+    if buffer_pool.has_failed() {
       self
         .hash_iter
-        .skip_blocks(file_blocks - verification_status.blocks_read())
+        .skip_blocks(file_blocks - buffer_pool.blocks_read())
         .map_err(BlockHasherError::IterReturnedError)?;
     }
 
-    Ok(verification_status.finished_status())
+    Ok(buffer_pool.finished_status())
   }
 }

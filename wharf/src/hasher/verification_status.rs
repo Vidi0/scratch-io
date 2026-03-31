@@ -30,6 +30,7 @@ impl From<Status> for u8 {
   }
 }
 
+#[derive(Debug)]
 pub struct VerificationStatus {
   status: AtomicU8,
   broken_block_index: AtomicUsize,
@@ -96,8 +97,8 @@ impl VerificationStatus {
 
   /// Add one to the counter of hashed blocks
   ///
-  /// If this block is the last one to be hashed, set the status as finished
-  pub fn add_one_hashed_block(&self) {
+  /// If this block is the last one to be hashed, set the status as finished and return true
+  pub fn add_one_hashed_block(&self) -> bool {
     // fetch_sub returns the old value
     let old_remaining_blocks = self.remaining_blocks.fetch_sub(1, Ordering::SeqCst);
     let new_remaining_blocks = old_remaining_blocks - 1;
@@ -111,6 +112,8 @@ impl VerificationStatus {
         Ordering::SeqCst,
       );
     }
+
+    new_remaining_blocks == 0
   }
 
   /// This function must only be called after the hashing process has finished

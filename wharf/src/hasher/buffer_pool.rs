@@ -1,3 +1,5 @@
+use super::errors::BlockHasherStatus;
+use super::verification_status::VerificationStatus;
 use crate::common::BLOCK_SIZE;
 use crate::signature::MD5_HASH_LENGTH;
 
@@ -110,10 +112,16 @@ impl SlotWaiters {
       refill_ready: Condvar::new(),
     }
   }
+
+  pub fn notify_all(&self) {
+    self.hash_ready.notify_all();
+    self.refill_ready.notify_all();
+  }
 }
 
 #[derive(Debug)]
 struct PoolStatus {
+  status: VerificationStatus,
   slots: Mutex<Vec<SlotStatus>>,
   waiters: SlotWaiters,
 }
@@ -121,8 +129,33 @@ struct PoolStatus {
 impl PoolStatus {
   pub fn new(size: usize) -> Self {
     Self {
+      status: VerificationStatus::new(0),
       slots: Mutex::new(vec![SlotStatus::WaitingForRefill; size]),
       waiters: SlotWaiters::new(),
+    }
+  }
+
+  /// Reset the [`PoolStatus`], allowing the pool to be reused to hash another file
+  pub fn reset(&mut self, total_blocks: u64) {
+    self.status = VerificationStatus::new(total_blocks);
+
+    // The slots must be all empty
+    // It must not lock or else it's everything messed up, so use try_lock to panic on lock
+    let slots = self.slots.try_lock().unwrap();
+    for slot in slots.iter() {
+      assert_eq!(*slot, SlotStatus::WaitingForRefill);
+    }
+  }
+
+  /// Set the status as failed and signal all waiting threads to exit
+  pub fn set_failed(&self, broken_block_index: usize) {
+    self.status.set_failed(broken_block_index);
+    self.waiters.notify_all();
+  }
+
+  pub fn add_one_hashed_block(&self) {
+    if self.status.add_one_hashed_block() {
+      self.waiters.notify_all();
     }
   }
 
@@ -133,19 +166,23 @@ impl PoolStatus {
   /// index in the pool can be obtained without locking because the status was
   /// WaitingForRefill or WaitingForHash, so no other thread had it; and the status
   /// was now set to Refill or Hash to prevent other thread from claiming it.
-  pub fn claim_empty_slot<K>(&self) -> usize
+  pub fn claim_empty_slot<K>(&self) -> Option<usize>
   where
     K: buffer_handle::Kind,
   {
     let mut slots = self.slots.lock().unwrap();
 
     loop {
+      if self.status.has_finished() {
+        return None;
+      }
+
       for (index, s) in slots.iter_mut().enumerate() {
         if *s == K::expected() {
           // Set the status to Refilling or Hashing so no other thread can try obtaining it
           *s = K::current();
 
-          return index;
+          return Some(index);
         }
       }
 
@@ -222,6 +259,7 @@ pub struct BufferPool {
 }
 
 impl BufferPool {
+  /// Before using the [`BufferPool`], [`BufferPool::reset`] must be called first.
   pub fn new(size: usize) -> Self {
     Self {
       status: PoolStatus::new(size),
@@ -231,39 +269,66 @@ impl BufferPool {
     }
   }
 
-  fn get_buffer<K>(&self) -> BufferHandle<'_, K>
+  /// Reset the [`PoolStatus`] allowing the pool to be reused to hash another file
+  pub fn reset(&mut self, total_blocks: u64) {
+    self.status.reset(total_blocks);
+  }
+
+  pub fn set_failed(&self, broken_block_index: usize) {
+    self.status.set_failed(broken_block_index);
+  }
+
+  pub fn has_failed(&self) -> bool {
+    self.status.status.has_failed()
+  }
+
+  pub fn blocks_read(&self) -> u64 {
+    self.status.status.blocks_read()
+  }
+
+  pub fn finished_status(&self) -> BlockHasherStatus {
+    self.status.status.finished_status()
+  }
+
+  fn get_buffer<K>(&self) -> Option<BufferHandle<'_, K>>
   where
     K: buffer_handle::Kind,
   {
-    let slot_index = self.status.claim_empty_slot::<K>();
+    let slot_index = self.status.claim_empty_slot::<K>()?;
 
     let guard = self.buffers[slot_index]
       .try_lock()
       .expect("Buffer lock failed despite status indicating availability");
 
-    BufferHandle {
+    Some(BufferHandle {
       guard,
       slot_index,
       _kind: PhantomData,
-    }
+    })
   }
 
-  pub fn get_buffer_to_refill(&self, block_index: usize, buffer_len: usize) -> RefillBuffer<'_> {
-    let mut buffer = self.get_buffer::<buffer_handle::Refill>();
+  pub fn get_buffer_to_refill(
+    &self,
+    block_index: usize,
+    buffer_len: usize,
+  ) -> Option<RefillBuffer<'_>> {
+    let mut buffer = self.get_buffer::<buffer_handle::Refill>()?;
 
     buffer.set_block_index(block_index);
     buffer.set_buffer_len(buffer_len);
 
-    buffer
+    self.status.status.add_one_read_block();
+
+    Some(buffer)
   }
 
-  pub fn get_buffer_to_hash(&self) -> HashBuffer<'_> {
+  pub fn get_buffer_to_hash(&self) -> Option<HashBuffer<'_>> {
     self.get_buffer::<buffer_handle::Hash>()
   }
 
   /// Take ownership of the buffer handle in order to drop the guard and allow the
   /// buffer to be taken by other thread.
-  pub fn drop_buffer<K>(&self, buffer: BufferHandle<K>)
+  fn drop_buffer<K>(&self, buffer: BufferHandle<K>)
   where
     K: buffer_handle::Kind,
   {
@@ -272,5 +337,14 @@ impl BufferPool {
     drop(buffer);
 
     self.status.free_slot::<K>(slot_index);
+  }
+
+  pub fn drop_refilled_buffer(&self, buffer: RefillBuffer) {
+    self.drop_buffer(buffer);
+  }
+
+  pub fn drop_hashed_buffer(&self, buffer: HashBuffer) {
+    self.status.add_one_hashed_block();
+    self.drop_buffer(buffer);
   }
 }
