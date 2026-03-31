@@ -14,7 +14,6 @@ use crate::protos;
 use crate::signature::BlockHashIter;
 
 use std::io::Read;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Default number of hashers to use when the availble parallelism can't be determined
 const DEFAULT_HASHERS_NUM: usize = 4;
@@ -86,12 +85,10 @@ impl BlockHasher<'_, '_, '_> {
   }
 }
 
-#[expect(clippy::too_many_arguments)]
 fn io_thread(
   verification_status: &VerificationStatus,
   file_size: u64,
   file_blocks: u64,
-  read_blocks: &mut AtomicU64,
   hash_iter: &mut &mut BlockHashIter,
   reader: &mut impl Read,
   buffer_pool: &BufferPool,
@@ -110,7 +107,7 @@ fn io_thread(
       .map_err(BlockHasherError::IterReturnedError)?;
 
     // Add 1 to the read blocks counter after reading the hash from the iterator
-    read_blocks.fetch_add(1, Ordering::SeqCst);
+    verification_status.add_one_read_block();
 
     // Calculate how many bytes to read for this block
     let buffer_len = {
@@ -148,8 +145,6 @@ fn io_thread(
     progress_callback(buffer_len as u64);
   }
 
-  verification_status.set_finished();
-
   Ok(())
 }
 
@@ -185,6 +180,8 @@ fn hasher_thread(
       verification_status.set_failed(block_index);
       return;
     }
+
+    verification_status.add_one_hashed_block();
   }
 }
 
@@ -222,15 +219,13 @@ impl BlockHasher<'_, '_, '_> {
 
     self.entry_index += 1;
 
-    let mut read_blocks = AtomicU64::new(0);
-    let verification_status = VerificationStatus::new();
+    let verification_status = VerificationStatus::new(file_blocks);
     let buffer_pool = &self.buffer_pool;
 
     std::thread::scope(|scope| {
       // Spawn the IO thread
       let io_handle = {
         let verification_status = &verification_status;
-        let read_blocks = &mut read_blocks;
         let hash_iter = &mut self.hash_iter;
 
         scope.spawn(move || -> Result<(), BlockHasherError> {
@@ -238,7 +233,6 @@ impl BlockHasher<'_, '_, '_> {
             verification_status,
             file_size,
             file_blocks,
-            read_blocks,
             hash_iter,
             reader,
             buffer_pool,
@@ -272,7 +266,7 @@ impl BlockHasher<'_, '_, '_> {
     if verification_status.has_failed() {
       self
         .hash_iter
-        .skip_blocks(file_blocks - read_blocks.load(Ordering::SeqCst))
+        .skip_blocks(file_blocks - verification_status.blocks_read())
         .map_err(BlockHasherError::IterReturnedError)?;
     }
 

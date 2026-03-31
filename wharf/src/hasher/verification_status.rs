@@ -1,6 +1,6 @@
 use super::errors::BlockHasherStatus;
 
-use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU8, AtomicU64, AtomicUsize, Ordering};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Status {
@@ -32,26 +32,47 @@ impl From<Status> for u8 {
 
 pub struct VerificationStatus {
   status: AtomicU8,
+  // Countdown for finishing logic
+  remaining_blocks: AtomicU64,
   broken_block_index: AtomicUsize,
+  // Only used for skip calculation on failure
+  blocks_read: AtomicU64,
+}
+
+// Functions for hash iter skip calculation
+impl VerificationStatus {
+  /// Return the number of blocks read
+  pub fn blocks_read(&self) -> u64 {
+    self.blocks_read.load(Ordering::SeqCst)
+  }
+
+  /// Add one to the counter of hashed blocks
+  pub fn add_one_read_block(&self) {
+    self.blocks_read.fetch_add(1, Ordering::SeqCst);
+  }
 }
 
 impl VerificationStatus {
-  pub fn new() -> Self {
-    let status = Self {
-      status: AtomicU8::new(0),
-      broken_block_index: AtomicUsize::new(0),
-    };
-
-    status.store_status(Status::Running);
-    status
-  }
-
   fn get_status(&self) -> Status {
     self.status.load(Ordering::SeqCst).into()
   }
 
   fn store_status(&self, status: Status) {
     self.status.store(status.into(), Ordering::SeqCst);
+  }
+}
+
+impl VerificationStatus {
+  pub fn new(total_blocks: u64) -> Self {
+    let status = Self {
+      status: AtomicU8::new(0),
+      remaining_blocks: AtomicU64::new(total_blocks),
+      broken_block_index: AtomicUsize::new(0),
+      blocks_read: AtomicU64::new(0),
+    };
+
+    status.store_status(Status::Running);
+    status
   }
 
   /// Return true if the verification has finished or if it has failed
@@ -64,6 +85,34 @@ impl VerificationStatus {
     matches!(self.get_status(), Status::Failed)
   }
 
+  /// This function sets the status as failed to indicate the IO and hasher
+  /// threads to stop
+  pub fn set_failed(&self, broken_block_index: usize) {
+    self.store_status(Status::Failed);
+    self
+      .broken_block_index
+      .store(broken_block_index, Ordering::SeqCst);
+  }
+
+  /// Add one to the counter of hashed blocks
+  ///
+  /// If this block is the last one to be hashed, set the status as finished
+  pub fn add_one_hashed_block(&self) {
+    // fetch_sub returns the old value
+    let old_remaining_blocks = self.remaining_blocks.fetch_sub(1, Ordering::SeqCst);
+    let new_remaining_blocks = old_remaining_blocks - 1;
+
+    if new_remaining_blocks == 0 {
+      // Only transition from Running to Finished, never overwrite Failed
+      let _ = self.status.compare_exchange(
+        Status::Running.into(),
+        Status::Finished.into(),
+        Ordering::SeqCst,
+        Ordering::SeqCst,
+      );
+    }
+  }
+
   /// This function must only be called after the hashing process has finished
   pub fn finished_status(&self) -> BlockHasherStatus {
     match self.get_status() {
@@ -74,21 +123,5 @@ impl VerificationStatus {
         BlockHasherStatus::HashMismatch { block_index }
       }
     }
-  }
-
-  /// This function sets the status as finished only if it hasn't failed.
-  pub fn set_finished(&self) {
-    if let Status::Failed = self.get_status() {
-      return;
-    }
-
-    self.store_status(Status::Finished);
-  }
-
-  pub fn set_failed(&self, broken_block_index: usize) {
-    self.store_status(Status::Failed);
-    self
-      .broken_block_index
-      .store(broken_block_index, Ordering::SeqCst);
   }
 }
