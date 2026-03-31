@@ -157,10 +157,10 @@ fn hasher_thread(
   verification_status: &VerificationStatus,
   hasher: &mut InternalHasher,
   buffer_pool: &BufferPool,
-) -> Result<(), BlockHasherError> {
+) {
   loop {
     if verification_status.has_finished() {
-      return Ok(());
+      return;
     }
 
     let buffer = loop {
@@ -170,7 +170,7 @@ fn hasher_thread(
 
       // Check if verification has failed to avoid deadlocks
       if verification_status.has_finished() {
-        return Ok(());
+        return;
       }
 
       std::hint::spin_loop();
@@ -183,7 +183,7 @@ fn hasher_thread(
 
     if let BlockHasherStatus::HashMismatch { block_index } = status {
       verification_status.set_failed(block_index);
-      return Ok(());
+      return;
     }
   }
 }
@@ -251,9 +251,7 @@ impl BlockHasher<'_, '_, '_> {
       for hasher in &mut self.internal_hashers {
         let verification_status = &verification_status;
 
-        scope.spawn(move || -> Result<(), BlockHasherError> {
-          hasher_thread(verification_status, hasher, buffer_pool)
-        });
+        scope.spawn(move || hasher_thread(verification_status, hasher, buffer_pool));
 
         // If there are only few blocks to hash, spawn only one hasher thread
         if file_blocks <= MIN_BLOCKS_FOR_MULTITHREADING {
