@@ -77,13 +77,13 @@ mod buffer_handle {
 
 #[derive(Debug)]
 struct PoolStatus {
-  slots: Vec<SlotStatus>,
+  slots: Mutex<Vec<SlotStatus>>,
 }
 
 impl PoolStatus {
   pub fn new(size: usize) -> Self {
     Self {
-      slots: vec![SlotStatus::WaitingForRefill; size],
+      slots: Mutex::new(vec![SlotStatus::WaitingForRefill; size]),
     }
   }
 
@@ -94,14 +94,13 @@ impl PoolStatus {
   /// index in the pool can be obtained without locking because the status was
   /// WaitingForRefill or WaitingForHash, so no other thread had it; and the status
   /// was now set to Refill or Hash to prevent other thread from claiming it.
-  ///
-  /// For this to be ensured, the [`PoolStatus`] struct must have been obtained
-  /// exclusively by the current thread, e.g: using a [`Mutex`].
-  pub fn claim_empty_slot<K>(&mut self) -> Option<usize>
+  pub fn claim_empty_slot<K>(&self) -> Option<usize>
   where
     K: buffer_handle::Kind,
   {
-    for (index, s) in self.slots.iter_mut().enumerate() {
+    let mut slots = self.slots.lock().unwrap();
+
+    for (index, s) in slots.iter_mut().enumerate() {
       if *s == K::expected() {
         // Set the status to Refilling or Hashing so no other thread can try obtaining it
         *s = K::current();
@@ -114,11 +113,12 @@ impl PoolStatus {
   }
 
   /// This function must be called AFTER releasing the corresponding buffer on the pool
-  pub fn free_slot<K>(&mut self, slot_index: usize)
+  pub fn free_slot<K>(&self, slot_index: usize)
   where
     K: buffer_handle::Kind,
   {
-    self.slots[slot_index] = K::next();
+    let mut slots = self.slots.lock().unwrap();
+    slots[slot_index] = K::next();
   }
 }
 
@@ -170,14 +170,14 @@ impl HashBuffer<'_> {
 
 #[derive(Debug)]
 pub struct BufferPool {
-  status: Mutex<PoolStatus>,
+  status: PoolStatus,
   buffers: Vec<Mutex<Slot>>,
 }
 
 impl BufferPool {
   pub fn new(size: usize) -> Self {
     Self {
-      status: Mutex::new(PoolStatus::new(size)),
+      status: PoolStatus::new(size),
       buffers: std::iter::repeat_with(|| Mutex::new(Slot::empty()))
         .take(size)
         .collect(),
@@ -188,12 +188,7 @@ impl BufferPool {
   where
     K: buffer_handle::Kind,
   {
-    let slot_index = {
-      let mut status = self.status.lock().unwrap();
-      status.claim_empty_slot::<K>()?
-
-      // Drop the status after claiming the slot, it is no longer needed
-    };
+    let slot_index = self.status.claim_empty_slot::<K>()?;
 
     let guard = self.buffers[slot_index]
       .try_lock()
@@ -234,7 +229,6 @@ impl BufferPool {
     // Release the buffer slot FIRST before updating the status
     drop(buffer);
 
-    let mut status = self.status.lock().unwrap();
-    status.free_slot::<K>(slot_index);
+    self.status.free_slot::<K>(slot_index);
   }
 }
