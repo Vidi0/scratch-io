@@ -2,7 +2,7 @@ use crate::common::BLOCK_SIZE;
 use crate::signature::MD5_HASH_LENGTH;
 
 use std::marker::PhantomData;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Condvar, Mutex, MutexGuard};
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub enum SlotStatus {
@@ -32,7 +32,8 @@ impl Slot {
 }
 
 mod buffer_handle {
-  use super::SlotStatus;
+  use super::{SlotStatus, SlotWaiters};
+  use std::sync::Condvar;
 
   #[derive(Clone, Copy, Debug)]
   pub struct Refill;
@@ -44,6 +45,9 @@ mod buffer_handle {
     fn expected() -> SlotStatus;
     fn current() -> SlotStatus;
     fn next() -> SlotStatus;
+
+    fn current_waiter(waiters: &SlotWaiters) -> &Condvar;
+    fn next_waiter(waiters: &SlotWaiters) -> &Condvar;
   }
 
   impl Kind for Refill {
@@ -57,6 +61,14 @@ mod buffer_handle {
 
     fn next() -> SlotStatus {
       SlotStatus::WaitingForHash
+    }
+
+    fn current_waiter(waiters: &SlotWaiters) -> &Condvar {
+      &waiters.refill_ready
+    }
+
+    fn next_waiter(waiters: &SlotWaiters) -> &Condvar {
+      &waiters.hash_ready
     }
   }
 
@@ -72,18 +84,45 @@ mod buffer_handle {
     fn next() -> SlotStatus {
       SlotStatus::WaitingForRefill
     }
+
+    fn current_waiter(waiters: &SlotWaiters) -> &Condvar {
+      &waiters.hash_ready
+    }
+
+    fn next_waiter(waiters: &SlotWaiters) -> &Condvar {
+      &waiters.refill_ready
+    }
+  }
+}
+
+#[derive(Debug)]
+pub struct SlotWaiters {
+  /// Notified when a slot becomes WaitingForHash: wakes hasher threads
+  pub hash_ready: Condvar,
+  /// Notified when a slot becomes WaitingForRefill: wakes the IO thread
+  pub refill_ready: Condvar,
+}
+
+impl SlotWaiters {
+  pub fn new() -> Self {
+    Self {
+      hash_ready: Condvar::new(),
+      refill_ready: Condvar::new(),
+    }
   }
 }
 
 #[derive(Debug)]
 struct PoolStatus {
   slots: Mutex<Vec<SlotStatus>>,
+  waiters: SlotWaiters,
 }
 
 impl PoolStatus {
   pub fn new(size: usize) -> Self {
     Self {
       slots: Mutex::new(vec![SlotStatus::WaitingForRefill; size]),
+      waiters: SlotWaiters::new(),
     }
   }
 
@@ -94,22 +133,25 @@ impl PoolStatus {
   /// index in the pool can be obtained without locking because the status was
   /// WaitingForRefill or WaitingForHash, so no other thread had it; and the status
   /// was now set to Refill or Hash to prevent other thread from claiming it.
-  pub fn claim_empty_slot<K>(&self) -> Option<usize>
+  pub fn claim_empty_slot<K>(&self) -> usize
   where
     K: buffer_handle::Kind,
   {
     let mut slots = self.slots.lock().unwrap();
 
-    for (index, s) in slots.iter_mut().enumerate() {
-      if *s == K::expected() {
-        // Set the status to Refilling or Hashing so no other thread can try obtaining it
-        *s = K::current();
+    loop {
+      for (index, s) in slots.iter_mut().enumerate() {
+        if *s == K::expected() {
+          // Set the status to Refilling or Hashing so no other thread can try obtaining it
+          *s = K::current();
 
-        return Some(index);
+          return index;
+        }
       }
-    }
 
-    None
+      // All slots are occupied: sleep until a one is released
+      slots = K::current_waiter(&self.waiters).wait(slots).unwrap();
+    }
   }
 
   /// This function must be called AFTER releasing the corresponding buffer on the pool
@@ -119,6 +161,12 @@ impl PoolStatus {
   {
     let mut slots = self.slots.lock().unwrap();
     slots[slot_index] = K::next();
+
+    // Drop the slots guard before notifying the waiters
+    drop(slots);
+
+    // Notify one of the waiters for the next stage that the buffer has been freed
+    K::next_waiter(&self.waiters).notify_one();
   }
 }
 
@@ -168,7 +216,6 @@ impl HashBuffer<'_> {
   }
 }
 
-#[derive(Debug)]
 pub struct BufferPool {
   status: PoolStatus,
   buffers: Vec<Mutex<Slot>>,
@@ -184,38 +231,33 @@ impl BufferPool {
     }
   }
 
-  fn get_buffer<K>(&self) -> Option<BufferHandle<'_, K>>
+  fn get_buffer<K>(&self) -> BufferHandle<'_, K>
   where
     K: buffer_handle::Kind,
   {
-    let slot_index = self.status.claim_empty_slot::<K>()?;
+    let slot_index = self.status.claim_empty_slot::<K>();
 
     let guard = self.buffers[slot_index]
       .try_lock()
       .expect("Buffer lock failed despite status indicating availability");
 
-    Some(BufferHandle {
+    BufferHandle {
       guard,
       slot_index,
       _kind: PhantomData,
-    })
-  }
-
-  pub fn get_buffer_to_refill(
-    &self,
-    block_index: usize,
-    buffer_len: usize,
-  ) -> Option<RefillBuffer<'_>> {
-    if let Some(mut buffer) = self.get_buffer::<buffer_handle::Refill>() {
-      buffer.set_block_index(block_index);
-      buffer.set_buffer_len(buffer_len);
-      Some(buffer)
-    } else {
-      None
     }
   }
 
-  pub fn get_buffer_to_hash(&self) -> Option<HashBuffer<'_>> {
+  pub fn get_buffer_to_refill(&self, block_index: usize, buffer_len: usize) -> RefillBuffer<'_> {
+    let mut buffer = self.get_buffer::<buffer_handle::Refill>();
+
+    buffer.set_block_index(block_index);
+    buffer.set_buffer_len(buffer_len);
+
+    buffer
+  }
+
+  pub fn get_buffer_to_hash(&self) -> HashBuffer<'_> {
     self.get_buffer::<buffer_handle::Hash>()
   }
 

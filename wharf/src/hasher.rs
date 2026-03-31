@@ -116,20 +116,7 @@ fn io_thread(
     };
 
     // Get the block buffer
-    // It is safe to loop here because the hasher threads will have to finish
-    // hashing at some point.
-    let mut block_buffer = loop {
-      if let Some(b) = buffer_pool.get_buffer_to_refill(block_index, buffer_len) {
-        break b;
-      }
-
-      // Check if verification has failed to avoid deadlocks
-      if verification_status.has_finished() {
-        return Ok(());
-      }
-
-      std::hint::spin_loop();
-    };
+    let mut block_buffer = buffer_pool.get_buffer_to_refill(block_index, buffer_len);
 
     // Store the expected hash into the buffer
     block_buffer.set_expected_hash(expected_hash);
@@ -158,18 +145,7 @@ fn hasher_thread(
       return;
     }
 
-    let buffer = loop {
-      if let Some(b) = buffer_pool.get_buffer_to_hash() {
-        break b;
-      }
-
-      // Check if verification has failed to avoid deadlocks
-      if verification_status.has_finished() {
-        return;
-      }
-
-      std::hint::spin_loop();
-    };
+    let buffer = buffer_pool.get_buffer_to_hash();
 
     let status = hasher.hash_block(&buffer);
 
