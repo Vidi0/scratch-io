@@ -228,7 +228,7 @@ impl BlockHasher<'_, '_, '_> {
 
     std::thread::scope(|scope| {
       // Spawn the IO thread
-      {
+      let io_handle = {
         let verification_status = &verification_status;
         let read_blocks = &mut read_blocks;
         let hash_iter = &mut self.hash_iter;
@@ -244,8 +244,8 @@ impl BlockHasher<'_, '_, '_> {
             buffer_pool,
             progress_callback,
           )
-        });
-      }
+        })
+      };
 
       // Spawn the hasher threads
       for hasher in &mut self.internal_hashers {
@@ -258,7 +258,16 @@ impl BlockHasher<'_, '_, '_> {
           break;
         }
       }
-    });
+
+      // Check the IO thread result
+      // If it errored, signal the hashers to stop and propagate the error
+      if let Err(e) = io_handle.join().unwrap() {
+        verification_status.set_failed(0);
+        return Err(e);
+      }
+
+      Ok(())
+    })?;
 
     if verification_status.has_failed() {
       self
