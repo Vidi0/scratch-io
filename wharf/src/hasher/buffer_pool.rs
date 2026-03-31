@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use std::sync::{Mutex, MutexGuard};
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq)]
-pub enum BufferStatus {
+pub enum SlotStatus {
   WaitingForRefill,
   Refilling,
   WaitingForHash,
@@ -13,14 +13,14 @@ pub enum BufferStatus {
 }
 
 #[derive(Debug, Clone)]
-struct BufferSlot {
+struct Slot {
   expected_hash: [u8; MD5_HASH_LENGTH],
   data: [u8; BLOCK_SIZE],
   len: usize,
   block_index: usize,
 }
 
-impl BufferSlot {
+impl Slot {
   pub fn empty() -> Self {
     Self {
       expected_hash: [0u8; MD5_HASH_LENGTH],
@@ -32,7 +32,7 @@ impl BufferSlot {
 }
 
 mod buffer_handle {
-  use super::BufferStatus;
+  use super::SlotStatus;
 
   #[derive(Clone, Copy, Debug)]
   pub struct Refill;
@@ -40,44 +40,44 @@ mod buffer_handle {
   #[derive(Clone, Copy, Debug)]
   pub struct Hash;
 
-  pub trait BufferHanfleKind {
-    fn expected() -> BufferStatus;
-    fn current() -> BufferStatus;
-    fn next() -> BufferStatus;
+  pub trait Kind {
+    fn expected() -> SlotStatus;
+    fn current() -> SlotStatus;
+    fn next() -> SlotStatus;
   }
 
-  impl BufferHanfleKind for Refill {
-    fn expected() -> BufferStatus {
-      BufferStatus::WaitingForRefill
+  impl Kind for Refill {
+    fn expected() -> SlotStatus {
+      SlotStatus::WaitingForRefill
     }
 
-    fn current() -> BufferStatus {
-      BufferStatus::Refilling
+    fn current() -> SlotStatus {
+      SlotStatus::Refilling
     }
 
-    fn next() -> BufferStatus {
-      BufferStatus::WaitingForHash
+    fn next() -> SlotStatus {
+      SlotStatus::WaitingForHash
     }
   }
 
-  impl BufferHanfleKind for Hash {
-    fn expected() -> BufferStatus {
-      BufferStatus::WaitingForHash
+  impl Kind for Hash {
+    fn expected() -> SlotStatus {
+      SlotStatus::WaitingForHash
     }
 
-    fn current() -> BufferStatus {
-      BufferStatus::Hashing
+    fn current() -> SlotStatus {
+      SlotStatus::Hashing
     }
 
-    fn next() -> BufferStatus {
-      BufferStatus::WaitingForRefill
+    fn next() -> SlotStatus {
+      SlotStatus::WaitingForRefill
     }
   }
 }
 
 #[derive(Debug)]
 pub struct BufferHandle<'a, K> {
-  guard: MutexGuard<'a, BufferSlot>,
+  guard: MutexGuard<'a, Slot>,
   slot_index: usize,
   _kind: PhantomData<K>,
 }
@@ -122,16 +122,16 @@ impl HashBuffer<'_> {
 }
 
 #[derive(Debug)]
-pub struct BlockBufferPool {
-  status: Mutex<Vec<BufferStatus>>,
-  buffers: Vec<Mutex<BufferSlot>>,
+pub struct BufferPool {
+  status: Mutex<Vec<SlotStatus>>,
+  buffers: Vec<Mutex<Slot>>,
 }
 
-impl BlockBufferPool {
+impl BufferPool {
   pub fn new(size: usize) -> Self {
     Self {
-      status: Mutex::new(vec![BufferStatus::WaitingForRefill; size]),
-      buffers: std::iter::repeat_with(|| Mutex::new(BufferSlot::empty()))
+      status: Mutex::new(vec![SlotStatus::WaitingForRefill; size]),
+      buffers: std::iter::repeat_with(|| Mutex::new(Slot::empty()))
         .take(size)
         .collect(),
     }
@@ -139,7 +139,7 @@ impl BlockBufferPool {
 
   fn get_buffer<K>(&self) -> Option<BufferHandle<'_, K>>
   where
-    K: buffer_handle::BufferHanfleKind,
+    K: buffer_handle::Kind,
   {
     let mut status = self.status.lock().unwrap();
 
@@ -187,7 +187,7 @@ impl BlockBufferPool {
   /// buffer to be taken by other thread.
   pub fn drop_buffer<K>(&self, buffer: BufferHandle<K>)
   where
-    K: buffer_handle::BufferHanfleKind,
+    K: buffer_handle::Kind,
   {
     let index = buffer.slot_index;
     // release the MutexGuard FIRST before obtaining the status

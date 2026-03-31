@@ -1,5 +1,5 @@
 use super::BlockHasherStatus;
-use super::block_buffer::HashBuffer;
+use super::buffer_pool::HashBuffer;
 use crate::signature::Md5HashSize;
 
 use md5::digest::array::Array;

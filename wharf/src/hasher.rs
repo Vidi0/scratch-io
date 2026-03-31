@@ -1,11 +1,11 @@
-mod block_buffer;
+mod buffer_pool;
 mod errors;
 mod internal_hasher;
 mod verification_status;
 
 pub use errors::{BlockHasherError, BlockHasherStatus};
 
-use block_buffer::BlockBufferPool;
+use buffer_pool::BufferPool;
 use internal_hasher::InternalHasher;
 use verification_status::VerificationStatus;
 
@@ -26,7 +26,7 @@ pub struct BlockHasher<'cont, 'hash_iter, 'reader> {
   entry_index: usize,
 
   hash_iter: &'hash_iter mut BlockHashIter<'reader>,
-  block_buffers: BlockBufferPool,
+  buffer_pool: BufferPool,
 
   internal_hashers: Vec<InternalHasher>,
 }
@@ -48,7 +48,7 @@ impl<'cont, 'hash_iter, 'reader> BlockHasher<'cont, 'hash_iter, 'reader> {
       hash_iter,
       // Create twice as many block buffers as internal hashers to avoid wasting
       // time waiting for the hashers to finish before obtaining more file data.
-      block_buffers: BlockBufferPool::new(2 * num_hashers),
+      buffer_pool: BufferPool::new(2 * num_hashers),
 
       internal_hashers: vec![InternalHasher::new(); num_hashers],
     }
@@ -94,7 +94,7 @@ fn io_thread(
   read_blocks: &mut AtomicU64,
   hash_iter: &mut &mut BlockHashIter,
   reader: &mut impl Read,
-  buffer_pool: &BlockBufferPool,
+  buffer_pool: &BufferPool,
   mut progress_callback: impl FnMut(u64) + Send,
 ) -> Result<(), BlockHasherError> {
   for block_index in 0..file_blocks as usize {
@@ -158,7 +158,7 @@ fn io_thread(
 fn hasher_thread(
   verification_status: &VerificationStatus,
   hasher: &mut InternalHasher,
-  buffer_pool: &BlockBufferPool,
+  buffer_pool: &BufferPool,
 ) -> Result<(), BlockHasherError> {
   loop {
     if verification_status.has_finished() {
@@ -226,7 +226,7 @@ impl BlockHasher<'_, '_, '_> {
 
     let mut read_blocks = AtomicU64::new(0);
     let verification_status = VerificationStatus::new();
-    let buffer_pool = &self.block_buffers;
+    let buffer_pool = &self.buffer_pool;
 
     std::thread::scope(|scope| {
       // Spawn the IO thread
