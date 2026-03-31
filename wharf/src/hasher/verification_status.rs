@@ -32,9 +32,9 @@ impl From<Status> for u8 {
 
 pub struct VerificationStatus {
   status: AtomicU8,
+  broken_block_index: AtomicUsize,
   // Countdown for finishing logic
   remaining_blocks: AtomicU64,
-  broken_block_index: AtomicUsize,
   // Only used for skip calculation on failure
   blocks_read: AtomicU64,
 }
