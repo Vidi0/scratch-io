@@ -76,6 +76,53 @@ mod buffer_handle {
 }
 
 #[derive(Debug)]
+struct PoolStatus {
+  slots: Vec<SlotStatus>,
+}
+
+impl PoolStatus {
+  pub fn new(size: usize) -> Self {
+    Self {
+      slots: vec![SlotStatus::WaitingForRefill; size],
+    }
+  }
+
+  /// Return the index of the first slot available for the provided buffer kind
+  /// and set it as occupied.
+  ///
+  /// If this function returns `Some(slot_index)`, the buffer slot in the provided
+  /// index in the pool can be obtained without locking because the status was
+  /// WaitingForRefill or WaitingForHash, so no other thread had it; and the status
+  /// was now set to Refill or Hash to prevent other thread from claiming it.
+  ///
+  /// For this to be ensured, the [`PoolStatus`] struct must have been obtained
+  /// exclusively by the current thread, e.g: using a [`Mutex`].
+  pub fn claim_empty_slot<K>(&mut self) -> Option<usize>
+  where
+    K: buffer_handle::Kind,
+  {
+    for (index, s) in self.slots.iter_mut().enumerate() {
+      if *s == K::expected() {
+        // Set the status to Refilling or Hashing so no other thread can try obtaining it
+        *s = K::current();
+
+        return Some(index);
+      }
+    }
+
+    None
+  }
+
+  /// This function must be called AFTER releasing the corresponding buffer on the pool
+  pub fn free_slot<K>(&mut self, slot_index: usize)
+  where
+    K: buffer_handle::Kind,
+  {
+    self.slots[slot_index] = K::next();
+  }
+}
+
+#[derive(Debug)]
 pub struct BufferHandle<'a, K> {
   guard: MutexGuard<'a, Slot>,
   slot_index: usize,
@@ -123,14 +170,14 @@ impl HashBuffer<'_> {
 
 #[derive(Debug)]
 pub struct BufferPool {
-  status: Mutex<Vec<SlotStatus>>,
+  status: Mutex<PoolStatus>,
   buffers: Vec<Mutex<Slot>>,
 }
 
 impl BufferPool {
   pub fn new(size: usize) -> Self {
     Self {
-      status: Mutex::new(vec![SlotStatus::WaitingForRefill; size]),
+      status: Mutex::new(PoolStatus::new(size)),
       buffers: std::iter::repeat_with(|| Mutex::new(Slot::empty()))
         .take(size)
         .collect(),
@@ -141,28 +188,22 @@ impl BufferPool {
   where
     K: buffer_handle::Kind,
   {
-    let mut status = self.status.lock().unwrap();
+    let slot_index = {
+      let mut status = self.status.lock().unwrap();
+      status.claim_empty_slot::<K>()?
 
-    for (index, s) in status.iter_mut().enumerate() {
-      if *s == K::expected() {
-        // Getting the buffer won't lock because the status is WaitingForRefill
-        // or WaitingForHash, so no other thread should have it.
-        let guard = self.buffers[index]
-          .try_lock()
-          .expect("Buffer lock failed despite status indicating availability");
+      // Drop the status after claiming the slot, it is no longer needed
+    };
 
-        // Set the status to Refilling or Hashing so no other thread can try obtaining it
-        *s = K::current();
+    let guard = self.buffers[slot_index]
+      .try_lock()
+      .expect("Buffer lock failed despite status indicating availability");
 
-        return Some(BufferHandle {
-          guard,
-          slot_index: index,
-          _kind: PhantomData,
-        });
-      }
-    }
-
-    None
+    Some(BufferHandle {
+      guard,
+      slot_index,
+      _kind: PhantomData,
+    })
   }
 
   pub fn get_buffer_to_refill(
@@ -189,11 +230,11 @@ impl BufferPool {
   where
     K: buffer_handle::Kind,
   {
-    let index = buffer.slot_index;
-    // release the MutexGuard FIRST before obtaining the status
+    let slot_index = buffer.slot_index;
+    // Release the buffer slot FIRST before updating the status
     drop(buffer);
 
     let mut status = self.status.lock().unwrap();
-    status[index] = K::next();
+    status.free_slot::<K>(slot_index);
   }
 }
