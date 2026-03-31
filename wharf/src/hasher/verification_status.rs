@@ -5,16 +5,16 @@ use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Status {
   Running,
-  Finished,
   Failed,
+  Finished,
 }
 
 impl From<u8> for Status {
   fn from(value: u8) -> Self {
     match value {
       0 => Self::Running,
-      1 => Self::Finished,
-      2 => Self::Failed,
+      1 => Self::Failed,
+      2 => Self::Finished,
       _ => unreachable!(),
     }
   }
@@ -24,8 +24,8 @@ impl From<Status> for u8 {
   fn from(value: Status) -> Self {
     match value {
       Status::Running => 0,
-      Status::Finished => 1,
-      Status::Failed => 2,
+      Status::Failed => 1,
+      Status::Finished => 2,
     }
   }
 }
