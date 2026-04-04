@@ -54,15 +54,17 @@ impl BufferPoolSession<'_> {
     block_index: usize,
     buffer_len: usize,
   ) -> Option<RefillBuffer<'_>> {
-    let status_guard = self.header.get_status_lock();
+    let slot_index = {
+      let status_guard = self.header.get_status_lock();
 
-    // Wait until an available slot can be obtained
-    let slot_index = PoolStatus::find_slot(
-      status_guard,
-      &self.header.refill_ready,
-      SlotStatus::WaitingForRefill,
-      SlotStatus::Refilling,
-    )?;
+      // Wait until an available slot can be obtained
+      PoolStatus::find_slot(
+        status_guard,
+        &self.header.refill_ready,
+        SlotStatus::WaitingForRefill,
+        SlotStatus::Refilling,
+      )?
+    };
 
     // Obtain the slot
     let slot_guard = self.get_slot(slot_index);
@@ -76,15 +78,17 @@ impl BufferPoolSession<'_> {
   }
 
   pub fn get_buffer_to_hash(&self) -> Option<HashBuffer<'_>> {
-    let status_guard = self.header.get_status_lock();
+    let slot_index = {
+      let status_guard = self.header.get_status_lock();
 
-    // Wait until an available slot can be obtained
-    let slot_index = PoolStatus::find_slot(
-      status_guard,
-      &self.header.hash_ready,
-      SlotStatus::WaitingForHash,
-      SlotStatus::Hashing,
-    )?;
+      // Wait until an available slot can be obtained
+      PoolStatus::find_slot(
+        status_guard,
+        &self.header.hash_ready,
+        SlotStatus::WaitingForHash,
+        SlotStatus::Hashing,
+      )?
+    };
 
     // Obtain the slot
     let slot_guard = self.get_slot(slot_index);
@@ -97,11 +101,10 @@ impl BufferPoolSession<'_> {
     // Drop the buffer before changing the status
     drop(buffer);
 
-    let mut status = self.header.get_status_lock();
-    status.release_slot(slot_index, SlotStatus::WaitingForHash);
-
-    // Drop the status before waking up the waiting threads
-    drop(status);
+    {
+      let mut status = self.header.get_status_lock();
+      status.release_slot(slot_index, SlotStatus::WaitingForHash);
+    }
 
     // Wake up the waiting threads
     self.header.hash_ready.notify_one();
@@ -113,28 +116,28 @@ impl BufferPoolSession<'_> {
     // Drop the buffer before changing the status
     drop(buffer);
 
-    let mut status = self.header.get_status_lock();
+    {
+      let mut status = self.header.get_status_lock();
 
-    // Add one to the number of hashed blocks
-    if status.add_one_hashed_block() {
-      // Notify all waiting threads to stop
-      self.header.refill_ready.notify_all();
-      self.header.hash_ready.notify_all();
+      // Add one to the number of hashed blocks
+      if status.add_one_hashed_block() {
+        // Notify all waiting threads to stop
+        self.header.refill_ready.notify_all();
+        self.header.hash_ready.notify_all();
+      }
+      
+      status.release_slot(slot_index, SlotStatus::WaitingForRefill);
     }
-
-    status.release_slot(slot_index, SlotStatus::WaitingForRefill);
-
-    // Drop the status before waking up the waiting threads
-    drop(status);
 
     // Wake up the waiting threads
     self.header.refill_ready.notify_one();
   }
 
   pub fn set_failed(&self, broken_block_index: usize) {
-    let mut status = self.header.get_status_lock();
-    status.set_failed(broken_block_index);
-    drop(status);
+    {
+      let mut status = self.header.get_status_lock();
+      status.set_failed(broken_block_index);
+    }
 
     // Notify all waiting threads to stop
     self.header.refill_ready.notify_all();
