@@ -146,11 +146,6 @@ impl BufferPoolSession<'_> {
     self.header.hash_ready.notify_all();
   }
 
-  pub fn has_failed(&self) -> bool {
-    let status = self.header.get_status_lock();
-    status.has_failed()
-  }
-
   pub fn finished_status(&self) -> BlockHasherStatus {
     let status = self.header.get_status_lock();
     status.finished_status()

@@ -9,7 +9,7 @@ use internal_hasher::InternalHasher;
 
 use crate::common::{BLOCK_SIZE, block_count};
 use crate::protos;
-use crate::signature::BlockHashIter;
+use crate::signature::{BlockHashIter, FileHashIter};
 
 use std::io::Read;
 
@@ -86,7 +86,7 @@ impl BlockHasher<'_, '_, '_> {
 fn io_thread(
   file_size: u64,
   file_blocks: u64,
-  hash_iter: &mut &mut BlockHashIter,
+  hash_iter: &mut FileHashIter,
   reader: &mut impl Read,
   buffer_pool: &BufferPoolSession,
   mut progress_callback: impl FnMut(u64) + Send,
@@ -179,19 +179,23 @@ impl BlockHasher<'_, '_, '_> {
 
     self.entry_index += 1;
 
+    // Get the hash block iterator for the current file
+    let file_hash_iter = &mut self
+      .hash_iter
+      .next_file(file_blocks)
+      .map_err(BlockHasherError::CouldNotObtainIter)?;
+
     // Reset the buffer pool
     let buffer_pool = &self.buffer_pool.new_session(file_blocks);
 
     std::thread::scope(|scope| {
       // Spawn the IO thread
       let io_handle = {
-        let hash_iter = &mut self.hash_iter;
-
         scope.spawn(move || -> Result<(), BlockHasherError> {
           io_thread(
             file_size,
             file_blocks,
-            hash_iter,
+            file_hash_iter,
             reader,
             buffer_pool,
             progress_callback,
@@ -218,12 +222,6 @@ impl BlockHasher<'_, '_, '_> {
 
       Ok(())
     })?;
-
-    if buffer_pool.has_failed() {
-      todo!();
-      ////////////// TODO
-      ////////////// DO BLOCK SKIP IN THE ITERATOR DIRECTLY, NOT HERE
-    }
 
     Ok(buffer_pool.finished_status())
   }

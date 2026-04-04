@@ -51,10 +51,6 @@ impl PoolStatus {
     )
   }
 
-  pub fn has_failed(&self) -> bool {
-    matches!(self.status, VerificationStatus::Failed { .. })
-  }
-
   pub fn finished_status(&self) -> BlockHasherStatus {
     match self.status {
       VerificationStatus::Running { .. } => unreachable!(),

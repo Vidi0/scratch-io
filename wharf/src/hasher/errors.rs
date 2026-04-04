@@ -2,6 +2,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum BlockHasherError {
+  #[error("The file block hash iterator could not be obtained!")]
+  CouldNotObtainIter(String),
+
   #[error("Expected block hash from iterator, got EOF!")]
   MissingHashFromIter,
 

@@ -9,41 +9,6 @@ use std::io::BufRead;
 pub type Md5HashSize = <Md5 as digest::OutputSizeUser>::OutputSize;
 pub const MD5_HASH_LENGTH: usize = Md5HashSize::USIZE;
 
-/// Iterator over independent, sequential length-delimited hash messages in a [`std::io::Read`] stream
-///
-/// Each message is of the same type, independent and follows directly after the previous one in the stream.
-/// The messages are read and decoded one by one, without loading the entire stream into memory.
-pub struct BlockHashIter<'reader> {
-  reader: Box<Reader<'reader>>,
-  total_blocks: u64,
-  blocks_read: u64,
-}
-
-impl BlockHashIter<'_> {
-  #[must_use]
-  pub const fn total_blocks(&self) -> u64 {
-    self.total_blocks
-  }
-
-  pub fn dump_stdout(&mut self) -> Result<(), String> {
-    for op in self {
-      println!("{:?}", op?);
-    }
-
-    Ok(())
-  }
-
-  pub fn skip_blocks(&mut self, blocks_to_skip: u64) -> Result<(), String> {
-    for _ in 0..blocks_to_skip {
-      skip_protobuf(&mut self.reader)?;
-    }
-
-    self.blocks_read += blocks_to_skip;
-
-    Ok(())
-  }
-}
-
 /// <https://itch.io/docs/wharf/appendix/hashes.html>
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockHash {
@@ -66,15 +31,20 @@ impl TryFrom<protos::BlockHash> for BlockHash {
   }
 }
 
-impl Iterator for BlockHashIter<'_> {
+pub struct FileHashIter<'a, 'reader> {
+  reader: &'a mut Reader<'reader>,
+  remaining_blocks: &'a mut u64,
+}
+
+impl Iterator for FileHashIter<'_, '_> {
   type Item = Result<BlockHash, String>;
 
   fn next(&mut self) -> Option<Self::Item> {
-    if self.blocks_read == self.total_blocks {
+    if *self.remaining_blocks == 0 {
       return None;
     }
 
-    self.blocks_read += 1;
+    *self.remaining_blocks -= 1;
 
     let block_hash = match decode_protobuf::<protos::BlockHash>(&mut self.reader) {
       Ok(hash) => hash,
@@ -86,6 +56,61 @@ impl Iterator for BlockHashIter<'_> {
     };
 
     Some(block_hash.try_into())
+  }
+}
+
+impl FileHashIter<'_, '_> {
+  pub fn dump_stdout(&mut self) -> Result<(), String> {
+    println!("\n{} blocks", self.remaining_blocks);
+
+    for op in self {
+      println!("{:?}", op?);
+    }
+
+    Ok(())
+  }
+}
+
+/// Iterator over independent, sequential length-delimited hash messages in a [`std::io::Read`] stream
+///
+/// Each message is of the same type, independent and follows directly after the previous one in the stream.
+/// The messages are read and decoded one by one, without loading the entire stream into memory.
+pub struct BlockHashIter<'reader> {
+  reader: Box<Reader<'reader>>,
+  last_entry_remaining_blocks: u64,
+}
+
+impl<'reader> BlockHashIter<'reader> {
+  pub fn dump_stdout(&mut self, container: &protos::Container) -> Result<(), String> {
+    for file in &container.files {
+      let file_blocks = file.block_count();
+      let mut file_hash = self.next_file(file_blocks)?;
+      file_hash.dump_stdout()?;
+    }
+
+    Ok(())
+  }
+
+  pub fn skip_blocks(&mut self, blocks_to_skip: u64) -> Result<(), String> {
+    for _ in 0..blocks_to_skip {
+      skip_protobuf(&mut self.reader)?;
+    }
+
+    Ok(())
+  }
+
+  pub fn next_file<'a>(
+    &'a mut self,
+    file_blocks: u64,
+  ) -> Result<FileHashIter<'a, 'reader>, String> {
+    // Skip the blocks that were not obtained in the last file hash iter
+    self.skip_blocks(self.last_entry_remaining_blocks)?;
+    self.last_entry_remaining_blocks = file_blocks;
+
+    Ok(FileHashIter {
+      reader: &mut self.reader,
+      remaining_blocks: &mut self.last_entry_remaining_blocks,
+    })
   }
 }
 
@@ -119,7 +144,7 @@ impl<'a> Signature<'a> {
 
     // Print the hashes
     println!("--- START HASH BLOCKS ---\n");
-    self.block_hash_iter.dump_stdout()?;
+    self.block_hash_iter.dump_stdout(&self.container_new)?;
     println!("\n--- END HASH BLOCKS ---");
 
     Ok(())
@@ -167,8 +192,7 @@ impl<'a> Signature<'a> {
     // Decode the hashes
     let block_hash_iter = BlockHashIter {
       reader: decompressed,
-      total_blocks: container_new.file_blocks(),
-      blocks_read: 0,
+      last_entry_remaining_blocks: 0,
     };
 
     Ok(Signature {
