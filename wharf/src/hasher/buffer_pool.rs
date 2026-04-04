@@ -100,6 +100,9 @@ impl BufferPoolSession<'_> {
     let mut status = self.header.get_status_lock();
     status.release_slot(slot_index, SlotStatus::WaitingForHash);
 
+    // Drop the status before waking up the waiting threads
+    drop(status);
+
     // Wake up the waiting threads
     self.header.hash_ready.notify_one();
   }
@@ -120,6 +123,9 @@ impl BufferPoolSession<'_> {
     }
 
     status.release_slot(slot_index, SlotStatus::WaitingForRefill);
+
+    // Drop the status before waking up the waiting threads
+    drop(status);
 
     // Wake up the waiting threads
     self.header.refill_ready.notify_one();
