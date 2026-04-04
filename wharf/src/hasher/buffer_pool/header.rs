@@ -1,6 +1,6 @@
 use super::BlockHasherStatus;
 
-use std::sync::{Condvar, Mutex, MutexGuard};
+use parking_lot::{Condvar, Mutex, MutexGuard};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SlotStatus {
@@ -91,7 +91,7 @@ impl PoolStatus {
       }
 
       // Sleep until one slot is available
-      guard = condvar.wait(guard).unwrap();
+      condvar.wait(&mut guard);
     }
   }
 
@@ -147,6 +147,6 @@ impl Header {
 
   /// Get a [`MutexGuard`] holding the header status
   pub fn get_status_lock(&self) -> MutexGuard<'_, PoolStatus> {
-    self.status.lock().unwrap()
+    self.status.lock()
   }
 }

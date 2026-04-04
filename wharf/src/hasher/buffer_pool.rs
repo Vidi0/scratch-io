@@ -7,7 +7,7 @@ use header::{Header, PoolStatus, SlotStatus};
 
 use super::BlockHasherStatus;
 
-use std::sync::{Mutex, MutexGuard};
+use parking_lot::{Mutex, MutexGuard};
 
 pub struct BufferPool {
   slots: Vec<Mutex<PoolSlot>>,

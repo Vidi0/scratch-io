@@ -1,7 +1,7 @@
 use crate::common::BLOCK_SIZE;
 use crate::signature::MD5_HASH_LENGTH;
 
-use std::sync::MutexGuard;
+use parking_lot::MutexGuard;
 
 pub struct PoolSlot {
   block_index: usize,
