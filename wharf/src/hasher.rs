@@ -1,11 +1,10 @@
 mod buffer_pool;
 mod errors;
 mod internal_hasher;
-mod verification_status;
 
 pub use errors::{BlockHasherError, BlockHasherStatus};
 
-use buffer_pool::BufferPool;
+use buffer_pool::{BufferPool, BufferPoolSession, HashBuffer};
 use internal_hasher::InternalHasher;
 
 use crate::common::{BLOCK_SIZE, block_count};
@@ -89,7 +88,7 @@ fn io_thread(
   file_blocks: u64,
   hash_iter: &mut &mut BlockHashIter,
   reader: &mut impl Read,
-  buffer_pool: &BufferPool,
+  buffer_pool: &BufferPoolSession,
   mut progress_callback: impl FnMut(u64) + Send,
 ) -> Result<(), BlockHasherError> {
   for block_index in 0..file_blocks as usize {
@@ -120,7 +119,7 @@ fn io_thread(
       .map_err(BlockHasherError::ReaderFailed)?;
 
     // Share the block buffer with the hasher threads
-    buffer_pool.drop_refilled_buffer(block_buffer);
+    buffer_pool.release_refilled_buffer(block_buffer);
 
     progress_callback(buffer_len as u64);
   }
@@ -128,7 +127,7 @@ fn io_thread(
   Ok(())
 }
 
-fn hasher_thread(hasher: &mut InternalHasher, buffer_pool: &BufferPool) {
+fn hasher_thread(hasher: &mut InternalHasher, buffer_pool: &BufferPoolSession) {
   loop {
     let Some(buffer) = buffer_pool.get_buffer_to_hash() else {
       return;
@@ -137,7 +136,7 @@ fn hasher_thread(hasher: &mut InternalHasher, buffer_pool: &BufferPool) {
     let status = hasher.hash_block(&buffer);
 
     // Leave the block buffer available to be filled by the IO thread again
-    buffer_pool.drop_hashed_buffer(buffer);
+    buffer_pool.release_hashed_buffer(buffer);
 
     if let BlockHasherStatus::HashMismatch { block_index } = status {
       buffer_pool.set_failed(block_index);
@@ -181,8 +180,7 @@ impl BlockHasher<'_, '_, '_> {
     self.entry_index += 1;
 
     // Reset the buffer pool
-    self.buffer_pool.reset(file_blocks);
-    let buffer_pool = &self.buffer_pool;
+    let buffer_pool = &self.buffer_pool.new_session(file_blocks);
 
     std::thread::scope(|scope| {
       // Spawn the IO thread
@@ -222,10 +220,9 @@ impl BlockHasher<'_, '_, '_> {
     })?;
 
     if buffer_pool.has_failed() {
-      self
-        .hash_iter
-        .skip_blocks(file_blocks - buffer_pool.blocks_read())
-        .map_err(BlockHasherError::IterReturnedError)?;
+      todo!();
+      ////////////// TODO
+      ////////////// DO BLOCK SKIP IN THE ITERATOR DIRECTLY, NOT HERE
     }
 
     Ok(buffer_pool.finished_status())
