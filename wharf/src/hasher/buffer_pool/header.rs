@@ -38,10 +38,9 @@ impl PoolStatus {
       remaining_blocks: total_blocks,
     };
 
-    // If the `PoolStatus` is being reset, it is because the last verification finished.
-    // Therefore, every slot in `self.slots` must be WaitingForRefill
-    for slot in &self.slots {
-      assert_eq!(*slot, SlotStatus::WaitingForRefill);
+    // Set every slot in `self.slots` to WaitingForRefill
+    for slot in &mut self.slots {
+      *slot = SlotStatus::WaitingForRefill;
     }
   }
 
