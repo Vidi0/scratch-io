@@ -116,21 +116,23 @@ impl BufferPoolSession<'_> {
     // Drop the buffer before changing the status
     drop(buffer);
 
-    {
+    let has_finished = {
       let mut status = self.header.get_status_lock();
-
-      // Add one to the number of hashed blocks
-      if status.add_one_hashed_block() {
-        // Notify all waiting threads to stop
-        self.header.refill_ready.notify_all();
-        self.header.hash_ready.notify_all();
-      }
-      
       status.release_slot(slot_index, SlotStatus::WaitingForRefill);
-    }
 
-    // Wake up the waiting threads
-    self.header.refill_ready.notify_one();
+      // Add one to the number of hashed blocks and check
+      // whether the verification has finished
+      status.add_one_hashed_block()
+    };
+
+    if has_finished {
+      // Notify all waiting threads to stop
+      self.header.refill_ready.notify_all();
+      self.header.hash_ready.notify_all();
+    } else {
+      // Wake up the waiting refill thread
+      self.header.refill_ready.notify_one();
+    }
   }
 
   pub fn set_failed(&self, broken_block_index: usize) {
