@@ -1,9 +1,13 @@
 use super::{ContainerBackedPool, Pool, PoolError, SeekablePool, WritablePool};
 use crate::protos;
 
+use lru::LruCache;
 use std::fs::{self, File, OpenOptions};
-use std::io;
+use std::io::{self, Seek};
+use std::num::NonZero;
 use std::path::{Path, PathBuf};
+
+const CACHE_MAX_FILES_OPENED: NonZero<usize> = NonZero::<usize>::new(8).unwrap();
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L30>
 const MIN_MODE: u32 = 0o644;
@@ -133,6 +137,10 @@ impl ContainerItem for protos::Symlink {
 pub struct ContainerPool<'container, 'path> {
   container: &'container protos::Container,
   base_path: &'path Path,
+
+  /// Cache for the files returned by [`Self::get_reader`] or [`Self::get_seek_reader`].
+  /// This cache will NOT be used for files returned by [`Self::get_writer`].
+  files_cache: LruCache<usize, File>,
 }
 
 impl<'container, 'path> ContainerPool<'container, 'path> {
@@ -208,6 +216,35 @@ impl<'container, 'path> ContainerPool<'container, 'path> {
       .get_file(entry_index)
       .and_then(|f| f.get_path(self.base_path.to_owned()))
   }
+
+  /// Return a mutable reference to the open file at the given index,
+  /// opening it if it is not already cached.
+  ///
+  /// # Seek position
+  ///
+  /// The seek position of the returned file is not guaranteed to be at
+  /// the start. If the file was previously cached and read from or seeked,
+  /// the position will reflect that. Callers that require reading from the
+  /// beginning must seek explicitly before use.
+  fn get_from_cache(&mut self, entry_index: usize) -> Result<&mut File, PoolError> {
+    // To avoid having to get the path if the file is already in the cache,
+    // check that first.
+    //
+    // Due to a Rust borrow checker limitation, it is impossible to use
+    // `file_cache.get_mut` directly and return the file if the value is Some.
+    // Instead, we have to check if it is contained in the cache first.
+    if self.files_cache.contains(&entry_index) {
+      return Ok(self.files_cache.get_mut(&entry_index).unwrap());
+    }
+
+    // Get the path and create the get_file clousure
+    let path = self.get_path(entry_index)?;
+    let get_file = || Ok(File::open(&path)?);
+
+    self
+      .files_cache
+      .try_get_or_insert_mut(entry_index, get_file)
+  }
 }
 
 impl<'container, 'path> ContainerPool<'container, 'path> {
@@ -216,6 +253,7 @@ impl<'container, 'path> ContainerPool<'container, 'path> {
     Self {
       container,
       base_path,
+      files_cache: LruCache::new(CACHE_MAX_FILES_OPENED),
     }
   }
 
@@ -240,7 +278,7 @@ impl<'container, 'path> ContainerPool<'container, 'path> {
 
 impl Pool for ContainerPool<'_, '_> {
   type Reader<'a>
-    = File
+    = &'a mut File
   where
     Self: 'a;
 
@@ -257,8 +295,13 @@ impl Pool for ContainerPool<'_, '_> {
   }
 
   fn get_reader(&mut self, entry_index: usize) -> Result<Self::Reader<'_>, PoolError> {
-    let path = self.get_path(entry_index)?;
-    Ok(File::open(&path)?)
+    let file = self.get_from_cache(entry_index)?;
+
+    // Rewing the file to the start before returning it.
+    // It might have been in the cache!
+    file.rewind()?;
+
+    Ok(file)
   }
 }
 
@@ -275,7 +318,10 @@ impl SeekablePool for ContainerPool<'_, '_> {
     Self: 'a;
 
   fn get_seek_reader(&mut self, entry_index: usize) -> Result<Self::SeekableReader<'_>, PoolError> {
-    self.get_reader(entry_index)
+    self.get_from_cache(entry_index)
+
+    // Do not rewind the file to the start, callers of this method
+    // will want to seek it anyways.
   }
 }
 

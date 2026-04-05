@@ -119,6 +119,8 @@ pub trait SeekablePool: Pool {
   /// # Returns
   ///
   /// A [`Self::SeekableReader`] that reads and seeks over the entry's contents.
+  /// The reader's initial position is unspecified: callers must seek to the
+  /// desired position before reading.
   ///
   /// # Errors
   ///
