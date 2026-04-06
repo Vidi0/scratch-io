@@ -3,6 +3,17 @@ use crate::patch::BsdiffOp;
 
 use std::io::{Read, Seek, Write};
 
+/// Add each byte of `src` to the corresponding byte of `dst` in place, wrapping on overflow.
+///
+/// Panics if `src` and `dst` have different lengths.
+fn add_slices(src: &[u8], dst: &mut [u8]) {
+  assert_eq!(src.len(), dst.len());
+
+  for (s, d) in src.iter().zip(dst) {
+    *d = d.wrapping_add(*s);
+  }
+}
+
 /// Read a block from `src`, add corresponding bytes from `add`, and write the result to `dst`
 ///
 /// After this function is called, the bytes that have been written into the file
@@ -13,15 +24,11 @@ fn add_bytes(
   add: &[u8],
   add_buffer: &mut [u8],
 ) -> Result<(), String> {
-  assert_eq!(add.len(), add_buffer.len());
-
   src
     .read_exact(add_buffer)
     .map_err(|e| format!("Couldn't read data from old file into buffer!\n{e}"))?;
 
-  for i in 0..add.len() {
-    add_buffer[i] = add_buffer[i].wrapping_add(add[i]);
-  }
+  add_slices(add, add_buffer);
 
   dst
     .write_all(add_buffer)
