@@ -50,14 +50,16 @@ impl BsdiffOp {
         return Ok(OpStatus::Broken);
       }
 
-      // Resize the add buffer to match the size of the current add bytes
+      // Resize the add buffer if it's smaller than the current add bytes
       // The add operations are usually the same length, so allocation is almost never triggered
-      // If the new add bytes are smaller than the buffer size, allocation will also be avoided
-      if add_buffer.len() != self.add.len() {
+      // If the buffer is larger than needed, the excess is ignored via slice truncation
+      if add_buffer.len() < self.add.len() {
         add_buffer.resize(self.add.len(), 0);
       }
 
-      add_bytes(old_file, writer, &self.add, add_buffer)?;
+      let add_buf = &mut add_buffer[..self.add.len()];
+
+      add_bytes(old_file, writer, &self.add, add_buf)?;
 
       // Move the old file seek cursor forward!
       *old_file_seek_position += self.add.len() as u64;
