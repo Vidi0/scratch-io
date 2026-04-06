@@ -93,6 +93,9 @@ impl BsdiffOp {
         );
       };
 
+      // Checking if the new seek position is valid isn't necessary because the OS won't error
+      // on out-of-bounds seeks, and the subsequent read (in the add operation) will catch it
+
       old_file
         .seek(std::io::SeekFrom::Start(*old_file_seek_position))
         .map_err(|e| {
