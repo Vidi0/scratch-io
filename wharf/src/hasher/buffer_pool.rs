@@ -17,8 +17,8 @@ pub struct BufferPool {
 impl BufferPool {
   pub fn new(pool_size: usize) -> Self {
     Self {
-      slots: std::iter::repeat_with(|| Mutex::new(PoolSlot::empty()))
-        .take(pool_size)
+      slots: (0..pool_size)
+        .map(|index| Mutex::new(PoolSlot::new(index)))
         .collect(),
 
       header: Header::new(pool_size),
@@ -71,7 +71,6 @@ impl BufferPoolSession<'_> {
 
     Some(PoolSlot::get_refill_buffer(
       slot_guard,
-      slot_index,
       block_index,
       buffer_len,
     ))
@@ -92,7 +91,7 @@ impl BufferPoolSession<'_> {
 
     // Obtain the slot
     let slot_guard = self.get_slot(slot_index);
-    Some(PoolSlot::get_hash_buffer(slot_guard, slot_index))
+    Some(PoolSlot::get_hash_buffer(slot_guard))
   }
 
   pub fn release_refilled_buffer(&self, buffer: RefillBuffer<'_>) {

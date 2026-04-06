@@ -4,6 +4,8 @@ use crate::signature::MD5_HASH_LENGTH;
 use parking_lot::MutexGuard;
 
 pub struct PoolSlot {
+  index: usize,
+
   block_index: usize,
 
   expected_hash: [u8; MD5_HASH_LENGTH],
@@ -13,8 +15,9 @@ pub struct PoolSlot {
 }
 
 impl PoolSlot {
-  pub fn empty() -> Self {
+  pub fn new(index: usize) -> Self {
     Self {
+      index,
       block_index: 0,
       expected_hash: [0u8; MD5_HASH_LENGTH],
       buffer: [0u8; BLOCK_SIZE],
@@ -25,41 +28,32 @@ impl PoolSlot {
   /// Get a [`RefillBuffer`] from a [`MutexGuard<PoolSlot>`] with the provided `block_index` and `len`
   pub fn get_refill_buffer(
     mut guard: MutexGuard<'_, PoolSlot>,
-    slot_index: usize,
     block_index: usize,
     len: usize,
   ) -> RefillBuffer<'_> {
     guard.block_index = block_index;
     guard.len = len;
 
-    RefillBuffer {
-      slot: guard,
-      slot_index,
-    }
+    RefillBuffer { slot: guard }
   }
 
   /// Get a [`HashBuffer`] from a [`MutexGuard<PoolSlot>`]
-  pub fn get_hash_buffer(guard: MutexGuard<'_, PoolSlot>, slot_index: usize) -> HashBuffer<'_> {
-    HashBuffer {
-      slot: guard,
-      slot_index,
-    }
+  pub fn get_hash_buffer(guard: MutexGuard<'_, PoolSlot>) -> HashBuffer<'_> {
+    HashBuffer { slot: guard }
   }
 }
 
 pub struct RefillBuffer<'a> {
-  slot_index: usize,
   slot: MutexGuard<'a, PoolSlot>,
 }
 
 pub struct HashBuffer<'a> {
-  slot_index: usize,
   slot: MutexGuard<'a, PoolSlot>,
 }
 
 impl RefillBuffer<'_> {
   pub fn slot_index(&self) -> usize {
-    self.slot_index
+    self.slot.index
   }
 
   pub fn set_expected_hash(&mut self, expected_hash: [u8; MD5_HASH_LENGTH]) {
@@ -74,7 +68,7 @@ impl RefillBuffer<'_> {
 
 impl HashBuffer<'_> {
   pub fn slot_index(&self) -> usize {
-    self.slot_index
+    self.slot.index
   }
 
   pub fn block_index(&self) -> usize {
