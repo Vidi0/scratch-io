@@ -16,7 +16,6 @@ use std::io::Read;
 /// Default number of hashers to use when the availble parallelism can't be determined
 const DEFAULT_HASHERS_NUM: usize = 4;
 const MIN_THREADS: usize = 2;
-const MIN_BLOCKS_FOR_MULTITHREADING: u64 = 1;
 
 pub struct BlockHasher<'cont, 'hash_iter, 'reader> {
   container: &'cont protos::Container,
@@ -204,13 +203,11 @@ impl BlockHasher<'_, '_, '_> {
       };
 
       // Spawn the hasher threads
-      for hasher in &mut self.internal_hashers {
-        scope.spawn(move || hasher_thread(hasher, buffer_pool));
+      // If `file_blocks` is lower than the number of hashers, spawn only one hasher for each block
+      let hasher_threads_count = self.internal_hashers.len().min(file_blocks as usize);
 
-        // If there are only few blocks to hash, spawn only one hasher thread
-        if file_blocks <= MIN_BLOCKS_FOR_MULTITHREADING {
-          break;
-        }
+      for hasher in self.internal_hashers.iter_mut().take(hasher_threads_count) {
+        scope.spawn(move || hasher_thread(hasher, buffer_pool));
       }
 
       // Check the IO thread result
