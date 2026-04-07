@@ -34,53 +34,48 @@ impl PoolSlot {
     guard.block_index = block_index;
     guard.len = len;
 
-    RefillBuffer { slot: guard }
+    RefillBuffer(guard)
   }
 
   /// Get a [`HashBuffer`] from a [`MutexGuard<PoolSlot>`]
   pub fn get_hash_buffer(guard: MutexGuard<'_, PoolSlot>) -> HashBuffer<'_> {
-    HashBuffer { slot: guard }
+    HashBuffer(guard)
   }
 }
 
-pub struct RefillBuffer<'a> {
-  slot: MutexGuard<'a, PoolSlot>,
-}
-
-pub struct HashBuffer<'a> {
-  slot: MutexGuard<'a, PoolSlot>,
-}
+pub struct RefillBuffer<'a>(MutexGuard<'a, PoolSlot>);
+pub struct HashBuffer<'a>(MutexGuard<'a, PoolSlot>);
 
 impl RefillBuffer<'_> {
   pub fn slot_index(&self) -> usize {
-    self.slot.index
+    self.0.index
   }
 
   pub fn set_expected_hash(&mut self, expected_hash: [u8; MD5_HASH_LENGTH]) {
-    self.slot.expected_hash = expected_hash;
+    self.0.expected_hash = expected_hash;
   }
 
   pub fn buffer_mut(&mut self) -> &mut [u8] {
-    let len = self.slot.len;
-    &mut self.slot.buffer[..len]
+    let len = self.0.len;
+    &mut self.0.buffer[..len]
   }
 }
 
 impl HashBuffer<'_> {
   pub fn slot_index(&self) -> usize {
-    self.slot.index
+    self.0.index
   }
 
   pub fn block_index(&self) -> usize {
-    self.slot.block_index
+    self.0.block_index
   }
 
   pub fn expected_hash(&self) -> &[u8; MD5_HASH_LENGTH] {
-    &self.slot.expected_hash
+    &self.0.expected_hash
   }
 
   pub fn buffer(&self) -> &[u8] {
-    let len = self.slot.len;
-    &self.slot.buffer[..len]
+    let len = self.0.len;
+    &self.0.buffer[..len]
   }
 }
