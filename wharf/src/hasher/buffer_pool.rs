@@ -7,7 +7,7 @@ use header::{Header, PoolStatus, SlotStatus};
 
 use super::BlockHasherStatus;
 
-use parking_lot::{Mutex, MutexGuard};
+use parking_lot::{Condvar, Mutex, MutexGuard};
 
 pub struct BufferPool {
   slots: Vec<Mutex<PoolSlot>>,
@@ -49,25 +49,35 @@ impl BufferPoolSession<'_> {
       .expect("caller ensures slot is not in use")
   }
 
+  fn find_slot(
+    &self,
+    condvar: &Condvar,
+    expected_status: SlotStatus,
+    new_status: SlotStatus,
+  ) -> Option<MutexGuard<'_, PoolSlot>> {
+    let slot_index = {
+      // Lock the header
+      let status_guard = self.header.get_status_lock();
+
+      // Wait until an available slot can be obtained
+      PoolStatus::find_slot(status_guard, condvar, expected_status, new_status)?
+    };
+
+    // Obtain the slot
+    Some(self.get_slot(slot_index))
+  }
+
   pub fn get_buffer_to_refill(
     &self,
     block_index: usize,
     buffer_len: usize,
   ) -> Option<RefillBuffer<'_>> {
-    let slot_index = {
-      let status_guard = self.header.get_status_lock();
-
-      // Wait until an available slot can be obtained
-      PoolStatus::find_slot(
-        status_guard,
-        &self.header.refill_ready,
-        SlotStatus::WaitingForRefill,
-        SlotStatus::Refilling,
-      )?
-    };
-
     // Obtain the slot
-    let slot_guard = self.get_slot(slot_index);
+    let slot_guard = self.find_slot(
+      &self.header.refill_ready,
+      SlotStatus::WaitingForRefill,
+      SlotStatus::Refilling,
+    )?;
 
     Some(PoolSlot::get_refill_buffer(
       slot_guard,
@@ -77,20 +87,13 @@ impl BufferPoolSession<'_> {
   }
 
   pub fn get_buffer_to_hash(&self) -> Option<HashBuffer<'_>> {
-    let slot_index = {
-      let status_guard = self.header.get_status_lock();
-
-      // Wait until an available slot can be obtained
-      PoolStatus::find_slot(
-        status_guard,
-        &self.header.hash_ready,
-        SlotStatus::WaitingForHash,
-        SlotStatus::Hashing,
-      )?
-    };
-
     // Obtain the slot
-    let slot_guard = self.get_slot(slot_index);
+    let slot_guard = self.find_slot(
+      &self.header.hash_ready,
+      SlotStatus::WaitingForHash,
+      SlotStatus::Hashing,
+    )?;
+
     Some(PoolSlot::get_hash_buffer(slot_guard))
   }
 
