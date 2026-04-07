@@ -10,7 +10,7 @@ pub struct PoolSlot {
 
   expected_hash: [u8; MD5_HASH_LENGTH],
 
-  buffer: [u8; BLOCK_SIZE],
+  buffer: Box<[u8; BLOCK_SIZE]>,
   len: usize,
 }
 
@@ -20,7 +20,7 @@ impl PoolSlot {
       index,
       block_index: 0,
       expected_hash: [0u8; MD5_HASH_LENGTH],
-      buffer: [0u8; BLOCK_SIZE],
+      buffer: Box::new([0u8; BLOCK_SIZE]),
       len: 0,
     }
   }
