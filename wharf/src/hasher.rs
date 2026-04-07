@@ -190,7 +190,7 @@ impl BlockHasher<'_, '_, '_> {
     std::thread::scope(|scope| {
       // Spawn the IO thread
       let io_handle = {
-        scope.spawn(move || -> Result<(), BlockHasherError> {
+        scope.spawn(|| -> Result<(), BlockHasherError> {
           io_thread(
             file_size,
             file_blocks,
@@ -207,7 +207,7 @@ impl BlockHasher<'_, '_, '_> {
       let hasher_threads_count = self.internal_hashers.len().min(file_blocks as usize);
 
       for hasher in self.internal_hashers.iter_mut().take(hasher_threads_count) {
-        scope.spawn(move || hasher_thread(hasher, buffer_pool));
+        scope.spawn(|| hasher_thread(hasher, buffer_pool));
       }
 
       // Check the IO thread result
