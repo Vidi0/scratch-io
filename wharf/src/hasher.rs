@@ -204,9 +204,7 @@ impl BlockHasher<'_, '_, '_> {
 
       // Spawn the hasher threads
       // If `file_blocks` is lower than the number of hashers, spawn only one hasher for each block
-      let hasher_threads_count = self.internal_hashers.len().min(file_blocks as usize);
-
-      for hasher in self.internal_hashers.iter_mut().take(hasher_threads_count) {
+      for hasher in self.internal_hashers.iter_mut().take(file_blocks as usize) {
         scope.spawn(|| hasher_thread(hasher, buffer_pool));
       }
 
