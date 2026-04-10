@@ -1,9 +1,9 @@
 use crate::hasher::BlockHasher;
-use crate::patch::SyncEntryIter;
 use crate::patch::operations::{
   apply::{self, FileCheckpoint, PatchFileStatus},
   skip::SkipStatus,
 };
+use crate::patch::{SyncEntryIter, SyncHeader};
 use crate::pool::{ContainerBackedPool, Pool, SeekablePool, StagingPool, WritablePool};
 
 use serde::{Deserialize, Serialize};
@@ -59,6 +59,80 @@ pub struct ReconstructedFilesStatus {
   pub patched_files: Vec<PatchFileStatus>,
 }
 
+/// Apply the patch entry and patch the file into `staging_pool` at the index
+/// provided in the `header`.
+///
+/// The patch entry may not be applied if it is determined not to be necessary
+/// (either because it is empty or a literal copy of one in the old container).
+///
+/// # Returns
+///
+/// Whether the file was actually written to `staging_pool`, or an error.
+fn patch_file(
+  header: SyncHeader,
+  src_pool: &mut (impl SeekablePool + ContainerBackedPool),
+  staging_pool: &mut StagingPool,
+  patch_op_buffer: &mut Vec<u8>,
+  new_file_size: u64,
+  checkpoint: &mut StagingCheckpoint,
+  progress_callback: impl FnMut(u64) + Send,
+) -> Result<PatchFileStatus, String> {
+  // Get the entry index from the header before calling check_skip
+  let entry_index = header.file_index;
+
+  // Before patching, check if the file really needs patching
+  match header.check_skip(new_file_size, src_pool)? {
+    SkipStatus::Empty => Ok(PatchFileStatus::Empty),
+    SkipStatus::LiteralCopy { old_index } => Ok(PatchFileStatus::LiteralCopy { old_index }),
+    SkipStatus::NotSkippableRsync { mut op_iter } => {
+      // Open the new file
+      let mut new_file = staging_pool.get_writer(entry_index)?;
+
+      // Write all the new data into the file
+      apply::patch_rsync(
+        &mut op_iter,
+        &mut new_file,
+        new_file_size,
+        src_pool,
+        patch_op_buffer,
+        checkpoint.current_file,
+        |file_c| {
+          // If a sync op was successfully applied,
+          // save a checkpoint with the new data
+          checkpoint.update_current_file_checkpoint(file_c);
+          staging_pool.save_checkpoint(&checkpoint, false)
+        },
+        progress_callback,
+      )
+    }
+    SkipStatus::NotSkippableBsdiff {
+      target_index,
+      mut op_iter,
+    } => {
+      // Open the new file
+      let mut new_file = staging_pool.get_writer(entry_index)?;
+
+      // Write all the new data into the file
+      apply::patch_bsdiff(
+        &mut op_iter,
+        target_index,
+        &mut new_file,
+        new_file_size,
+        src_pool,
+        patch_op_buffer,
+        checkpoint.current_file,
+        |file_c| {
+          // If a sync op was successfully applied,
+          // save a checkpoint with the new data
+          checkpoint.update_current_file_checkpoint(file_c);
+          staging_pool.save_checkpoint(&checkpoint, false)
+        },
+        progress_callback,
+      )
+    }
+  }
+}
+
 pub fn reconstruct_modified_files(
   src_pool: &mut (impl SeekablePool + ContainerBackedPool),
   staging_pool: &mut StagingPool,
@@ -95,57 +169,16 @@ pub fn reconstruct_modified_files(
     let file_index = header.file_index;
     let new_file_size = dst_pool.get_container_size(file_index)?;
 
-    // Before patching, check if the file really needs patching
-    let mut status = match header.check_skip(new_file_size, src_pool)? {
-      SkipStatus::Empty => PatchFileStatus::Empty,
-      SkipStatus::LiteralCopy { old_index } => PatchFileStatus::LiteralCopy { old_index },
-      SkipStatus::NotSkippableRsync { mut op_iter } => {
-        // Open the new file
-        let mut new_file = staging_pool.get_writer(file_index)?;
-
-        // Write all the new data into the file
-        apply::patch_rsync(
-          &mut op_iter,
-          &mut new_file,
-          new_file_size,
-          src_pool,
-          patch_op_buffer,
-          checkpoint.current_file,
-          |file_c| {
-            // If a sync op was successfully applied,
-            // save a checkpoint with the new data
-            checkpoint.update_current_file_checkpoint(file_c);
-            staging_pool.save_checkpoint(&checkpoint, false)
-          },
-          &mut progress_callback,
-        )?
-      }
-      SkipStatus::NotSkippableBsdiff {
-        target_index,
-        mut op_iter,
-      } => {
-        // Open the new file
-        let mut new_file = staging_pool.get_writer(file_index)?;
-
-        // Write all the new data into the file
-        apply::patch_bsdiff(
-          &mut op_iter,
-          target_index,
-          &mut new_file,
-          new_file_size,
-          src_pool,
-          patch_op_buffer,
-          checkpoint.current_file,
-          |file_c| {
-            // If a sync op was successfully applied,
-            // save a checkpoint with the new data
-            checkpoint.update_current_file_checkpoint(file_c);
-            staging_pool.save_checkpoint(&checkpoint, false)
-          },
-          &mut progress_callback,
-        )?
-      }
-    };
+    // Patch the file (or skip patching instead if it is noy needed)
+    let mut status = patch_file(
+      header,
+      src_pool,
+      staging_pool,
+      patch_op_buffer,
+      new_file_size,
+      &mut checkpoint,
+      &mut progress_callback,
+    )?;
 
     // Verify the patched file
     if let Some(hasher) = hasher
