@@ -40,22 +40,13 @@ impl StagingCheckpoint {
   }
 
   /// Load the checkpoint
-  pub fn load(
-    &self,
-    sync_op_iter: &mut SyncEntryIter,
-    hasher: &mut Option<BlockHasher>,
-  ) -> Result<(), String> {
+  pub fn load(&self, sync_op_iter: &mut SyncEntryIter) -> Result<(), String> {
     if self.current_file_index() == 0 {
       return Ok(());
     }
 
     // Skip to the correct sync header
     sync_op_iter.skip_entries(self.current_file_index())?;
-
-    // Skip the hasher to the correct file
-    if let Some(hasher) = hasher {
-      hasher.skip_files(self.current_file_index() as usize)?;
-    }
 
     Ok(())
   }
@@ -86,7 +77,7 @@ pub fn reconstruct_modified_files(
     .unwrap_or_default();
 
   // Load the checkpoint
-  checkpoint.load(sync_op_iter, hasher)?;
+  checkpoint.load(sync_op_iter)?;
 
   // Important!
   // Send save checkpoint calls every time:
@@ -157,18 +148,14 @@ pub fn reconstruct_modified_files(
     };
 
     // Verify the patched file
-    if let Some(hasher) = hasher {
-      if let PatchFileStatus::Patched { written_bytes: _ } = status {
-        let mut reader = staging_pool.get_reader(file_index)?;
-        let hash_status = hasher.hash_next_file(&mut reader, |_| ())?;
+    if let Some(hasher) = hasher
+      && let PatchFileStatus::Patched { written_bytes: _ } = status
+    {
+      let mut reader = staging_pool.get_reader(file_index)?;
+      let hash_status = hasher.hash_next_file(&mut reader, file_index, |_| ())?;
 
-        if let BlockHasherStatus::HashMismatch { block_index: _ } = hash_status {
-          status = PatchFileStatus::Broken;
-        }
-      } else {
-        // It is VERY IMPORTANT to advance the hasher to the next file
-        // to avoid breaking the hasher iterator
-        hasher.skip_file()?;
+      if let BlockHasherStatus::HashMismatch { block_index: _ } = hash_status {
+        status = PatchFileStatus::Broken;
       }
     }
 

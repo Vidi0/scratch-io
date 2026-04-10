@@ -66,14 +66,17 @@ impl BlockHasher<'_, '_, '_> {
 }
 
 impl BlockHasher<'_, '_, '_> {
-  pub fn skip_file(&mut self) -> Result<(), String> {
+  fn skip_file(&mut self) -> Result<(), BlockHasherError> {
     let file_size = self.current_file_size()?;
     self.entry_index += 1;
 
-    self.hash_iter.skip_blocks(block_count(file_size))
+    self
+      .hash_iter
+      .skip_blocks(block_count(file_size))
+      .map_err(BlockHasherError::IterReturnedError)
   }
 
-  pub fn skip_files(&mut self, file_count: usize) -> Result<(), String> {
+  fn skip_files(&mut self, file_count: usize) -> Result<(), BlockHasherError> {
     for _ in 0..file_count {
       self.skip_file()?;
     }
@@ -164,18 +167,35 @@ impl BlockHasher<'_, '_, '_> {
   /// If the signature iterator runs out of hashes before all blocks are read,
   /// the iterator returns an error, or there is an I/O failure while reading
   /// the file.
+  ///
+  /// # Panics
+  ///
+  /// If `file_index` is lower or equal to the one provided in the last call
+  /// to this method.
   pub fn hash_next_file<F>(
     &mut self,
     reader: &mut F,
+    file_index: usize,
     progress_callback: impl FnMut(u64) + Send,
   ) -> Result<BlockHasherStatus, BlockHasherError>
   where
     F: Read + Send,
   {
+    assert!(file_index >= self.entry_index);
+
+    // Skip the files that hasn't been hashed in order to advance the hasher
+    // and avoid breaking the hasher iterator
+    if file_index > self.entry_index {
+      self.skip_files(self.entry_index - file_index)?;
+    }
+
     // Get the next file size and reader
     let file_size = self.current_file_size()?;
     let file_blocks = block_count(file_size);
 
+    // Before incrementing the entry index, the file index
+    // must be equal to the entry index in self
+    assert_eq!(file_index, self.entry_index);
     self.entry_index += 1;
 
     // Get the hash block iterator for the current file

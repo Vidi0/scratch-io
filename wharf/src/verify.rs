@@ -45,12 +45,11 @@ fn check_file_integrity(
 
   // If the length doesn't match, then this file is broken
   if file_size != Some(container_file_size) {
-    hasher.skip_file()?;
     return Ok(false);
   }
 
   let mut reader = src_pool.get_reader(entry_index)?;
-  let status = hasher.hash_next_file(&mut reader, progress_callback)?;
+  let status = hasher.hash_next_file(&mut reader, entry_index, progress_callback)?;
 
   Ok(match status {
     BlockHasherStatus::Ok => true,
