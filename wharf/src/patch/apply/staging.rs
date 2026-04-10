@@ -167,7 +167,7 @@ fn reconstruct_files_common<F>(
   patch_op_buffer: &mut Vec<u8>,
   mut progress_callback: impl FnMut(u64) + Send,
   mut on_file_patched: F,
-) -> Result<ReconstructedFilesStatus, String>
+) -> Result<StagingCheckpoint, String>
 where
   F: FnMut(PatchedFileInfo) -> Result<(), String>,
 {
@@ -218,9 +218,7 @@ where
     })?;
   }
 
-  Ok(ReconstructedFilesStatus {
-    patched_files: checkpoint.patched_files,
-  })
+  Ok(checkpoint)
 }
 
 fn reconstruct_without_verification(
@@ -246,6 +244,9 @@ fn reconstruct_without_verification(
     progress_callback,
     on_file_patched,
   )
+  .map(|checkpoint| ReconstructedFilesStatus {
+    patched_files: checkpoint.patched_files,
+  })
 }
 
 pub fn reconstruct_with_verification(
@@ -290,6 +291,9 @@ pub fn reconstruct_with_verification(
     progress_callback,
     on_file_patched,
   )
+  .map(|checkpoint| ReconstructedFilesStatus {
+    patched_files: checkpoint.patched_files,
+  })
 }
 
 pub fn reconstruct_modified_files(
