@@ -186,7 +186,7 @@ impl BlockHasher<'_, '_, '_> {
     // Skip the files that hasn't been hashed in order to advance the hasher
     // and avoid breaking the hasher iterator
     if file_index > self.entry_index {
-      self.skip_files(self.entry_index - file_index)?;
+      self.skip_files(file_index - self.entry_index)?;
     }
 
     // Get the next file size and reader
