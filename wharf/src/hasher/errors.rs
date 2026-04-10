@@ -39,3 +39,16 @@ pub enum BlockHasherStatus {
   Ok,
   HashMismatch { block_index: usize },
 }
+
+impl BlockHasherStatus {
+  pub fn is_intact(&self) -> bool {
+    match self {
+      Self::Ok => true,
+      Self::HashMismatch { .. } => false,
+    }
+  }
+
+  pub fn is_broken(&self) -> bool {
+    !self.is_intact()
+  }
+}

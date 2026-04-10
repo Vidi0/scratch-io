@@ -1,5 +1,5 @@
 use super::Signature;
-use crate::hasher::{BlockHasher, BlockHasherStatus};
+use crate::hasher::BlockHasher;
 use crate::pool::{ContainerBackedPool, ContainerPool, Pool};
 use crate::protos;
 
@@ -51,10 +51,7 @@ fn check_file_integrity(
   let mut reader = src_pool.get_reader(entry_index)?;
   let status = hasher.hash_next_file(&mut reader, entry_index, progress_callback)?;
 
-  Ok(match status {
-    BlockHasherStatus::Ok => true,
-    BlockHasherStatus::HashMismatch { block_index: _ } => false,
-  })
+  Ok(status.is_intact())
 }
 
 impl Signature<'_> {

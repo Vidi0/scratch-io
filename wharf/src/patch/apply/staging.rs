@@ -1,4 +1,4 @@
-use crate::hasher::{BlockHasher, BlockHasherStatus};
+use crate::hasher::BlockHasher;
 use crate::patch::SyncEntryIter;
 use crate::patch::operations::{
   apply::{self, FileCheckpoint, PatchFileStatus},
@@ -154,7 +154,7 @@ pub fn reconstruct_modified_files(
       let mut reader = staging_pool.get_reader(file_index)?;
       let hash_status = hasher.hash_next_file(&mut reader, file_index, |_| ())?;
 
-      if let BlockHasherStatus::HashMismatch { block_index: _ } = hash_status {
+      if hash_status.is_broken() {
         status = PatchFileStatus::Broken;
       }
     }
