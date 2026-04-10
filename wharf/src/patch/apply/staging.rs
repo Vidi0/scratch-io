@@ -133,15 +133,32 @@ fn patch_file(
   }
 }
 
-pub fn reconstruct_modified_files(
+struct PatchedFileInfo<'checkpoint, 'pool, 'pool_path> {
+  file_index: usize,
+  status: PatchFileStatus,
+  checkpoint: &'checkpoint mut StagingCheckpoint,
+  staging_pool: &'pool mut StagingPool<'pool_path>,
+}
+
+/// Shared patching logic
+///
+/// Calls `on_file_patched` after each file is patched with its status.
+/// The status with be returned in order. In order to allow the callback
+/// to read the patched file and update the checkpoint, a mutable reference
+/// to the [`StagingPool`] is provided. The callback decides what to do
+/// with the status (verify it, store it, etc.)
+fn reconstruct_files_common<F>(
   src_pool: &mut (impl SeekablePool + ContainerBackedPool),
   staging_pool: &mut StagingPool,
   dst_pool: &mut impl ContainerBackedPool,
   sync_op_iter: &mut SyncEntryIter,
-  hasher: &mut Option<BlockHasher>,
   patch_op_buffer: &mut Vec<u8>,
   mut progress_callback: impl FnMut(u64) + Send,
-) -> Result<ReconstructedFilesStatus, String> {
+  mut on_file_patched: F,
+) -> Result<ReconstructedFilesStatus, String>
+where
+  F: FnMut(PatchedFileInfo) -> Result<(), String>,
+{
   // Deserialize the last checkpoint stored in the staging folder
   // Get the default checkpoint (empty) if it doesn't exist
   // Because it is expensive to clone the checkpoint every time, it
@@ -169,8 +186,8 @@ pub fn reconstruct_modified_files(
     let file_index = header.file_index;
     let new_file_size = dst_pool.get_container_size(file_index)?;
 
-    // Patch the file (or skip patching instead if it is noy needed)
-    let mut status = patch_file(
+    // Patch the file (or skip patching instead if it is not needed)
+    let status = patch_file(
       header,
       src_pool,
       staging_pool,
@@ -180,24 +197,111 @@ pub fn reconstruct_modified_files(
       &mut progress_callback,
     )?;
 
-    // Verify the patched file
-    if let Some(hasher) = hasher
-      && let PatchFileStatus::Patched { written_bytes: _ } = status
-    {
-      let mut reader = staging_pool.get_reader(file_index)?;
-      let hash_status = hasher.hash_next_file(&mut reader, file_index, |_| ())?;
-
-      if hash_status.is_broken() {
-        status = PatchFileStatus::Broken;
-      }
-    }
-
-    // Update the checkpoint and save it
-    checkpoint.push_status(status);
-    staging_pool.save_checkpoint(&checkpoint, false)?;
+    // Return the status and let the caller decide what to do with it
+    on_file_patched(PatchedFileInfo {
+      file_index,
+      status,
+      checkpoint: &mut checkpoint,
+      staging_pool,
+    })?;
   }
 
   Ok(ReconstructedFilesStatus {
     patched_files: checkpoint.patched_files,
   })
+}
+
+fn reconstruct_without_verification(
+  src_pool: &mut (impl SeekablePool + ContainerBackedPool),
+  staging_pool: &mut StagingPool,
+  dst_pool: &mut impl ContainerBackedPool,
+  sync_op_iter: &mut SyncEntryIter,
+  patch_op_buffer: &mut Vec<u8>,
+  progress_callback: impl FnMut(u64) + Send,
+) -> Result<ReconstructedFilesStatus, String> {
+  let on_file_patched = |info: PatchedFileInfo| {
+    // Update the checkpoint and save it
+    info.checkpoint.push_status(info.status);
+    info.staging_pool.save_checkpoint(&info.checkpoint, false)
+  };
+
+  reconstruct_files_common(
+    src_pool,
+    staging_pool,
+    dst_pool,
+    sync_op_iter,
+    patch_op_buffer,
+    progress_callback,
+    on_file_patched,
+  )
+}
+
+pub fn reconstruct_with_verification(
+  src_pool: &mut (impl SeekablePool + ContainerBackedPool),
+  staging_pool: &mut StagingPool,
+  dst_pool: &mut impl ContainerBackedPool,
+  sync_op_iter: &mut SyncEntryIter,
+  hasher: &mut BlockHasher,
+  patch_op_buffer: &mut Vec<u8>,
+  progress_callback: impl FnMut(u64) + Send,
+) -> Result<ReconstructedFilesStatus, String> {
+  let on_file_patched = |mut info: PatchedFileInfo| {
+    // If the file has been patched, hash it
+    if let PatchFileStatus::Patched { .. } = info.status {
+      // Get the reader
+      let mut reader = info.staging_pool.get_reader(info.file_index)?;
+
+      // Hash the file
+      let hash_status = hasher.hash_next_file(&mut reader, info.file_index, |_| ())?;
+
+      // Check the status
+      if hash_status.is_broken() {
+        info.status = PatchFileStatus::Broken;
+      }
+    }
+
+    // Update the checkpoint and save it
+    info.checkpoint.push_status(info.status);
+    info.staging_pool.save_checkpoint(&info.checkpoint, false)
+  };
+
+  reconstruct_files_common(
+    src_pool,
+    staging_pool,
+    dst_pool,
+    sync_op_iter,
+    patch_op_buffer,
+    progress_callback,
+    on_file_patched,
+  )
+}
+
+pub fn reconstruct_modified_files(
+  src_pool: &mut (impl SeekablePool + ContainerBackedPool),
+  staging_pool: &mut StagingPool,
+  dst_pool: &mut impl ContainerBackedPool,
+  sync_op_iter: &mut SyncEntryIter,
+  hasher: &mut Option<BlockHasher>,
+  patch_op_buffer: &mut Vec<u8>,
+  progress_callback: impl FnMut(u64) + Send,
+) -> Result<ReconstructedFilesStatus, String> {
+  match hasher {
+    None => reconstruct_without_verification(
+      src_pool,
+      staging_pool,
+      dst_pool,
+      sync_op_iter,
+      patch_op_buffer,
+      progress_callback,
+    ),
+    Some(hasher) => reconstruct_with_verification(
+      src_pool,
+      staging_pool,
+      dst_pool,
+      sync_op_iter,
+      hasher,
+      patch_op_buffer,
+      progress_callback,
+    ),
+  }
 }
