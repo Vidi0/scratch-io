@@ -18,6 +18,9 @@ pub struct StagingCheckpoint {
   /// A checkpoint representing the file that is currently
   /// being patched
   current_file: Option<FileCheckpoint>,
+
+  /// The number of files that have been verified (successfully or not)
+  verified_files: usize,
 }
 
 impl StagingCheckpoint {
@@ -37,6 +40,15 @@ impl StagingCheckpoint {
 
     // Clear the current file checkpoint
     self.current_file = None;
+  }
+
+  /// Must be called after [`StagingCheckpoint::push_status`]
+  pub fn store_verification(&mut self, file_index: usize, is_broken: bool) {
+    self.verified_files += 1;
+
+    if is_broken {
+      self.patched_files[file_index] = PatchFileStatus::Broken;
+    }
   }
 
   /// Load the checkpoint
@@ -245,7 +257,10 @@ pub fn reconstruct_with_verification(
   patch_op_buffer: &mut Vec<u8>,
   progress_callback: impl FnMut(u64) + Send,
 ) -> Result<ReconstructedFilesStatus, String> {
-  let on_file_patched = |mut info: PatchedFileInfo| {
+  let on_file_patched = |info: PatchedFileInfo| {
+    // Update the checkpoint
+    info.checkpoint.push_status(info.status);
+
     // If the file has been patched, hash it
     if let PatchFileStatus::Patched { .. } = info.status {
       // Get the reader
@@ -254,14 +269,15 @@ pub fn reconstruct_with_verification(
       // Hash the file
       let hash_status = hasher.hash_next_file(&mut reader, info.file_index, |_| ())?;
 
-      // Check the status
-      if hash_status.is_broken() {
-        info.status = PatchFileStatus::Broken;
-      }
+      // Check the status and store it into the checkpoint
+      let is_broken = hash_status.is_broken();
+
+      info
+        .checkpoint
+        .store_verification(info.file_index, is_broken);
     }
 
-    // Update the checkpoint and save it
-    info.checkpoint.push_status(info.status);
+    // Save the checkpoint
     info.staging_pool.save_checkpoint(&info.checkpoint, false)
   };
 
