@@ -15,8 +15,8 @@ use std::io::Read;
 
 /// Default number of hashers to use when the availble parallelism can't be determined
 const DEFAULT_HASHERS_NUM: usize = 4;
-/// Do hashing multithreaded for files with more than 4 blocks
-const MIN_BLOCKS_FOR_MULTITHREADING: u64 = 5;
+/// Do hashing multithreaded for files with 4 or more blocks
+const MIN_BLOCKS_FOR_MULTITHREADING: u64 = 4;
 /// When verifying a file multithreaded, how many threads to use at minimum.
 const MIN_THREADS: usize = 2;
 
