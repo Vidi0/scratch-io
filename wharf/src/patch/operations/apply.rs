@@ -57,6 +57,9 @@ pub enum PatchFileStatus {
 
   /// The file could not be patched (the old container has missing data)
   Broken,
+
+  /// The file contains the wrong data, so its contents cannot be trusted
+  VerificationFailed,
 }
 
 /// Set the length of a file, but only to shrink it

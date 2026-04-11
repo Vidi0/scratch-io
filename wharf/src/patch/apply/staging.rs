@@ -19,7 +19,12 @@ pub struct StagingCheckpoint {
   /// being patched
   current_file: Option<FileCheckpoint>,
 
-  /// The number of files that have been verified (successfully or not)
+  /// The number of files that have been verified (successfully or not).
+  ///
+  /// Only files that have acually been patched will be verified. For that reason,
+  /// [`Self::verified_files`] is always lower or equal to the number of files in
+  /// [`Self::patched_files`] with status [`PatchFileStatus::Patched`] or
+  /// [`PatchFileStatus::VerificationFailed`].
   verified_files: usize,
 }
 
@@ -47,7 +52,7 @@ impl StagingCheckpoint {
     self.verified_files += 1;
 
     if is_broken {
-      self.patched_files[file_index] = PatchFileStatus::Broken;
+      self.patched_files[file_index] = PatchFileStatus::VerificationFailed;
     }
   }
 
