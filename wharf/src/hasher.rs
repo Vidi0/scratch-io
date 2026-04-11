@@ -85,6 +85,24 @@ impl BlockHasher<'_, '_, '_> {
   }
 }
 
+fn hasher_thread(hasher: &mut InternalHasher, buffer_pool: &BufferPoolSession) {
+  loop {
+    let Some(buffer) = buffer_pool.get_buffer_to_hash() else {
+      return;
+    };
+
+    let status = hasher.hash_block(&buffer);
+
+    // Leave the block buffer available to be filled by the IO thread again
+    buffer_pool.release_hashed_buffer(buffer);
+
+    if let BlockHasherStatus::HashMismatch { block_index } = status {
+      buffer_pool.set_failed(block_index);
+      return;
+    }
+  }
+}
+
 fn io_thread(
   file_size: u64,
   hash_iter: &mut FileHashIter,
@@ -124,24 +142,6 @@ fn io_thread(
   }
 
   Ok(())
-}
-
-fn hasher_thread(hasher: &mut InternalHasher, buffer_pool: &BufferPoolSession) {
-  loop {
-    let Some(buffer) = buffer_pool.get_buffer_to_hash() else {
-      return;
-    };
-
-    let status = hasher.hash_block(&buffer);
-
-    // Leave the block buffer available to be filled by the IO thread again
-    buffer_pool.release_hashed_buffer(buffer);
-
-    if let BlockHasherStatus::HashMismatch { block_index } = status {
-      buffer_pool.set_failed(block_index);
-      return;
-    }
-  }
 }
 
 impl BlockHasher<'_, '_, '_> {
