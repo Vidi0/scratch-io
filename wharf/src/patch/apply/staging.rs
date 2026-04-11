@@ -486,8 +486,7 @@ pub fn reconstruct_with_verification(
     hasher_handle.join().unwrap()?;
 
     // Assert the number of patched files and verified files is the same
-    let patched_files_count = checkpoint.patched_files_count();
-    assert_eq!(patched_files_count, checkpoint.verified_files);
+    assert_eq!(checkpoint.patched_files_count(), checkpoint.verified_files);
 
     Ok(ReconstructedFilesStatus {
       patched_files: checkpoint.patched_files,
