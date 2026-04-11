@@ -87,17 +87,14 @@ impl BlockHasher<'_, '_, '_> {
 
 fn io_thread(
   file_size: u64,
-  file_blocks: u64,
   hash_iter: &mut FileHashIter,
   reader: &mut impl Read,
   buffer_pool: &BufferPoolSession,
   mut progress_callback: impl FnMut(u64) + Send,
 ) -> Result<(), BlockHasherError> {
-  for block_index in 0..file_blocks as usize {
+  for (block_index, expected_hash) in hash_iter.enumerate() {
     // Read the expected hash from the signature
-    let expected_hash = hash_iter
-      .next()
-      .ok_or(BlockHasherError::MissingHashFromIter)?
+    let expected_hash = expected_hash
       .map(|hash| hash.strong_hash)
       .map_err(BlockHasherError::IterReturnedError)?;
 
@@ -211,7 +208,6 @@ impl BlockHasher<'_, '_, '_> {
         scope.spawn(|| -> Result<(), BlockHasherError> {
           io_thread(
             file_size,
-            file_blocks,
             file_hash_iter,
             reader,
             buffer_pool,

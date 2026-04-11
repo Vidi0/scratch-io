@@ -5,9 +5,6 @@ pub enum BlockHasherError {
   #[error("The file block hash iterator could not be obtained!")]
   CouldNotObtainIter(String),
 
-  #[error("Expected block hash from iterator, got EOF!")]
-  MissingHashFromIter,
-
   #[error(
     "The iterator returned an error:
 {0}"
