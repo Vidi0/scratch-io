@@ -87,6 +87,11 @@ impl BlockHasher<'_, '_, '_> {
   }
 }
 
+/// Continuously hash blocks from the buffer pool until no more are available or a mismatch is found.
+///
+/// Must be run on a dedicated hasher thread. Blocks waiting for a filled buffer, hashes it,
+/// then releases it back to the pool for refilling. On a mismatch, signals failure
+/// via the pool and returns.
 fn hasher_thread(hasher: &mut InternalHasher, buffer_pool: &BufferPoolSession) {
   loop {
     let Some(buffer) = buffer_pool.get_buffer_to_hash() else {
@@ -105,6 +110,16 @@ fn hasher_thread(hasher: &mut InternalHasher, buffer_pool: &BufferPoolSession) {
   }
 }
 
+/// Read blocks from `reader` and feed them into the buffer pool for hasher threads to consume.
+///
+/// Must be run on a dedicated IO thread. For each block, reads the expected hash from `hash_iter`,
+/// waits for a free buffer slot, fills it with file data, then releases it to the hashers.
+/// Returns early without error if the pool signals that verification has finished
+/// (e.g. a hasher found a mismatch).
+///
+/// # Errors
+///
+/// If the iterator returns an error or there is an I/O failure while reading the file.
 fn io_thread(
   file_size: u64,
   hash_iter: &mut FileHashIter,
