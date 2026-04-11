@@ -16,6 +16,8 @@ pub struct BufferPool {
 
 impl BufferPool {
   pub fn new(pool_size: usize) -> Self {
+    assert_ne!(pool_size, 0);
+
     Self {
       slots: (0..pool_size)
         .map(|index| Mutex::new(PoolSlot::new(index)))
