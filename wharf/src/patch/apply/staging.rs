@@ -40,12 +40,9 @@ impl StagingCheckpoint {
   /// Return the number of files that have been patched (the status is
   /// [`PatchFileStatus::Patched`] or [`PatchFileStatus::VerificationFailed`])
   pub fn patched_files_count(&self) -> usize {
-    self.patched_files.iter().fold(0usize, |acc, x| {
-      if matches!(
-        x,
-        PatchFileStatus::Patched { .. } | PatchFileStatus::VerificationFailed
-      ) {
-        // If the file has been patched, add 1 to the count
+    self.patched_files.iter().fold(0usize, |acc, status| {
+      // If the file has been patched, add 1 to the count
+      if status.has_been_patched() {
         acc + 1
       } else {
         acc

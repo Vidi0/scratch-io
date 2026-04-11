@@ -62,6 +62,17 @@ pub enum PatchFileStatus {
   VerificationFailed,
 }
 
+impl PatchFileStatus {
+  /// Return true if the status is equal to [`PatchFileStatus::Patched`]
+  /// or [`PatchFileStatus::VerificationFailed`]
+  pub fn has_been_patched(&self) -> bool {
+    matches!(
+      self,
+      PatchFileStatus::Patched { .. } | PatchFileStatus::VerificationFailed
+    )
+  }
+}
+
 /// Set the length of a file, but only to shrink it
 fn truncate_file(file: &mut File, new_len: u64) -> Result<(), String> {
   // Get the metadata
