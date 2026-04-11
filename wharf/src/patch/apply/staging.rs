@@ -330,6 +330,34 @@ fn send_file_to_hasher(
   Ok(())
 }
 
+/// Send file that have not been sent yet to the hasher thread but
+/// have been already patched
+///
+/// This is needed because, after loading a checkpoint, some files might have been patched
+/// but their verification might not have been completed. This function will send all those
+/// files into the hasher thread.
+///
+/// Because files are verified in order, the index of the files that haven't been verified yet
+/// can be determined.
+fn send_available_files_to_verify(
+  checkpoint: &mut StagingCheckpoint,
+  staging_pool: &mut StagingPool,
+  file_sender: &SyncSender<FileToVerify>,
+) -> Result<(), String> {
+  // For each file in the checkpoint (and its index):
+  //
+  // 1. Remove the files that have not been patched from the iterator
+  // 2. Skip the files that have already been verified
+  // 3. Send the remaining files to the hasher
+  checkpoint
+    .patched_files
+    .iter()
+    .enumerate()
+    .filter_map(|(index, status)| status.has_been_patched().then_some(index))
+    .skip(checkpoint.verified_files)
+    .try_for_each(|file_index| send_file_to_hasher(file_index, staging_pool, file_sender))
+}
+
 fn handle_verification_results(
   verification_status_receiver: &Receiver<VerificationResult>,
   checkpoint: &mut StagingCheckpoint,
@@ -400,6 +428,9 @@ pub fn reconstruct_with_verification(
   // Store the receiver as a reference
   let verification_status_receiver = &verification_status_receiver;
 
+  // Send the files that have been patched but not verifyed into the hasher thread
+  send_available_files_to_verify(&mut checkpoint, staging_pool, &file_sender)?;
+
   // Move clousure to drop the file sender when it goes out of scope
   //
   // The verification status receiver is passed into the closure as a reference to allow using it
@@ -430,11 +461,6 @@ pub fn reconstruct_with_verification(
     // Spawn the hasher thread
     let hasher_handle =
       scope.spawn(|| verify_files_thread(hasher, file_receiver, verification_status_sender));
-
-    //
-    // TODO: SEND THE PREVIOUS FILES THAT HAVE NOT BEEN VERIFIED BUT HAVE BEEN PATCHED INTO THE HASHER THREAD
-    // (ONES FROM THE CHECKPOINT)
-    //
 
     // Patch the files, passing the verified ones to the hasher thread
     reconstruct_files_common(
