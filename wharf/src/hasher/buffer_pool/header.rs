@@ -132,12 +132,7 @@ impl Header {
   }
 
   pub fn reset(&mut self, total_blocks: u64) {
-    let mut status = self
-      .status
-      .try_lock()
-      .expect("could not get status lock in header when doing a reset");
-
-    status.reset(total_blocks);
+    self.status.get_mut().reset(total_blocks);
   }
 
   /// Get a [`MutexGuard`] holding the header status
