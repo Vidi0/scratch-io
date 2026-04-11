@@ -7,7 +7,7 @@ pub use errors::{BlockHasherError, BlockHasherStatus};
 use buffer_pool::{BufferPool, BufferPoolSession, HashBuffer};
 use internal_hasher::InternalHasher;
 
-use crate::common::{BLOCK_SIZE, block_count};
+use crate::common::{BLOCK_SIZE, block_count, block_size};
 use crate::protos;
 use crate::signature::{BlockHashIter, FileHashIter};
 
@@ -137,10 +137,7 @@ fn io_thread(
       .map_err(BlockHasherError::IterReturnedError)?;
 
     // Calculate how many bytes to read for this block
-    let buffer_len = {
-      let bytes_remaining = file_size as usize - (block_index * BLOCK_SIZE);
-      BLOCK_SIZE.min(bytes_remaining)
-    };
+    let buffer_len = block_size(block_index, file_size);
 
     // Get the block buffer
     let Some(mut block_buffer) = buffer_pool.get_buffer_to_refill(block_index, buffer_len) else {
@@ -195,10 +192,7 @@ fn singlethreaded_hash(
       .map_err(BlockHasherError::IterReturnedError)?;
 
     // Calculate how many bytes to read for this block
-    let buffer_len = {
-      let bytes_remaining = file_size as usize - (block_index * BLOCK_SIZE);
-      BLOCK_SIZE.min(bytes_remaining)
-    };
+    let buffer_len = block_size(block_index, file_size);
 
     // Set the correct buffer size
     let buffer = &mut buffer[..buffer_len];
