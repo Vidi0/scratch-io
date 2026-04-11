@@ -41,6 +41,11 @@ impl PoolSlot {
   pub fn get_hash_buffer(guard: MutexGuard<'_, PoolSlot>) -> HashBuffer<'_> {
     HashBuffer(guard)
   }
+
+  /// Get the raw buffer that composes this [`PoolSlot`]
+  pub fn buffer_mut(&mut self) -> &mut [u8; BLOCK_SIZE] {
+    &mut self.buffer
+  }
 }
 
 pub struct RefillBuffer<'a>(MutexGuard<'a, PoolSlot>);

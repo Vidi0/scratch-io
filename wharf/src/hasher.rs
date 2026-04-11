@@ -15,6 +15,9 @@ use std::io::Read;
 
 /// Default number of hashers to use when the availble parallelism can't be determined
 const DEFAULT_HASHERS_NUM: usize = 4;
+/// Do hashing multithreaded for files with more than 4 blocks
+const MIN_BLOCKS_FOR_MULTITHREADING: u64 = 5;
+/// When verifying a file multithreaded, how many threads to use at minimum.
 const MIN_THREADS: usize = 2;
 
 pub struct BlockHasher<'cont, 'hash_iter, 'reader> {
@@ -161,6 +164,62 @@ fn io_thread(
   Ok(())
 }
 
+/// Hash all blocks of a file on the calling thread, verifying each against the signature.
+///
+/// Reads the file block by block from `reader`, hashing each block and comparing it
+/// against the expected hash from `hash_iter`. Returns immediately on the first mismatch.
+///
+/// Intended for small files where spawning threads would cost more than the hashing itself.
+///
+/// # Returns
+///
+/// - [`BlockHasherStatus::Ok`] if all blocks match their expected hashes.
+/// - [`BlockHasherStatus::HashMismatch`] if any block fails verification,
+///   containing the index of the first mismatched block.
+///
+/// # Errors
+///
+/// If the iterator returns an error or there is an I/O failure while reading the file.
+fn singlethreaded_hash(
+  file_size: u64,
+  hash_iter: &mut FileHashIter,
+  reader: &mut impl Read,
+  buffer: &mut [u8; BLOCK_SIZE],
+  hasher: &mut InternalHasher,
+  mut progress_callback: impl FnMut(u64) + Send,
+) -> Result<BlockHasherStatus, BlockHasherError> {
+  for (block_index, expected_hash) in hash_iter.enumerate() {
+    // Read the expected hash from the signature
+    let expected_hash = expected_hash
+      .map(|hash| hash.strong_hash)
+      .map_err(BlockHasherError::IterReturnedError)?;
+
+    // Calculate how many bytes to read for this block
+    let buffer_len = {
+      let bytes_remaining = file_size as usize - (block_index * BLOCK_SIZE);
+      BLOCK_SIZE.min(bytes_remaining)
+    };
+
+    // Set the correct buffer size
+    let buffer = &mut buffer[..buffer_len];
+
+    // Read the file block into the buffer
+    reader
+      .read_exact(buffer)
+      .map_err(BlockHasherError::ReaderFailed)?;
+
+    // Hash the data and check the status
+    let status = hasher.hash_data(block_index, &expected_hash, buffer);
+    if let BlockHasherStatus::HashMismatch { .. } = status {
+      return Ok(status);
+    }
+
+    progress_callback(buffer_len as u64);
+  }
+
+  Ok(BlockHasherStatus::Ok)
+}
+
 impl BlockHasher<'_, '_, '_> {
   /// Hash the next file and verify its integrity against the signature
   ///
@@ -215,6 +274,28 @@ impl BlockHasher<'_, '_, '_> {
       .hash_iter
       .next_file(file_blocks)
       .map_err(BlockHasherError::CouldNotObtainIter)?;
+
+    // If there are only a few blocks, do hashing singlethreaded
+    if file_blocks < MIN_BLOCKS_FOR_MULTITHREADING {
+      // Reset the buffer pool for a singlethreaded session
+      let buffer = self.buffer_pool.new_session_singlethreaded();
+
+      let hasher = self
+        .internal_hashers
+        .get_mut(0)
+        .expect("This BlockHasher must contain at least one internal_hasher!");
+
+      return singlethreaded_hash(
+        file_size,
+        file_hash_iter,
+        reader,
+        buffer,
+        hasher,
+        progress_callback,
+      );
+    }
+
+    // If there are many blocks, then hash in a multithreaded fashion
 
     // Reset the buffer pool
     let buffer_pool = &self.buffer_pool.new_session(file_blocks);

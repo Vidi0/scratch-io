@@ -6,6 +6,7 @@ pub use slot::{HashBuffer, PoolSlot, RefillBuffer};
 use header::{Header, PoolStatus, SlotStatus};
 
 use super::BlockHasherStatus;
+use crate::common::BLOCK_SIZE;
 
 use parking_lot::{Condvar, Mutex, MutexGuard};
 
@@ -35,6 +36,11 @@ impl BufferPool {
       slots: &self.slots,
       header: &self.header,
     }
+  }
+
+  /// This function returns a single buffer
+  pub fn new_session_singlethreaded(&mut self) -> &mut [u8; BLOCK_SIZE] {
+    self.slots[0].get_mut().buffer_mut()
   }
 }
 
