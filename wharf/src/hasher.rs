@@ -37,6 +37,8 @@ impl<'cont, 'hash_iter, 'reader> BlockHasher<'cont, 'hash_iter, 'reader> {
       .unwrap_or(DEFAULT_HASHERS_NUM)
       .max(MIN_THREADS);
 
+    assert!(num_hashers > 0);
+
     Self {
       container,
       entry_index: 0,
