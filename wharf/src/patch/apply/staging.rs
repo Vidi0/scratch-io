@@ -37,6 +37,22 @@ impl StagingCheckpoint {
     self.patched_files.len() as u64
   }
 
+  /// Return the number of files that have been patched (the status is
+  /// [`PatchFileStatus::Patched`] or [`PatchFileStatus::VerificationFailed`])
+  pub fn patched_files_count(&self) -> usize {
+    self.patched_files.iter().fold(0usize, |acc, x| {
+      if matches!(
+        x,
+        PatchFileStatus::Patched { .. } | PatchFileStatus::VerificationFailed
+      ) {
+        // If the file has been patched, add 1 to the count
+        acc + 1
+      } else {
+        acc
+      }
+    })
+  }
+
   pub fn update_current_file_checkpoint(&mut self, checkpoint: FileCheckpoint) {
     self.current_file = Some(checkpoint)
   }
@@ -399,6 +415,11 @@ pub fn reconstruct_with_verification(
     let hasher_handle =
       scope.spawn(|| verify_files_thread(hasher, file_receiver, verification_status_sender));
 
+    //
+    // TODO: SEND THE PREVIOUS FILES THAT HAVE NOT BEEN VERIFIED BUT HAVE BEEN PATCHED INTO THE HASHER THREAD
+    // (ONES FROM THE CHECKPOINT)
+    //
+
     // Patch the files, passing the verified ones to the hasher thread
     let mut checkpoint = reconstruct_files_common(
       src_pool,
@@ -420,6 +441,10 @@ pub fn reconstruct_with_verification(
 
     // Wait for the hasher thread to stop
     hasher_handle.join().unwrap()?;
+
+    // Assert the number of patched files and verified files is the same
+    let patched_files_count = checkpoint.patched_files_count();
+    assert_eq!(patched_files_count, checkpoint.verified_files);
 
     Ok(ReconstructedFilesStatus {
       patched_files: checkpoint.patched_files,
