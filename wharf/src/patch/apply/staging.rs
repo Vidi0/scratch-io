@@ -314,6 +314,22 @@ fn verify_files_thread(
   }
 }
 
+fn send_file_to_hasher(
+  file_index: usize,
+  staging_pool: &mut StagingPool,
+  file_sender: &SyncSender<FileToVerify>,
+) -> Result<(), String> {
+  // Get the reader
+  let reader = staging_pool.get_reader(file_index)?;
+
+  // Send the file to the hasher
+  file_sender
+    .send(FileToVerify { file_index, reader })
+    .expect("The hasher thread must NOT hung up until we do it!");
+
+  Ok(())
+}
+
 fn handle_verification_results(
   verification_status_receiver: &Receiver<VerificationResult>,
   checkpoint: &mut StagingCheckpoint,
@@ -395,16 +411,8 @@ pub fn reconstruct_with_verification(
     // If the file has been patched, send it though the channel in order for
     // the hasher thread to hash it
     if let PatchFileStatus::Patched { .. } = info.status {
-      // Get the reader
-      let reader = info.staging_pool.get_reader(info.file_index)?;
-
       // Send the file to the hasher
-      file_sender
-        .send(FileToVerify {
-          file_index: info.file_index,
-          reader,
-        })
-        .expect("The hasher thread must NOT hung up until we do it!");
+      send_file_to_hasher(info.file_index, info.staging_pool, &file_sender)?;
 
       // Check if the hasher thread has finished verifying any new files
       handle_verification_results(
