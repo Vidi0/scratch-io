@@ -1,5 +1,5 @@
 use super::{BlockHasherStatus, HashBuffer};
-use crate::signature::Md5HashSize;
+use crate::signature::{MD5_HASH_LENGTH, Md5HashSize};
 
 use md5::digest::array::Array;
 use md5::{Digest, Md5};
@@ -20,16 +20,23 @@ impl InternalHasher {
 }
 
 impl InternalHasher {
-  pub fn hash_block(&mut self, block: &HashBuffer) -> BlockHasherStatus {
-    self.hasher.update(block.buffer());
+  pub fn hash_data(
+    &mut self,
+    block_index: usize,
+    expected_hash: &[u8; MD5_HASH_LENGTH],
+    buffer: &[u8],
+  ) -> BlockHasherStatus {
+    self.hasher.update(buffer);
     self.hasher.finalize_into_reset(&mut self.hash_buffer);
 
-    if self.hash_buffer == *block.expected_hash() {
+    if self.hash_buffer == *expected_hash {
       BlockHasherStatus::Ok
     } else {
-      BlockHasherStatus::HashMismatch {
-        block_index: block.block_index(),
-      }
+      BlockHasherStatus::HashMismatch { block_index }
     }
+  }
+
+  pub fn hash_block(&mut self, block: &HashBuffer) -> BlockHasherStatus {
+    self.hash_data(block.block_index(), block.expected_hash(), block.buffer())
   }
 }
