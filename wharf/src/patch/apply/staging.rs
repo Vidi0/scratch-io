@@ -182,7 +182,12 @@ struct PatchedFileInfo<'checkpoint, 'pool, 'pool_path> {
 /// to read the patched file and update the checkpoint, a mutable reference
 /// to the [`StagingPool`] is provided. The callback decides what to do
 /// with the status (verify it, store it, etc.)
+///
+/// The information about the patching result must be retrieved from the
+/// `checkpoint` argument, which will be mutated.
+#[expect(clippy::too_many_arguments)]
 fn reconstruct_files_common<F>(
+  checkpoint: &mut StagingCheckpoint,
   src_pool: &mut (impl SeekablePool + ContainerBackedPool),
   staging_pool: &mut StagingPool,
   dst_pool: &mut impl ContainerBackedPool,
@@ -190,18 +195,10 @@ fn reconstruct_files_common<F>(
   patch_op_buffer: &mut Vec<u8>,
   mut progress_callback: impl FnMut(u64) + Send,
   mut on_file_patched: F,
-) -> Result<StagingCheckpoint, String>
+) -> Result<(), String>
 where
   F: FnMut(PatchedFileInfo) -> Result<(), String>,
 {
-  // Deserialize the last checkpoint stored in the staging folder
-  // Get the default checkpoint (empty) if it doesn't exist
-  // Because it is expensive to clone the checkpoint every time, it
-  // is created here and reused for the whole function
-  let mut checkpoint = staging_pool
-    .load_checkpoint::<StagingCheckpoint>()?
-    .unwrap_or_default();
-
   // Load the checkpoint
   checkpoint.load(sync_op_iter)?;
 
@@ -228,7 +225,7 @@ where
       staging_pool,
       patch_op_buffer,
       new_file_size,
-      &mut checkpoint,
+      checkpoint,
       &mut progress_callback,
     )?;
 
@@ -236,12 +233,12 @@ where
     on_file_patched(PatchedFileInfo {
       file_index,
       status,
-      checkpoint: &mut checkpoint,
+      checkpoint,
       staging_pool,
     })?;
   }
 
-  Ok(checkpoint)
+  Ok(())
 }
 
 fn reconstruct_without_verification(
@@ -252,6 +249,12 @@ fn reconstruct_without_verification(
   patch_op_buffer: &mut Vec<u8>,
   progress_callback: impl FnMut(u64) + Send,
 ) -> Result<ReconstructedFilesStatus, String> {
+  // Deserialize the last checkpoint stored in the staging folder
+  // Get the default (empty) checkpoint if it does not exist
+  let mut checkpoint = staging_pool
+    .load_checkpoint::<StagingCheckpoint>()?
+    .unwrap_or_default();
+
   let on_file_patched = |info: PatchedFileInfo| {
     // Update the checkpoint and save it
     info.checkpoint.push_status(info.status);
@@ -259,6 +262,7 @@ fn reconstruct_without_verification(
   };
 
   reconstruct_files_common(
+    &mut checkpoint,
     src_pool,
     staging_pool,
     dst_pool,
@@ -266,8 +270,9 @@ fn reconstruct_without_verification(
     patch_op_buffer,
     progress_callback,
     on_file_patched,
-  )
-  .map(|checkpoint| ReconstructedFilesStatus {
+  )?;
+
+  Ok(ReconstructedFilesStatus {
     patched_files: checkpoint.patched_files,
   })
 }
@@ -365,6 +370,12 @@ pub fn reconstruct_with_verification(
   patch_op_buffer: &mut Vec<u8>,
   progress_callback: impl FnMut(u64) + Send,
 ) -> Result<ReconstructedFilesStatus, String> {
+  // Deserialize the last checkpoint stored in the staging folder
+  // Get the default (empty) checkpoint if it does not exist
+  let mut checkpoint = staging_pool
+    .load_checkpoint::<StagingCheckpoint>()?
+    .unwrap_or_default();
+
   // The sync op iterator hasn't been advanced yet, so the number of remaining
   // entries is equal to the number of total files to patch
   let files_to_patch = sync_op_iter.remaining_entries as usize;
@@ -421,7 +432,8 @@ pub fn reconstruct_with_verification(
     //
 
     // Patch the files, passing the verified ones to the hasher thread
-    let mut checkpoint = reconstruct_files_common(
+    reconstruct_files_common(
+      &mut checkpoint,
       src_pool,
       staging_pool,
       dst_pool,
