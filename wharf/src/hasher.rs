@@ -329,6 +329,9 @@ impl BlockHasher<'_, '_, '_> {
       Ok(())
     })?;
 
+    // The hasher threads will be joined by the scope.
+    // Therefore, all of them have already finished by this point.
+
     Ok(buffer_pool.finished_status())
   }
 }
