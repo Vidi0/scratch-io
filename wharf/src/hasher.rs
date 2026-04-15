@@ -307,7 +307,7 @@ impl BlockHasher<'_, '_, '_> {
         Builder::new()
           .name(format!("hasher {index}"))
           .spawn_scoped(scope, || hasher_thread(hasher, buffer_pool))
-          .unwrap();
+          .expect("failed to spawn thread");
       }
 
       // Run the IO thread inside the current one
