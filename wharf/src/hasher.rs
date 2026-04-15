@@ -12,7 +12,7 @@ use crate::protos;
 use crate::signature::{BlockHashIter, FileHashIter};
 
 use std::io::Read;
-use std::thread;
+use std::thread::{self, Builder};
 
 /// Default number of hashers to use when the availble parallelism can't be determined
 const DEFAULT_HASHERS_NUM: usize = 4;
@@ -298,21 +298,32 @@ impl BlockHasher<'_, '_, '_> {
     thread::scope(|scope| {
       // Spawn the IO thread
       let io_handle = {
-        scope.spawn(|| -> Result<(), BlockHasherError> {
-          io_thread(
-            file_size,
-            file_hash_iter,
-            reader,
-            buffer_pool,
-            progress_callback,
-          )
-        })
+        Builder::new()
+          .name("hasher IO".to_string())
+          .spawn_scoped(scope, || -> Result<(), BlockHasherError> {
+            io_thread(
+              file_size,
+              file_hash_iter,
+              reader,
+              buffer_pool,
+              progress_callback,
+            )
+          })
+          .unwrap()
       };
 
       // Spawn the hasher threads
       // If `file_blocks` is lower than the number of hashers, spawn only one hasher for each block
-      for hasher in self.internal_hashers.iter_mut().take(file_blocks as usize) {
-        scope.spawn(|| hasher_thread(hasher, buffer_pool));
+      for (index, hasher) in self
+        .internal_hashers
+        .iter_mut()
+        .take(file_blocks as usize)
+        .enumerate()
+      {
+        Builder::new()
+          .name(format!("hasher {index}"))
+          .spawn_scoped(scope, || hasher_thread(hasher, buffer_pool))
+          .unwrap();
       }
 
       // Check the IO thread result
