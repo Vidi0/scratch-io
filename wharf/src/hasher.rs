@@ -12,6 +12,7 @@ use crate::protos;
 use crate::signature::{BlockHashIter, FileHashIter};
 
 use std::io::Read;
+use std::thread;
 
 /// Default number of hashers to use when the availble parallelism can't be determined
 const DEFAULT_HASHERS_NUM: usize = 4;
@@ -35,7 +36,7 @@ impl<'cont, 'hash_iter, 'reader> BlockHasher<'cont, 'hash_iter, 'reader> {
     container: &'cont protos::Container,
     hash_iter: &'hash_iter mut BlockHashIter<'reader>,
   ) -> Self {
-    let num_hashers = std::thread::available_parallelism()
+    let num_hashers = thread::available_parallelism()
       .map(|n| n.get())
       .unwrap_or(DEFAULT_HASHERS_NUM)
       .max(MIN_THREADS);
@@ -294,7 +295,7 @@ impl BlockHasher<'_, '_, '_> {
     // Reset the buffer pool
     let buffer_pool = &self.buffer_pool.new_session(file_blocks);
 
-    std::thread::scope(|scope| {
+    thread::scope(|scope| {
       // Spawn the IO thread
       let io_handle = {
         scope.spawn(|| -> Result<(), BlockHasherError> {
