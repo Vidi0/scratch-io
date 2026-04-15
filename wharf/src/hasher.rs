@@ -296,22 +296,6 @@ impl BlockHasher<'_, '_, '_> {
     let buffer_pool = &self.buffer_pool.new_session(file_blocks);
 
     thread::scope(|scope| {
-      // Spawn the IO thread
-      let io_handle = {
-        Builder::new()
-          .name("hasher IO".to_string())
-          .spawn_scoped(scope, || -> Result<(), BlockHasherError> {
-            io_thread(
-              file_size,
-              file_hash_iter,
-              reader,
-              buffer_pool,
-              progress_callback,
-            )
-          })
-          .unwrap()
-      };
-
       // Spawn the hasher threads
       // If `file_blocks` is lower than the number of hashers, spawn only one hasher for each block
       for (index, hasher) in self
@@ -326,9 +310,18 @@ impl BlockHasher<'_, '_, '_> {
           .unwrap();
       }
 
+      // Run the IO thread inside the current one
+      let io_result = io_thread(
+        file_size,
+        file_hash_iter,
+        reader,
+        buffer_pool,
+        progress_callback,
+      );
+
       // Check the IO thread result
       // If it errored, signal the hashers to stop and propagate the error
-      if let Err(e) = io_handle.join().unwrap() {
+      if let Err(e) = io_result {
         buffer_pool.set_failed(0);
         return Err(e);
       }
