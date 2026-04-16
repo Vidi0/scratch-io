@@ -57,7 +57,7 @@ impl BufferPoolSession<'_> {
       .expect("caller ensures slot is not in use")
   }
 
-  fn find_slot(
+  fn acquire_slot(
     &self,
     condvar: &Condvar,
     expected_status: SlotStatus,
@@ -67,7 +67,7 @@ impl BufferPoolSession<'_> {
       let status_guard = self.header.get_status_lock();
 
       // Wait until an available slot can be obtained
-      PoolStatus::find_slot(status_guard, condvar, expected_status)?
+      PoolStatus::acquire_slot(status_guard, condvar, expected_status)?
     };
 
     // Obtain the slot
@@ -79,7 +79,7 @@ impl BufferPoolSession<'_> {
     block_index: usize,
     buffer_len: usize,
   ) -> Option<RefillBuffer<'_>> {
-    let slot_guard = self.find_slot(&self.header.refill_ready, SlotStatus::WaitingForRefill)?;
+    let slot_guard = self.acquire_slot(&self.header.refill_ready, SlotStatus::WaitingForRefill)?;
     Some(PoolSlot::get_refill_buffer(
       slot_guard,
       block_index,
@@ -88,7 +88,7 @@ impl BufferPoolSession<'_> {
   }
 
   pub fn get_buffer_to_hash(&self) -> Option<HashBuffer<'_>> {
-    let slot_guard = self.find_slot(&self.header.hash_ready, SlotStatus::WaitingForHash)?;
+    let slot_guard = self.acquire_slot(&self.header.hash_ready, SlotStatus::WaitingForHash)?;
     Some(PoolSlot::get_hash_buffer(slot_guard))
   }
 

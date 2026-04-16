@@ -61,10 +61,12 @@ impl PoolStatus {
   }
 
   /// Find a slot with status `expected_status` and set its status as [`SlotStatus::InUse`],
-  /// returning the index of the slot that has been reserved.
+  /// returning the index of the slot that has been acquired.
+  ///
+  /// This function blocks the current thread until a buffer can be acquired.
   ///
   /// Returns None if the verification has finished.
-  pub fn find_slot(
+  pub fn acquire_slot(
     mut guard: MutexGuard<'_, PoolStatus>,
     condvar: &Condvar,
     expected_status: SlotStatus,
