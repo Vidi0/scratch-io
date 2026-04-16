@@ -4,10 +4,9 @@ use parking_lot::{Condvar, Mutex, MutexGuard};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SlotStatus {
+  InUse,
   WaitingForRefill,
-  Refilling,
   WaitingForHash,
-  Hashing,
 }
 
 enum VerificationStatus {
@@ -61,15 +60,14 @@ impl PoolStatus {
     }
   }
 
-  /// Find a slot with status `expected_status` and replace it with `new_status`,
-  /// returning the index of the slot that has been changed.
+  /// Find a slot with status `expected_status` and set its status as [`SlotStatus::InUse`],
+  /// returning the index of the slot that has been reserved.
   ///
   /// Returns None if the verification has finished.
   pub fn find_slot(
     mut guard: MutexGuard<'_, PoolStatus>,
     condvar: &Condvar,
     expected_status: SlotStatus,
-    new_status: SlotStatus,
   ) -> Option<usize> {
     loop {
       // If the verification has finished, don't give away more slots!
@@ -80,7 +78,7 @@ impl PoolStatus {
       // Check for an available slot
       for (index, slot) in guard.slots.iter_mut().enumerate() {
         if *slot == expected_status {
-          *slot = new_status;
+          *slot = SlotStatus::InUse;
           return Some(index);
         }
       }
