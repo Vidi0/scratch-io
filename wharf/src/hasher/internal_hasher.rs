@@ -1,20 +1,17 @@
 use super::{BlockHasherStatus, HashBuffer};
-use crate::signature::{MD5_HASH_LENGTH, Md5HashSize};
-
-use md5::digest::array::Array;
-use md5::{Digest, Md5};
+use crate::signature::strong_hash::{self, Digest};
 
 #[derive(Clone, Debug)]
 pub struct InternalHasher {
-  hasher: Md5,
-  hash_buffer: Array<u8, Md5HashSize>,
+  hasher: strong_hash::Hasher,
+  hash_buffer: strong_hash::Output,
 }
 
 impl InternalHasher {
   pub fn new() -> Self {
     Self {
-      hasher: Md5::new(),
-      hash_buffer: Array::<u8, Md5HashSize>::default(),
+      hasher: strong_hash::Hasher::new(),
+      hash_buffer: strong_hash::Output::default(),
     }
   }
 }
@@ -23,7 +20,7 @@ impl InternalHasher {
   pub fn hash_data(
     &mut self,
     block_index: usize,
-    expected_hash: &[u8; MD5_HASH_LENGTH],
+    expected_hash: &[u8; strong_hash::LENGTH],
     buffer: &[u8],
   ) -> BlockHasherStatus {
     self.hasher.update(buffer);

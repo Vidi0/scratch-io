@@ -2,12 +2,16 @@ use crate::common::{MAGIC_SIGNATURE, Reader, check_magic_bytes, decompress_strea
 use crate::protos;
 use crate::protos::{decode_protobuf, skip_protobuf};
 
-use md5::Md5;
-use md5::digest::{self, typenum::Unsigned};
 use std::io::BufRead;
 
-pub type Md5HashSize = <Md5 as digest::OutputSizeUser>::OutputSize;
-pub const MD5_HASH_LENGTH: usize = Md5HashSize::USIZE;
+pub mod strong_hash {
+  use md5::digest::{self, typenum::Unsigned};
+
+  pub use md5::Digest;
+  pub type Hasher = md5::Md5;
+  pub type Output = digest::Output<Hasher>;
+  pub const LENGTH: usize = <Hasher as digest::OutputSizeUser>::OutputSize::USIZE;
+}
 
 /// <https://itch.io/docs/wharf/appendix/hashes.html>
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -15,7 +19,7 @@ pub struct BlockHash {
   /// The weak hashing algorithm used in the original RSync paper
   pub weak_hash: u32,
   /// MD5 as the "strong" hashing algorithm
-  pub strong_hash: [u8; MD5_HASH_LENGTH],
+  pub strong_hash: [u8; strong_hash::LENGTH],
 }
 
 impl TryFrom<protos::BlockHash> for BlockHash {

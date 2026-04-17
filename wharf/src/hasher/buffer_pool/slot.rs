@@ -1,5 +1,5 @@
 use crate::common::BLOCK_SIZE;
-use crate::signature::MD5_HASH_LENGTH;
+use crate::signature::strong_hash;
 
 use parking_lot::MutexGuard;
 
@@ -8,7 +8,7 @@ pub struct PoolSlot {
 
   block_index: usize,
 
-  expected_hash: [u8; MD5_HASH_LENGTH],
+  expected_hash: [u8; strong_hash::LENGTH],
 
   buffer: Box<[u8; BLOCK_SIZE]>,
   len: usize,
@@ -19,7 +19,7 @@ impl PoolSlot {
     Self {
       index,
       block_index: 0,
-      expected_hash: [0u8; MD5_HASH_LENGTH],
+      expected_hash: [0u8; strong_hash::LENGTH],
       buffer: Box::new([0u8; BLOCK_SIZE]),
       len: 0,
     }
@@ -56,7 +56,7 @@ impl RefillBuffer<'_> {
     self.0.index
   }
 
-  pub fn set_expected_hash(&mut self, expected_hash: [u8; MD5_HASH_LENGTH]) {
+  pub fn set_expected_hash(&mut self, expected_hash: [u8; strong_hash::LENGTH]) {
     self.0.expected_hash = expected_hash;
   }
 
@@ -75,7 +75,7 @@ impl HashBuffer<'_> {
     self.0.block_index
   }
 
-  pub fn expected_hash(&self) -> &[u8; MD5_HASH_LENGTH] {
+  pub fn expected_hash(&self) -> &[u8; strong_hash::LENGTH] {
     &self.0.expected_hash
   }
 
