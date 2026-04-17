@@ -14,12 +14,8 @@ use crate::signature::{BlockHashIter, FileHashIter};
 use std::io::Read;
 use std::thread::{self, Builder};
 
-/// Default number of hashers to use when the availble parallelism can't be determined
-const DEFAULT_HASHERS_NUM: usize = 4;
 /// Do hashing multithreaded for files with 4 or more blocks
 const MIN_BLOCKS_FOR_MULTITHREADING: u64 = 4;
-/// When verifying a file multithreaded, how many threads to use at minimum.
-const MIN_THREADS: usize = 2;
 
 pub struct BlockHasher<'cont, 'hash_iter, 'reader> {
   container: &'cont protos::Container,
@@ -36,10 +32,11 @@ impl<'cont, 'hash_iter, 'reader> BlockHasher<'cont, 'hash_iter, 'reader> {
     container: &'cont protos::Container,
     hash_iter: &'hash_iter mut BlockHashIter<'reader>,
   ) -> Self {
+    // If the available parallelism can't be determined, use one hasher thread
     let num_hashers = thread::available_parallelism()
       .map(|n| n.get())
-      .unwrap_or(DEFAULT_HASHERS_NUM)
-      .max(MIN_THREADS);
+      .unwrap_or_default()
+      .max(1);
 
     assert!(num_hashers > 0);
 
