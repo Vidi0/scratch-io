@@ -8,7 +8,7 @@ pub struct PoolSlot {
 
   block_index: usize,
 
-  expected_hash: [u8; strong_hash::LENGTH],
+  expected_hash: strong_hash::Output,
 
   buffer: Box<[u8; BLOCK_SIZE]>,
   len: usize,
@@ -19,7 +19,7 @@ impl PoolSlot {
     Self {
       index,
       block_index: 0,
-      expected_hash: [0u8; strong_hash::LENGTH],
+      expected_hash: strong_hash::Output::default(),
       buffer: Box::new([0u8; BLOCK_SIZE]),
       len: 0,
     }
@@ -56,7 +56,7 @@ impl RefillBuffer<'_> {
     self.0.index
   }
 
-  pub fn set_expected_hash(&mut self, expected_hash: [u8; strong_hash::LENGTH]) {
+  pub fn set_expected_hash(&mut self, expected_hash: strong_hash::Output) {
     self.0.expected_hash = expected_hash;
   }
 
@@ -75,7 +75,7 @@ impl HashBuffer<'_> {
     self.0.block_index
   }
 
-  pub fn expected_hash(&self) -> &[u8; strong_hash::LENGTH] {
+  pub fn expected_hash(&self) -> &strong_hash::Output {
     &self.0.expected_hash
   }
 

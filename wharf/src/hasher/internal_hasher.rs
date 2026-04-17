@@ -20,7 +20,7 @@ impl InternalHasher {
   pub fn hash_data(
     &mut self,
     block_index: usize,
-    expected_hash: &[u8; strong_hash::LENGTH],
+    expected_hash: &strong_hash::Output,
     buffer: &[u8],
   ) -> BlockHasherStatus {
     self.hasher.update(buffer);

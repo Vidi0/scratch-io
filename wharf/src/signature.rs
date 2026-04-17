@@ -5,12 +5,9 @@ use crate::protos::{decode_protobuf, skip_protobuf};
 use std::io::BufRead;
 
 pub mod strong_hash {
-  use md5::digest::{self, typenum::Unsigned};
-
   pub use md5::Digest;
   pub type Hasher = md5::Md5;
-  pub type Output = digest::Output<Hasher>;
-  pub const LENGTH: usize = <Hasher as digest::OutputSizeUser>::OutputSize::USIZE;
+  pub type Output = md5::digest::Output<Hasher>;
 }
 
 /// <https://itch.io/docs/wharf/appendix/hashes.html>
@@ -19,7 +16,7 @@ pub struct BlockHash {
   /// The weak hashing algorithm used in the original RSync paper
   pub weak_hash: u32,
   /// MD5 as the "strong" hashing algorithm
-  pub strong_hash: [u8; strong_hash::LENGTH],
+  pub strong_hash: strong_hash::Output,
 }
 
 impl TryFrom<protos::BlockHash> for BlockHash {
@@ -28,7 +25,7 @@ impl TryFrom<protos::BlockHash> for BlockHash {
   fn try_from(value: protos::BlockHash) -> Result<Self, Self::Error> {
     Ok(Self {
       weak_hash: value.weak_hash,
-      strong_hash: value.strong_hash.try_into().map_err(|e| {
+      strong_hash: value.strong_hash.as_slice().try_into().map_err(|e| {
         format!("Failed to parse strong_hash BlockHash proto message into an array!\n{e:?}")
       })?,
     })
