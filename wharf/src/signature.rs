@@ -1,4 +1,6 @@
-use crate::common::{MAGIC_SIGNATURE, Reader, check_magic_bytes, decompress_stream};
+use crate::common::{
+  BLOCK_SIZE, MAGIC_SIGNATURE, Reader, block_count, check_magic_bytes, decompress_stream,
+};
 use crate::protos;
 use crate::protos::{decode_protobuf, skip_protobuf};
 
@@ -13,17 +15,19 @@ pub mod strong_hash {
 /// <https://itch.io/docs/wharf/appendix/hashes.html>
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockHash {
+  /// The size of this file block in the container
+  pub block_size: usize,
+
   /// The weak hashing algorithm used in the original RSync paper
   pub weak_hash: u32,
   /// MD5 as the "strong" hashing algorithm
   pub strong_hash: strong_hash::Output,
 }
 
-impl TryFrom<protos::BlockHash> for BlockHash {
-  type Error = String;
-
-  fn try_from(value: protos::BlockHash) -> Result<Self, Self::Error> {
+impl BlockHash {
+  fn try_from(value: protos::BlockHash, block_size: usize) -> Result<Self, String> {
     Ok(Self {
+      block_size,
       weak_hash: value.weak_hash,
       strong_hash: value.strong_hash.as_slice().try_into().map_err(|e| {
         format!("Failed to parse strong_hash BlockHash proto message into an array!\n{e:?}")
@@ -35,6 +39,7 @@ impl TryFrom<protos::BlockHash> for BlockHash {
 pub struct FileHashIter<'a, 'reader> {
   reader: &'a mut Reader<'reader>,
   remaining_blocks: &'a mut u64,
+  remaining_file_size: u64,
 }
 
 impl Iterator for FileHashIter<'_, '_> {
@@ -45,8 +50,12 @@ impl Iterator for FileHashIter<'_, '_> {
       return None;
     }
 
+    // Get the current block size and update the internal counters
+    let block_size = self.remaining_file_size.min(BLOCK_SIZE as u64);
+    self.remaining_file_size -= block_size;
     *self.remaining_blocks -= 1;
 
+    // Decode the hash message from the reader
     let block_hash = match decode_protobuf::<protos::BlockHash>(&mut self.reader) {
       Ok(hash) => hash,
       Err(e) => {
@@ -56,7 +65,7 @@ impl Iterator for FileHashIter<'_, '_> {
       }
     };
 
-    Some(block_hash.try_into())
+    Some(BlockHash::try_from(block_hash, block_size as usize))
   }
 }
 
@@ -84,8 +93,7 @@ pub struct BlockHashIter<'reader> {
 impl<'reader> BlockHashIter<'reader> {
   pub fn dump_stdout(&mut self, container: &protos::Container) -> Result<(), String> {
     for file in &container.files {
-      let file_blocks = file.block_count();
-      let mut file_hash = self.next_file(file_blocks)?;
+      let mut file_hash = self.next_file(file.size as u64)?;
       file_hash.dump_stdout()?;
     }
 
@@ -100,10 +108,9 @@ impl<'reader> BlockHashIter<'reader> {
     Ok(())
   }
 
-  pub fn next_file<'a>(
-    &'a mut self,
-    file_blocks: u64,
-  ) -> Result<FileHashIter<'a, 'reader>, String> {
+  pub fn next_file<'a>(&'a mut self, file_size: u64) -> Result<FileHashIter<'a, 'reader>, String> {
+    let file_blocks = block_count(file_size);
+
     // Skip the blocks that were not obtained in the last file hash iter
     self.skip_blocks(self.last_entry_remaining_blocks)?;
     self.last_entry_remaining_blocks = file_blocks;
@@ -111,6 +118,7 @@ impl<'reader> BlockHashIter<'reader> {
     Ok(FileHashIter {
       reader: &mut self.reader,
       remaining_blocks: &mut self.last_entry_remaining_blocks,
+      remaining_file_size: file_size,
     })
   }
 }

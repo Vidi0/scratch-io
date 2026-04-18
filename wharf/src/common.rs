@@ -14,17 +14,6 @@ pub fn block_count(file_size: u64) -> u64 {
   file_size.div_ceil(BLOCK_SIZE as u64).max(1)
 }
 
-/// Get the size of the block at the given index in bytes
-///
-/// All blocks are [`BLOCK_SIZE`] bytes except the last, which contains
-/// only the remaining bytes of the file.
-#[inline]
-#[must_use]
-pub fn block_size(block_index: usize, file_size: u64) -> usize {
-  let bytes_remaining = file_size as usize - (block_index * BLOCK_SIZE);
-  BLOCK_SIZE.min(bytes_remaining)
-}
-
 pub type Reader<'a> = dyn BufRead + Send + 'a;
 
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L14>

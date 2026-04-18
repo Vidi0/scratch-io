@@ -7,9 +7,9 @@ pub use errors::{BlockHasherError, BlockHasherStatus};
 use buffer_pool::{BufferPool, BufferPoolSession, HashBuffer};
 use internal_hasher::InternalHasher;
 
-use crate::common::{BLOCK_SIZE, block_count, block_size};
+use crate::common::{BLOCK_SIZE, block_count};
 use crate::protos;
-use crate::signature::{BlockHashIter, FileHashIter};
+use crate::signature::{BlockHash, BlockHashIter, FileHashIter};
 
 use std::io::Read;
 use std::thread::{self, Builder};
@@ -122,28 +122,26 @@ fn hasher_thread(hasher: &mut InternalHasher, buffer_pool: &BufferPoolSession) {
 ///
 /// If the iterator returns an error or there is an I/O failure while reading the file.
 fn io_thread(
-  file_size: u64,
   hash_iter: &mut FileHashIter,
   reader: &mut impl Read,
   buffer_pool: &BufferPoolSession,
   mut progress_callback: impl FnMut(u64) + Send,
 ) -> Result<(), BlockHasherError> {
-  for (block_index, expected_hash) in hash_iter.enumerate() {
+  for (block_index, block_hash) in hash_iter.enumerate() {
     // Read the expected hash from the signature
-    let expected_hash = expected_hash
-      .map(|hash| hash.strong_hash)
-      .map_err(BlockHasherError::IterReturnedError)?;
-
-    // Calculate how many bytes to read for this block
-    let buffer_len = block_size(block_index, file_size);
+    let BlockHash {
+      block_size,
+      weak_hash: _,
+      strong_hash,
+    } = block_hash.map_err(BlockHasherError::IterReturnedError)?;
 
     // Get the block buffer
-    let Some(mut block_buffer) = buffer_pool.get_buffer_to_refill(block_index, buffer_len) else {
+    let Some(mut block_buffer) = buffer_pool.get_buffer_to_refill(block_index, block_size) else {
       return Ok(());
     };
 
     // Store the expected hash into the buffer
-    block_buffer.set_expected_hash(expected_hash);
+    block_buffer.set_expected_hash(strong_hash);
 
     // Read the file block into the buffer
     reader
@@ -153,7 +151,7 @@ fn io_thread(
     // Share the block buffer with the hasher threads
     buffer_pool.release_refilled_buffer(block_buffer);
 
-    progress_callback(buffer_len as u64);
+    progress_callback(block_size as u64);
   }
 
   Ok(())
@@ -176,24 +174,22 @@ fn io_thread(
 ///
 /// If the iterator returns an error or there is an I/O failure while reading the file.
 fn singlethreaded_hash(
-  file_size: u64,
   hash_iter: &mut FileHashIter,
   reader: &mut impl Read,
   buffer: &mut [u8; BLOCK_SIZE],
   hasher: &mut InternalHasher,
   mut progress_callback: impl FnMut(u64) + Send,
 ) -> Result<BlockHasherStatus, BlockHasherError> {
-  for (block_index, expected_hash) in hash_iter.enumerate() {
+  for (block_index, block_hash) in hash_iter.enumerate() {
     // Read the expected hash from the signature
-    let expected_hash = expected_hash
-      .map(|hash| hash.strong_hash)
-      .map_err(BlockHasherError::IterReturnedError)?;
-
-    // Calculate how many bytes to read for this block
-    let buffer_len = block_size(block_index, file_size);
+    let BlockHash {
+      block_size,
+      weak_hash: _,
+      strong_hash,
+    } = block_hash.map_err(BlockHasherError::IterReturnedError)?;
 
     // Set the correct buffer size
-    let buffer = &mut buffer[..buffer_len];
+    let buffer = &mut buffer[..block_size];
 
     // Read the file block into the buffer
     reader
@@ -201,12 +197,12 @@ fn singlethreaded_hash(
       .map_err(BlockHasherError::ReaderFailed)?;
 
     // Hash the data and check the status
-    let status = hasher.hash_data(block_index, &expected_hash, buffer);
+    let status = hasher.hash_data(block_index, &strong_hash, buffer);
     if let BlockHasherStatus::HashMismatch { .. } = status {
       return Ok(status);
     }
 
-    progress_callback(buffer_len as u64);
+    progress_callback(block_size as u64);
   }
 
   Ok(BlockHasherStatus::Ok)
@@ -268,7 +264,7 @@ impl BlockHasher<'_, '_, '_> {
     // Get the hash block iterator for the current file
     let file_hash_iter = &mut self
       .hash_iter
-      .next_file(file_blocks)
+      .next_file(file_size)
       .map_err(BlockHasherError::CouldNotObtainIter)?;
 
     // If there are only a few blocks, do hashing singlethreaded
@@ -281,14 +277,7 @@ impl BlockHasher<'_, '_, '_> {
         .get_mut(0)
         .expect("This BlockHasher must contain at least one internal_hasher!");
 
-      return singlethreaded_hash(
-        file_size,
-        file_hash_iter,
-        reader,
-        buffer,
-        hasher,
-        progress_callback,
-      );
+      return singlethreaded_hash(file_hash_iter, reader, buffer, hasher, progress_callback);
     }
 
     // If there are many blocks, then hash in a multithreaded fashion
@@ -312,13 +301,7 @@ impl BlockHasher<'_, '_, '_> {
       }
 
       // Run the IO thread inside the current one
-      let io_result = io_thread(
-        file_size,
-        file_hash_iter,
-        reader,
-        buffer_pool,
-        progress_callback,
-      );
+      let io_result = io_thread(file_hash_iter, reader, buffer_pool, progress_callback);
 
       // Check the IO thread result
       // If it errored, signal the hashers to stop and propagate the error
