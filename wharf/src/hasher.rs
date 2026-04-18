@@ -233,6 +233,10 @@ impl BlockHasher<'_, '_, '_> {
   /// the iterator returns an error, or there is an I/O failure while reading
   /// the file.
   ///
+  /// It must have been verified that the provided reader has enough data to
+  /// feed all the blocks verification. Else, an [`BlockHasherError::ReaderFailed`]
+  /// IO error will be thrown.
+  ///
   /// # Panics
   ///
   /// If `file_index` is lower or equal to the one provided in the last call
