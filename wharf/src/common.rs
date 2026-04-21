@@ -5,6 +5,14 @@ use std::io::{BufRead, BufReader, Read};
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L33>
 pub const BLOCK_SIZE: usize = 64 * 1024;
 
+/// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L14>
+pub const MAGIC_PATCH: u32 = 0x0FEF_5F00;
+
+/// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L17>
+pub const MAGIC_SIGNATURE: u32 = MAGIC_PATCH + 1;
+
+pub type Reader<'a> = dyn BufRead + Send + 'a;
+
 /// Get the number of blocks that a file occupies
 ///
 /// If the file is empty, still count one block, following the wharf behaviour
@@ -13,14 +21,6 @@ pub const BLOCK_SIZE: usize = 64 * 1024;
 pub fn block_count(file_size: u64) -> u64 {
   file_size.div_ceil(BLOCK_SIZE as u64).max(1)
 }
-
-pub type Reader<'a> = dyn BufRead + Send + 'a;
-
-/// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L14>
-pub const MAGIC_PATCH: u32 = 0x0FEF_5F00;
-
-/// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L17>
-pub const MAGIC_SIGNATURE: u32 = MAGIC_PATCH + 1;
 
 /// Read the next 4 bytes of the reader and return its little endian u32 representation
 pub fn read_magic_bytes(reader: &mut impl Read) -> Result<u32, String> {
