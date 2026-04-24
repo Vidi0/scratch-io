@@ -43,7 +43,7 @@ fn read_length_delimiter(reader: &mut impl Read) -> Result<usize, String> {
   }
 
   // Decode the varint
-  prost::decode_length_delimiter(&varint[..])
+  prost::decode_length_delimiter(varint.as_slice())
     .map_err(|e| format!("Couldn't decode the signature header length delimiter!\n{e}"))
 }
 
