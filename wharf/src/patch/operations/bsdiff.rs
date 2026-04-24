@@ -125,8 +125,8 @@ mod tests {
     let mut dst: [u8; TEST_DATA_LENGTH] = [0; TEST_DATA_LENGTH];
 
     add_bytes(
-      &mut &source_bytes[..],
-      &mut &mut dst[..],
+      &mut source_bytes.as_slice(),
+      &mut &mut dst.as_mut_slice(),
       &bytes_to_add,
       &mut add_buffer,
     )
@@ -154,8 +154,8 @@ mod tests {
     let mut dst: [u8; TEST_DATA_LENGTH] = [0; TEST_DATA_LENGTH];
 
     add_bytes(
-      &mut &source_bytes[..],
-      &mut &mut dst[..],
+      &mut source_bytes.as_slice(),
+      &mut dst.as_mut_slice(),
       &bytes_to_add,
       &mut add_buffer,
     )
@@ -179,8 +179,8 @@ mod tests {
     let mut dst: [u8; TEST_DATA_LENGTH] = [0; TEST_DATA_LENGTH];
 
     add_bytes(
-      &mut &source_bytes[..],
-      &mut &mut dst[..],
+      &mut source_bytes.as_slice(),
+      &mut dst.as_mut_slice(),
       &bytes_to_add,
       &mut add_buffer,
     )
@@ -202,8 +202,8 @@ mod tests {
     let mut dst = vec![0u8; TEST_DATA_LENGTH];
 
     add_bytes(
-      &mut &source_bytes[..],
-      &mut &mut dst[..],
+      &mut source_bytes.as_slice(),
+      &mut dst.as_mut_slice(),
       &bytes_to_add,
       &mut add_buffer,
     )
