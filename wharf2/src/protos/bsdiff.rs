@@ -1,0 +1,13 @@
+/// Control is a bsdiff operation, see <https://twitter.com/fasterthanlime/status/790617515009437701>
+#[derive(Clone, PartialEq, Eq, Hash, prost::Message)]
+pub struct Control {
+  #[prost(bytes = "vec", tag = "1")]
+  pub add: Vec<u8>,
+  #[prost(bytes = "vec", tag = "2")]
+  pub copy: Vec<u8>,
+  #[prost(int64, tag = "3")]
+  pub seek: i64,
+  /// when true, don't apply and stop reading bsdiff control
+  #[prost(bool, tag = "4")]
+  pub eof: bool,
+}

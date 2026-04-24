@@ -2879,6 +2879,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "wharf2"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "winapi"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
