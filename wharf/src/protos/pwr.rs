@@ -110,6 +110,7 @@ pub enum HashAlgorithm {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, prost::Message)]
+#[expect(dead_code)]
 pub struct ManifestBlockHash {
   #[prost(bytes = "vec", tag = "1")]
   pub hash: Vec<u8>,
@@ -120,6 +121,7 @@ pub struct ManifestBlockHash {
 /// Wounds files format: header, container, then any
 /// number of Wounds
 #[derive(Clone, Copy, PartialEq, Eq, Hash, prost::Message)]
+#[expect(dead_code)]
 pub struct WoundsHeader {}
 
 /// Describe a corrupted portion of a file, in [start,end)
