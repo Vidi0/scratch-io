@@ -1,7 +1,8 @@
 pub mod errors;
 
-// This module is public to avoid adding #[allow(unused)] everywhere
-// Once this is used by other modules, it should be made private
+// These modules are public to avoid adding #[allow(unused)] everywhere
+// Once these are used by other modules, they should be made private
+pub mod magic;
 pub mod protos;
 
 mod binaries;

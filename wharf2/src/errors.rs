@@ -23,6 +23,9 @@ pub enum InvalidWharfBinary {
   #[error("expected more bniary data, got EOF")]
   UnexpectedEOF(#[source] io::Error),
 
+  #[error("magic bytes mismatch: expected {expected}, found {found}")]
+  MagicMismatch { expected: u32, found: u32 },
+
   #[error("invalid protobuf length delimiter: {length_delimiter:?}")]
   InvalidLengthDelimiter { length_delimiter: Box<[u8]> },
 
