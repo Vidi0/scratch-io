@@ -1,3 +1,4 @@
+use std::convert::Infallible;
 use std::io;
 use thiserror::Error;
 
@@ -44,4 +45,12 @@ pub enum InvalidWharfBinary {
 pub enum IoError {
   #[error("failed to read the wharf binary data: {0}")]
   WharfBinaryReadFailed(#[source] io::Error),
+}
+
+// This will never be called. It is added in order to satisfy the compiler
+// until the never type is stabilized
+impl From<Infallible> for Error {
+  fn from(value: Infallible) -> Self {
+    match value {}
+  }
 }
