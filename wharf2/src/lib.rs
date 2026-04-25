@@ -6,3 +6,5 @@ pub mod magic;
 pub mod protos;
 
 mod binaries;
+
+pub use binaries::WharfBinary;

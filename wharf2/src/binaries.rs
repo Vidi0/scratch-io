@@ -1,4 +1,5 @@
 use crate::errors::{InvalidWharfBinary, IoError, Result};
+use crate::magic::check_magic_bytes;
 
 use std::io::{self, Read};
 
@@ -17,4 +18,17 @@ pub fn read_wharf_exact(reader: &mut impl Read, buf: &mut [u8]) -> Result<()> {
       IoError::WharfBinaryReadFailed(e).into()
     }
   })
+}
+
+pub trait WharfBinary
+where
+  Self: Sized,
+{
+  const MAGIC: u32;
+  fn read_without_magic(reader: &mut impl Read) -> Result<Self>;
+
+  fn read(reader: &mut impl Read) -> Result<Self> {
+    check_magic_bytes(reader, Self::MAGIC)?;
+    Self::read_without_magic(reader)
+  }
 }
