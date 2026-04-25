@@ -24,11 +24,21 @@ pub trait WharfBinary
 where
   Self: Sized,
 {
+  /// The magic bytes of this wharf binary
   const MAGIC: u32;
+
+  /// Decode a wharf binary assuming the magic bytes have already been consumed
+  /// from the input stream
   fn read_without_magic(reader: &mut impl Read) -> Result<Self>;
 
+  /// Decode a wharf binary
+  ///
+  /// If the magic bytes have already been consumed, use [`WharfBinary::read_without_magic`].
   fn read(reader: &mut impl Read) -> Result<Self> {
+    // Check the magic bytes
     check_magic_bytes(reader, Self::MAGIC)?;
+
+    // Decode the remaining data
     Self::read_without_magic(reader)
   }
 }
