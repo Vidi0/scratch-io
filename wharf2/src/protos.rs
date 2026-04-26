@@ -50,9 +50,7 @@ where
 {
   type ProtoMessage: Default + prost::Message;
 
-  /// Decode a length-delimited Protobuf message
-  ///
-  /// Advance the reader to the end of the message
+  /// Decode a length-delimited Protobuf message and advance the reader.
   ///
   /// # Returns
   ///
@@ -60,7 +58,7 @@ where
   ///
   /// # Errors
   ///
-  /// If the reader could not be read, or if the Protobuf message is invalid
+  /// If the reader failed to read the message, or if the Protobuf message is invalid
   fn decode(reader: &mut impl Read) -> Result<Self> {
     use prost::Message;
 
@@ -84,13 +82,11 @@ where
     proto.try_into().map_err(|e| e.into())
   }
 
-  /// Skip the next length-delimited Protobuf message
-  ///
-  /// Advance the reader to the end of the message
+  /// Advance the reader to the end of the next length-delimited Protobuf message.
   ///
   /// # Errors
   ///
-  /// If the reader could not be read
+  /// If the reader failed to be advanced
   fn skip(reader: &mut impl Read) -> Result<()> {
     // Decode the length delimiter
     let length = read_length_delimiter(reader)? as u64;
