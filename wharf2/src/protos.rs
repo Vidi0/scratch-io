@@ -42,6 +42,13 @@ fn read_length_delimiter(reader: &mut impl Read) -> Result<usize> {
   })
 }
 
+/// A type that can be decoded from a length-delimited Protobuf message in a wharf
+/// binary stream.
+///
+/// Each implementing type has an associated [`Message::ProtoMessage`] type that handles
+/// the raw Protobuf decoding, and a [`TryFrom`] conversion that maps it into the
+/// corresponding Rust type. [`Message::decode`] and [`Message::skip`] operate on any reader,
+/// advancing it by exactly one message per call.
 pub trait Message
 where
   Self: Sized,
