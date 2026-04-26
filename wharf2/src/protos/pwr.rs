@@ -1,3 +1,22 @@
+// Compression
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, prost::Enumeration)]
+#[repr(i32)]
+pub enum CompressionAlgorithm {
+  None = 0,
+  Brotli = 1,
+  Gzip = 2,
+  Zstd = 3,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, prost::Message)]
+pub struct CompressionSettings {
+  #[prost(enumeration = "CompressionAlgorithm", tag = "1")]
+  pub algorithm: i32,
+  #[prost(int32, tag = "2")]
+  pub quality: i32,
+}
+
 // Patch file format
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, prost::Message)]
@@ -73,25 +92,6 @@ pub struct BlockHash {
   pub strong_hash: Vec<u8>,
 }
 
-// Compression
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, prost::Enumeration)]
-#[repr(i32)]
-pub enum CompressionAlgorithm {
-  None = 0,
-  Brotli = 1,
-  Gzip = 2,
-  Zstd = 3,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, prost::Message)]
-pub struct CompressionSettings {
-  #[prost(enumeration = "CompressionAlgorithm", tag = "1")]
-  pub algorithm: i32,
-  #[prost(int32, tag = "2")]
-  pub quality: i32,
-}
-
 // Manifest file format
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, prost::Message)]
@@ -117,8 +117,7 @@ pub struct ManifestBlockHash {
 
 // Wounds file format
 
-/// Wounds files format: header, container, then any
-/// number of Wounds
+/// Wounds files format: header, container, then any number of Wounds
 #[derive(Clone, Copy, PartialEq, Eq, Hash, prost::Message)]
 pub struct WoundsHeader {}
 
