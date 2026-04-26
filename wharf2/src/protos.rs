@@ -10,15 +10,6 @@ use std::io::{self, Read};
 /// <https://protobuf.dev/programming-guides/encoding/#varints>
 const PROTOBUF_VARINT_MAX_LENGTH: usize = 10;
 
-pub trait Message
-where
-  Self: Sized,
-  Self::ProtoMessage: TryInto<Self>,
-  <Self::ProtoMessage as TryInto<Self>>::Error: Into<Error>,
-{
-  type ProtoMessage: Default + prost::Message;
-}
-
 /// Read a Protobuf length delimiter encoded as a variable-width integer and consume its bytes
 ///
 /// <https://protobuf.dev/programming-guides/encoding/#length-types>
@@ -51,53 +42,62 @@ fn read_length_delimiter(reader: &mut impl Read) -> Result<usize> {
   })
 }
 
-/// Decode a length-delimited Protobuf message
-///
-/// Advance the reader to the end of the message
-///
-/// # Returns
-///
-/// The deserialized Protobuf message
-///
-/// # Errors
-///
-/// If the reader could not be read, or if the Protobuf message is invalid
-pub fn decode_protobuf<T: Message>(reader: &mut impl Read) -> Result<T> {
-  use prost::Message;
+pub trait Message
+where
+  Self: Sized,
+  Self::ProtoMessage: TryInto<Self>,
+  <Self::ProtoMessage as TryInto<Self>>::Error: Into<Error>,
+{
+  type ProtoMessage: Default + prost::Message;
 
-  // Decode the length delimiter
-  let length = read_length_delimiter(reader)?;
+  /// Decode a length-delimited Protobuf message
+  ///
+  /// Advance the reader to the end of the message
+  ///
+  /// # Returns
+  ///
+  /// The deserialized Protobuf message
+  ///
+  /// # Errors
+  ///
+  /// If the reader could not be read, or if the Protobuf message is invalid
+  fn decode(reader: &mut impl Read) -> Result<Self> {
+    use prost::Message;
 
-  // Read the bytes into a buffer
-  let mut bytes = vec![0u8; length];
-  read_wharf_exact(reader, &mut bytes)?;
+    // Decode the length delimiter
+    let length = read_length_delimiter(reader)?;
 
-  // Decode the protobuf message
-  let proto = T::ProtoMessage::decode(bytes.as_slice()).map_err(|e| {
-    InvalidWharfMessage::InvalidProtoMessage {
-      decode_error: e.to_string(),
-      bytes: bytes.into_boxed_slice(),
-    }
-    .into_error::<T>()
-  })?;
+    // Read the bytes into a buffer
+    let mut bytes = vec![0u8; length];
+    read_wharf_exact(reader, &mut bytes)?;
 
-  // Parse the protobuf message
-  proto.try_into().map_err(|e| e.into())
-}
+    // Decode the protobuf message
+    let proto = Self::ProtoMessage::decode(bytes.as_slice()).map_err(|e| {
+      InvalidWharfMessage::InvalidProtoMessage {
+        decode_error: e.to_string(),
+        bytes: bytes.into_boxed_slice(),
+      }
+      .into_error::<Self>()
+    })?;
 
-/// Skip the next length-delimited Protobuf message
-///
-/// Advance the reader to the end of the message
-///
-/// # Errors
-///
-/// If the reader could not be read
-pub fn skip_protobuf<T: Message>(reader: &mut impl Read) -> Result<()> {
-  // Decode the length delimiter
-  let length = read_length_delimiter(reader)?;
+    // Parse the protobuf message
+    proto.try_into().map_err(|e| e.into())
+  }
 
-  // Read the bytes into the void
-  std::io::copy(&mut reader.take(length as u64), &mut io::empty())
-    .map(|_| ())
-    .map_err(|e| IoError::WharfBinaryReadFailed(e).into())
+  /// Skip the next length-delimited Protobuf message
+  ///
+  /// Advance the reader to the end of the message
+  ///
+  /// # Errors
+  ///
+  /// If the reader could not be read
+  fn skip(reader: &mut impl Read) -> Result<()> {
+    // Decode the length delimiter
+    let length = read_length_delimiter(reader)?;
+
+    // Read the bytes into the void
+    std::io::copy(&mut reader.take(length as u64), &mut io::empty())
+      .map(|_| ())
+      .map_err(|e| IoError::WharfBinaryReadFailed(e).into())
+  }
 }
