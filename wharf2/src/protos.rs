@@ -13,7 +13,7 @@ pub use pwr::*;
 pub use tlc::*;
 
 use crate::binaries::read_wharf_exact;
-use crate::errors::{InvalidWharfBinary, IoError, Result};
+use crate::errors::{InvalidWharfBinary, InvalidWharfMessage, IoError, Result};
 
 use std::io::{self, Read};
 
@@ -70,12 +70,11 @@ pub fn decode_protobuf<T: prost::Message + Default>(reader: &mut impl Read) -> R
   read_wharf_exact(reader, &mut bytes)?;
 
   T::decode(bytes.as_slice()).map_err(|e| {
-    InvalidWharfBinary::InvalidProtoMessage {
-      message_type: std::any::type_name::<T>(),
+    InvalidWharfMessage::InvalidProtoMessage {
       decode_error: e.to_string(),
       bytes: bytes.into_boxed_slice(),
     }
-    .into()
+    .into_error::<T>()
   })
 }
 

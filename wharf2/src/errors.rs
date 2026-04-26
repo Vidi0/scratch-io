@@ -31,14 +31,37 @@ pub enum InvalidWharfBinary {
   InvalidLengthDelimiter { length_delimiter: Box<[u8]> },
 
   #[error(
-    "invalid protobuf message of type \"{message_type}\": {decode_error}
+    "could not parse protobuf message of type \"{message_type}\"
+{source}"
+  )]
+  InvalidMessage {
+    message_type: &'static str,
+    source: InvalidWharfMessage,
+  },
+}
+
+#[derive(Debug, Error)]
+pub enum InvalidWharfMessage {
+  #[error(
+    "invalid protobuf message: {decode_error}
 {bytes:?}"
   )]
   InvalidProtoMessage {
-    message_type: &'static str,
     decode_error: String,
     bytes: Box<[u8]>,
   },
+}
+
+impl InvalidWharfMessage {
+  /// Convert this [`InvalidWharfMessage`] error into a generic [`enum@Error`].
+  /// A `MessageType` type must be provided in order to add context to the error.
+  pub fn into_error<MessageType>(self) -> Error {
+    InvalidWharfBinary::InvalidMessage {
+      message_type: std::any::type_name::<MessageType>(),
+      source: self,
+    }
+    .into()
+  }
 }
 
 #[derive(Debug, Error)]
