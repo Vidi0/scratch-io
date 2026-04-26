@@ -1,24 +1,23 @@
-/// <https://github.com/itchio/wharf/blob/5e5efc838cdbaee7915246d5102af78a3a31e74d/bsdiff/bsdiff.proto>
-///
-/// More information about bsdiff wharf patches:
-/// <https://web.archive.org/web/20211123032456/https://twitter.com/fasterthanlime/status/790617515009437701>
-mod bsdiff;
-/// <https://github.com/itchio/wharf/blob/5e5efc838cdbaee7915246d5102af78a3a31e74d/pwr/pwr.proto>
-mod pwr;
-/// <https://github.com/itchio/lake/blob/d93a9d33bb65f76200e07d9606e1e251fd09cb07/tlc/tlc.proto>
-mod tlc;
+mod definitions;
 
-pub use bsdiff::*;
-pub use pwr::*;
-pub use tlc::*;
+pub use definitions::*;
 
 use crate::binaries::read_wharf_exact;
-use crate::errors::{InvalidWharfBinary, InvalidWharfMessage, IoError, Result};
+use crate::errors::{Error, InvalidWharfBinary, InvalidWharfMessage, IoError, Result};
 
 use std::io::{self, Read};
 
 /// <https://protobuf.dev/programming-guides/encoding/#varints>
 const PROTOBUF_VARINT_MAX_LENGTH: usize = 10;
+
+pub trait Message
+where
+  Self: Sized,
+  Self::ProtoMessage: TryInto<Self>,
+  <Self::ProtoMessage as TryInto<Self>>::Error: Into<Error>,
+{
+  type ProtoMessage: Default + prost::Message;
+}
 
 /// Read a Protobuf length delimiter encoded as a variable-width integer and consume its bytes
 ///
@@ -63,19 +62,27 @@ fn read_length_delimiter(reader: &mut impl Read) -> Result<usize> {
 /// # Errors
 ///
 /// If the reader could not be read, or if the Protobuf message is invalid
-pub fn decode_protobuf<T: prost::Message + Default>(reader: &mut impl Read) -> Result<T> {
+pub fn decode_protobuf<T: Message>(reader: &mut impl Read) -> Result<T> {
+  use prost::Message;
+
+  // Decode the length delimiter
   let length = read_length_delimiter(reader)?;
 
+  // Read the bytes into a buffer
   let mut bytes = vec![0u8; length];
   read_wharf_exact(reader, &mut bytes)?;
 
-  T::decode(bytes.as_slice()).map_err(|e| {
+  // Decode the protobuf message
+  let proto = T::ProtoMessage::decode(bytes.as_slice()).map_err(|e| {
     InvalidWharfMessage::InvalidProtoMessage {
       decode_error: e.to_string(),
       bytes: bytes.into_boxed_slice(),
     }
     .into_error::<T>()
-  })
+  })?;
+
+  // Parse the protobuf message
+  proto.try_into().map_err(|e| e.into())
 }
 
 /// Skip the next length-delimited Protobuf message
@@ -85,9 +92,11 @@ pub fn decode_protobuf<T: prost::Message + Default>(reader: &mut impl Read) -> R
 /// # Errors
 ///
 /// If the reader could not be read
-pub fn skip_protobuf(reader: &mut impl Read) -> Result<()> {
+pub fn skip_protobuf<T: Message>(reader: &mut impl Read) -> Result<()> {
+  // Decode the length delimiter
   let length = read_length_delimiter(reader)?;
 
+  // Read the bytes into the void
   std::io::copy(&mut reader.take(length as u64), &mut io::empty())
     .map(|_| ())
     .map_err(|e| IoError::WharfBinaryReadFailed(e).into())

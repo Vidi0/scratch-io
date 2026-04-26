@@ -50,6 +50,18 @@ pub enum InvalidWharfMessage {
     decode_error: String,
     bytes: Box<[u8]>,
   },
+
+  #[error("missing field: {field_name}")]
+  MissingProtoField { field_name: &'static str },
+
+  #[error("expected valid usize, found: {int}")]
+  ExpectedUsize { int: i64 },
+
+  #[error("expected valid u64, found: {int}")]
+  ExpectedU64 { int: i64 },
+
+  #[error("expected vector length of {expected}, found length {found}")]
+  ExpectedVecLength { expected: usize, found: usize },
 }
 
 impl InvalidWharfMessage {
