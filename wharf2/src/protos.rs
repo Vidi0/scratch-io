@@ -93,11 +93,17 @@ where
   /// If the reader could not be read
   fn skip(reader: &mut impl Read) -> Result<()> {
     // Decode the length delimiter
-    let length = read_length_delimiter(reader)?;
+    let length = read_length_delimiter(reader)? as u64;
 
     // Read the bytes into the void
-    std::io::copy(&mut reader.take(length as u64), &mut io::empty())
-      .map(|_| ())
-      .map_err(|e| IoError::WharfBinaryReadFailed(e).into())
+    let read_bytes = std::io::copy(&mut reader.take(length), &mut io::empty())
+      .map_err(IoError::WharfBinaryReadFailed)?;
+
+    // Check the number of read bytes matches the expected amount
+    if length == read_bytes {
+      Ok(())
+    } else {
+      Err(InvalidWharfBinary::UnexpectedEOF.into())
+    }
   }
 }
