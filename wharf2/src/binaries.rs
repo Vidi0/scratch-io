@@ -1,7 +1,7 @@
 use crate::errors::{InvalidWharfBinary, IoError, Result};
 use crate::magic::check_magic_bytes;
 
-use std::io::{self, Read};
+use std::io::{self, BufRead, Read};
 
 /// Reads the exact number of bytes required to fill `buf`.
 ///
@@ -29,12 +29,12 @@ where
 
   /// Decode a wharf binary assuming the magic bytes have already been consumed
   /// from the input stream
-  fn read_without_magic(reader: &mut impl Read) -> Result<Self>;
+  fn read_without_magic<R: BufRead>(reader: &mut R) -> Result<Self>;
 
   /// Decode a wharf binary
   ///
   /// If the magic bytes have already been consumed, use [`WharfBinary::read_without_magic`].
-  fn read(reader: &mut impl Read) -> Result<Self> {
+  fn read<R: BufRead>(reader: &mut R) -> Result<Self> {
     // Check the magic bytes
     check_magic_bytes(reader, Self::MAGIC)?;
 
