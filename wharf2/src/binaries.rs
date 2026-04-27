@@ -20,7 +20,7 @@ pub fn read_wharf_exact(reader: &mut impl Read, buf: &mut [u8]) -> Result<()> {
   })
 }
 
-pub trait WharfBinary
+pub trait WharfBinary<'reader, R: BufRead + 'reader>
 where
   Self: Sized,
 {
@@ -29,12 +29,12 @@ where
 
   /// Decode a wharf binary assuming the magic bytes have already been consumed
   /// from the input stream
-  fn read_without_magic<R: BufRead>(reader: &mut R) -> Result<Self>;
+  fn read_without_magic(reader: &'reader mut R) -> Result<Self>;
 
   /// Decode a wharf binary
   ///
   /// If the magic bytes have already been consumed, use [`WharfBinary::read_without_magic`].
-  fn read<R: BufRead>(reader: &mut R) -> Result<Self> {
+  fn read(reader: &'reader mut R) -> Result<Self> {
     // Check the magic bytes
     check_magic_bytes(reader, Self::MAGIC)?;
 
