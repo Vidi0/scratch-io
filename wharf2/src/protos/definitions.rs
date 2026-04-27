@@ -332,6 +332,7 @@ impl Message for WoundsHeader {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[expect(dead_code)]
 pub enum Wound {
   File {
     index: usize,

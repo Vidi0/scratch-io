@@ -7,6 +7,7 @@
 
 mod definitions;
 
+#[expect(unused_imports)]
 pub use definitions::*;
 
 use crate::binaries::read_wharf_exact;
@@ -56,6 +57,7 @@ fn read_length_delimiter(reader: &mut impl Read) -> Result<usize> {
 /// the raw Protobuf decoding, and a [`TryFrom`] conversion that maps it into the
 /// corresponding Rust type. [`Message::decode`] and [`Message::skip`] operate on any reader,
 /// advancing it by exactly one message per call.
+#[expect(dead_code)]
 pub trait Message
 where
   Self: Sized,
