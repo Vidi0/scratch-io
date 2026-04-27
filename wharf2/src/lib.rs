@@ -1,7 +1,7 @@
 pub mod errors;
 
+mod binaries;
 mod magic;
 mod protos;
-mod binaries;
 
 pub use binaries::WharfBinary;
