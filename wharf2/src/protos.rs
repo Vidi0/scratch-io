@@ -7,7 +7,6 @@
 
 mod definitions;
 
-#[expect(unused_imports)]
 pub use definitions::*;
 
 use crate::binaries::read_wharf_exact;

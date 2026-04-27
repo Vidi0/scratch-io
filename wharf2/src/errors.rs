@@ -80,6 +80,9 @@ impl InvalidWharfMessage {
 pub enum IoError {
   #[error("failed to read the wharf binary data: {0}")]
   WharfBinaryReadFailed(#[source] io::Error),
+
+  #[error("failed to create a new Zstandard decoder: {0}")]
+  CreateZstdDecoderFailed(#[source] io::Error),
 }
 
 // This will never be called. It is added in order to satisfy the compiler
