@@ -1,3 +1,12 @@
+//! Magic numbers and binary header utilities for wharf file formats.
+//!
+//! Wharf binary files begin with a 4-byte little-endian magic number that identifies
+//! the file format. This module provides:
+//!
+//! - The magic numbers for each wharf file format (.pwr, .pws, .pwm, .pww, .pzi)
+//! - [`read_magic_bytes`] to read the magic number from a reader
+//! - [`check_magic_bytes`] to verify it matches an expected value
+
 use crate::binaries::read_wharf_exact;
 use crate::errors::{InvalidWharfBinary, Result};
 

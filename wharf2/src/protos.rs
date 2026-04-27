@@ -1,3 +1,10 @@
+//! Protobuf message decoding for wharf binary streams.
+//!
+//! This module provides the [`Message`] trait, which is implemented by types that
+//! can be decoded from length-delimited Protobuf messages in a wharf binary stream.
+//! Each message is preceded by a varint length delimiter, as described in the
+//! [Protobuf encoding specification](https://protobuf.dev/programming-guides/encoding/#length-types).
+
 mod definitions;
 
 pub use definitions::*;
