@@ -28,15 +28,17 @@ pub const WOUNDS_MAGIC: u32 = MANIFEST_MAGIC + 1;
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L26>
 pub const ZIP_INDEX_MAGIC: u32 = WOUNDS_MAGIC + 1;
 
-/// Read the next 4 bytes of the reader and return its little endian u32 representation
+/// Read the magic bytes of the provided reader as an `u32`
 pub fn read_magic_bytes(reader: &mut impl Read) -> Result<u32> {
+  // Read the next 4 bytes of the reader
   let mut magic_bytes = [0u8; 4];
   read_wharf_exact(reader, &mut magic_bytes)?;
 
+  // Return the little endian u32 representation of the bytes
   Ok(u32::from_le_bytes(magic_bytes))
 }
 
-/// Verify that the next four bytes of the reader match the expected magic number
+/// Verify that the magic bytes of the reader match the expected magic number
 ///
 /// # Errors
 ///
