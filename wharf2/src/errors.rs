@@ -27,6 +27,9 @@ pub enum InvalidWharfBinary {
   #[error("magic bytes mismatch: expected {expected}, found {found}")]
   MagicMismatch { expected: u32, found: u32 },
 
+  #[error("magic bytes mismatch: does not match any known wharf binary format: {found}")]
+  MagicNotFound { found: u32 },
+
   #[error("invalid protobuf length delimiter: {length_delimiter:?}")]
   InvalidLengthDelimiter { length_delimiter: Box<[u8]> },
 

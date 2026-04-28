@@ -25,19 +25,16 @@ pub const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
 /// Magic number for wharf manifest files (.pwm)
 ///
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L20>
-#[expect(dead_code)]
 pub const MANIFEST_MAGIC: u32 = PATCH_MAGIC + 2;
 
 /// Magic number for wharf wounds file (.pww)
 ///
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L23>
-#[expect(dead_code)]
 pub const WOUNDS_MAGIC: u32 = PATCH_MAGIC + 3;
 
 /// Magic number for wharf zip index files (.pzi)
 ///
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L26>
-#[expect(dead_code)]
 pub const ZIP_INDEX_MAGIC: u32 = PATCH_MAGIC + 4;
 
 /// Read the magic bytes of the provided reader as an `u32`
