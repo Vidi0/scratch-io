@@ -52,7 +52,7 @@ impl From<pwr::CompressionAlgorithm> for CompressionAlgorithm {
   }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct CompressionSettings {
   pub algorithm: CompressionAlgorithm,
   pub quality: i32,
@@ -69,7 +69,7 @@ impl From<pwr::CompressionSettings> for CompressionSettings {
 
 // Patch file format
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PatchHeader {
   pub compression: CompressionSettings,
 }
@@ -88,7 +88,7 @@ impl Message for PatchHeader {
   type ProtoMessage = pwr::PatchHeader;
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SyncHeader {
   pub r#type: sync_header::Type,
   pub file_index: usize,
@@ -127,7 +127,7 @@ pub mod sync_header {
   }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct BsdiffHeader {
   pub target_index: usize,
 }
@@ -146,7 +146,7 @@ impl Message for BsdiffHeader {
   type ProtoMessage = pwr::BsdiffHeader;
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SyncOp {
   BlockRange {
     file_index: usize,
@@ -178,7 +178,7 @@ impl Message for SyncOp {
 }
 
 /// Control is a bsdiff operation, see <https://twitter.com/fasterthanlime/status/790617515009437701>
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Control {
   Op {
     add: Box<[u8]>,
@@ -208,7 +208,7 @@ impl Message for Control {
 
 // Signature file format
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SignatureHeader {
   pub compression: CompressionSettings,
 }
@@ -227,7 +227,7 @@ impl Message for SignatureHeader {
   type ProtoMessage = pwr::SignatureHeader;
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct BlockHash {
   pub weak_hash: u32,
   pub strong_hash: [u8; 16],
@@ -263,7 +263,7 @@ impl Message for BlockHash {
 
 // Manifest file format
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ManifestHeader {
   pub compression: CompressionSettings,
   pub algorithm: HashAlgorithm,
@@ -299,7 +299,7 @@ impl From<pwr::HashAlgorithm> for HashAlgorithm {
   }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ManifestBlockHash {
   pub hash: Vec<u8>,
 }
@@ -318,7 +318,7 @@ impl Message for ManifestBlockHash {
 
 /// Wounds files format: header, container, then any
 /// number of Wounds
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct WoundsHeader;
 
 impl From<pwr::WoundsHeader> for WoundsHeader {
@@ -331,7 +331,7 @@ impl Message for WoundsHeader {
   type ProtoMessage = pwr::WoundsHeader;
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[expect(dead_code)]
 pub enum Wound {
   File {
@@ -359,7 +359,7 @@ impl TryFrom<pwr::Wound> for Wound {
 
 // Container
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Container {
   pub files: Vec<File>,
   pub dirs: Vec<Dir>,
@@ -393,7 +393,7 @@ impl Message for Container {
   type ProtoMessage = tlc::Container;
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Dir {
   pub path: String,
   pub mode: u32,
@@ -408,7 +408,7 @@ impl From<tlc::Dir> for Dir {
   }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct File {
   pub path: String,
   pub mode: u32,
@@ -429,7 +429,7 @@ impl TryFrom<tlc::File> for File {
   }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Symlink {
   pub path: String,
   pub mode: u32,
