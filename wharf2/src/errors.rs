@@ -83,6 +83,9 @@ pub enum IoError {
 
   #[error("failed to create a new Zstandard decoder: {0}")]
   CreateZstdDecoderFailed(#[source] io::Error),
+
+  #[error("failed to write into dump debug message: {0}")]
+  WriteDumpFailed(#[source] io::Error),
 }
 
 // This will never be called. It is added in order to satisfy the compiler

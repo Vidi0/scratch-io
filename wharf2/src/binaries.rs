@@ -1,7 +1,7 @@
 use crate::errors::{InvalidWharfBinary, IoError, Result};
 use crate::magic::check_magic_bytes;
 
-use std::io::{self, BufRead, Read};
+use std::io::{self, BufRead, Read, Write};
 
 /// Reads the exact number of bytes required to fill `buf`.
 ///
@@ -20,7 +20,11 @@ pub fn read_wharf_exact(reader: &mut impl Read, buf: &mut [u8]) -> Result<()> {
   })
 }
 
-pub trait WharfBinary<'reader, R: BufRead + 'reader>
+pub trait Dump {
+  fn dump(&mut self, writer: &mut impl Write) -> Result<()>;
+}
+
+pub trait WharfBinary<'reader, R: BufRead + 'reader>: Dump
 where
   Self: Sized,
 {

@@ -1,3 +1,7 @@
+// Because the structs are never constructed, let's allow dead code
+// in this module by now.
+#![allow(dead_code)]
+
 /// <https://github.com/itchio/wharf/blob/5e5efc838cdbaee7915246d5102af78a3a31e74d/bsdiff/bsdiff.proto>
 ///
 /// More information about bsdiff wharf patches:

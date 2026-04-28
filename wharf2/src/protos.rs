@@ -9,10 +9,12 @@ mod definitions;
 
 pub use definitions::*;
 
-use crate::binaries::read_wharf_exact;
+use crate::binaries::{Dump, read_wharf_exact};
 use crate::errors::{Error, InvalidWharfBinary, InvalidWharfMessage, IoError, Result};
 
-use std::io::{self, Read};
+use std::fmt::Debug;
+use std::hash::Hash;
+use std::io::{self, Read, Write};
 
 /// <https://protobuf.dev/programming-guides/encoding/#varints>
 const PROTOBUF_VARINT_MAX_LENGTH: usize = 10;
@@ -56,10 +58,10 @@ fn read_length_delimiter(reader: &mut impl Read) -> Result<usize> {
 /// the raw Protobuf decoding, and a [`TryFrom`] conversion that maps it into the
 /// corresponding Rust type. [`Message::decode`] and [`Message::skip`] operate on any reader,
 /// advancing it by exactly one message per call.
-#[expect(dead_code)]
 pub trait Message
 where
   Self: Sized,
+  Self: Clone + Debug + PartialEq + Eq + Hash,
   Self::ProtoMessage: TryInto<Self>,
   <Self::ProtoMessage as TryInto<Self>>::Error: Into<Error>,
 {
@@ -116,5 +118,12 @@ where
     } else {
       Err(InvalidWharfBinary::UnexpectedEOF.into())
     }
+  }
+}
+
+impl<T: Message> Dump for T {
+  fn dump(&mut self, writer: &mut impl Write) -> Result<()> {
+    writeln!(writer, "{:#?}", self).map_err(IoError::WriteDumpFailed)?;
+    Ok(())
   }
 }
