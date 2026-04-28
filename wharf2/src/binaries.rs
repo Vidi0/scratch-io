@@ -1,3 +1,5 @@
+pub mod signature;
+
 use crate::errors::{InvalidWharfBinary, IoError, Result};
 use crate::magic::check_magic_bytes;
 
@@ -18,6 +20,14 @@ pub fn read_wharf_exact(reader: &mut impl Read, buf: &mut [u8]) -> Result<()> {
       IoError::WharfBinaryReadFailed(e).into()
     }
   })
+}
+
+pub trait LendingIterator {
+  type Item<'a>
+  where
+    Self: 'a;
+
+  fn next<'a>(&'a mut self) -> Option<Self::Item<'a>>;
 }
 
 pub trait Dump {

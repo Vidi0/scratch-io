@@ -32,7 +32,6 @@ impl<'a, R: BufRead> Decompressor<'a, R> {
   /// # Returns
   ///
   /// The decompressed stream
-  #[expect(dead_code)]
   pub fn new(reader: &'a mut R, algorithm: CompressionAlgorithm) -> Result<Self> {
     Ok(match algorithm {
       CompressionAlgorithm::None => {

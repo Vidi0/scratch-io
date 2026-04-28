@@ -20,7 +20,6 @@ pub const PATCH_MAGIC: u32 = 0x0FEF_5F00;
 /// Magic number for wharf signature files (.pws)
 ///
 /// <https://github.com/itchio/wharf/blob/189a01902d172b3297051fab12d5d4db2c620e1d/pwr/constants.go#L17>
-#[expect(dead_code)]
 pub const SIGNATURE_MAGIC: u32 = PATCH_MAGIC + 1;
 
 /// Magic number for wharf manifest files (.pwm)
