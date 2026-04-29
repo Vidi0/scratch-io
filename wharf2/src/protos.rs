@@ -109,7 +109,7 @@ where
     let length = read_length_delimiter(reader)? as u64;
 
     // Read the bytes into the void
-    let read_bytes = std::io::copy(&mut reader.take(length), &mut io::empty())
+    let read_bytes = io::copy(&mut reader.take(length), &mut io::empty())
       .map_err(IoError::WharfBinaryReadFailed)?;
 
     // Check the number of read bytes matches the expected amount
