@@ -123,7 +123,6 @@ where
 
 impl<T: Message> Dump for T {
   fn dump(&mut self, writer: &mut impl Write) -> Result<()> {
-    writeln!(writer, "{:?}", self).map_err(IoError::WriteDumpFailed)?;
-    Ok(())
+    writeln!(writer, "{:?}", self).map_err(|e| IoError::WriteDumpFailed(e).into())
   }
 }
