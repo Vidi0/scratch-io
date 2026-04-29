@@ -111,13 +111,13 @@ impl<R: Read> Dump for FileHashIter<R> {
   }
 }
 
-pub struct Signature<R: Read> {
+pub struct Signature<'reader, R: BufRead> {
   header: SignatureHeader,
   container_new: Container,
-  hash_iter: FileHashIter<R>,
+  hash_iter: FileHashIter<Decompressor<'reader, R>>,
 }
 
-impl<R: Read> Dump for Signature<R> {
+impl<R: BufRead> Dump for Signature<'_, R> {
   fn dump(&mut self, writer: &mut impl std::io::Write) -> Result<()> {
     self.header.dump(writer)?;
     self.container_new.dump(writer)?;
@@ -125,9 +125,7 @@ impl<R: Read> Dump for Signature<R> {
   }
 }
 
-impl<'reader, R: BufRead + 'reader> WharfBinary<'reader, R>
-  for Signature<Decompressor<'reader, R>>
-{
+impl<'reader, R: BufRead + 'reader> WharfBinary<'reader, R> for Signature<'reader, R> {
   const MAGIC: u32 = SIGNATURE_MAGIC;
 
   fn read_without_magic(reader: &'reader mut R) -> Result<Self> {
