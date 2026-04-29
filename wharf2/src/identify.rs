@@ -15,7 +15,9 @@ pub enum WharfBinaryKind {
 }
 
 impl WharfBinaryKind {
-  /// `reader` must have not consumed its magic bytes yet
+  /// `reader` must *not* have consumed its magic bytes yet
+  ///
+  /// After this call, only the magic bytes will be consumed from the reader
   pub fn identify<R: Read>(reader: &mut R) -> Result<Self> {
     Ok(match read_magic_bytes(reader)? {
       PATCH_MAGIC => Self::Patch,
