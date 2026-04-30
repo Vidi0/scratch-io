@@ -1,4 +1,5 @@
 pub mod signature;
+pub mod wounds;
 
 use crate::errors::{InvalidWharfBinary, IoError, Result};
 use crate::magic::check_magic_bytes;
