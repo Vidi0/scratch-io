@@ -336,7 +336,6 @@ impl Message for WoundsHeader {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[expect(dead_code)]
 pub enum Wound {
   File {
     index: usize,
@@ -350,15 +349,36 @@ pub enum Wound {
     index: usize,
   },
   /// sent when a file portion has been verified as valid
-  ClosedFile,
+  ClosedFile {
+    index: usize,
+  },
 }
 
 impl TryFrom<pwr::Wound> for Wound {
   type Error = Error;
 
-  fn try_from(_value: pwr::Wound) -> Result<Self> {
-    todo!()
+  fn try_from(value: pwr::Wound) -> Result<Self> {
+    Ok(match value.kind() {
+      pwr::WoundKind::File => Self::File {
+        index: try_i64_into_usize::<Self>(value.index)?,
+        start: try_i64_into_u64::<Self>(value.start)?,
+        end: try_i64_into_u64::<Self>(value.end)?,
+      },
+      pwr::WoundKind::Symlink => Self::Symlink {
+        index: try_i64_into_usize::<Self>(value.index)?,
+      },
+      pwr::WoundKind::Dir => Self::Dir {
+        index: try_i64_into_usize::<Self>(value.index)?,
+      },
+      pwr::WoundKind::ClosedFile => Self::ClosedFile {
+        index: try_i64_into_usize::<Self>(value.index)?,
+      },
+    })
   }
+}
+
+impl Message for Wound {
+  type ProtoMessage = pwr::Wound;
 }
 
 // Container
