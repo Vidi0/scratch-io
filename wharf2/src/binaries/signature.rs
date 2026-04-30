@@ -5,6 +5,7 @@ use crate::magic::SIGNATURE_MAGIC;
 use crate::protos::{BlockHash, Container, Message, SignatureHeader};
 
 use std::collections::VecDeque;
+use std::fmt::Display;
 use std::io::{BufRead, Read};
 use std::iter::FusedIterator;
 
@@ -115,6 +116,17 @@ pub struct Signature<'reader, R: BufRead> {
   header: SignatureHeader,
   container_new: Container,
   hash_iter: FileHashIter<Decompressor<'reader, R>>,
+}
+
+impl<R: BufRead> Display for Signature<'_, R> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(
+      f,
+      "wharf signature file ({})
+  new: {}",
+      self.header.compression, self.container_new
+    )
+  }
 }
 
 impl<R: BufRead> Dump for Signature<'_, R> {

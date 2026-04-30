@@ -4,6 +4,7 @@ use crate::errors::{Error, InvalidWharfBinary, Result};
 use crate::magic::WOUNDS_MAGIC;
 use crate::protos::{CompressionAlgorithm, Container, Message, Wound, WoundsHeader};
 
+use std::fmt::Display;
 use std::io::{BufRead, Read};
 use std::iter::FusedIterator;
 
@@ -63,6 +64,19 @@ pub struct Wounds<'reader, R: BufRead> {
   header: WoundsHeader,
   container_new: Container,
   wounds_iter: WoundsIter<Decompressor<'reader, R>>,
+}
+
+impl<R: BufRead> Display for Wounds<'_, R> {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    writeln!(
+      f,
+      "wharf wounds file ({})
+  new: {}",
+      // Wharf wounds binaries are always uncompressed
+      CompressionAlgorithm::None,
+      self.container_new
+    )
+  }
 }
 
 impl<R: BufRead> Dump for Wounds<'_, R> {

@@ -4,6 +4,7 @@ pub mod wounds;
 use crate::errors::{InvalidWharfBinary, IoError, Result};
 use crate::magic::check_magic_bytes;
 
+use std::fmt::Display;
 use std::io::{self, BufRead, Read, Write};
 
 /// Reads the exact number of bytes required to fill `buf`.
@@ -35,9 +36,10 @@ pub trait Dump {
   fn dump(&mut self, writer: &mut impl Write) -> Result<()>;
 }
 
-pub trait WharfBinary<'reader, R: BufRead + 'reader>: Dump
+pub trait WharfBinary<'reader, R: BufRead + 'reader>
 where
   Self: Sized,
+  Self: Dump + Display,
 {
   /// The magic bytes of this wharf binary
   const MAGIC: u32;
