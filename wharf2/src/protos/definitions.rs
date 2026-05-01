@@ -296,12 +296,28 @@ impl From<pwr::HashAlgorithm> for HashAlgorithm {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ManifestBlockHash {
-  pub hash: Vec<u8>,
+  /// Both Shake128_32 and CRC32C are 4 bytes long
+  pub hash: [u8; 4],
 }
 
-impl From<pwr::ManifestBlockHash> for ManifestBlockHash {
-  fn from(value: pwr::ManifestBlockHash) -> Self {
-    Self { hash: value.hash }
+impl TryFrom<pwr::ManifestBlockHash> for ManifestBlockHash {
+  type Error = Error;
+
+  fn try_from(value: pwr::ManifestBlockHash) -> Result<Self> {
+    let hash: [u8; 4] = match value.hash.try_into() {
+      Ok(hash) => hash,
+      Err(vec) => {
+        return Err(
+          InvalidWharfMessage::ExpectedVecLength {
+            expected: 4,
+            found: vec.len(),
+          }
+          .into_error::<Self>(),
+        );
+      }
+    };
+
+    Ok(Self { hash })
   }
 }
 
