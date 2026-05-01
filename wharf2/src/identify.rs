@@ -1,5 +1,8 @@
+use crate::binaries::manifest::Manifest;
+use crate::binaries::patch::Patch;
 use crate::binaries::signature::Signature;
 use crate::binaries::wounds::Wounds;
+use crate::binaries::zip_index::ZipIndex;
 use crate::binaries::{Dump, WharfBinary};
 use crate::errors::{InvalidWharfBinary, Result};
 use crate::magic::{
@@ -19,8 +22,11 @@ pub enum WharfBinaryKind {
 }
 
 pub enum WharfBinaryRead<'reader, R: BufRead> {
+  Patch(Patch<'reader, R>),
   Signature(Signature<'reader, R>),
+  Manifest(Manifest<'reader, R>),
   Wounds(Wounds<'reader, R>),
+  ZipIndex(ZipIndex<'reader, R>),
 }
 
 impl WharfBinaryKind {
@@ -39,38 +45,37 @@ impl WharfBinaryKind {
   }
 
   /// `reader` must *have* consumed its magic bytes
-  ///
-  /// # Panics
-  ///
-  /// The following binaries are not implemented yet: [`Self::Patch`], [`Self::Manifest`]
-  /// and [`Self::ZipIndex`].
-  ///
-  /// Therefore, calling this function on any of those variants will panic with a todo message.
   pub fn read<R: BufRead>(self, reader: &mut R) -> Result<WharfBinaryRead<'_, R>> {
     Ok(match self {
-      Self::Patch => todo!(),
+      Self::Patch => WharfBinaryRead::Patch(Patch::read_without_magic(reader)?),
       Self::Signature => WharfBinaryRead::Signature(Signature::read_without_magic(reader)?),
-      Self::Manifest => todo!(),
+      Self::Manifest => WharfBinaryRead::Manifest(Manifest::read_without_magic(reader)?),
       Self::Wounds => WharfBinaryRead::Wounds(Wounds::read_without_magic(reader)?),
-      Self::ZipIndex => todo!(),
+      Self::ZipIndex => WharfBinaryRead::ZipIndex(ZipIndex::read_without_magic(reader)?),
     })
-  }
-}
-
-impl<R: BufRead> Dump for WharfBinaryRead<'_, R> {
-  fn dump(&mut self, writer: &mut impl std::io::Write) -> Result<()> {
-    match self {
-      Self::Signature(signature) => signature.dump(writer),
-      Self::Wounds(wounds) => wounds.dump(writer),
-    }
   }
 }
 
 impl<R: BufRead> Display for WharfBinaryRead<'_, R> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
+      Self::Patch(patch) => write!(f, "{patch}"),
       Self::Signature(signature) => write!(f, "{signature}"),
+      Self::Manifest(manifest) => write!(f, "{manifest}"),
       Self::Wounds(wounds) => write!(f, "{wounds}"),
+      Self::ZipIndex(zip_index) => write!(f, "{zip_index}"),
+    }
+  }
+}
+
+impl<R: BufRead> Dump for WharfBinaryRead<'_, R> {
+  fn dump(&mut self, writer: &mut impl std::io::Write) -> Result<()> {
+    match self {
+      Self::Patch(patch) => patch.dump(writer),
+      Self::Signature(signature) => signature.dump(writer),
+      Self::Manifest(manifest) => manifest.dump(writer),
+      Self::Wounds(wounds) => wounds.dump(writer),
+      Self::ZipIndex(zip_index) => zip_index.dump(writer),
     }
   }
 }

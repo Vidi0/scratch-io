@@ -1,5 +1,8 @@
+pub mod manifest;
+pub mod patch;
 pub mod signature;
 pub mod wounds;
+pub mod zip_index;
 
 use crate::errors::{InvalidWharfBinary, IoError, Result};
 use crate::magic::check_magic_bytes;
