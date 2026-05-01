@@ -1,4 +1,4 @@
-use crate::protos::{CompressionAlgorithm, CompressionSettings, Container, File};
+use crate::protos::{CompressionSettings, Container, File};
 
 use std::fmt::Display;
 
@@ -11,21 +11,13 @@ impl File {
   }
 }
 
-impl Display for CompressionAlgorithm {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match self {
-      CompressionAlgorithm::None => write!(f, "uncompressed"),
-      _ => write!(f, "{self:?}"),
-    }
-  }
-}
-
 impl Display for CompressionSettings {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match self.algorithm {
-      // If it is uncompressed, it doesn't make sense to add the quality
-      CompressionAlgorithm::None => write!(f, "{}", self.algorithm),
-      _ => write!(f, "{}-q{}", self.algorithm, self.quality),
+    match self {
+      CompressionSettings::None => write!(f, "uncompressed"),
+      CompressionSettings::Brotli { quality } => write!(f, "Brotli-q{quality}"),
+      CompressionSettings::Gzip { quality } => write!(f, "gzip-q{quality}"),
+      CompressionSettings::Zstd { quality } => write!(f, "Zstandard-q{quality}"),
     }
   }
 }

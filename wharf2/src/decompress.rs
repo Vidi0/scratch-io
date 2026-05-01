@@ -6,7 +6,7 @@
 //! in the binary's header.
 
 use crate::errors::{IoError, Result};
-use crate::protos::CompressionAlgorithm;
+use crate::protos::CompressionSettings;
 
 use std::io::{BufRead, Read};
 
@@ -32,22 +32,22 @@ impl<'a, R: BufRead> Decompressor<'a, R> {
   /// # Returns
   ///
   /// The decompressed stream
-  pub fn new(reader: &'a mut R, algorithm: CompressionAlgorithm) -> Result<Self> {
+  pub fn new(reader: &'a mut R, algorithm: CompressionSettings) -> Result<Self> {
     Ok(match algorithm {
-      CompressionAlgorithm::None => {
+      CompressionSettings::None => {
         // Don't wrap the reader if there is no compression
         Self::None(reader)
       }
-      CompressionAlgorithm::Brotli => {
+      CompressionSettings::Brotli { .. } => {
         // Brotli decompression
         // Set the buffer size to zero to allow Brotli to select the correct size
         Self::Brotli(Box::new(brotli::Decompressor::new(reader, 0)))
       }
-      CompressionAlgorithm::Gzip => {
+      CompressionSettings::Gzip { .. } => {
         // Gzip decompression
         Self::Gzip(Box::new(flate2::bufread::GzDecoder::new(reader)))
       }
-      CompressionAlgorithm::Zstd => {
+      CompressionSettings::Zstd { .. } => {
         // Zstd decompression
         Self::Zstd(Box::new(
           zstd::stream::Decoder::with_buffer(reader).map_err(IoError::CreateZstdDecoderFailed)?,

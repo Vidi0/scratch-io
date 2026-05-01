@@ -2,7 +2,7 @@ use super::{Dump, WharfBinary};
 use crate::decompress::Decompressor;
 use crate::errors::{Error, InvalidWharfBinary, Result};
 use crate::magic::WOUNDS_MAGIC;
-use crate::protos::{CompressionAlgorithm, Container, Message, Wound, WoundsHeader};
+use crate::protos::{CompressionSettings, Container, Message, Wound, WoundsHeader};
 
 use std::fmt::Display;
 use std::io::{BufRead, Read};
@@ -73,7 +73,7 @@ impl<R: BufRead> Display for Wounds<'_, R> {
       "wharf wounds file ({})
   new: {}",
       // Wharf wounds binaries are always uncompressed
-      CompressionAlgorithm::None,
+      CompressionSettings::None,
       self.container_new
     )
   }
@@ -96,7 +96,7 @@ impl<'reader, R: BufRead + 'reader> WharfBinary<'reader, R> for Wounds<'reader, 
 
     // The wounds wharf binary format is not compressed
     // Decompress the remaining stream with None as the algorithm
-    let mut reader = Decompressor::new(reader, CompressionAlgorithm::None)?;
+    let mut reader = Decompressor::new(reader, CompressionSettings::None)?;
 
     // Decode the container
     let container_new = Container::decode(&mut reader)?;

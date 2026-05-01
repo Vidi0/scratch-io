@@ -38,35 +38,26 @@ fn try_unwrap_option<MessageType, T>(value: Option<T>, field_name: &'static str)
 // Compression
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum CompressionAlgorithm {
+pub enum CompressionSettings {
   None,
-  Brotli,
-  Gzip,
-  Zstd,
-}
-
-impl From<pwr::CompressionAlgorithm> for CompressionAlgorithm {
-  fn from(value: pwr::CompressionAlgorithm) -> Self {
-    match value {
-      pwr::CompressionAlgorithm::None => Self::None,
-      pwr::CompressionAlgorithm::Brotli => Self::Brotli,
-      pwr::CompressionAlgorithm::Gzip => Self::Gzip,
-      pwr::CompressionAlgorithm::Zstd => Self::Zstd,
-    }
-  }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct CompressionSettings {
-  pub algorithm: CompressionAlgorithm,
-  pub quality: i32,
+  Brotli { quality: i32 },
+  Gzip { quality: i32 },
+  Zstd { quality: i32 },
 }
 
 impl From<pwr::CompressionSettings> for CompressionSettings {
   fn from(value: pwr::CompressionSettings) -> Self {
-    Self {
-      algorithm: value.algorithm().into(),
-      quality: value.quality,
+    match value.algorithm() {
+      pwr::CompressionAlgorithm::None => Self::None,
+      pwr::CompressionAlgorithm::Brotli => Self::Brotli {
+        quality: value.quality,
+      },
+      pwr::CompressionAlgorithm::Gzip => Self::Gzip {
+        quality: value.quality,
+      },
+      pwr::CompressionAlgorithm::Zstd => Self::Zstd {
+        quality: value.quality,
+      },
     }
   }
 }

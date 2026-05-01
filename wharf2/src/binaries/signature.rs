@@ -145,7 +145,7 @@ impl<'reader, R: BufRead + 'reader> WharfBinary<'reader, R> for Signature<'reade
     let header = SignatureHeader::decode(reader)?;
 
     // Decompress the remaining stream
-    let mut reader = Decompressor::new(reader, header.compression.algorithm)?;
+    let mut reader = Decompressor::new(reader, header.compression)?;
 
     // Decode the container
     let container_new = Container::decode(&mut reader)?;
