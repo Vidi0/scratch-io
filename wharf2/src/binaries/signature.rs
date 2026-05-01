@@ -9,6 +9,12 @@ use std::fmt::Display;
 use std::io::{BufRead, Read};
 use std::iter::FusedIterator;
 
+/// Iterator over the [`BlockHash`] messages for a single file in a signature
+///
+/// Yields exactly `remaining_blocks` hashes before returning `None`,
+/// corresponding to the fixed-size blocks of one file in the container.
+/// Implements [`ExactSizeIterator`] since the block count is known up front
+/// from the container metadata.
 pub struct HashIter<R: Read> {
   reader: R,
   remaining_blocks: u64,
@@ -58,6 +64,12 @@ impl<R: Read> Dump for HashIter<R> {
   }
 }
 
+/// Lending iterator over per-file [`HashIter`]s in a signature stream
+///
+/// Advances through the container's files in order, yielding a [`HashIter`]
+/// scoped to each file's blocks. When [`LendingIterator::next`] is called,
+/// any unread blocks from the previous file are drained before the iterator
+/// is reset for the next file, keeping the underlying reader in sync.
 pub struct FileHashIter<R: Read> {
   hash_iter: HashIter<R>,
   remaining_files: VecDeque<u64>,
@@ -112,6 +124,18 @@ impl<R: Read> Dump for FileHashIter<R> {
   }
 }
 
+/// A wharf signature file (`.pws`)
+///
+/// A signature contains the new container describing the expected filesystem
+/// state, followed by MD5 and Adler-32 block hashes for every fixed-size block
+/// of every file in the container.
+///
+/// Signatures are used both for verifying the integrity of an installed build
+/// and as the basis for computing patches between builds.
+///
+/// # References
+///
+/// <https://docs.itch.zone/wharf/master/file-formats/signatures.html>
 pub struct Signature<'reader, R: BufRead> {
   header: SignatureHeader,
   container_new: Container,

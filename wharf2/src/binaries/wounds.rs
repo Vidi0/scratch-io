@@ -8,7 +8,12 @@ use std::fmt::Display;
 use std::io::{BufRead, Read};
 use std::iter::FusedIterator;
 
-/// Iterator over an unknown amount of wounds
+/// Iterator over the [`Wound`] messages in a wharf wounds stream
+///
+/// Decodes [`Wound`] messages one at a time from the underlying reader.
+/// Because the wounds format does not encode the total number of wounds up
+/// front, the iterator treats an unexpected EOF as the natural end of the
+/// stream rather than an error.
 pub struct WoundsIter<R: Read> {
   reader: R,
   has_finished: bool,
@@ -60,6 +65,19 @@ impl<R: Read> Dump for WoundsIter<R> {
   }
 }
 
+/// A wharf wounds file (`.pww`)
+///
+/// A wounds file describes the corrupted regions of an installed build. It
+/// contains the new container describing the expected filesystem state, and a
+/// variable-length sequence of `Wound` messages. Each `Wound` identifies a
+/// corrupted byte range `[start, end)` within a specific file; a missing symlink
+/// or directory; or confirms a verified file.
+///
+/// Wounds files are always uncompressed regardless of the header contents.
+///
+/// In the itch.io pipeline, wounds are produced by the validator during
+/// integrity checking and consumed by the healer to drive selective
+/// redownloading of corrupted blocks.
 pub struct Wounds<'reader, R: BufRead> {
   header: WoundsHeader,
   container_new: Container,

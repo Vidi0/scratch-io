@@ -8,6 +8,12 @@ use std::fmt::Display;
 use std::io::{BufRead, Read};
 use std::iter::FusedIterator;
 
+/// Iterator over the block hashes in a wharf manifest file
+///
+/// Decodes [`ManifestBlockHash`] messages one at a time from the underlying
+/// reader. Because the manifest format does not encode the total number of
+/// blocks up front, the iterator treats an unexpected EOF as the natural end
+/// of the stream rather than an error.
 pub struct ManifestBlockIter<R: Read> {
   reader: R,
   has_finished: bool,
@@ -55,6 +61,21 @@ impl<R: Read> Dump for ManifestBlockIter<R> {
   }
 }
 
+/// A wharf manifest file (`.pwm`)
+///
+/// A manifest contains a header describing the compression algorithm and hash
+/// algorithm used, followed by a variable-length sequence of block hash
+/// messages (one per 4MB block across all files in the container).
+///
+/// Manifests were designed as a lightweight alternative to signatures for use
+/// as a heal source: because they contain only hashes and no file structure,
+/// access control can be enforced independently (e.g. via expiring download
+/// sessions). However, this feature was never fully deployed by itch.io and
+/// should be considered experimental.
+///
+/// # References
+///
+/// <https://github.com/itchio/butler/releases/tag/v1.0.0>
 pub struct Manifest<'reader, R: BufRead> {
   header: ManifestHeader,
   block_iter: ManifestBlockIter<Decompressor<'reader, R>>,

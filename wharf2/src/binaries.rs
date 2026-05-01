@@ -35,10 +35,26 @@ pub trait LendingIterator {
   fn next<'a>(&'a mut self) -> Option<Self::Item<'a>>;
 }
 
+/// Serialize the contents of a wharf binary to a human-readable text
+/// representation
+///
+/// Implemented by wharf binary types and their sub-iterators to support the
+/// `dump` command, which prints the decoded contents of a wharf binary for
+/// inspection.
 pub trait Dump {
   fn dump(&mut self, writer: &mut impl Write) -> Result<()>;
 }
 
+/// A wharf binary file that can be read from a buffered stream
+///
+/// Implemented by [`Signature`](signature::Signature), [`Patch`](patch::Patch),
+/// [`Manifest`](manifest::Manifest), [`Wounds`](wounds::Wounds), and
+/// [`ZipIndex`](zip_index::ZipIndex). To read any of the binaries, see
+/// [`WharfBinary::read`]
+///
+///
+/// Implementors must also implement [`Dump`] for printing decoded contents
+/// and [`Display`] for printing a human-readable summary of the binary.
 pub trait WharfBinary<'reader, R: BufRead + 'reader>
 where
   Self: Sized,
