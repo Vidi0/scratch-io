@@ -35,6 +35,16 @@ fn try_unwrap_option<MessageType, T>(value: Option<T>, field_name: &'static str)
   })
 }
 
+fn try_vec_to_array<const LEN: usize, MessageType, T>(value: Vec<T>) -> Result<[T; LEN]> {
+  value.try_into().map_err(|vec: Vec<T>| {
+    InvalidWharfMessage::ExpectedVecLength {
+      expected: LEN,
+      found: vec.len(),
+    }
+    .into_error::<MessageType>()
+  })
+}
+
 // Compression
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -232,22 +242,9 @@ impl TryFrom<pwr::BlockHash> for BlockHash {
   type Error = Error;
 
   fn try_from(value: pwr::BlockHash) -> Result<Self> {
-    let strong_hash: [u8; 16] = match value.strong_hash.try_into() {
-      Ok(hash) => hash,
-      Err(vec) => {
-        return Err(
-          InvalidWharfMessage::ExpectedVecLength {
-            expected: 16,
-            found: vec.len(),
-          }
-          .into_error::<Self>(),
-        );
-      }
-    };
-
     Ok(Self {
       weak_hash: value.weak_hash,
-      strong_hash,
+      strong_hash: try_vec_to_array::<_, Self, _>(value.strong_hash)?,
     })
   }
 }
@@ -304,20 +301,9 @@ impl TryFrom<pwr::ManifestBlockHash> for ManifestBlockHash {
   type Error = Error;
 
   fn try_from(value: pwr::ManifestBlockHash) -> Result<Self> {
-    let hash: [u8; 4] = match value.hash.try_into() {
-      Ok(hash) => hash,
-      Err(vec) => {
-        return Err(
-          InvalidWharfMessage::ExpectedVecLength {
-            expected: 4,
-            found: vec.len(),
-          }
-          .into_error::<Self>(),
-        );
-      }
-    };
-
-    Ok(Self { hash })
+    Ok(Self {
+      hash: try_vec_to_array::<_, Self, _>(value.hash)?,
+    })
   }
 }
 
