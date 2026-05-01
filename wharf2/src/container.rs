@@ -14,10 +14,10 @@ impl File {
 impl Display for CompressionSettings {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
-      CompressionSettings::None => write!(f, "uncompressed"),
-      CompressionSettings::Brotli { quality } => write!(f, "Brotli-q{quality}"),
-      CompressionSettings::Gzip { quality } => write!(f, "gzip-q{quality}"),
-      CompressionSettings::Zstd { quality } => write!(f, "Zstandard-q{quality}"),
+      Self::None => write!(f, "uncompressed"),
+      Self::Brotli { quality } => write!(f, "Brotli-q{quality}"),
+      Self::Gzip { quality } => write!(f, "gzip-q{quality}"),
+      Self::Zstd { quality } => write!(f, "Zstandard-q{quality}"),
     }
   }
 }
