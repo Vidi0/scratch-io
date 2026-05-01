@@ -2,6 +2,7 @@ use crate::eprintln_exit;
 
 use clap::Subcommand;
 use std::path::{Path, PathBuf};
+use wharf2::Dump;
 
 // These are calls to wharf commands (patch, verify)
 #[derive(Subcommand)]
@@ -98,14 +99,17 @@ fn info(wharf_file: &Path, dump: bool) {
     std::fs::File::open(wharf_file).unwrap_or_else(|e| eprintln_exit!("{e}")),
   );
 
-  let mut binary = wharf::info::identify(&mut file).unwrap_or_else(|e| eprintln_exit!("{e}"));
+  let mut binary = wharf2::WharfBinaryKind::identify(&mut file)
+    .unwrap_or_else(|e| eprintln_exit!("{e}"))
+    .read(&mut file)
+    .unwrap_or_else(|e| eprintln_exit!("{e}"));
 
   if dump {
     binary
-      .dump_stdout()
+      .dump(&mut std::io::stdout())
       .unwrap_or_else(|e| eprintln_exit!("{e}"));
   } else {
-    binary.print_summary();
+    println!("{binary}");
   }
 }
 

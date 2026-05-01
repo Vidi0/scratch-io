@@ -9,7 +9,8 @@ edition = "2024"
 
 [dependencies]
 scratch-io = { version = "0.1.4", path = "../scratch-io" }
-wharf = { version = "0.1.0", path = "../wharf" }
+wharf = { path = "../wharf" }
+wharf2 = {  path = "../wharf2" }
 
 clap = { version = "4.6.1", features = ["derive", "env"] }
 directories = "6.0.0"

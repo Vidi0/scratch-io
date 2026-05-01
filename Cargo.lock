@@ -2115,6 +2115,7 @@ dependencies = [
  "shell-words",
  "toml",
  "wharf",
+ "wharf2",
 ]
 
 [[package]]
