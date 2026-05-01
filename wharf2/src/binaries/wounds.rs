@@ -104,7 +104,7 @@ impl<'reader, R: BufRead + 'reader> WharfBinary<'reader, R> for Wounds<'reader, 
     // Create a new wounds iter
     let wounds_iter = WoundsIter::new(reader);
 
-    Ok(Wounds {
+    Ok(Self {
       header,
       container_new,
       wounds_iter,
