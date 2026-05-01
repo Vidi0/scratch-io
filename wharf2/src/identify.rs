@@ -61,7 +61,7 @@ impl<R: BufRead> Dump for WharfBinaryRead<'_, R> {
   fn dump(&mut self, writer: &mut impl std::io::Write) -> Result<()> {
     match self {
       Self::Signature(signature) => signature.dump(writer),
-      Self::Wounds(signature) => signature.dump(writer),
+      Self::Wounds(wounds) => wounds.dump(writer),
     }
   }
 }
