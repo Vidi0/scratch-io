@@ -15,7 +15,7 @@ pub struct WoundsIter<R: Read> {
 }
 
 impl<R: Read> WoundsIter<R> {
-  pub fn new(reader: R) -> Self {
+  fn new(reader: R) -> Self {
     Self {
       reader,
       has_finished: false,
