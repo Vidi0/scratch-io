@@ -18,7 +18,7 @@ impl<R: BufRead> Display for ZipIndex<'_, R> {
 
 impl<R: BufRead> Dump for ZipIndex<'_, R> {
   fn dump(&mut self, _writer: &mut impl std::io::Write) -> Result<()> {
-    todo!()
+    unimplemented!()
   }
 }
 
@@ -26,6 +26,6 @@ impl<'reader, R: BufRead + 'reader> WharfBinary<'reader, R> for ZipIndex<'reader
   const MAGIC: u32 = ZIP_INDEX_MAGIC;
 
   fn read_without_magic(_reader: &'reader mut R) -> crate::errors::Result<Self> {
-    todo!();
+    unimplemented!();
   }
 }
