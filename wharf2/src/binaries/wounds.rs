@@ -52,8 +52,8 @@ impl<R: Read> FusedIterator for WoundsIter<R> {}
 
 impl<R: Read> Dump for WoundsIter<R> {
   fn dump(&mut self, writer: &mut impl std::io::Write) -> Result<()> {
-    for hash in self {
-      hash?.dump(writer)?;
+    for wound in self {
+      wound?.dump(writer)?;
     }
 
     Ok(())
