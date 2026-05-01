@@ -1,4 +1,4 @@
-use crate::protos::{CompressionSettings, Container, File};
+use crate::protos::{CompressionSettings, Container, File, HashAlgorithm};
 
 use std::fmt::Display;
 
@@ -18,6 +18,15 @@ impl Display for CompressionSettings {
       Self::Brotli { quality } => write!(f, "Brotli-q{quality}"),
       Self::Gzip { quality } => write!(f, "gzip-q{quality}"),
       Self::Zstd { quality } => write!(f, "Zstandard-q{quality}"),
+    }
+  }
+}
+
+impl Display for HashAlgorithm {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      Self::Shake12832 => write!(f, "SHAKE128_32"),
+      Self::Crc32c => write!(f, "CRC32C"),
     }
   }
 }
