@@ -72,7 +72,7 @@ impl<R: Read> Dump for HashIter<R> {
 /// is reset for the next file, keeping the underlying reader in sync.
 pub struct FileHashIter<R: Read> {
   hash_iter: HashIter<R>,
-  remaining_files: VecDeque<u64>,
+  remaining_file_blocks: VecDeque<u64>,
 }
 
 impl<R: Read> FileHashIter<R> {
@@ -84,11 +84,11 @@ impl<R: Read> FileHashIter<R> {
     };
 
     // Get the number of blocks of each remaining file
-    let remaining_files = container.files.iter().map(|f| f.blocks()).collect();
+    let remaining_file_blocks = container.files.iter().map(|f| f.blocks()).collect();
 
     Self {
       hash_iter,
-      remaining_files,
+      remaining_file_blocks,
     }
   }
 }
@@ -100,7 +100,7 @@ impl<R: Read> LendingIterator for FileHashIter<R> {
     R: 'a;
 
   fn next<'a>(&'a mut self) -> Option<Self::Item<'a>> {
-    let file_blocks = self.remaining_files.pop_front()?;
+    let file_blocks = self.remaining_file_blocks.pop_front()?;
 
     // Skip the blocks that belong to the last file and have not been read
     if let Err(e) = self.hash_iter.drain() {
