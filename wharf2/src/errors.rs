@@ -34,7 +34,7 @@ pub enum InvalidBinary {
   InvalidLengthDelimiter { length_delimiter: Box<[u8]> },
 
   #[error(
-    "could not decode protobuf message of type \"{message_type}\"
+    "could not decode protobuf message of type \"{message_type}\":
 invalid protobuf message: {decode_error}
 {bytes:?}"
   )]
@@ -45,19 +45,21 @@ invalid protobuf message: {decode_error}
   },
 
   #[error(
-    "could not parse protobuf message of type \"{message_type}\"
+    "could not parse protobuf message of type \"{message_type}\":
+failed to parse field \"{field_name}\":
 {source}"
   )]
-  InvalidField {
+  UnparseableField {
     message_type: &'static str,
-    source: InvalidField,
+    field_name: &'static str,
+    source: UnparseableField,
   },
 }
 
 #[derive(Debug, Error)]
-pub enum InvalidField {
-  #[error("missing field: {field_name}")]
-  MissingField { field_name: &'static str },
+pub enum UnparseableField {
+  #[error("missing field")]
+  MissingField,
 
   #[error("expected valid usize, found: {int}")]
   ExpectedUsize { int: i64 },
@@ -69,12 +71,15 @@ pub enum InvalidField {
   ExpectedVecLength { expected: usize, found: usize },
 }
 
-impl InvalidField {
-  /// Convert this [`InvalidField`] error into a generic [`enum@Error`].
+impl UnparseableField {
+  /// Convert this [`UnparseableField`] error into a generic [`enum@Error`].
+  ///
   /// A `MessageType` type must be provided in order to add context to the error.
-  pub fn into_error<MessageType>(self) -> Error {
-    InvalidBinary::InvalidField {
+  /// The name of the invalid field must also be provided
+  pub fn into_error<MessageType>(self, field_name: &'static str) -> Error {
+    InvalidBinary::UnparseableField {
       message_type: std::any::type_name::<MessageType>(),
+      field_name,
       source: self,
     }
     .into()

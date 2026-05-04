@@ -13,33 +13,36 @@ mod pwr;
 mod tlc;
 
 use super::Message;
-use crate::errors::{Error, InvalidField, Result};
+use crate::errors::{Error, Result, UnparseableField};
 
 // Helper functions
 
-fn try_i64_into_u64<MessageType>(value: i64) -> Result<u64> {
+fn try_i64_into_u64<MessageType>(value: i64, field_name: &'static str) -> Result<u64> {
   value
     .try_into()
-    .map_err(|_| InvalidField::ExpectedU64 { int: value }.into_error::<MessageType>())
+    .map_err(|_| UnparseableField::ExpectedU64 { int: value }.into_error::<MessageType>(field_name))
 }
 
-fn try_i64_into_usize<MessageType>(value: i64) -> Result<usize> {
-  value
-    .try_into()
-    .map_err(|_| InvalidField::ExpectedUsize { int: value }.into_error::<MessageType>())
+fn try_i64_into_usize<MessageType>(value: i64, field_name: &'static str) -> Result<usize> {
+  value.try_into().map_err(|_| {
+    UnparseableField::ExpectedUsize { int: value }.into_error::<MessageType>(field_name)
+  })
 }
 
 fn try_unwrap_option<MessageType, T>(value: Option<T>, field_name: &'static str) -> Result<T> {
-  value.ok_or_else(|| InvalidField::MissingField { field_name }.into_error::<MessageType>())
+  value.ok_or_else(|| UnparseableField::MissingField.into_error::<MessageType>(field_name))
 }
 
-fn try_vec_to_array<const LEN: usize, MessageType, T>(value: Vec<T>) -> Result<[T; LEN]> {
+fn try_vec_to_array<const LEN: usize, MessageType, T>(
+  value: Vec<T>,
+  field_name: &'static str,
+) -> Result<[T; LEN]> {
   value.try_into().map_err(|vec: Vec<T>| {
-    InvalidField::ExpectedVecLength {
+    UnparseableField::ExpectedVecLength {
       expected: LEN,
       found: vec.len(),
     }
-    .into_error::<MessageType>()
+    .into_error::<MessageType>(field_name)
   })
 }
 
@@ -103,7 +106,7 @@ impl TryFrom<pwr::SyncHeader> for SyncHeader {
   fn try_from(value: pwr::SyncHeader) -> Result<Self> {
     Ok(Self {
       r#type: value.r#type().into(),
-      file_index: try_i64_into_usize::<Self>(value.file_index)?,
+      file_index: try_i64_into_usize::<Self>(value.file_index, "file_index")?,
     })
   }
 }
@@ -140,7 +143,7 @@ impl TryFrom<pwr::BsdiffHeader> for BsdiffHeader {
 
   fn try_from(value: pwr::BsdiffHeader) -> Result<Self> {
     Ok(Self {
-      target_index: try_i64_into_usize::<Self>(value.target_index)?,
+      target_index: try_i64_into_usize::<Self>(value.target_index, "target_index")?,
     })
   }
 }
@@ -166,9 +169,9 @@ impl TryFrom<pwr::SyncOp> for SyncOp {
   fn try_from(value: pwr::SyncOp) -> Result<Self> {
     Ok(match value.r#type() {
       pwr::sync_op::Type::BlockRange => Self::BlockRange {
-        file_index: try_i64_into_usize::<Self>(value.file_index)?,
-        block_index: try_i64_into_u64::<Self>(value.block_index)?,
-        block_span: try_i64_into_u64::<Self>(value.block_span)?,
+        file_index: try_i64_into_usize::<Self>(value.file_index, "file_index")?,
+        block_index: try_i64_into_u64::<Self>(value.block_index, "block_index")?,
+        block_span: try_i64_into_u64::<Self>(value.block_span, "block_span")?,
       },
       pwr::sync_op::Type::Data => Self::Data(value.data.into_boxed_slice()),
       pwr::sync_op::Type::HeyYouDidIt => Self::HeyYouDidIt,
@@ -242,7 +245,7 @@ impl TryFrom<pwr::BlockHash> for BlockHash {
   fn try_from(value: pwr::BlockHash) -> Result<Self> {
     Ok(Self {
       weak_hash: value.weak_hash,
-      strong_hash: try_vec_to_array::<_, Self, _>(value.strong_hash)?,
+      strong_hash: try_vec_to_array::<_, Self, _>(value.strong_hash, "strong_hash")?,
     })
   }
 }
@@ -300,7 +303,7 @@ impl TryFrom<pwr::ManifestBlockHash> for ManifestBlockHash {
 
   fn try_from(value: pwr::ManifestBlockHash) -> Result<Self> {
     Ok(Self {
-      hash: try_vec_to_array::<_, Self, _>(value.hash)?,
+      hash: try_vec_to_array::<_, Self, _>(value.hash, "hash")?,
     })
   }
 }
@@ -351,18 +354,18 @@ impl TryFrom<pwr::Wound> for Wound {
   fn try_from(value: pwr::Wound) -> Result<Self> {
     Ok(match value.kind() {
       pwr::WoundKind::File => Self::File {
-        index: try_i64_into_usize::<Self>(value.index)?,
-        start: try_i64_into_u64::<Self>(value.start)?,
-        end: try_i64_into_u64::<Self>(value.end)?,
+        index: try_i64_into_usize::<Self>(value.index, "index")?,
+        start: try_i64_into_u64::<Self>(value.start, "start")?,
+        end: try_i64_into_u64::<Self>(value.end, "end")?,
       },
       pwr::WoundKind::Symlink => Self::Symlink {
-        index: try_i64_into_usize::<Self>(value.index)?,
+        index: try_i64_into_usize::<Self>(value.index, "index")?,
       },
       pwr::WoundKind::Dir => Self::Dir {
-        index: try_i64_into_usize::<Self>(value.index)?,
+        index: try_i64_into_usize::<Self>(value.index, "index")?,
       },
       pwr::WoundKind::ClosedFile => Self::ClosedFile {
-        index: try_i64_into_usize::<Self>(value.index)?,
+        index: try_i64_into_usize::<Self>(value.index, "index")?,
       },
     })
   }
@@ -399,7 +402,7 @@ impl TryFrom<tlc::Container> for Container {
       files,
       dirs,
       symlinks,
-      size: try_i64_into_u64::<Self>(value.size)?,
+      size: try_i64_into_u64::<Self>(value.size, "size")?,
     })
   }
 }
@@ -438,8 +441,8 @@ impl TryFrom<tlc::File> for File {
     Ok(Self {
       path: value.path,
       mode: value.mode,
-      size: try_i64_into_u64::<Self>(value.size)?,
-      offset: try_i64_into_u64::<Self>(value.offset)?,
+      size: try_i64_into_u64::<Self>(value.size, "size")?,
+      offset: try_i64_into_u64::<Self>(value.offset, "offset")?,
     })
   }
 }
