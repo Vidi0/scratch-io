@@ -10,7 +10,7 @@ mod definitions;
 pub use definitions::*;
 
 use crate::binaries::{Dump, read_wharf_exact};
-use crate::errors::{Error, InvalidBinary, InvalidMessage, IoError, Result};
+use crate::errors::{Error, InvalidBinary, IoError, Result};
 
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -87,13 +87,12 @@ where
     read_wharf_exact(reader, &mut bytes)?;
 
     // Decode the protobuf message
-    let proto = Self::ProtoMessage::decode(bytes.as_slice()).map_err(|e| {
-      InvalidMessage::InvalidProto {
+    let proto =
+      Self::ProtoMessage::decode(bytes.as_slice()).map_err(|e| InvalidBinary::InvalidProto {
+        message_type: std::any::type_name::<Self>(),
         decode_error: e.to_string(),
         bytes: bytes.into_boxed_slice(),
-      }
-      .into_error::<Self>()
-    })?;
+      })?;
 
     // Parse the protobuf message
     proto.try_into().map_err(|e| e.into())

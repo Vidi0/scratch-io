@@ -34,26 +34,28 @@ pub enum InvalidBinary {
   InvalidLengthDelimiter { length_delimiter: Box<[u8]> },
 
   #[error(
-    "could not parse protobuf message of type \"{message_type}\"
-{source}"
-  )]
-  InvalidMessage {
-    message_type: &'static str,
-    source: InvalidMessage,
-  },
-}
-
-#[derive(Debug, Error)]
-pub enum InvalidMessage {
-  #[error(
-    "invalid protobuf message: {decode_error}
+    "could not decode protobuf message of type \"{message_type}\"
+invalid protobuf message: {decode_error}
 {bytes:?}"
   )]
   InvalidProto {
+    message_type: &'static str,
     decode_error: String,
     bytes: Box<[u8]>,
   },
 
+  #[error(
+    "could not parse protobuf message of type \"{message_type}\"
+{source}"
+  )]
+  InvalidField {
+    message_type: &'static str,
+    source: InvalidField,
+  },
+}
+
+#[derive(Debug, Error)]
+pub enum InvalidField {
   #[error("missing field: {field_name}")]
   MissingField { field_name: &'static str },
 
@@ -67,11 +69,11 @@ pub enum InvalidMessage {
   ExpectedVecLength { expected: usize, found: usize },
 }
 
-impl InvalidMessage {
-  /// Convert this [`InvalidWharfMessage`] error into a generic [`enum@Error`].
+impl InvalidField {
+  /// Convert this [`InvalidField`] error into a generic [`enum@Error`].
   /// A `MessageType` type must be provided in order to add context to the error.
   pub fn into_error<MessageType>(self) -> Error {
-    InvalidBinary::InvalidMessage {
+    InvalidBinary::InvalidField {
       message_type: std::any::type_name::<MessageType>(),
       source: self,
     }
