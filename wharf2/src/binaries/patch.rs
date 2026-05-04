@@ -295,7 +295,8 @@ pub struct FilePatchIter<R: Read> {
   // with the Bsdiff kind iter by taking the reader out
   patch_iter: Option<PatchOp<R>>,
 
-  remaining_files: usize,
+  total_files: usize,
+  read_files: usize,
 }
 
 impl<R: Read> FilePatchIter<R> {
@@ -306,12 +307,13 @@ impl<R: Read> FilePatchIter<R> {
       kind: PatchOpKind::empty(reader),
     };
 
-    // Get the number of blocks of each remaining file
-    let remaining_files = container.files.len();
+    // Get the number of files
+    let total_files = container.files.len();
 
     Self {
       patch_iter: Some(patch_iter),
-      remaining_files,
+      total_files,
+      read_files: 0,
     }
   }
 }
@@ -323,11 +325,9 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
     R: 'a;
 
   fn next<'a>(&'a mut self) -> Option<Self::Item<'a>> {
-    if self.remaining_files == 0 {
+    if self.read_files == self.total_files {
       return None;
     }
-
-    self.remaining_files -= 1;
 
     // Take the patch iter out of the Option
     // It is very important to put it back into place before returning
@@ -346,6 +346,19 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
       Err(e) => return Some(Err(e)),
     };
 
+    // Because sync headers are provided in order, and there must be exactly
+    // one sync header for each file in the new container, the index provided
+    // in the header must equal the number of read files from this iterator.
+    if header.file_index != self.read_files {
+      return Some(Err(
+        InconsistentMessage::NonconsecutivePatchHeaderIndex {
+          expected: self.read_files,
+          found: header.file_index,
+        }
+        .into_error::<SyncHeader>(),
+      ));
+    }
+
     let patch_iter = self.patch_iter.insert(PatchOp {
       file_index: header.file_index,
       kind: match header.r#type {
@@ -361,6 +374,8 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
         }
       },
     });
+
+    self.read_files += 1;
 
     Some(Ok(patch_iter))
   }

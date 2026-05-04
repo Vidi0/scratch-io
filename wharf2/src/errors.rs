@@ -126,6 +126,12 @@ pub enum InconsistentMessage {
 but found SyncOp with a different type instead"
   )]
   ExpectedHeyYouDidIt,
+
+  #[error(
+    "expected patch SyncHeader file_index to be consecutive.
+expected index: {expected}, found: {found}"
+  )]
+  NonconsecutivePatchHeaderIndex { expected: usize, found: usize },
 }
 
 impl InconsistentMessage {
