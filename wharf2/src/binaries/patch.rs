@@ -201,7 +201,7 @@ impl<R: Read> Iterator for PatchOpIter<R, op_kind::Bsdiff> {
 /// - `Rsync`: the file was patched using rsync block operations and raw data chunks.
 /// - `Bsdiff`: the file was patched using bsdiff binary diff controls against
 ///   the old file at `target_index` in the old container.
-pub enum PatchOpKind<R: Read> {
+pub enum PatchOp<R: Read> {
   Rsync {
     iter: PatchOpIter<R, op_kind::Rsync>,
   },
@@ -212,7 +212,7 @@ pub enum PatchOpKind<R: Read> {
   },
 }
 
-impl<R: Read> PatchOpKind<R> {
+impl<R: Read> PatchOp<R> {
   fn drain(&mut self) -> Result<()> {
     match self {
       Self::Rsync { iter } => iter.drain(),
@@ -247,39 +247,12 @@ impl<R: Read> PatchOpKind<R> {
   }
 }
 
-impl<R: Read> Dump for PatchOpKind<R> {
-  fn dump(&mut self, writer: &mut impl Write) -> Result<()> {
-    match self {
-      PatchOpKind::Rsync { iter } => iter.dump(writer),
-      PatchOpKind::Bsdiff { iter, .. } => iter.dump(writer),
-    }
-  }
-}
-
-/// The patch operations for a single file, together with the file index in the new container
-///
-/// The kind of operations is determined by [`PatchOpKind`]: either a sequence
-/// of [`RsyncOp`]s or a sequence of [`BsdiffOp`]s with an associated
-/// `target_index` pointing to the old file the diff was computed against.
-pub struct PatchOp<R: Read> {
-  #[expect(dead_code)]
-  pub file_index: usize,
-  pub kind: PatchOpKind<R>,
-}
-
-impl<R: Read> PatchOp<R> {
-  fn drain(&mut self) -> Result<()> {
-    self.kind.drain()
-  }
-
-  fn reader(self) -> R {
-    self.kind.reader()
-  }
-}
-
 impl<R: Read> Dump for PatchOp<R> {
   fn dump(&mut self, writer: &mut impl Write) -> Result<()> {
-    self.kind.dump(writer)
+    match self {
+      PatchOp::Rsync { iter } => iter.dump(writer),
+      PatchOp::Bsdiff { iter, .. } => iter.dump(writer),
+    }
   }
 }
 
@@ -302,10 +275,7 @@ pub struct FilePatchIter<R: Read> {
 impl<R: Read> FilePatchIter<R> {
   fn new(reader: R, container: &Container) -> Self {
     // Create the inner patch iter
-    let patch_iter = PatchOp {
-      file_index: 0,
-      kind: PatchOpKind::empty(reader),
-    };
+    let patch_iter = PatchOp::empty(reader);
 
     // Get the number of files
     let total_files = container.files.len();
@@ -359,20 +329,17 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
       ));
     }
 
-    let patch_iter = self.patch_iter.insert(PatchOp {
-      file_index: header.file_index,
-      kind: match header.r#type {
-        Type::Rsync => PatchOpKind::rsync(reader),
-        Type::Bsdiff => {
-          // Decode the bsdiff header
-          let bsdiff_header = match BsdiffHeader::decode(&mut reader) {
-            Ok(header) => header,
-            Err(e) => return Some(Err(e)),
-          };
+    let patch_iter = self.patch_iter.insert(match header.r#type {
+      Type::Rsync => PatchOp::rsync(reader),
+      Type::Bsdiff => {
+        // Decode the bsdiff header
+        let bsdiff_header = match BsdiffHeader::decode(&mut reader) {
+          Ok(header) => header,
+          Err(e) => return Some(Err(e)),
+        };
 
-          PatchOpKind::bsdiff(reader, bsdiff_header.target_index)
-        }
-      },
+        PatchOp::bsdiff(reader, bsdiff_header.target_index)
+      }
     });
 
     self.read_files += 1;
