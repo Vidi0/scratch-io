@@ -54,6 +54,15 @@ failed to parse field \"{field_name}\":
     field_name: &'static str,
     source: UnparseableField,
   },
+
+  #[error(
+    "inconsistent data in message of type \"{message_type}\":
+{source}"
+  )]
+  InconsistentMessage {
+    message_type: &'static str,
+    source: InconsistentMessage,
+  },
 }
 
 #[derive(Debug, Error)]
@@ -80,6 +89,29 @@ impl UnparseableField {
     InvalidBinary::UnparseableField {
       message_type: std::any::type_name::<MessageType>(),
       field_name,
+      source: self,
+    }
+    .into()
+  }
+}
+
+#[derive(Debug, Error)]
+pub enum InconsistentMessage {
+  #[error(
+    "expected rsync SyncOp with type=HeyYouDidIt after bsdiff Control operation with eof=true,\
+but found SyncOp with a different type instead"
+  )]
+  ExpectedHeyYouDidIt,
+}
+
+impl InconsistentMessage {
+  /// Convert this [`InconsistentMessage`] error into a generic [`enum@Error`].
+  ///
+  /// A `MessageType` type must be provided in order to add context to the error.
+  /// The name of the field where inconsistent data was found must also be provided
+  pub fn into_error<MessageType>(self) -> Error {
+    InvalidBinary::InconsistentMessage {
+      message_type: std::any::type_name::<MessageType>(),
       source: self,
     }
     .into()

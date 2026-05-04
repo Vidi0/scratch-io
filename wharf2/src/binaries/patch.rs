@@ -1,6 +1,6 @@
 use super::{Dump, LendingIterator, WharfBinary};
 use crate::decompress::Decompressor;
-use crate::errors::{IoError, Result};
+use crate::errors::{InconsistentMessage, IoError, Result};
 use crate::magic::PATCH_MAGIC;
 use crate::protos::sync_header::Type;
 use crate::protos::{BsdiffHeader, Container, Control, Message, PatchHeader, SyncHeader, SyncOp};
@@ -177,9 +177,14 @@ impl<R: Read> Iterator for PatchOpIter<R, op_kind::Bsdiff> {
     Some(match Control::decode(&mut self.reader) {
       Ok(Control::Eof) => {
         // After the bsdiff EOF message, a rsync HeyYouDidIt message follows
-        // For that reason, skip the next message.
-        if let Err(e) = SyncOp::skip(&mut self.reader) {
-          return Some(Err(e));
+        match SyncOp::decode(&mut self.reader) {
+          Ok(SyncOp::HeyYouDidIt) => (),
+          Ok(_) => {
+            return Some(Err(
+              InconsistentMessage::ExpectedHeyYouDidIt.into_error::<SyncOp>(),
+            ));
+          }
+          Err(e) => return Some(Err(e)),
         }
 
         self.has_finished = true;
