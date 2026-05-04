@@ -1,6 +1,6 @@
 use super::{Dump, WharfBinary};
 use crate::decompress::Decompressor;
-use crate::errors::{Error, InvalidWharfBinary, Result};
+use crate::errors::{Error, InvalidBinary, Result};
 use crate::magic::WOUNDS_MAGIC;
 use crate::protos::{CompressionSettings, Container, Message, Wound, WoundsHeader};
 
@@ -44,7 +44,7 @@ impl<R: Read> Iterator for WoundsIter<R> {
     // but return `None`
     match Wound::decode(&mut self.reader) {
       Ok(p) => Some(Ok(p)),
-      Err(Error::InvalidWharfBinary(InvalidWharfBinary::UnexpectedEOF)) => {
+      Err(Error::InvalidBinary(InvalidBinary::UnexpectedEOF)) => {
         self.has_finished = true;
         None
       }

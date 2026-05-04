@@ -8,7 +8,7 @@
 //! - [`check_magic_bytes`] to verify it matches an expected value
 
 use crate::binaries::read_wharf_exact;
-use crate::errors::{InvalidWharfBinary, Result};
+use crate::errors::{InvalidBinary, Result};
 
 use std::io::Read;
 
@@ -60,7 +60,7 @@ pub fn check_magic_bytes(reader: &mut impl Read, expected_magic: u32) -> Result<
     Ok(())
   } else {
     Err(
-      InvalidWharfBinary::MagicMismatch {
+      InvalidBinary::MagicMismatch {
         expected: expected_magic,
         found: magic,
       }

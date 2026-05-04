@@ -4,7 +4,7 @@ use crate::binaries::signature::Signature;
 use crate::binaries::wounds::Wounds;
 use crate::binaries::zip_index::ZipIndex;
 use crate::binaries::{Dump, WharfBinary};
-use crate::errors::{InvalidWharfBinary, Result};
+use crate::errors::{InvalidBinary, Result};
 use crate::magic::{
   MANIFEST_MAGIC, PATCH_MAGIC, SIGNATURE_MAGIC, WOUNDS_MAGIC, ZIP_INDEX_MAGIC, read_magic_bytes,
 };
@@ -40,7 +40,7 @@ impl WharfBinaryKind {
       MANIFEST_MAGIC => Self::Manifest,
       WOUNDS_MAGIC => Self::Wounds,
       ZIP_INDEX_MAGIC => Self::ZipIndex,
-      magic => return Err(InvalidWharfBinary::MagicNotFound { found: magic }.into()),
+      magic => return Err(InvalidBinary::MagicNotFound { found: magic }.into()),
     })
   }
 

@@ -10,7 +10,7 @@ mod definitions;
 pub use definitions::*;
 
 use crate::binaries::{Dump, read_wharf_exact};
-use crate::errors::{Error, InvalidWharfBinary, InvalidWharfMessage, IoError, Result};
+use crate::errors::{Error, InvalidBinary, InvalidMessage, IoError, Result};
 
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -44,7 +44,7 @@ fn read_length_delimiter(reader: &mut impl Read) -> Result<usize> {
 
   // Decode the varint
   prost::decode_length_delimiter(varint.as_slice()).map_err(|_| {
-    InvalidWharfBinary::InvalidLengthDelimiter {
+    InvalidBinary::InvalidLengthDelimiter {
       length_delimiter: Box::new(varint),
     }
     .into()
@@ -88,7 +88,7 @@ where
 
     // Decode the protobuf message
     let proto = Self::ProtoMessage::decode(bytes.as_slice()).map_err(|e| {
-      InvalidWharfMessage::InvalidProtoMessage {
+      InvalidMessage::InvalidProto {
         decode_error: e.to_string(),
         bytes: bytes.into_boxed_slice(),
       }
@@ -116,7 +116,7 @@ where
     if length == read_bytes {
       Ok(())
     } else {
-      Err(InvalidWharfBinary::UnexpectedEOF.into())
+      Err(InvalidBinary::UnexpectedEOF.into())
     }
   }
 }

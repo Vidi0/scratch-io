@@ -10,7 +10,7 @@ pub enum Error {
     "invalid wharf binary:
 {0}"
   )]
-  InvalidWharfBinary(#[from] InvalidWharfBinary),
+  InvalidBinary(#[from] InvalidBinary),
 
   #[error(
     "an IO error occured:
@@ -20,7 +20,7 @@ pub enum Error {
 }
 
 #[derive(Debug, Error)]
-pub enum InvalidWharfBinary {
+pub enum InvalidBinary {
   #[error("expected more bniary data, got EOF")]
   UnexpectedEOF,
 
@@ -39,23 +39,23 @@ pub enum InvalidWharfBinary {
   )]
   InvalidMessage {
     message_type: &'static str,
-    source: InvalidWharfMessage,
+    source: InvalidMessage,
   },
 }
 
 #[derive(Debug, Error)]
-pub enum InvalidWharfMessage {
+pub enum InvalidMessage {
   #[error(
     "invalid protobuf message: {decode_error}
 {bytes:?}"
   )]
-  InvalidProtoMessage {
+  InvalidProto {
     decode_error: String,
     bytes: Box<[u8]>,
   },
 
   #[error("missing field: {field_name}")]
-  MissingProtoField { field_name: &'static str },
+  MissingField { field_name: &'static str },
 
   #[error("expected valid usize, found: {int}")]
   ExpectedUsize { int: i64 },
@@ -67,11 +67,11 @@ pub enum InvalidWharfMessage {
   ExpectedVecLength { expected: usize, found: usize },
 }
 
-impl InvalidWharfMessage {
+impl InvalidMessage {
   /// Convert this [`InvalidWharfMessage`] error into a generic [`enum@Error`].
   /// A `MessageType` type must be provided in order to add context to the error.
   pub fn into_error<MessageType>(self) -> Error {
-    InvalidWharfBinary::InvalidMessage {
+    InvalidBinary::InvalidMessage {
       message_type: std::any::type_name::<MessageType>(),
       source: self,
     }

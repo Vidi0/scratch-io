@@ -13,31 +13,29 @@ mod pwr;
 mod tlc;
 
 use super::Message;
-use crate::errors::{Error, InvalidWharfMessage, Result};
+use crate::errors::{Error, InvalidMessage, Result};
 
 // Helper functions
 
 fn try_i64_into_u64<MessageType>(value: i64) -> Result<u64> {
   value
     .try_into()
-    .map_err(|_| InvalidWharfMessage::ExpectedU64 { int: value }.into_error::<MessageType>())
+    .map_err(|_| InvalidMessage::ExpectedU64 { int: value }.into_error::<MessageType>())
 }
 
 fn try_i64_into_usize<MessageType>(value: i64) -> Result<usize> {
   value
     .try_into()
-    .map_err(|_| InvalidWharfMessage::ExpectedUsize { int: value }.into_error::<MessageType>())
+    .map_err(|_| InvalidMessage::ExpectedUsize { int: value }.into_error::<MessageType>())
 }
 
 fn try_unwrap_option<MessageType, T>(value: Option<T>, field_name: &'static str) -> Result<T> {
-  value.ok_or_else(|| {
-    InvalidWharfMessage::MissingProtoField { field_name }.into_error::<MessageType>()
-  })
+  value.ok_or_else(|| InvalidMessage::MissingField { field_name }.into_error::<MessageType>())
 }
 
 fn try_vec_to_array<const LEN: usize, MessageType, T>(value: Vec<T>) -> Result<[T; LEN]> {
   value.try_into().map_err(|vec: Vec<T>| {
-    InvalidWharfMessage::ExpectedVecLength {
+    InvalidMessage::ExpectedVecLength {
       expected: LEN,
       found: vec.len(),
     }

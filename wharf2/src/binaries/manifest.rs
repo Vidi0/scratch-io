@@ -1,6 +1,6 @@
 use super::{Dump, WharfBinary};
 use crate::decompress::Decompressor;
-use crate::errors::{Error, InvalidWharfBinary, Result};
+use crate::errors::{Error, InvalidBinary, Result};
 use crate::magic::MANIFEST_MAGIC;
 use crate::protos::{ManifestBlockHash, ManifestHeader, Message};
 
@@ -40,7 +40,7 @@ impl<R: Read> Iterator for ManifestBlockIter<R> {
     // For that reason, don't error on `InvalidWharfBinary::UnexpectedEOF`, but return `None`
     match ManifestBlockHash::decode(&mut self.reader) {
       Ok(p) => Some(Ok(p)),
-      Err(Error::InvalidWharfBinary(InvalidWharfBinary::UnexpectedEOF)) => {
+      Err(Error::InvalidBinary(InvalidBinary::UnexpectedEOF)) => {
         self.has_finished = true;
         None
       }

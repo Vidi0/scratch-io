@@ -4,7 +4,7 @@ pub mod signature;
 pub mod wounds;
 pub mod zip_index;
 
-use crate::errors::{InvalidWharfBinary, IoError, Result};
+use crate::errors::{InvalidBinary, IoError, Result};
 use crate::magic::check_magic_bytes;
 
 use std::fmt::Display;
@@ -20,7 +20,7 @@ pub fn read_wharf_exact(reader: &mut impl Read, buf: &mut [u8]) -> Result<()> {
     // Return an InvalidWharfBinary error if an unexpected EOF is encountered,
     // and an IO error for every other case.
     if let io::ErrorKind::UnexpectedEof = e.kind() {
-      InvalidWharfBinary::UnexpectedEOF.into()
+      InvalidBinary::UnexpectedEOF.into()
     } else {
       IoError::WharfBinaryReadFailed(e).into()
     }
