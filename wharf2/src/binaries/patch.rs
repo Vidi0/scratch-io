@@ -294,8 +294,18 @@ impl<R: Read> FilePatchIter<R> {
     self.old_file_sizes.len()
   }
 
-  fn is_valid_old_file_index(&self, idx: usize) -> bool {
-    idx < self.old_files_count()
+  fn check_old_file_index<MessageType>(&self, idx: usize) -> Result<()> {
+    if idx < self.old_files_count() {
+      Ok(())
+    } else {
+      Err(
+        InconsistentMessage::OutOfBoundsFileIndex {
+          container_file_count: self.old_files_count(),
+          file_index: idx,
+        }
+        .into_error::<MessageType>(),
+      )
+    }
   }
 }
 
@@ -348,14 +358,8 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
       Type::Bsdiff => match BsdiffHeader::decode(patch_iter.reader_mut()) {
         Ok(BsdiffHeader { target_index }) => {
           // Check that the target index is in-bounds
-          if !self.is_valid_old_file_index(target_index) {
-            return Some(Err(
-              InconsistentMessage::OutOfBoundsFileIndex {
-                container_file_count: self.old_files_count(),
-                file_index: target_index,
-              }
-              .into_error::<BsdiffHeader>(),
-            ));
+          if let Err(e) = self.check_old_file_index::<BsdiffHeader>(target_index) {
+            return Some(Err(e));
           }
 
           SyncKind::Bsdiff { target_index }
