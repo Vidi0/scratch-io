@@ -274,7 +274,7 @@ pub struct FilePatchIter<R: Read> {
   // with the Bsdiff kind iter by taking the reader out
   patch_iter: Option<PatchOp<R>>,
 
-  old_container_file_count: usize,
+  old_file_sizes: Vec<u64>,
   file_indexes: Range<usize>,
 }
 
@@ -285,9 +285,17 @@ impl<R: Read> FilePatchIter<R> {
 
     Self {
       patch_iter: Some(patch_iter),
-      old_container_file_count: container_old.files.len(),
+      old_file_sizes: container_old.files.iter().map(|f| f.size).collect(),
       file_indexes: 0..container_new.files.len(),
     }
+  }
+
+  fn old_files_count(&self) -> usize {
+    self.old_file_sizes.len()
+  }
+
+  fn is_valid_old_file_index(&self, idx: usize) -> bool {
+    idx < self.old_files_count()
   }
 }
 
@@ -340,10 +348,10 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
       Type::Bsdiff => match BsdiffHeader::decode(patch_iter.reader_mut()) {
         Ok(BsdiffHeader { target_index }) => {
           // Check that the target index is in-bounds
-          if target_index >= self.old_container_file_count {
+          if !self.is_valid_old_file_index(target_index) {
             return Some(Err(
               InconsistentMessage::OutOfBoundsFileIndex {
-                container_file_count: self.old_container_file_count,
+                container_file_count: self.old_files_count(),
                 file_index: target_index,
               }
               .into_error::<BsdiffHeader>(),
