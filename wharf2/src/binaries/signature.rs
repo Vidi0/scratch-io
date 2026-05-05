@@ -4,10 +4,10 @@ use crate::errors::Result;
 use crate::magic::SIGNATURE_MAGIC;
 use crate::protos::{BlockHash, Container, Message, SignatureHeader};
 
-use std::collections::VecDeque;
 use std::fmt::Display;
 use std::io::{BufRead, Read};
 use std::iter::FusedIterator;
+use std::ops::Range;
 
 /// Iterator over the [`BlockHash`] messages for a single file in a signature
 ///
@@ -72,7 +72,9 @@ impl<R: Read> Dump for HashIter<R> {
 /// is reset for the next file, keeping the underlying reader in sync.
 pub struct FileHashIter<R: Read> {
   hash_iter: HashIter<R>,
-  remaining_file_blocks: VecDeque<u64>,
+
+  file_indexes: Range<usize>,
+  file_blocks: Vec<u64>,
 }
 
 impl<R: Read> FileHashIter<R> {
@@ -83,24 +85,26 @@ impl<R: Read> FileHashIter<R> {
       remaining_blocks: 0,
     };
 
-    // Get the number of blocks of each remaining file
-    let remaining_file_blocks = container.files.iter().map(|f| f.blocks()).collect();
+    // Get the number of blocks of each file
+    let file_blocks: Vec<u64> = container.files.iter().map(|f| f.blocks()).collect();
 
     Self {
       hash_iter,
-      remaining_file_blocks,
+      file_indexes: 0..file_blocks.len(),
+      file_blocks,
     }
   }
 }
 
 impl<R: Read> LendingIterator for FileHashIter<R> {
   type Item<'a>
-    = Result<&'a mut HashIter<R>>
+    = Result<(usize, &'a mut HashIter<R>)>
   where
     R: 'a;
 
   fn next<'a>(&'a mut self) -> Option<Self::Item<'a>> {
-    let file_blocks = self.remaining_file_blocks.pop_front()?;
+    let file_index = self.file_indexes.next()?;
+    let file_blocks = self.file_blocks[file_index];
 
     // Skip the blocks that belong to the last file and have not been read
     if let Err(e) = self.hash_iter.drain() {
@@ -110,14 +114,17 @@ impl<R: Read> LendingIterator for FileHashIter<R> {
     // Reset the hash iter
     self.hash_iter.remaining_blocks = file_blocks;
 
-    Some(Ok(&mut self.hash_iter))
+    Some(Ok((file_index, &mut self.hash_iter)))
   }
 }
 
 impl<R: Read> Dump for FileHashIter<R> {
   fn dump(&mut self, writer: &mut impl std::io::Write) -> Result<()> {
-    while let Some(hash_iter) = self.next() {
-      hash_iter?.dump(writer)?;
+    while let Some(item) = self.next() {
+      match item {
+        Ok((_file_index, hash_iter)) => hash_iter.dump(writer)?,
+        Err(e) => return Err(e),
+      }
     }
 
     Ok(())
