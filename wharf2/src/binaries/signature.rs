@@ -66,10 +66,9 @@ impl<R: Read> Dump for HashIter<R> {
 
 /// Lending iterator over per-file [`HashIter`]s in a signature stream
 ///
-/// Advances through the container's files in order, yielding a [`HashIter`]
-/// scoped to each file's blocks. When [`LendingIterator::next`] is called,
-/// any unread blocks from the previous file are drained before the iterator
-/// is reset for the next file, keeping the underlying reader in sync.
+/// Yields a `(file_index, `[`HashIter`]`)` tuple for each file in the
+/// container, in order. The [`HashIter`] covers exactly the blocks
+/// belonging to that file.
 pub struct FileHashIter<R: Read> {
   hash_iter: HashIter<R>,
 
@@ -103,6 +102,7 @@ impl<R: Read> LendingIterator for FileHashIter<R> {
     R: 'a;
 
   fn next<'a>(&'a mut self) -> Option<Self::Item<'a>> {
+    // Get the next file index or return None if there are no more files to process
     let file_index = self.file_indexes.next()?;
     let file_blocks = self.file_blocks[file_index];
 

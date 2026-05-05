@@ -259,11 +259,9 @@ impl<R: Read> Dump for PatchOp<R> {
 
 /// Lending iterator over per-file [`PatchOp`]s in a patch stream
 ///
-/// Advances through the new container's files in order, yielding a
-/// [`PatchOp`] for each file. When [`LendingIterator::next`] is called, any
-/// unread operations from the previous file are drained to keep the underlying
-/// reader in sync, then the next [`SyncHeader`] is decoded to determine the
-/// kind of operations for the current file.
+/// Yields a `(file_index, `[`PatchOp`]`)` tuple for each file in the new
+/// container, in order. The [`PatchOp`] contains all patch operations for
+/// that file.
 pub struct FilePatchIter<R: Read> {
   // The patch iter is stored as an Option to allow replacing the Rsync kind
   // with the Bsdiff kind iter by taking the reader out
@@ -291,6 +289,7 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
     R: 'a;
 
   fn next<'a>(&'a mut self) -> Option<Self::Item<'a>> {
+    // Get the next file index or return None if there are no more files to process
     let file_index = self.file_indexes.next()?;
 
     // Take the patch iter out of the Option
