@@ -221,6 +221,13 @@ impl<R: Read> PatchOp<R> {
     }
   }
 
+  fn reader_mut(&mut self) -> &mut R {
+    match self {
+      Self::Rsync { iter } => &mut iter.reader,
+      Self::Bsdiff { iter, .. } => &mut iter.reader,
+    }
+  }
+
   fn reader(self) -> R {
     match self {
       Self::Rsync { iter } => iter.reader,
@@ -292,19 +299,19 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
     // Get the next file index or return None if there are no more files to process
     let file_index = self.file_indexes.next()?;
 
-    // Take the patch iter out of the Option
-    // It is very important to put it back into place before returning
-    let mut patch_iter = self.patch_iter.take().unwrap();
+    // The patch iter must exist
+    // It is only wrapped in an Option to allow moving the reader out and in again
+    assert!(self.patch_iter.is_some());
+
+    let patch_iter = self.patch_iter.as_mut().unwrap();
 
     // Skip the patch operations that belong to the last file and have not been read
     if let Err(e) = patch_iter.drain() {
       return Some(Err(e));
     }
 
-    let mut reader = patch_iter.reader();
-
     // Determine the kind of patch operations for this file
-    let header = match SyncHeader::decode(&mut reader) {
+    let header = match SyncHeader::decode(patch_iter.reader_mut()) {
       Ok(header) => header,
       Err(e) => return Some(Err(e)),
     };
@@ -320,17 +327,27 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
       ));
     }
 
-    let patch_iter = self.patch_iter.insert(match header.r#type {
-      Type::Rsync => PatchOp::rsync(reader),
-      Type::Bsdiff => {
-        // Decode the bsdiff header
-        let bsdiff_header = match BsdiffHeader::decode(&mut reader) {
-          Ok(header) => header,
-          Err(e) => return Some(Err(e)),
-        };
+    enum SyncKind {
+      Rsync,
+      Bsdiff { target_index: usize },
+    }
 
-        PatchOp::bsdiff(reader, bsdiff_header.target_index)
-      }
+    // Decode the corresponding header for each kind of operation
+    let kind = match header.r#type {
+      Type::Rsync => SyncKind::Rsync,
+      Type::Bsdiff => match BsdiffHeader::decode(patch_iter.reader_mut()) {
+        Ok(BsdiffHeader { target_index }) => SyncKind::Bsdiff { target_index },
+        Err(e) => return Some(Err(e)),
+      },
+    };
+
+    // Take the patch iter out of the Option
+    // It is very important to put it back into place before returning
+    let reader = self.patch_iter.take().unwrap().reader();
+
+    let patch_iter = self.patch_iter.insert(match kind {
+      SyncKind::Rsync => PatchOp::rsync(reader),
+      SyncKind::Bsdiff { target_index } => PatchOp::bsdiff(reader, target_index),
     });
 
     Some(Ok((file_index, patch_iter)))
