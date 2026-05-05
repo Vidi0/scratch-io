@@ -275,7 +275,7 @@ pub struct FilePatchIter<R: Read> {
   patch_iter: Option<PatchOp<R>>,
 
   old_file_sizes: Vec<u64>,
-  file_indexes: Range<usize>,
+  new_file_indexes: Range<usize>,
 }
 
 impl<R: Read> FilePatchIter<R> {
@@ -286,7 +286,7 @@ impl<R: Read> FilePatchIter<R> {
     Self {
       patch_iter: Some(patch_iter),
       old_file_sizes: container_old.files.iter().map(|f| f.size).collect(),
-      file_indexes: 0..container_new.files.len(),
+      new_file_indexes: 0..container_new.files.len(),
     }
   }
 
@@ -307,7 +307,7 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
 
   fn next<'a>(&'a mut self) -> Option<Self::Item<'a>> {
     // Get the next file index or return None if there are no more files to process
-    let file_index = self.file_indexes.next()?;
+    let file_index = self.new_file_indexes.next()?;
 
     // The patch iter must exist
     // It is only wrapped in an Option to allow moving the reader out and in again
