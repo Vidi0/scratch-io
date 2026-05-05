@@ -98,9 +98,9 @@ pub enum RsyncOp {
   Data(Box<[u8]>),
 }
 
-impl From<SyncOp> for RsyncOp {
-  fn from(value: SyncOp) -> Self {
-    match value {
+impl RsyncOp {
+  fn from_op(op: SyncOp) -> Self {
+    match op {
       SyncOp::BlockRange {
         file_index,
         block_index,
@@ -136,7 +136,7 @@ impl<R: Read> Iterator for PatchOpIter<R, op_kind::Rsync> {
         self.has_finished = true;
         return None;
       }
-      Ok(sync_op) => Ok(sync_op.into()),
+      Ok(sync_op) => Ok(RsyncOp::from_op(sync_op)),
       Err(e) => Err(e),
     })
   }
@@ -151,9 +151,9 @@ pub struct BsdiffOp {
   pub seek: i64,
 }
 
-impl From<Control> for BsdiffOp {
-  fn from(value: Control) -> Self {
-    match value {
+impl BsdiffOp {
+  fn from_op(op: Control) -> Self {
+    match op {
       Control::Op { add, copy, seek } => Self { add, copy, seek },
       Control::Eof => unreachable!(),
     }
@@ -191,7 +191,7 @@ impl<R: Read> Iterator for PatchOpIter<R, op_kind::Bsdiff> {
         self.has_finished = true;
         return None;
       }
-      Ok(sync_op) => Ok(sync_op.into()),
+      Ok(sync_op) => Ok(BsdiffOp::from_op(sync_op)),
       Err(e) => Err(e),
     })
   }
