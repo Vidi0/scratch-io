@@ -9,6 +9,7 @@ use std::fmt::Display;
 use std::io::{BufRead, Read, Write};
 use std::iter::FusedIterator;
 use std::marker::PhantomData;
+use std::ops::Range;
 
 mod op_kind {
   #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -268,8 +269,7 @@ pub struct FilePatchIter<R: Read> {
   // with the Bsdiff kind iter by taking the reader out
   patch_iter: Option<PatchOp<R>>,
 
-  total_files: usize,
-  read_files: usize,
+  file_indexes: Range<usize>,
 }
 
 impl<R: Read> FilePatchIter<R> {
@@ -277,27 +277,21 @@ impl<R: Read> FilePatchIter<R> {
     // Create the inner patch iter
     let patch_iter = PatchOp::empty(reader);
 
-    // Get the number of files
-    let total_files = container.files.len();
-
     Self {
       patch_iter: Some(patch_iter),
-      total_files,
-      read_files: 0,
+      file_indexes: 0..container.files.len(),
     }
   }
 }
 
 impl<R: Read> LendingIterator for FilePatchIter<R> {
   type Item<'a>
-    = Result<&'a mut PatchOp<R>>
+    = Result<(usize, &'a mut PatchOp<R>)>
   where
     R: 'a;
 
   fn next<'a>(&'a mut self) -> Option<Self::Item<'a>> {
-    if self.read_files == self.total_files {
-      return None;
-    }
+    let file_index = self.file_indexes.next()?;
 
     // Take the patch iter out of the Option
     // It is very important to put it back into place before returning
@@ -316,13 +310,11 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
       Err(e) => return Some(Err(e)),
     };
 
-    // Because sync headers are provided in order, and there must be exactly
-    // one sync header for each file in the new container, the index provided
-    // in the header must equal the number of read files from this iterator.
-    if header.file_index != self.read_files {
+    // The index provided in the header must be equal to file_index.
+    if header.file_index != file_index {
       return Some(Err(
         InconsistentMessage::NonconsecutivePatchHeaderIndex {
-          expected: self.read_files,
+          expected: file_index,
           found: header.file_index,
         }
         .into_error::<SyncHeader>(),
@@ -342,16 +334,17 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
       }
     });
 
-    self.read_files += 1;
-
-    Some(Ok(patch_iter))
+    Some(Ok((file_index, patch_iter)))
   }
 }
 
 impl<R: Read> Dump for FilePatchIter<R> {
   fn dump(&mut self, writer: &mut impl Write) -> Result<()> {
-    while let Some(patch_iter) = self.next() {
-      patch_iter?.dump(writer)?;
+    while let Some(item) = self.next() {
+      match item {
+        Ok((_file_index, patch_iter)) => patch_iter.dump(writer)?,
+        Err(e) => return Err(e),
+      }
     }
 
     Ok(())
