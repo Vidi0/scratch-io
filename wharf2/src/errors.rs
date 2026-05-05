@@ -132,6 +132,15 @@ but found SyncOp with a different type instead"
 expected index: {expected}, found: {found}"
   )]
   NonconsecutivePatchHeaderIndex { expected: usize, found: usize },
+
+  #[error(
+    "out of bounds file index
+container file count: {container_file_count}, found index: {file_index}"
+  )]
+  OutOfBoundsFileIndex {
+    container_file_count: usize,
+    file_index: usize,
+  },
 }
 
 impl InconsistentMessage {

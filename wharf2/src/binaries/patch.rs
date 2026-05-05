@@ -274,17 +274,19 @@ pub struct FilePatchIter<R: Read> {
   // with the Bsdiff kind iter by taking the reader out
   patch_iter: Option<PatchOp<R>>,
 
+  old_container_file_count: usize,
   file_indexes: Range<usize>,
 }
 
 impl<R: Read> FilePatchIter<R> {
-  fn new(reader: R, container: &Container) -> Self {
+  fn new(reader: R, container_old: &Container, container_new: &Container) -> Self {
     // Create the inner patch iter
     let patch_iter = PatchOp::empty(reader);
 
     Self {
       patch_iter: Some(patch_iter),
-      file_indexes: 0..container.files.len(),
+      old_container_file_count: container_old.files.len(),
+      file_indexes: 0..container_new.files.len(),
     }
   }
 }
@@ -336,7 +338,20 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
     let kind = match header.r#type {
       Type::Rsync => SyncKind::Rsync,
       Type::Bsdiff => match BsdiffHeader::decode(patch_iter.reader_mut()) {
-        Ok(BsdiffHeader { target_index }) => SyncKind::Bsdiff { target_index },
+        Ok(BsdiffHeader { target_index }) => {
+          // Check that the target index is in-bounds
+          if target_index >= self.old_container_file_count {
+            return Some(Err(
+              InconsistentMessage::OutOfBoundsFileIndex {
+                container_file_count: self.old_container_file_count,
+                file_index: target_index,
+              }
+              .into_error::<BsdiffHeader>(),
+            ));
+          }
+
+          SyncKind::Bsdiff { target_index }
+        }
         Err(e) => return Some(Err(e)),
       },
     };
@@ -422,7 +437,7 @@ impl<'reader, R: BufRead + 'reader> WharfBinary<'reader, R> for Patch<'reader, R
     let container_new = Container::decode(&mut reader)?;
 
     // Create a new patch iter
-    let patch_iter = FilePatchIter::new(reader, &container_new);
+    let patch_iter = FilePatchIter::new(reader, &container_old, &container_new);
 
     Ok(Patch {
       header,
