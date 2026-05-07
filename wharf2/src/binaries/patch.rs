@@ -92,8 +92,8 @@ where
 pub enum RsyncOp {
   BlockRange {
     file_index: usize,
-    block_index: u64,
-    block_span: u64,
+    // To be replaced by std::range::Range<u64> when it is stabilized
+    block_range: Range<u64>,
   },
   Data(Box<[u8]>),
 }
@@ -107,8 +107,7 @@ impl RsyncOp {
         block_span,
       } => Self::BlockRange {
         file_index,
-        block_index,
-        block_span,
+        block_range: block_index..block_index + block_span,
       },
       SyncOp::Data(data) => Self::Data(data),
       SyncOp::HeyYouDidIt => unreachable!(),
