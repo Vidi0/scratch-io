@@ -275,6 +275,7 @@ pub struct FilePatchIter<R: Read> {
   patch_iter: Option<PatchOp<R>>,
 
   old_file_sizes: Vec<u64>,
+  // To be replaced by std::range::RangeIter<usize> when it is stabilized
   new_file_indexes: Range<usize>,
 }
 
