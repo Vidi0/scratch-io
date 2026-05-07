@@ -99,19 +99,30 @@ pub enum RsyncOp {
 }
 
 impl RsyncOp {
-  fn from_op(op: SyncOp) -> Self {
-    match op {
+  fn from_op(op: SyncOp) -> Result<Self> {
+    Ok(match op {
       SyncOp::BlockRange {
         file_index,
         block_index,
         block_span,
-      } => Self::BlockRange {
-        file_index,
-        block_range: block_index..block_index + block_span,
-      },
+      } => {
+        // Check that adding the block index and block span doesn't overflow
+        let end = block_index.checked_add(block_span).ok_or_else(|| {
+          InconsistentMessage::OverflowingBlockSpan {
+            block_index,
+            block_span,
+          }
+          .into_error::<SyncOp>()
+        })?;
+
+        Self::BlockRange {
+          file_index,
+          block_range: block_index..end,
+        }
+      }
       SyncOp::Data(data) => Self::Data(data),
       SyncOp::HeyYouDidIt => unreachable!(),
-    }
+    })
   }
 }
 
@@ -135,7 +146,7 @@ impl<R: Read> Iterator for PatchOpIter<R, op_kind::Rsync> {
         self.has_finished = true;
         return None;
       }
-      Ok(sync_op) => Ok(RsyncOp::from_op(sync_op)),
+      Ok(sync_op) => RsyncOp::from_op(sync_op),
       Err(e) => Err(e),
     })
   }

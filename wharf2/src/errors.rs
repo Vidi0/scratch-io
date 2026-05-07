@@ -141,6 +141,12 @@ container file count: {container_file_count}, found index: {file_index}"
     container_file_count: usize,
     file_index: usize,
   },
+
+  #[error(
+    "overflowing block span
+block index: {block_index}, block span: {block_span}"
+  )]
+  OverflowingBlockSpan { block_index: u64, block_span: u64 },
 }
 
 impl InconsistentMessage {
