@@ -8,63 +8,56 @@ use crate::protos::{BsdiffHeader, Container, Control, Message, PatchHeader, Sync
 use std::fmt::Display;
 use std::io::{BufRead, Read, Write};
 use std::iter::FusedIterator;
-use std::marker::PhantomData;
 use std::ops::Range;
 
-mod op_kind {
-  #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-  pub struct Rsync;
-  #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-  pub struct Bsdiff;
+enum PatchKind {
+  Rsync,
+  Bsdiff,
 }
 
-/// Iterator over the patch operations ([`RsyncOp`] or [`BsdiffOp`]) for a single file
+enum PatchStatus {
+  Running(PatchKind),
+  Finished,
+}
+
+/// Shared state for reading a sequence of patch operations from a stream.
 ///
-/// The kind of operations yielded is determined by the `K` type parameter:
-/// [`op_kind::Rsync`] yields [`RsyncOp`]s terminated by a `HeyYouDidIt`
-/// sentinel, and [`op_kind::Bsdiff`] yields [`BsdiffOp`]s terminated by an
-/// `Eof` control message followed by a `HeyYouDidIt` sentinel.
-///
-/// Construct via [`PatchOpIter::rsync`], [`PatchOpIter::bsdiff`], or
-/// [`PatchOpIter::empty`].
-pub struct PatchOpIter<R: Read, K> {
+/// Wraps a reader and tracks whether the current file's operation stream is
+/// still running or has been terminated by its end marker. Used as the backing
+/// store for [`RsyncOpIter`] and [`BsdiffOpIter`], which borrow it mutably.
+struct PatchOpIter<R: Read> {
   reader: R,
-  has_finished: bool,
-  _kind: PhantomData<K>,
+  status: PatchStatus,
 }
 
-impl<R: Read> PatchOpIter<R, op_kind::Rsync> {
-  fn empty(reader: R) -> Self {
+impl<R: Read> PatchOpIter<R> {
+  fn new(reader: R) -> Self {
     Self {
       reader,
-      has_finished: true,
-      _kind: PhantomData,
+      status: PatchStatus::Finished,
     }
   }
 
-  fn rsync(reader: R) -> Self {
-    Self {
-      reader,
-      has_finished: false,
-      _kind: PhantomData,
-    }
-  }
-}
-
-impl<R: Read> PatchOpIter<R, op_kind::Bsdiff> {
-  fn bsdiff(reader: R) -> Self {
-    Self {
-      reader,
-      has_finished: false,
-      _kind: PhantomData,
+  fn drain(&mut self) -> Result<()> {
+    match self.status {
+      PatchStatus::Finished => Ok(()),
+      // The RsyncOpIter and BsdiffOpIter are constructed directly (without calling new)
+      // to avoid setting the status again (it has just been checked)
+      PatchStatus::Running(PatchKind::Rsync) => RsyncOpIter(self).drain(),
+      PatchStatus::Running(PatchKind::Bsdiff) => BsdiffOpIter(self).drain(),
     }
   }
 }
 
-impl<R: Read, K, T> PatchOpIter<R, K>
-where
-  PatchOpIter<R, K>: Iterator<Item = Result<T>>,
-{
+pub struct RsyncOpIter<'a, R: Read>(&'a mut PatchOpIter<R>);
+pub struct BsdiffOpIter<'a, R: Read>(&'a mut PatchOpIter<R>);
+
+impl<'a, R: Read> RsyncOpIter<'a, R> {
+  fn new(patch_iter: &'a mut PatchOpIter<R>) -> Self {
+    patch_iter.status = PatchStatus::Running(PatchKind::Rsync);
+    Self(patch_iter)
+  }
+
   fn drain(&mut self) -> Result<()> {
     for op in self {
       op?;
@@ -74,12 +67,33 @@ where
   }
 }
 
-impl<R: Read, K, T> Dump for PatchOpIter<R, K>
-where
-  PatchOpIter<R, K>: Iterator<Item = Result<T>>,
-  T: Dump,
-{
-  fn dump(&mut self, writer: &mut impl Write) -> Result<()> {
+impl<'a, R: Read> BsdiffOpIter<'a, R> {
+  fn new(patch_iter: &'a mut PatchOpIter<R>) -> Self {
+    patch_iter.status = PatchStatus::Running(PatchKind::Bsdiff);
+    Self(patch_iter)
+  }
+
+  fn drain(&mut self) -> Result<()> {
+    for op in self {
+      op?;
+    }
+
+    Ok(())
+  }
+}
+
+impl<R: Read> Dump for RsyncOpIter<'_, R> {
+  fn dump(&mut self, writer: &mut impl std::io::Write) -> Result<()> {
+    for op in self {
+      op?.dump(writer)?;
+    }
+
+    Ok(())
+  }
+}
+
+impl<R: Read> Dump for BsdiffOpIter<'_, R> {
+  fn dump(&mut self, writer: &mut impl std::io::Write) -> Result<()> {
     for op in self {
       op?.dump(writer)?;
     }
@@ -132,18 +146,18 @@ impl Dump for RsyncOp {
   }
 }
 
-impl<R: Read> Iterator for PatchOpIter<R, op_kind::Rsync> {
+impl<R: Read> Iterator for RsyncOpIter<'_, R> {
   type Item = Result<RsyncOp>;
 
   /// Decode the next [`SyncOp`] in the stream
   fn next(&mut self) -> Option<Self::Item> {
-    if self.has_finished {
+    if let PatchStatus::Finished = self.0.status {
       return None;
     }
 
-    Some(match SyncOp::decode(&mut self.reader) {
+    Some(match SyncOp::decode(&mut self.0.reader) {
       Ok(SyncOp::HeyYouDidIt) => {
-        self.has_finished = true;
+        self.0.status = PatchStatus::Finished;
         return None;
       }
       Ok(sync_op) => RsyncOp::from_op(sync_op),
@@ -152,7 +166,7 @@ impl<R: Read> Iterator for PatchOpIter<R, op_kind::Rsync> {
   }
 }
 
-impl<R: Read, K> FusedIterator for PatchOpIter<R, K> where PatchOpIter<R, K>: Iterator {}
+impl<R: Read> FusedIterator for RsyncOpIter<'_, R> {}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BsdiffOp {
@@ -176,19 +190,19 @@ impl Dump for BsdiffOp {
   }
 }
 
-impl<R: Read> Iterator for PatchOpIter<R, op_kind::Bsdiff> {
+impl<R: Read> Iterator for BsdiffOpIter<'_, R> {
   type Item = Result<BsdiffOp>;
 
   /// Decode the next [`Control`] in the stream
   fn next(&mut self) -> Option<Self::Item> {
-    if self.has_finished {
+    if let PatchStatus::Finished = self.0.status {
       return None;
     }
 
-    Some(match Control::decode(&mut self.reader) {
+    Some(match Control::decode(&mut self.0.reader) {
       Ok(Control::Eof) => {
         // After the bsdiff EOF message, a rsync HeyYouDidIt message follows
-        match SyncOp::decode(&mut self.reader) {
+        match SyncOp::decode(&mut self.0.reader) {
           Ok(SyncOp::HeyYouDidIt) => (),
           Ok(_) => {
             return Some(Err(
@@ -198,7 +212,7 @@ impl<R: Read> Iterator for PatchOpIter<R, op_kind::Bsdiff> {
           Err(e) => return Some(Err(e)),
         }
 
-        self.has_finished = true;
+        self.0.status = PatchStatus::Finished;
         return None;
       }
       Ok(sync_op) => Ok(BsdiffOp::from_op(sync_op)),
@@ -207,65 +221,25 @@ impl<R: Read> Iterator for PatchOpIter<R, op_kind::Bsdiff> {
   }
 }
 
+impl<R: Read> FusedIterator for BsdiffOpIter<'_, R> {}
+
 /// The patch operation kind for a single file, holding the concrete op iterator
 ///
 /// - `Rsync`: the file was patched using rsync block operations and raw data chunks.
 /// - `Bsdiff`: the file was patched using bsdiff binary diff controls against
 ///   the old file at `target_index` in the old container.
-pub enum PatchOp<R: Read> {
+pub enum PatchOp<'a, R: Read> {
   Rsync {
-    iter: PatchOpIter<R, op_kind::Rsync>,
+    iter: RsyncOpIter<'a, R>,
   },
   Bsdiff {
-    iter: PatchOpIter<R, op_kind::Bsdiff>,
+    iter: BsdiffOpIter<'a, R>,
     #[expect(dead_code)]
     target_index: usize,
   },
 }
 
-impl<R: Read> PatchOp<R> {
-  fn drain(&mut self) -> Result<()> {
-    match self {
-      Self::Rsync { iter } => iter.drain(),
-      Self::Bsdiff { iter, .. } => iter.drain(),
-    }
-  }
-
-  fn reader_mut(&mut self) -> &mut R {
-    match self {
-      Self::Rsync { iter } => &mut iter.reader,
-      Self::Bsdiff { iter, .. } => &mut iter.reader,
-    }
-  }
-
-  fn reader(self) -> R {
-    match self {
-      Self::Rsync { iter } => iter.reader,
-      Self::Bsdiff { iter, .. } => iter.reader,
-    }
-  }
-
-  fn empty(reader: R) -> Self {
-    Self::Rsync {
-      iter: PatchOpIter::empty(reader),
-    }
-  }
-
-  fn rsync(reader: R) -> Self {
-    Self::Rsync {
-      iter: PatchOpIter::rsync(reader),
-    }
-  }
-
-  fn bsdiff(reader: R, target_index: usize) -> Self {
-    Self::Bsdiff {
-      iter: PatchOpIter::bsdiff(reader),
-      target_index,
-    }
-  }
-}
-
-impl<R: Read> Dump for PatchOp<R> {
+impl<R: Read> Dump for PatchOp<'_, R> {
   fn dump(&mut self, writer: &mut impl Write) -> Result<()> {
     match self {
       PatchOp::Rsync { iter } => iter.dump(writer),
@@ -279,10 +253,11 @@ impl<R: Read> Dump for PatchOp<R> {
 /// Yields a `(file_index, `[`PatchOp`]`)` tuple for each file in the new
 /// container, in order. The [`PatchOp`] contains all patch operations for
 /// that file.
+///
+/// Before yielding each item, drains any unread operations left over from
+/// the previous file.
 pub struct FilePatchIter<R: Read> {
-  // The patch iter is stored as an Option to allow replacing the Rsync kind
-  // with the Bsdiff kind iter by taking the reader out
-  patch_iter: Option<PatchOp<R>>,
+  patch_iter: PatchOpIter<R>,
 
   old_file_sizes: Vec<u64>,
   // To be replaced by std::range::RangeIter<usize> when it is stabilized
@@ -292,10 +267,10 @@ pub struct FilePatchIter<R: Read> {
 impl<R: Read> FilePatchIter<R> {
   fn new(reader: R, container_old: &Container, container_new: &Container) -> Self {
     // Create the inner patch iter
-    let patch_iter = PatchOp::empty(reader);
+    let patch_iter = PatchOpIter::new(reader);
 
     Self {
-      patch_iter: Some(patch_iter),
+      patch_iter,
       old_file_sizes: container_old.files.iter().map(|f| f.size).collect(),
       new_file_indexes: 0..container_new.files.len(),
     }
@@ -322,7 +297,7 @@ impl<R: Read> FilePatchIter<R> {
 
 impl<R: Read> LendingIterator for FilePatchIter<R> {
   type Item<'a>
-    = Result<(usize, &'a mut PatchOp<R>)>
+    = Result<(usize, PatchOp<'a, R>)>
   where
     R: 'a;
 
@@ -330,19 +305,13 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
     // Get the next file index or return None if there are no more files to process
     let file_index = self.new_file_indexes.next()?;
 
-    // The patch iter must exist
-    // It is only wrapped in an Option to allow moving the reader out and in again
-    assert!(self.patch_iter.is_some());
-
-    let patch_iter = self.patch_iter.as_mut().unwrap();
-
     // Skip the patch operations that belong to the last file and have not been read
-    if let Err(e) = patch_iter.drain() {
+    if let Err(e) = self.patch_iter.drain() {
       return Some(Err(e));
     }
 
     // Determine the kind of patch operations for this file
-    let header = match SyncHeader::decode(patch_iter.reader_mut()) {
+    let header = match SyncHeader::decode(&mut self.patch_iter.reader) {
       Ok(header) => header,
       Err(e) => return Some(Err(e)),
     };
@@ -358,37 +327,27 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
       ));
     }
 
-    enum SyncKind {
-      Rsync,
-      Bsdiff { target_index: usize },
-    }
-
-    // Decode the corresponding header for each kind of operation
-    let kind = match header.r#type {
-      Type::Rsync => SyncKind::Rsync,
-      Type::Bsdiff => match BsdiffHeader::decode(patch_iter.reader_mut()) {
+    let patch_op = match header.r#type {
+      Type::Rsync => PatchOp::Rsync {
+        iter: RsyncOpIter::new(&mut self.patch_iter),
+      },
+      Type::Bsdiff => match BsdiffHeader::decode(&mut self.patch_iter.reader) {
+        Err(e) => return Some(Err(e)),
         Ok(BsdiffHeader { target_index }) => {
           // Check that the target index is in-bounds
           if let Err(e) = self.check_old_file_index::<BsdiffHeader>(target_index) {
             return Some(Err(e));
           }
 
-          SyncKind::Bsdiff { target_index }
+          PatchOp::Bsdiff {
+            iter: BsdiffOpIter::new(&mut self.patch_iter),
+            target_index,
+          }
         }
-        Err(e) => return Some(Err(e)),
       },
     };
 
-    // Take the patch iter out of the Option
-    // It is very important to put it back into place before returning
-    let reader = self.patch_iter.take().unwrap().reader();
-
-    let patch_iter = self.patch_iter.insert(match kind {
-      SyncKind::Rsync => PatchOp::rsync(reader),
-      SyncKind::Bsdiff { target_index } => PatchOp::bsdiff(reader, target_index),
-    });
-
-    Some(Ok((file_index, patch_iter)))
+    Some(Ok((file_index, patch_op)))
   }
 }
 
@@ -396,7 +355,7 @@ impl<R: Read> Dump for FilePatchIter<R> {
   fn dump(&mut self, writer: &mut impl Write) -> Result<()> {
     while let Some(item) = self.next() {
       match item {
-        Ok((_file_index, patch_iter)) => patch_iter.dump(writer)?,
+        Ok((_file_index, mut patch_iter)) => patch_iter.dump(writer)?,
         Err(e) => return Err(e),
       }
     }
