@@ -149,7 +149,7 @@ impl Dump for RsyncOp {
 impl<R: Read> Iterator for RsyncOpIter<'_, R> {
   type Item = Result<RsyncOp>;
 
-  /// Decode the next [`SyncOp`] in the stream
+  /// Decode the next [`RsyncOp`] in the stream
   fn next(&mut self) -> Option<Self::Item> {
     if let PatchStatus::Finished = self.0.status {
       return None;
@@ -193,7 +193,7 @@ impl Dump for BsdiffOp {
 impl<R: Read> Iterator for BsdiffOpIter<'_, R> {
   type Item = Result<BsdiffOp>;
 
-  /// Decode the next [`Control`] in the stream
+  /// Decode the next [`BsdiffOp`] in the stream
   fn next(&mut self) -> Option<Self::Item> {
     if let PatchStatus::Finished = self.0.status {
       return None;
