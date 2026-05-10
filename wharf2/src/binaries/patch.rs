@@ -224,13 +224,13 @@ impl<R: Read> Iterator for BsdiffOpIter<'_, R> {
 
 impl Dump for RsyncOp {
   fn dump(&mut self, writer: &mut impl Write) -> Result<()> {
-    writeln!(writer, "{:?}", self).map_err(|e| IoError::WriteDumpFailed(e).into())
+    writeln!(writer, "{self:?}").map_err(|e| IoError::WriteDumpFailed(e).into())
   }
 }
 
 impl Dump for BsdiffOp {
   fn dump(&mut self, writer: &mut impl Write) -> Result<()> {
-    writeln!(writer, "{:?}", self).map_err(|e| IoError::WriteDumpFailed(e).into())
+    writeln!(writer, "{self:?}").map_err(|e| IoError::WriteDumpFailed(e).into())
   }
 }
 
@@ -295,7 +295,7 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
   where
     R: 'a;
 
-  fn next<'a>(&'a mut self) -> Option<Self::Item<'a>> {
+  fn next(&mut self) -> Option<Self::Item<'_>> {
     // Get the next file index or return None if there are no more files to process
     let file_index = self.new_file_indexes.next()?;
 
