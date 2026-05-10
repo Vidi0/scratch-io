@@ -183,11 +183,11 @@ impl RsyncOp {
 }
 
 impl BsdiffOp {
-  fn from_op(op: Control) -> Self {
-    match op {
+  fn from_op(op: Control) -> Result<Self> {
+    Ok(match op {
       Control::Op { add, copy, seek } => Self { add, copy, seek },
       Control::Eof => unreachable!(),
-    }
+    })
   }
 }
 
@@ -236,7 +236,7 @@ impl<R: Read> Iterator for BsdiffOpIter<'_, R> {
         self.0.status = PatchStatus::Finished;
         return None;
       }
-      Ok(sync_op) => Ok(BsdiffOp::from_op(sync_op)),
+      Ok(sync_op) => BsdiffOp::from_op(sync_op),
       Err(e) => Err(e),
     })
   }
