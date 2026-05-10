@@ -331,7 +331,6 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
         iter: RsyncOpIter::new(&mut self.patch_iter),
       },
       Type::Bsdiff => match BsdiffHeader::decode(&mut self.patch_iter.reader) {
-        Err(e) => return Some(Err(e)),
         Ok(BsdiffHeader { target_index }) => {
           // Check that the target index is in-bounds
           if let Err(e) = self.check_old_file_index::<BsdiffHeader>(target_index) {
@@ -343,6 +342,7 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
             target_index,
           }
         }
+        Err(e) => return Some(Err(e)),
       },
     };
 
