@@ -143,10 +143,30 @@ container file count: {container_file_count}, found index: {file_index}"
   },
 
   #[error(
-    "overflowing block span
-block index: {block_index}, block span: {block_span}"
+    "overflowing block index: {block_index}
+could not be multiplied by BLOCK_SIZE: {}",
+    crate::container::BLOCK_SIZE
   )]
-  OverflowingBlockSpan { block_index: u64, block_span: u64 },
+  OverflowingBlockIndex { block_index: u64 },
+
+  #[error(
+    "overflowing block span: {block_span}
+could not be multiplied by BLOCK_SIZE: {}",
+    crate::container::BLOCK_SIZE
+  )]
+  OverflowingBlockSpan { block_span: u64 },
+
+  #[error(
+    "overflowing range end, could not add start and span
+start: {start}, bytes span: {bytes_span}"
+  )]
+  OverflowingRangeEnd { start: u64, bytes_span: u64 },
+
+  #[error(
+    "out of bounds block index
+file size: {file_size}, block index: {block_index}"
+  )]
+  OutOfBoundsBlockIndex { file_size: u64, block_index: u64 },
 }
 
 impl InconsistentMessage {

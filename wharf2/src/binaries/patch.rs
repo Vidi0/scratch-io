@@ -1,4 +1,5 @@
 use super::{Dump, LendingIterator, WharfBinary};
+use crate::container::BLOCK_SIZE;
 use crate::decompress::Decompressor;
 use crate::errors::{InconsistentMessage, IoError, Result};
 use crate::magic::PATCH_MAGIC;
@@ -122,7 +123,7 @@ pub enum RsyncOp {
   BlockRange {
     file_index: usize,
     // To be replaced by std::range::Range<u64> when it is stabilized
-    block_range: Range<u64>,
+    bytes_range: Range<u64>,
   },
   Data(Box<[u8]>),
 }
@@ -135,25 +136,44 @@ pub struct BsdiffOp {
 }
 
 impl RsyncOp {
-  fn from_op(op: SyncOp) -> Result<Self> {
+  fn from_op(op: SyncOp, old_file_sizes: &[u64]) -> Result<Self> {
     Ok(match op {
       SyncOp::BlockRange {
         file_index,
         block_index,
         block_span,
       } => {
-        // Check that adding the block index and block span doesn't overflow
-        let end = block_index.checked_add(block_span).ok_or_else(|| {
-          InconsistentMessage::OverflowingBlockSpan {
-            block_index,
-            block_span,
-          }
-          .into_error::<SyncOp>()
+        // Check the file index is in-bounds and obtain its size
+        let file_size = get_old_file_size::<SyncOp>(old_file_sizes, file_index)?;
+
+        let start = block_index.checked_mul(BLOCK_SIZE as u64).ok_or_else(|| {
+          InconsistentMessage::OverflowingBlockIndex { block_index }.into_error::<SyncOp>()
         })?;
+
+        if start > file_size {
+          return Err(
+            InconsistentMessage::OutOfBoundsBlockIndex {
+              file_size,
+              block_index,
+            }
+            .into_error::<SyncOp>(),
+          );
+        }
+
+        let bytes_span = block_span.checked_mul(BLOCK_SIZE as u64).ok_or_else(|| {
+          InconsistentMessage::OverflowingBlockSpan { block_span }.into_error::<SyncOp>()
+        })?;
+
+        let end = start
+          .checked_add(bytes_span)
+          .ok_or_else(|| {
+            InconsistentMessage::OverflowingRangeEnd { start, bytes_span }.into_error::<SyncOp>()
+          })?
+          .min(file_size);
 
         Self::BlockRange {
           file_index,
-          block_range: block_index..end,
+          bytes_range: start..end,
         }
       }
       SyncOp::Data(data) => Self::Data(data),
@@ -185,7 +205,7 @@ impl<R: Read> Iterator for RsyncOpIter<'_, R> {
         self.0.status = PatchStatus::Finished;
         return None;
       }
-      Ok(sync_op) => RsyncOp::from_op(sync_op),
+      Ok(sync_op) => RsyncOp::from_op(sync_op, &self.0.old_file_sizes),
       Err(e) => Err(e),
     })
   }
