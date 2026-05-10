@@ -112,6 +112,13 @@ pub enum RsyncOp {
   Data(Box<[u8]>),
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BsdiffOp {
+  pub add: Box<[u8]>,
+  pub copy: Box<[u8]>,
+  pub seek: i64,
+}
+
 impl RsyncOp {
   fn from_op(op: SyncOp) -> Result<Self> {
     Ok(match op {
@@ -140,9 +147,12 @@ impl RsyncOp {
   }
 }
 
-impl Dump for RsyncOp {
-  fn dump(&mut self, writer: &mut impl Write) -> Result<()> {
-    writeln!(writer, "{:?}", self).map_err(|e| IoError::WriteDumpFailed(e).into())
+impl BsdiffOp {
+  fn from_op(op: Control) -> Self {
+    match op {
+      Control::Op { add, copy, seek } => Self { add, copy, seek },
+      Control::Eof => unreachable!(),
+    }
   }
 }
 
@@ -163,30 +173,6 @@ impl<R: Read> Iterator for RsyncOpIter<'_, R> {
       Ok(sync_op) => RsyncOp::from_op(sync_op),
       Err(e) => Err(e),
     })
-  }
-}
-
-impl<R: Read> FusedIterator for RsyncOpIter<'_, R> {}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BsdiffOp {
-  pub add: Box<[u8]>,
-  pub copy: Box<[u8]>,
-  pub seek: i64,
-}
-
-impl BsdiffOp {
-  fn from_op(op: Control) -> Self {
-    match op {
-      Control::Op { add, copy, seek } => Self { add, copy, seek },
-      Control::Eof => unreachable!(),
-    }
-  }
-}
-
-impl Dump for BsdiffOp {
-  fn dump(&mut self, writer: &mut impl Write) -> Result<()> {
-    writeln!(writer, "{:?}", self).map_err(|e| IoError::WriteDumpFailed(e).into())
   }
 }
 
@@ -221,6 +207,19 @@ impl<R: Read> Iterator for BsdiffOpIter<'_, R> {
   }
 }
 
+impl Dump for RsyncOp {
+  fn dump(&mut self, writer: &mut impl Write) -> Result<()> {
+    writeln!(writer, "{:?}", self).map_err(|e| IoError::WriteDumpFailed(e).into())
+  }
+}
+
+impl Dump for BsdiffOp {
+  fn dump(&mut self, writer: &mut impl Write) -> Result<()> {
+    writeln!(writer, "{:?}", self).map_err(|e| IoError::WriteDumpFailed(e).into())
+  }
+}
+
+impl<R: Read> FusedIterator for RsyncOpIter<'_, R> {}
 impl<R: Read> FusedIterator for BsdiffOpIter<'_, R> {}
 
 /// The patch operation kind for a single file, holding the concrete op iterator
