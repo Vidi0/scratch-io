@@ -20,6 +20,17 @@ enum PatchStatus {
   Finished,
 }
 
+// The `MessageType` must be provided to add context to the returned error
+fn get_old_file_size<MessageType>(old_file_sizes: &[u64], index: usize) -> Result<u64> {
+  old_file_sizes.get(index).copied().ok_or_else(|| {
+    InconsistentMessage::OutOfBoundsFileIndex {
+      container_file_count: old_file_sizes.len(),
+      file_index: index,
+    }
+    .into_error::<MessageType>()
+  })
+}
+
 /// Shared state for reading a sequence of patch operations from a stream.
 ///
 /// Wraps a reader and tracks whether the current file's operation stream is
@@ -50,17 +61,6 @@ impl<R: Read> PatchOpIter<R> {
       PatchStatus::Running(PatchKind::Rsync) => RsyncOpIter(self).drain(),
       PatchStatus::Running(PatchKind::Bsdiff) => BsdiffOpIter(self).drain(),
     }
-  }
-
-  // The `MessageType` must be provided to add context to the returned error
-  fn old_file_size<MessageType>(&self, index: usize) -> Result<u64> {
-    self.old_file_sizes.get(index).copied().ok_or_else(|| {
-      InconsistentMessage::OutOfBoundsFileIndex {
-        container_file_count: self.old_file_sizes.len(),
-        file_index: index,
-      }
-      .into_error::<MessageType>()
-    })
   }
 }
 
@@ -328,7 +328,9 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
       Type::Bsdiff => match BsdiffHeader::decode(&mut self.patch_iter.reader) {
         Ok(BsdiffHeader { target_index }) => {
           // Check that the target index is in-bounds
-          if let Err(e) = self.patch_iter.old_file_size::<BsdiffHeader>(target_index) {
+          if let Err(e) =
+            get_old_file_size::<BsdiffHeader>(&self.patch_iter.old_file_sizes, target_index)
+          {
             return Some(Err(e));
           }
 
