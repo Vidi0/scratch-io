@@ -28,13 +28,17 @@ enum PatchStatus {
 struct PatchOpIter<R: Read> {
   reader: R,
   status: PatchStatus,
+
+  // Store the old file sizes to be able to detect invalid messages
+  old_file_sizes: Vec<u64>,
 }
 
 impl<R: Read> PatchOpIter<R> {
-  fn new(reader: R) -> Self {
+  fn new(reader: R, container_old: &Container) -> Self {
     Self {
       reader,
       status: PatchStatus::Finished,
+      old_file_sizes: container_old.files.iter().map(|f| f.size).collect(),
     }
   }
 
@@ -46,6 +50,17 @@ impl<R: Read> PatchOpIter<R> {
       PatchStatus::Running(PatchKind::Rsync) => RsyncOpIter(self).drain(),
       PatchStatus::Running(PatchKind::Bsdiff) => BsdiffOpIter(self).drain(),
     }
+  }
+
+  // The `MessageType` must be provided to add context to the returned error
+  fn old_file_size<MessageType>(&self, index: usize) -> Result<u64> {
+    self.old_file_sizes.get(index).copied().ok_or_else(|| {
+      InconsistentMessage::OutOfBoundsFileIndex {
+        container_file_count: self.old_file_sizes.len(),
+        file_index: index,
+      }
+      .into_error::<MessageType>()
+    })
   }
 }
 
@@ -258,7 +273,6 @@ impl<R: Read> Dump for PatchOp<'_, R> {
 pub struct FilePatchIter<R: Read> {
   patch_iter: PatchOpIter<R>,
 
-  old_file_sizes: Vec<u64>,
   // To be replaced by std::range::RangeIter<usize> when it is stabilized
   new_file_indexes: Range<usize>,
 }
@@ -266,30 +280,11 @@ pub struct FilePatchIter<R: Read> {
 impl<R: Read> FilePatchIter<R> {
   fn new(reader: R, container_old: &Container, container_new: &Container) -> Self {
     // Create the inner patch iter
-    let patch_iter = PatchOpIter::new(reader);
+    let patch_iter = PatchOpIter::new(reader, container_old);
 
     Self {
       patch_iter,
-      old_file_sizes: container_old.files.iter().map(|f| f.size).collect(),
       new_file_indexes: 0..container_new.files.len(),
-    }
-  }
-
-  fn old_files_count(&self) -> usize {
-    self.old_file_sizes.len()
-  }
-
-  fn check_old_file_index<MessageType>(&self, idx: usize) -> Result<()> {
-    if idx < self.old_files_count() {
-      Ok(())
-    } else {
-      Err(
-        InconsistentMessage::OutOfBoundsFileIndex {
-          container_file_count: self.old_files_count(),
-          file_index: idx,
-        }
-        .into_error::<MessageType>(),
-      )
     }
   }
 }
@@ -333,7 +328,7 @@ impl<R: Read> LendingIterator for FilePatchIter<R> {
       Type::Bsdiff => match BsdiffHeader::decode(&mut self.patch_iter.reader) {
         Ok(BsdiffHeader { target_index }) => {
           // Check that the target index is in-bounds
-          if let Err(e) = self.check_old_file_index::<BsdiffHeader>(target_index) {
+          if let Err(e) = self.patch_iter.old_file_size::<BsdiffHeader>(target_index) {
             return Some(Err(e));
           }
 
