@@ -1,5 +1,9 @@
 # 🎮 scratch-io
 
+> [!WARNING]
+> scratch-io is an **incomplete** reimplementation of itch.io's [butler](https://github.com/itchio/butler) command line tools.
+> It is advised to use butler instead of scratch-io, as butler is officially supported by itch.io.
+
 **scratch-io** is a command-line tool for managing, downloading, and launching games from [itch.io](https://itch.io).
 
 ## ✨ Features
